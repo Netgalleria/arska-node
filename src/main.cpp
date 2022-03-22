@@ -70,24 +70,28 @@ tm tm_struct;
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
 bool backup_ap_mode_on = false;
-#define FORCED_RESTART_DELAY 600
+#define FORCED_RESTART_DELAY 600 //If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
+
 void check_forced_restart(bool reset_counter = false)
 {
   // tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
   if (!backup_ap_mode_on) // only valid if forced ap-mode (no normal wifi)
     return;
+    
   time_t now;
   time(&now);
   if (reset_counter)
   {
     forced_restart_ts = now + FORCED_RESTART_DELAY;
+    Serial.print(F("forced_restart_ts:")); Serial.println(forced_restart_ts);
   }
   else if ((forced_restart_ts < now) && ((now - forced_restart_ts) < 7200)) // check that both values are same way synched
   {
     Serial.println(F("check_forced_restart restarting"));
-    delay(2000); // EI KAI TOIMI OIKEIN JOS KELLO EI ASETTTU
+    delay(2000); // EI KAI TOIMI OIKEIN JOS KELLO EI ASETTTU, mutta ei kai asetettu jos ei rtc eikä nettiyhteyttä
     ESP.restart();
   }
+
 }
 
 #define MY_NTP_SERVER "europe.pool.ntp.org"
@@ -1405,7 +1409,7 @@ String setup_form_processor(const String &var)
   if (var == "wifi_password")
     return s.wifi_password;
   if (var == "http_username")
-    return F("arska");
+    return s.http_username;
   if (var == "http_password")
     return s.http_password;
 
@@ -1598,7 +1602,7 @@ int get_channel_to_switch(bool is_rise, int switch_count)
 bool set_channel_switch(int channel_idx, bool up)
 {
   int channel_type_group = (s.ch[channel_idx].type >> 1 << 1); // we do not care about the last bit
-  Serial.printf("set_channel_switch channel_type_group %d \n",channel_type_group);
+  //Serial.printf("set_channel_switch channel_type_group %d \n",channel_type_group);
   if ((channel_type_group == CH_TYPE_GPIO_ONOFF))
   {
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
@@ -1758,9 +1762,9 @@ void onWebResetGet(AsyncWebServerRequest *request)
     EEPROM.write(i, 0);
   }
   EEPROM.commit();
-  strcpy(s.http_username, "");
+ // strcpy(s.http_username, "");
   
-  s.check_value = 12345;
+  s.check_value = 0; // 12345 when initiated, so should init after restart
   s.sta_mode = false;
 
   writeToEEPROM();
@@ -1821,11 +1825,9 @@ void onWebRootPost(AsyncWebServerRequest *request)
   for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
   {
     snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
-    Serial.println(ch_fld);
     if (request->hasParam(ch_fld, true))
     {
       s.ch[channel_idx].uptime_minimum = request->getParam(ch_fld, true)->value().toInt();
-      Serial.println(s.ch[channel_idx].uptime_minimum);
     }
 
     snprintf(ch_fld, 20, "id_ch_%i", channel_idx);
@@ -2000,9 +2002,20 @@ void setup()
   {
     Serial.println(F("Initiating eeprom"));
     s.check_value = 12345; // this is indication that eeprom is initiated
+  //  
+#ifdef INIT_WIFI_SSID
+    strcpy(s.wifi_ssid, INIT_WIFI_SSID);
+    s.sta_mode = true;
+#else
     strcpy(s.wifi_ssid, "");
-    strcpy(s.wifi_password, "arska");
-    strcpy(s.http_username, "arska");
+    s.sta_mode = false;
+#endif
+#ifdef INIT_WIFI_PASSWORD
+    strcpy(s.wifi_password, INIT_WIFI_PASSWORD);
+#else
+    strcpy(s.wifi_password, "");
+#endif
+    strcpy(s.http_username, "admin");
     strcpy(s.http_password, "arska");
     s.lat = 64.96;
     s.lon = 27.59;
@@ -2090,14 +2103,16 @@ void setup()
 
   if (create_ap) // Softap should be created if so defined, cannot connect to wifi , redirect
   {              // check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+   
     String mac = WiFi.macAddress();
     for (int i = 14; i > 0; i -= 3)
     {
       mac.remove(i, 1);
     }
-    String APSSID = String("arska-") + mac;
-
-    if (WiFi.softAP(APSSID.c_str(), "arska", (int)random(1, 14), false, 3) == true)
+    String APSSID = String("ARSKANODE-") + mac;
+    Serial.print(F("Creating AP:"));
+    Serial.println(APSSID);
+    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
     {
       Serial.println(F("WiFi AP created with ip"));
       Serial.println(WiFi.softAPIP().toString());
@@ -2107,7 +2122,8 @@ void setup()
     }
     else
     {
-      delay(5000); // cannot create AP, restart
+      Serial.println(F("Cannot create AP, restarting"));
+      delay(2000); // cannot create AP, restart
       ESP.restart();
     }
   }
@@ -2215,13 +2231,14 @@ void loop()
   }
 #endif
 
+  check_forced_restart(); // if in forced ap-mode restart if scheduled so
   time(&now);
   if (now < 1600000000) // we need clock set
     return;
   if (started < 1600000000)
     started = now;
 
-  check_forced_restart(); // if in forced ap-mode restart if scheduled so
+
 
   current_period_start = get_period_start_time(now); // long(now / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
   if (get_period_start_time(now) == get_period_start_time(started))
@@ -2232,10 +2249,18 @@ void loop()
   if (previous_period_start != current_period_start)
     period_changed = true; // more readable
 
-  if (WiFi.waitForConnectResult() != WL_CONNECTED)
+  if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
-    delay(1000);
-    return;
+    for (int wait_loop = 0; wait_loop < 10;wait_loop++) {
+      delay(1000);
+      Serial.print('W');
+      if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
+        break;
+    }
+    if (WiFi.waitForConnectResult(10000) != WL_CONNECTED) {
+      Serial.println(F("Restarting."));
+      ESP.restart(); // boot if cannot recover wifi in time
+    }
   }
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?

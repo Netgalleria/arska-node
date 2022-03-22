@@ -29,6 +29,19 @@ All day-ahead (spot) electricity price data and energy production forecasts are 
 ## Switches
 Low voltage switches connected to the microcontroller can control grid voltage relays. Additionally Shelly 3EM energy meter has one relay interface which can be used. Leave grid voltage installation to a certified professinal. 
 
+## How to configure channels - example
+
+![Example channel configuration](https://github.com/Netgalleria/arska-node/blob/main/docs/img/ArskaNode-channelconfig.png?raw=true)
+
+### Channel 1
+Channel 1 is connected to a pre-heater boiler (syöttövaraaja). Type GPIO ON/OFF means that channel is on if one or more states listed in states field (comma separated, no-spaces) is enabled. GPIO channels are wired to the microcontroller. State 1007 indicates that there is excess afternoon (solar) power production. Minimum uotime 120 seconds means that the channel stays up at least 120 seconds even if conditions are changed (in this case even if the is more consumption than production).
+
+### Channel 2 
+Channel 2 is connected to a super-heater boiler (tulistusvaraaja). Type GPIO ON/OFF means that channel is on is one or more states listed in states field (comma separated, no-spaces) is enabled and the temperature measured by the sensor is below target. Target levels are checked in order and first matching is used. In this case target is 90C if there is more (solar) production than consumption(state 1005). Target is 50C is spot price is below 2c/kWh (state 11010). Otherwise target is 40C (state 1 is always on)
+
+
+
+
 
 # Current status
 The software is under development (beta testing)
