@@ -1,14 +1,14 @@
 # Arska Node
 Arska Node saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest hours.
 
-Arska Node is microcontroller (ESP8266) based application for controlline reading energy meters, sensors and controlling switches based on price, energy forecast and grid (consumption and production) information. Arska Node [Arska Server](https://github.com/Netgalleria/arska-server)
+Arska Node is microcontroller (ESP8266) based application for controlline reading energy meters, sensors and controlling switches based on price, energy forecast and grid (consumption and production) information. Arska Node gets processes market and energy forecast data from [Arska Server](https://github.com/Netgalleria/arska-server) .
 
 
 # Interfaces
 
 ![Data flow diagram](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska%20Node%20and%20Server%20all-in-one%20diagram.png?raw=true)
 
-## Energy meters
+## Energy and production meterin
 
 ### Shelly 3EM energy meter
 Reads consumed and sold energy information from the meter (http query) and calculates net net consumption for current period.
@@ -19,15 +19,15 @@ Solar power production values energy (cumulated) and current power can be fetche
 ### Inverter with SMA Modbus TCP
 Solar power production values energy (cumulated) and current power can be fetched from SMA Inverter via Modbus TCP interface. Tested with STP8.0-3AV-40 (Sunny Tripower 8.0).
 
-## Arska Server
-All day-ahead (spot) electricity price data and energy production forecasts are preprocessed by a Arska Server instance. Arska Node gets state info (e.g "now spot price is low") from a Arska Server service (http query). 
+## DS18B20 temperature sensor 
+Currently one sensor is supported per a Arska Node device. The sensoer is optional, but needed if you want to have multiple target temperature levels depending on conditions. For example a water heater temperature target could be 90 °C, when there is extra solar power, 60 °C when cheap electricity is available and 45 °C otherwise. The sensor must be in contact with the boiler, hot water pipeline or another object you are measuring. 
 
-## DS18B20 temperature sensor
-Currently one sensor is supported per a Arska Node device. 
+## Arska Server
+All day-ahead (spot) electricity price data and energy production forecasts are preprocessed by a Arska Server instance. Arska Node gets state info (e.g "now spot price is low") from a Arska Server service (http query). Arska server is Python-based service you can run  locally or use a shared service. [Arska Server in GitHub](https://github.com/Netgalleria/arska-server)
+
 
 ## Switches
 Low voltage switches connected to the microcontroller can control grid voltage relays. Additionally Shelly 3EM energy meter has one relay interface which can be used. Leave grid voltage installation to a certified professinal. 
-
 
 
 # Current status
