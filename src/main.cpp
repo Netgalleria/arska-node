@@ -881,7 +881,7 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
   {
     state_array[i] = 0;
   }
-  // add internally generated states, see https://github.com/Olli69/PowerGuru/blob/main/docs/states.md
+  // add internally generated states
   byte idx = 0;
   state_array[idx++] = 1;                       // 1 is always on
   state_array[idx++] = 100 + tm_struct.tm_hour; // time/hour based
@@ -1202,7 +1202,7 @@ function beforeSubmit() {
 <div class="fldshort">forecast location:<input name="forecast_loc" maxlen='29' type="text" value="%forecast_loc%"></div>
 </div>
 
-<div class="fld"><div><a href="https://github.com/Olli69/powerguru/blob/main/docs/states.md" target="_blank">State list</a></div></div>
+<div class="fld"><div><a href="https://github.com/Netgalleria/arska-server/blob/main/docs/states.md" target="_blank">State list</a></div></div>
 
 <div class="secbr"><h3>WiFi</h3></div>
 <div class="fld"><input type="checkbox" id="sta_mode" name="sta_mode" value="sta_mode" %sta_mode%><label for="sta_mode"> Connect to existing wifi network</label></div>

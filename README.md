@@ -11,13 +11,14 @@ Arska Node is microcontroller (ESP8266) based application for controlline readin
 ## Energy and production meterin
 
 ### Shelly 3EM energy meter
-Reads consumed and sold energy information from the meter (http query) and calculates net net consumption for current period.
+Reads consumed and sold energy information from the meter (http query) and calculates net net consumption for current period. [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-Shelly-3EM-for-Arska-Node)
 
 ### Inverter with Fronius Solar API
-Solar power production values energy (cumulated) and current power can be fetched from Fronius inverter. Tested with FRONIUS Eco 27.0-3-S .
+Solar power production values energy (cumulated) and current power can be read from a Fronius inverter (Solar API). Tested with FRONIUS Eco 27.0-3-S . [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-Fronius-Solar-API-inverter-connection)
+
 
 ### Inverter with SMA Modbus TCP
-Solar power production values energy (cumulated) and current power can be fetched from SMA Inverter via Modbus TCP interface. Tested with STP8.0-3AV-40 (Sunny Tripower 8.0).
+Solar power production values energy (cumulated) and current power can be read from a SMA Inverter via Modbus TCP interface. [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-SMA-inverter-Modbus-connection)
 
 ## DS18B20 temperature sensor 
 Currently one sensor is supported per a Arska Node device. The sensoer is optional, but needed if you want to have multiple target temperature levels depending on conditions. For example a water heater temperature target could be 90 °C, when there is extra solar power, 60 °C when cheap electricity is available and 45 °C otherwise. The sensor must be in contact with the boiler, hot water pipeline or another object you are measuring. 
@@ -38,8 +39,6 @@ Channel 1 is connected to a pre-heater boiler (syöttövaraaja). Type GPIO ON/OF
 
 ### Channel 2 
 Channel 2 is connected to a super-heater boiler (tulistusvaraaja). Type GPIO ON/OFF means that channel is on is one or more states listed in states field (comma separated, no-spaces) is enabled and the temperature measured by the sensor is below target. Target levels are checked in order and first matching is used. In this case target is 90C if there is more (solar) production than consumption(state 1005). Target is 50C is spot price is below 2c/kWh (state 11010). Otherwise target is 40C (state 1 is always on)
-
-
 
 
 
