@@ -8,7 +8,7 @@ Arska Node is microcontroller (ESP8266) based application for controlline readin
 
 ![Data flow diagram](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska%20Node%20and%20Server%20all-in-one%20diagram.png?raw=true)
 
-## Energy and production meterin
+## Energy and production metering
 
 ### Shelly 3EM energy meter
 Reads consumed and sold energy information from the meter (http query) and calculates net net consumption for current period. [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-Shelly-3EM-for-Arska-Node)
@@ -21,7 +21,7 @@ Solar power production values energy (cumulated) and current power can be read f
 Solar power production values energy (cumulated) and current power can be read from a SMA Inverter via Modbus TCP interface. [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-SMA-inverter-Modbus-connection)
 
 ## DS18B20 temperature sensor 
-Currently one sensor is supported per a Arska Node device. The sensoer is optional, but needed if you want to have multiple target temperature levels depending on conditions. For example a water heater temperature target could be 90 °C, when there is extra solar power, 60 °C when cheap electricity is available and 45 °C otherwise. The sensor must be in contact with the boiler, hot water pipeline or another object you are measuring. 
+Currently one sensor is supported per a Arska Node device. The sensoer is optional, but needed if you want to have multiple target temperature levels depending on conditions. For example a water heater temperature target could be 90 °C, when there is extra solar power, 60 °C when cheap electricity is available and 45 °C otherwise. The sensor must be in contact with the boiler, hot water pipeline or another object you are measuring. [Read more](https://github.com/Netgalleria/arska-node/wiki/Adding-DS18B20-temperature-sensor)
 
 ## Arska Server
 All day-ahead (spot) electricity price data and energy production forecasts are preprocessed by a Arska Server instance. Arska Node gets state info (e.g "now spot price is low") from a Arska Server service (http query). Arska server is Python-based service you can run  locally or use a shared service. [Arska Server in GitHub](https://github.com/Netgalleria/arska-server)
@@ -30,9 +30,10 @@ All day-ahead (spot) electricity price data and energy production forecasts are 
 ## Switches
 Low voltage switches connected to the microcontroller can control grid voltage relays. Additionally Shelly 3EM energy meter has one relay interface which can be used. Leave grid voltage installation to a certified professinal. 
 
-## How to configure channels - example
+## How to configure channels
 
-![Example channel configuration](https://github.com/Netgalleria/arska-node/blob/main/docs/img/ArskaNode-channelconfig.png?raw=true)
+[Read more about configuration](https://github.com/Netgalleria/arska-node/wiki/Configuring-Arska-Node)
+[Channel configuration example](https://github.com/Netgalleria/arska-node/wiki/Example-channel-configuration)
 
 ### Channel 1
 Channel 1 is connected to a pre-heater boiler (syöttövaraaja). Type GPIO ON/OFF means that channel is on if one or more states listed in states field (comma separated, no-spaces) is enabled. GPIO channels are wired to the microcontroller. State 1007 indicates that there is excess afternoon (solar) power production. Minimum uotime 120 seconds means that the channel stays up at least 120 seconds even if conditions are changed (in this case even if the is more consumption than production).

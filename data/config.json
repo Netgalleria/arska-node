@@ -1,0 +1,19 @@
+{
+    "wifi_ssid": "Feel The Nature HQ",
+    "wifi_password": "taustalevy",
+    "http_username": "arska",
+    "http_password": "arska",
+    "pg_host": "arska.netgalleria.fi:8080",
+    "pg_cache_age": 7200,
+    "pg_api_key": "353f55d5-ca07-4d50-a790-2f2079c6e",
+    "baseload": 1000,
+    "energy_meter_type": 1,
+    "energy_meter_host": "admin:password2@192.168.68.105",
+    "energy_meter_port": 502,
+    "energy_meter_id": 3,
+    "lat": 60.27,
+    "lon": 24.92,
+    "forecast_loc": "Espoo",
+    "group_id": 0,
+    "node_priority": 1
+}
