@@ -1,7 +1,7 @@
 # Arska Node
 Arska Node saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest hours.
 
-Arska Node is microcontroller (ESP8266) based application for controlline reading energy meters, sensors and controlling switches based on price, energy forecast and grid (consumption and production) information. Arska Node gets processes market and energy forecast data from [Arska Server](https://github.com/Netgalleria/arska-server) .
+Arska Node is microcontroller (ESP8266) based application for reading energy meters, sensors and controlling switches based on price, energy forecast and grid (consumption and production) information. Arska Node gets processes market and energy forecast data from [Arska Server](https://github.com/Netgalleria/arska-server) .
 
 
 # Interfaces
@@ -32,16 +32,8 @@ Low voltage switches connected to the microcontroller can control grid voltage r
 
 ## How to configure channels
 
-[Read more about configuration](https://github.com/Netgalleria/arska-node/wiki/Configuring-Arska-Node)
-[Channel configuration example](https://github.com/Netgalleria/arska-node/wiki/Example-channel-configuration)
-
-### Channel 1
-Channel 1 is connected to a pre-heater boiler (syöttövaraaja). Type GPIO ON/OFF means that channel is on if one or more states listed in states field (comma separated, no-spaces) is enabled. GPIO channels are wired to the microcontroller. State 1007 indicates that there is excess afternoon (solar) power production. Minimum uotime 120 seconds means that the channel stays up at least 120 seconds even if conditions are changed (in this case even if the is more consumption than production).
-
-### Channel 2 
-Channel 2 is connected to a super-heater boiler (tulistusvaraaja). Type GPIO ON/OFF means that channel is on is one or more states listed in states field (comma separated, no-spaces) is enabled and the temperature measured by the sensor is below target. Target levels are checked in order and first matching is used. In this case target is 90C if there is more (solar) production than consumption(state 1005). Target is 50C is spot price is below 2c/kWh (state 11010). Otherwise target is 40C (state 1 is always on)
-
-
+* [Read more about configuration](https://github.com/Netgalleria/arska-node/wiki/Configuring-Arska-Node)
+* [Channel configuration example](https://github.com/Netgalleria/arska-node/wiki/Example-channel-configuration)
 
 # Current status
 The software is under development (beta testing)
