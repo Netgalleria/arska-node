@@ -1,8 +1,8 @@
 {
     "wifi_ssid": "Feel The Nature HQ",
     "wifi_password": "taustalevy",
-    "http_username": "arska",
-    "http_password": "arska",
+    "http_username": "admin",
+    "http_password": "arska!",
     "pg_host": "arska.netgalleria.fi:8080",
     "pg_cache_age": 7200,
     "pg_api_key": "353f55d5-ca07-4d50-a790-2f2079c6e",
@@ -15,5 +15,9 @@
     "lon": 24.92,
     "forecast_loc": "Espoo",
     "group_id": 0,
-    "node_priority": 1
+    "node_priority": 1,
+    "timezone_info" : "EET-2EEST,M3.5.0/3,M10.5.0/4",
+    "ntp_server" : "europe.pool.ntp.org", 
+    "price_area" : "FI"
+ 
 }

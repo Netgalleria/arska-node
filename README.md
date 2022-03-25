@@ -8,20 +8,12 @@ Arska Node is microcontroller (ESP8266) based application for reading energy met
 
 ![Data flow diagram](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska%20Node%20and%20Server%20all-in-one%20diagram.png?raw=true)
 
-## Energy and production metering
 
-### Shelly 3EM energy meter
-Reads consumed and sold energy information from the meter (http query) and calculates net net consumption for current period. [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-Shelly-3EM-for-Arska-Node)
+# Features
 
-### Inverter with Fronius Solar API
-Solar power production values energy (cumulated) and current power can be read from a Fronius inverter (Solar API). Tested with FRONIUS Eco 27.0-3-S . [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-Fronius-Solar-API-inverter-connection)
+# Techical
+* can run without internet connection (no market or forecast data, RTC required)
 
-
-### Inverter with SMA Modbus TCP
-Solar power production values energy (cumulated) and current power can be read from a SMA Inverter via Modbus TCP interface. [More info](https://github.com/Netgalleria/arska-node/wiki/Configure-SMA-inverter-Modbus-connection)
-
-## DS18B20 temperature sensor 
-Currently one sensor is supported per a Arska Node device. The sensoer is optional, but needed if you want to have multiple target temperature levels depending on conditions. For example a water heater temperature target could be 90 °C, when there is extra solar power, 60 °C when cheap electricity is available and 45 °C otherwise. The sensor must be in contact with the boiler, hot water pipeline or another object you are measuring. [Read more](https://github.com/Netgalleria/arska-node/wiki/Adding-DS18B20-temperature-sensor)
 
 ## Arska Server
 All day-ahead (spot) electricity price data and energy production forecasts are preprocessed by a Arska Server instance. Arska Node gets state info (e.g "now spot price is low") from a Arska Server service (http query). Arska server is Python-based service you can run  locally or use a shared service. [Arska Server in GitHub](https://github.com/Netgalleria/arska-server)
@@ -37,37 +29,6 @@ Low voltage switches connected to the microcontroller can control grid voltage r
 
 # Current status
 The software is under development (beta testing)
-
-# Hardware Configuration
-Example 2+1 channel configuration with ESP8266  based 2 channel relay module ja temperature sensor. With this configuration you can control for example 12VDC (or 24VDC) controlled AC relays or a water-based underfloor heating system (select between pre-programmed temperature levels). Waterproof temperature sensor can be attached to hot water pipeline or a water boiler, to sensor water temperature.
-
-## Required modules/parts:
-### ESP8266 microcontroller 
-- ESP8266 (ESP-12F) Relay Module [Aliexpress](https://www.aliexpress.com/item/1005001908708140.html)
-- USB to TTL converter for initial setup (this board does not have an USB connector), [e.g.](https://www.aliexpress.com/item/32529737466.html?), 
-- female-female Dupont Dupont jumper lines for TTL connector, 4 pcs, [e.g.](https://www.aliexpress.com/item/1005003007413890.html)
-- Optional DS3231 real time clock (RTC). Without RTC clock sync from internet or manual clock sync is needed after restart (including power breaks).
-
-### Temperature sensor DS18B20
-- DS18B20 waterproof temperature sensor, [Aliexpress](https://www.aliexpress.com/item/4000550061662.html)
-- ≅ 5kΩ resistor for 1-wire pull-up resistor, between data and voltage connector
-- Electric cables (3 wire) for connecting the sensor
-
-### 12V wiring:
-- 12V power supply, supplying power to ESP8266 module and pulling external relays
-- Electric wires for 12V connection (two color, e.g. red and black recommended)
-- female and male connecters for 12V, optional [Aliexpress](https://www.aliexpress.com/item/4000085878441.html)
-- Screw terminal blocks, optional [Aliexpress](https://www.aliexpress.com/item/32939185688.html)
-
-
-
-
-
-- 
- 
- Tools:
- - Soldering iron, soldering tin
- - Tin suction gun (optional) for desoldering
 
 
 

@@ -1,0 +1,106 @@
+body {
+    background-color: #1a1e15;
+    margin: 1.6em;
+    font-size: 20px;
+    font-family: 'Roboto', Sans-Serif;
+    color: #f7f7e6
+}
+
+p {
+    font-size: 1em;
+    color: #b8b89d
+}
+
+.code {
+    max-width: 250px;
+}
+
+.btn {
+    background-color: #f7f7e6;
+}
+
+form,
+#fld,
+input {
+    width: 100%;
+}
+
+input[type="text"],
+input[type="password"],
+textarea,
+select,
+input[type=checkbox],
+input[type=submit] {
+    background-color: #404040;
+    color: #f7f7e6;
+    border-color: #404040
+}
+
+h3 {
+    margin-block-start: 1em;
+}
+
+input,
+select {
+    font-size: 2em;
+}
+
+input[type=checkbox] {
+    width: 40px;
+    height: 40px;
+}
+
+input[type=submit] {
+    margin-top: 30px;
+}
+
+input[type=radio] {
+    height: 30px;
+    width: auto;
+}
+
+.inpnum {
+    text-align: right;
+}
+
+h1,
+h2,
+h3 {
+    clear: both;
+    font-family: 'Bakbak One';
+    color: #f2ef99;
+}
+
+.fld {
+    margin-top: 10px;
+    clear: both;
+}
+
+.secbr {
+    padding-top: 30px;
+    clear: both;
+}
+
+.fldh {
+    float: left;
+    width: 44%;
+    margin-right: 2%;
+}
+
+.fldshort {
+    float: left;
+    width: 20%;
+    margin-right: 2%;
+}
+
+.fldtiny {
+    float: left;
+    width: 17%;
+    margin-right: 2%;
+}
+
+.fldlong {
+    float: left;
+    width: 70%;
+    margin-right: 2%;
+}
