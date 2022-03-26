@@ -4,30 +4,33 @@
     <title>Arska Node | Admin Dashboard</title>
     <link href='https://fonts.googleapis.com/css?family=Bakbak One' rel='stylesheet'>
     <link rel="stylesheet" type="text/css" href="style.css">
-</head> 
+</head>
 
 <body onload="setEnergyMeterFields(%emt%);">
     <script>
-        CHANNELS = %CHANNELS% ;
-        CHANNEL_TARGETS_MAX = %CHANNEL_TARGETS_MAX% ;
+        CHANNELS = % CHANNELS % ;
+        CHANNEL_TARGETS_MAX = % CHANNEL_TARGETS_MAX % ;
     </script>
     <script src="arska.js"></script>
-    <div class="secbr">
-        <a href="/">Dashboard</a> | <u>Admin</u> 
+
+    <div class="secbr" id="headdiv">
+        <h1>Arska Node</h1>
+        <a href="/">Dashboard</a> | <span> <b>Admin</b> </span>
     </div>
-    <form method="post">
-       
-        <div class="secbr">
-            <h1>Arska Node</h1>
-            <h2>Status</h2>
-        </div>
+    <div class="secbr">
+        <h2>Status</h2>
+    </div>
         %status_fields%
         <div class="fld">Active states: %states%</div>
         <br>
+    
+    <form method="post">
         <h2>Settings</h2>
-        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3%  %chi_4% %cht_4%  %chi_5% %cht_5%  %chi_6% %cht_6%  %chi_7% %cht_7% %energy_meter_fields%
+        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
+        %chi_6% %cht_6% %chi_7% %cht_7% %energy_meter_fields%
 
-        <div class="fldshort" id="baseld">base load (W):<input name="baseload" class="inpnum" type="text" value="%baseload%"></div>
+        <div class="fldshort" id="baseld">base load (W):<input name="baseload" class="inpnum" type="text"
+                value="%baseload%"></div>
 
         <div class="secbr">
             <h3>Arska Server</h3>
@@ -35,17 +38,20 @@
         <div class="fld">
             <div class="fldh">host:<input name="pg_host" type="text" value="%pg_host%" maxlen='29'></div>
 
-            <div class="fldtiny" id="pg_cache_age_d">max cache age:<input class="inpnum" name="pg_cache_age" type="text" value="%pg_cache_age%"></div>
+            <div class="fldtiny" id="pg_cache_age_d">max cache age:<input class="inpnum" name="pg_cache_age" type="text"
+                    value="%pg_cache_age%"></div>
             <div class="fld">API key:<input name="pg_api_key" type="text" value="%pg_api_key%" maxlen='36'></div>
 
             <div class="secbr">
                 <div class="fldtiny">lat:<input name="lat" type="text" value="%lat%"></div>
                 <div class="fldtiny">lon:<input name="lon" type="text" value="%lon%"></div>
-                <div class="fldshort">forecast location:<input name="forecast_loc" maxlen='29' type="text" value="%forecast_loc%"></div>
+                <div class="fldshort">forecast location:<input name="forecast_loc" maxlen='29' type="text"
+                        value="%forecast_loc%"></div>
             </div>
 
             <div class="fld">
-                <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema" target="_blank">State list</a></div>
+                <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema"
+                        target="_blank">State list</a></div>
             </div>
 
             <div class="secbr">

@@ -296,7 +296,7 @@ bool restart_required = false;
 #define CH_TYPE_GPIO_TARGET 3
 #define CH_TYPE_SHELLY_ONOFF 4
 #define CH_TYPE_SHELLY_TARGET 5
-#define CH_TYPE_DISABLED 255 // RFU, we could have disabled allocated channels (binary )
+#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
 const char *channel_type_strings[] PROGMEM = {
     "undefined",
@@ -371,7 +371,7 @@ typedef struct
   char pg_api_key[37];
 #endif
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-  uint32_t baseload; // production above base load is "free" to use/store
+  uint32_t baseload; // production above baseload is "free" to use/store
 #endif
 #ifdef OTA_UPDATE_ENABLED
   bool next_boot_ota_update;
@@ -435,7 +435,7 @@ bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
     return true;
   }
 }
-#define CONFIG_JSON_SIZE_MAX 1000
+#define CONFIG_JSON_SIZE_MAX 1600
 bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr)
 {
   if (doc.containsKey(key))
@@ -1057,7 +1057,7 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
   // TODO: tsekkaa miksi joskus nousee ylös lyhyeksi aikaa vaikkei pitäisi
   if (power_produced_period_avg > (s.baseload + WATT_EPSILON))
-  { //"extra" energy produced, more than estimated base load
+  { //"extra" energy produced, more than estimated baseload
     state_array[idx++] = STATE_EXTRA_PRODUCTION;
     if (sun_hour < 12)
       state_array[idx++] = STATE_EXTRA_PRODUCTION_BNOON;
@@ -1249,10 +1249,21 @@ void get_status_fields(char *out)
   strcat(out, buff);
   //
 #endif
+  char rtc_status[15];
+#ifdef RTC_DS3231_ENABLED
+  if (rtc_found) 
+    strcpy(rtc_status,"(RTC OK)");
+  else
+    strcpy(rtc_status,"(RTC FAILED)");
+#else
+  strcpy(rtc_status,"");
+#endif
   localtime_r(&current_time, &tm_struct);
   gmtime_r(&now_suntime, &tm_sun);
-  snprintf(buff, 150, "<div class='fld'><div>Local time: %02d:%02d:%02d, solar time: %02d:%02d:%02d</div></div>", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, tm_sun.tm_hour, tm_sun.tm_min, tm_sun.tm_sec);
-  strcat(out, buff);
+  snprintf(buff, 150, "<div class='fld'><div>Local time: %02d:%02d:%02d, solar time: %02d:%02d:%02d %s</div></div>", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, tm_sun.tm_hour, tm_sun.tm_min, tm_sun.tm_sec,rtc_status);
+  strcat(out, buff);  
+
+  
 
   localtime_r(&recording_period_start, &tm_struct);
   sprintf(time1, "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
@@ -1384,6 +1395,9 @@ String setup_form_processor(const String &var)
     int channel_idx = var.substring(4, 5).toInt();
     if (channel_idx >= CHANNELS)
       return String();
+    if (s.ch[channel_idx].type<CH_TYPE_GPIO_ONOFF) // undefined
+      return String();
+    
     get_channel_status_header(out, channel_idx, true);
 
     return out;
@@ -1570,7 +1584,7 @@ bool set_channel_switch(int channel_idx, bool up)
       return true;
   }
   else 
-    Serial.print(F("Cannot switch"));
+    Serial.print(F("Cannot switch this channel"));
 
   return false;
 }

@@ -7,29 +7,28 @@
 </head>
 
 <body>
-    <div class="secbr">
-        <u>Dashboard</u> | <a href="/admin">Admin</a> 
+
+    <div class="secbr" id="headdiv">
+        <h1>Arska Node</h1>
+        <span><b>Dashboard</b></span> | <a href="/admin">Admin</a>
     </div>
     <div class="secbr">
-        <h1>Arska Node</h1>
         <h2>Status</h2>
     </div>
-    %status_fields%
-    <div class="fld">Active states: %states%</div>
-    <form method="post">
-    %vch_0%
-    %vch_1%
-    %vch_2%
-    %vch_3%
-    %vch_4%
-    %vch_5%
-    %vch_6%
-    %vch_7%
-    <br><input type="submit" value="Save";>
-</form>
-    <div class="secbr">
-        <a href="/admin">Settings</a>
-    </div>
+        %status_fields%
+        <div class="fld">Active states: %states%</div>
+        <form method="post">
+            %vch_0%
+            %vch_1%
+            %vch_2%
+            %vch_3%
+            %vch_4%
+            %vch_5%
+            %vch_6%
+            %vch_7%
+            <br><input type="submit" value="Save" ;>
+        </form>
+   
 </body>
 
 </html>
