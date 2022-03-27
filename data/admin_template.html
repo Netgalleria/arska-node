@@ -8,8 +8,8 @@
 
 <body onload="setEnergyMeterFields(%emt%);">
     <script>
-        CHANNELS = % CHANNELS % ;
-        CHANNEL_TARGETS_MAX = % CHANNEL_TARGETS_MAX % ;
+        CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
+        CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
     </script>
     <script src="arska.js"></script>
 
@@ -20,10 +20,10 @@
     <div class="secbr">
         <h2>Status</h2>
     </div>
-        %status_fields%
-        <div class="fld">Active states: %states%</div>
-        <br>
-    
+    %status_fields%
+    <div class="fld">Active states: %states%</div>
+    <br>
+
     <form method="post">
         <h2>Settings</h2>
         %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%

@@ -1913,7 +1913,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 #endif
 
   writeToEEPROM();
-  if (request->getParam("op", true)->value().equals("ts"))
+  if (request->getParam("op", true)->value().equals("reboot"))
   {
     restart_required = true;
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body>restarting...wait...</body></html>");
