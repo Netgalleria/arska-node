@@ -1,7 +1,6 @@
 {
     "wifi_ssid": "Feel The Nature HQ",
     "wifi_password": "taustalevy",
-    "http_username": "admin",
     "http_password": "arska!",
     "pg_host": "arska.netgalleria.fi:8080",
     "pg_cache_age": 7200,

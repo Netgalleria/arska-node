@@ -480,7 +480,9 @@ bool read_config_file(bool init_settings)
   if (!init_settings) // read only basic config
     return true;
 
-  copy_doc_str(doc, (char *)"http_username", s.http_username);
+ // copy_doc_str(doc, (char *)"http_username", s.http_username);
+  strcpy(s.http_username, "admin"); //use fixed name
+  
   copy_doc_str(doc, (char *)"http_password", s.http_password);
 
 
@@ -1808,6 +1810,12 @@ void onWebViewPost(AsyncWebServerRequest *request)
     set_relays();
   request->redirect("/");
 }
+void bootInUpdateMode(AsyncWebServerRequest *request) {
+    s.next_boot_ota_update = true;
+    writeToEEPROM(); // save to non-volatile memory
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>wait...</body></html>");
+    return;
+}
 void onWebAdminPost(AsyncWebServerRequest *request)
 {
   String message;
@@ -1906,9 +1914,11 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 #ifdef OTA_UPDATE_ENABLED
   if (request->getParam("op", true)->value().equals("ota"))
   {
-    s.next_boot_ota_update = true;
+    bootInUpdateMode(request);
+ /*   s.next_boot_ota_update = true;
     writeToEEPROM(); // save to non-volatile memory
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>wait...</body></html>");
+ */
   }
 #endif
 
@@ -2201,6 +2211,8 @@ void setup()
   server_web.on("/", HTTP_GET, onWebViewGet);
   server_web.on("/", HTTP_POST, onWebViewPost);
 
+  server_web.on("/update", HTTP_GET,   bootInUpdateMode); //now we should restart in update mode
+
   server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->redirect("/"); }); // redirect url, if called from OTA
 
@@ -2219,8 +2231,6 @@ void setup()
   server_web.begin();
 
   Serial.print(F("setup() finished:"));
-  // Serial.println(s.http_username);
-  // Serial.println(s.http_password);
   Serial.println(ESP.getFreeHeap());
 
 } // end of setup()
