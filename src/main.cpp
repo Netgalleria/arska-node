@@ -420,7 +420,7 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[CHANNEL_STATES_MAX
 }
 // Testing before saving if Wifi settings are ok
 // Use only when there is no existing connection - this will break one
-bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
+bool test_wifi_settings(char *wifi_ssid, char *wifi_password, bool keep_connected_on_success)
 {
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifi_ssid, wifi_password);
@@ -431,7 +431,8 @@ bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
   }
   else
   {
-    WiFi.disconnect();
+    if (!keep_connected_on_success)
+      WiFi.disconnect();
     return true;
   }
 }
@@ -493,7 +494,7 @@ bool read_config_file(bool init_settings)
     char wifi_password[MAX_ID_STR_LENGTH];
     copy_doc_str(doc, (char *)"wifi_ssid", wifi_ssid);
     copy_doc_str(doc, (char *)"wifi_password", wifi_password);
-    if (test_wifi_settings(wifi_ssid, wifi_password))
+    if (test_wifi_settings(wifi_ssid, wifi_password,false))
     {
       strcpy(s.wifi_ssid, wifi_ssid);
       strcpy(s.wifi_password, wifi_password);
@@ -1826,7 +1827,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   // strcpy(s.http_username, request->getParam("http_username", true)->value().c_str());
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
-    if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() > 5)
+    if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
       strcpy(s.http_password, request->getParam("http_password", true)->value().c_str());
   }
 
@@ -2031,6 +2032,8 @@ void setup()
   // voltage to 1-wire bus
   // voltage from data pin so we can reset the bus (voltage low) if needed
   pinMode(ONEWIRE_VOLTAGE_GPIO, OUTPUT);
+  Serial.printf("Setting channel ONEWIRE_VOLTAGE_GPIO with gpio %d to OUTPUT mode\n",  ONEWIRE_VOLTAGE_GPIO);
+
   digitalWrite(ONEWIRE_VOLTAGE_GPIO, HIGH);
   sensors.begin();
 
@@ -2090,8 +2093,9 @@ void setup()
 
     if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF) {// gpio channel
       pinMode(s.ch[channel_idx].gpio, OUTPUT);
+      Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
-    
+
     Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
