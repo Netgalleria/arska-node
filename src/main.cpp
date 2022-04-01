@@ -634,7 +634,7 @@ String httpGETRequest(const char *url, const char *cache_file_name)
 
 #ifdef SENSOR_DS18B20_ENABLED
 
-// TODO: reset (Voltage low) if value not within range
+// Read temperature values from DS18B20 senson
 bool read_sensor_ds18B20()
 {
   sensors.requestTemperatures();
@@ -669,6 +669,7 @@ float energyout_prev = 0;
 float energyin = 0;
 float energyout = 0;
 
+// return energy/power values read from Shelly
 void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
 {
   netEnergyInPeriod = (energyin - energyout - energyin_prev + energyout_prev);
@@ -682,6 +683,7 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
   }
 }
 
+// reads grid export/import from Shelly 3EM
 bool read_meter_shelly3em()
 {
   if (strlen(s.energy_meter_host) == 0)
@@ -744,7 +746,7 @@ bool read_meter_shelly3em()
 
 #ifdef INVERTER_FRONIUS_SOLARAPI_ENABLED
 
-// new version under construction
+// Reads production data from Fronius invertes (http/json Solar API)
 bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
 {
   //  globals updated: inverter_total_period_init
@@ -801,9 +803,9 @@ ModbusIP mb; // ModbusIP object
 #define REG_COUNT 2
 uint16_t buf[REG_COUNT];
 uint16_t trans;
-// IPAddress remote(84,231,164,210);
-// IPAddress remote();
 
+
+// callback for ModBus, just debugging
 bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
 { // Callback to monitor errors
   if (event != Modbus::EX_SUCCESS)
@@ -827,6 +829,7 @@ bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
   return true;
 }
 
+// gets ModBus Hreg value
 long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num, uint8_t modbusip_unit)
 {
   long int combined;
@@ -856,19 +859,13 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
   }
   return combined;
 }
-
+// reads production data from SMA inverted (ModBus TCP)
 bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 {
-  // IPAddress remote(); // veikkola.duckdns.org 84.231.164.210
-  // IPAddress remote(84,231,164,210);
-  // remote.fromString(s.energy_meter_host);
-  // tässä voisi olla ip
   uint16_t ip_octets[CHANNEL_STATES_MAX];
   char host_ip[16];
-  strcpy(host_ip, s.energy_meter_host); // seuraava kutsu sotkee, siksi siksi kopio
-  // char const *sep_point = ".";
+  strcpy(host_ip, s.energy_meter_host); // seuraava kutsu sotkee, siksi kopio
   str_to_uint_array(host_ip, ip_octets, ".");
-  // str_to_uint_array(host_ip, ip_octets, sep_point);
 
   IPAddress remote(ip_octets[0], ip_octets[1], ip_octets[2], ip_octets[3]);
 
@@ -909,6 +906,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 } // read_inverter_sma_data
 #endif
 
+// read production data from inverters
 void read_inverter()
 {
   // global: recording_period_start
@@ -954,6 +952,7 @@ void read_inverter()
 } // read_inverter
 
 #ifdef QUERY_ARSKA_ENABLED
+// return whether there is a valid cache file (exist, not expired)
 bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
 {
   if (!LittleFS.exists(cache_file_name))
@@ -998,7 +997,7 @@ bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
 }
 #endif
 
-// returns next index ie number of elements
+// returns internal states based on time/date and measured energy values
 byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
 {
   time(&now);
@@ -1072,6 +1071,7 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
   return idx;
 }
 
+// Refresh active states, internal and optionally queries Arska Server for states based on marker data and forecasts
 void refresh_states(time_t current_period_start)
 {
   // get first internal states, then add  more from PG server
@@ -1133,6 +1133,7 @@ void refresh_states(time_t current_period_start)
 
 // https://github.com/me-no-dev/ESPAsyncWebServer#send-large-webpage-from-progmem-containing-templates
 
+// returns a string from state integer array
 String state_array_string(uint16_t state_array[CHANNEL_STATES_MAX])
 {
   String states = String();
@@ -1150,6 +1151,7 @@ String state_array_string(uint16_t state_array[CHANNEL_STATES_MAX])
   return states;
 }
 
+// channel config fields for the admin form
 void get_channel_config_fields(char *out, int channel_idx)
 {
   char buff[200];
@@ -1182,6 +1184,7 @@ void get_channel_config_fields(char *out, int channel_idx)
   strcat(out, "</select></div>");
 }
 
+// condition row fields for the admin form
 void get_channel_target_fields(char *out, int channel_idx, int target_idx, int buff_len)
 {
   String states = state_array_string(s.ch[channel_idx].target[target_idx].upstates);
@@ -1190,7 +1193,7 @@ void get_channel_target_fields(char *out, int channel_idx, int target_idx, int b
   snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>condition row %s #%i states:  <input name='st_%i_%i' type='text' value='%s'></div><div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' type='text' value='%s'></div><div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div></div>", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
   return;
 }
-
+// energy meter fields for admin form
 void get_meter_config_fields(char *out)
 {
   char buff[200];
@@ -1211,6 +1214,8 @@ void get_meter_config_fields(char *out)
   // Serial.println(out);
   return;
 }
+
+// node priority is not yet in use, reserved for future use
 void get_node_fields(char *out)
 {
   char buff[150];
@@ -1228,6 +1233,7 @@ void get_node_fields(char *out)
   return;
 }
 
+// get status info for admin / view forms
 void get_status_fields(char *out)
 {
   char buff[150];
@@ -1304,6 +1310,7 @@ void get_status_fields(char *out)
   return;
 }
 
+// returns channel basic info html for the forms
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
   time(&now);
@@ -1344,6 +1351,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
   return;
 }
 
+// varibles for the admin form
 String setup_form_processor(const String &var)
 {
   // Javascript replacements
@@ -1512,7 +1520,7 @@ String setup_form_processor(const String &var)
 }
 
 // ...
-
+// read frid or production info from energy meter/inverter
 void read_energy_meter()
 {
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
@@ -1531,6 +1539,8 @@ void read_energy_meter()
   }
 }
 
+// returns channel to switch
+// There can be multiple channels which could be switched but not all are switched at the same round
 int get_channel_to_switch(bool is_rise, int switch_count)
 {
   int nth_channel = random(0, switch_count) + 1;
@@ -1553,6 +1563,7 @@ int get_channel_to_switch(bool is_rise, int switch_count)
   return -1; // we should not end up here
 }
 
+// switch channel up/down
 bool set_channel_switch(int channel_idx, bool up)
 {
   int channel_type_group = (s.ch[channel_idx].type >> 1 << 1); // we do not care about the last bit
@@ -1591,7 +1602,8 @@ bool set_channel_switch(int channel_idx, bool up)
 
   return false;
 }
-
+// set relays up and down, 
+// MAX_CHANNELS_SWITCHED_AT_TIME defines how many channel can be switched at time
 void set_relays()
 {
   int active_state_count = 0;
@@ -1717,7 +1729,7 @@ void set_relays()
     }
   }
 }
-// Web response functions
+// Web admin form
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -1729,6 +1741,7 @@ void onWebAdminGet(AsyncWebServerRequest *request)
   // request->send_P(200, "text/html", setup_form_html, setup_form_processor);
   request->send(LittleFS, "/admin_template.html", "text/html", false, setup_form_processor);
 }
+// channel view & force up form
 void onWebViewGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -1741,33 +1754,9 @@ void onWebViewGet(AsyncWebServerRequest *request)
   request->send(LittleFS, "/view_template.html", "text/html", false, setup_form_processor);
 }
 
-/*
-void reset_board()
-{
 
-  delay(1000);
-  // write a char(255) / hex(FF) from startByte until endByte into the EEPROM
 
-  for (unsigned int i = eepromaddr; i < eepromaddr + sizeof(s); ++i)
-  {
-    EEPROM.write(i, 0);
-  }
-  EEPROM.commit();
-  s.check_value = 0; // 12345 when initiated, so should init after restart
-
-  writeToEEPROM();
-  delay(1000);
-  ESP.restart();
-}
-*/
-/*
-void onWebResetGet(AsyncWebServerRequest *request)
-{
-  Serial.println(F("Resetting"));
-  request->send(200, "text/plain", F("Resetting... Reload after a few seconds."));
-  reset_board();
-}
-*/
+//Process force channel form
 
 void onWebViewPost(AsyncWebServerRequest *request)
 {
@@ -1916,10 +1905,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   if (request->getParam("op", true)->value().equals("ota"))
   {
     bootInUpdateMode(request);
- /*   s.next_boot_ota_update = true;
-    writeToEEPROM(); // save to non-volatile memory
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>wait...</body></html>");
- */
+
   }
 #endif
 
