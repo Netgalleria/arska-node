@@ -80,7 +80,7 @@ char timezone_info[35]; // read from config.json "CET-1CEST,M3.5.0/02,M10.5.0/03
 char price_area[8];
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
-bool backup_ap_mode_on = false;
+bool backup_ap_mode_enabled = false;
 
 #define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
 
@@ -90,8 +90,8 @@ Call to check_forced_restart checks if it is time to restart or resets delay if 
 */
 void check_forced_restart(bool reset_counter = false)
 {
-  // tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
-  if (!backup_ap_mode_on) // only valid if forced ap-mode (no normal wifi)
+  // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
+  if (!backup_ap_mode_enabled) // only valid if backup ap mode (no normal wifi)
     return;
 
   time_t now;
@@ -1364,6 +1364,10 @@ String setup_form_processor(const String &var)
     return String(CHANNELS);
   if (var == "CHANNEL_TARGETS_MAX")
     return String(CHANNEL_TARGETS_MAX);
+  if (var == "backup_ap_mode_enabled")
+    return String(backup_ap_mode_enabled?1:0); 
+  
+
 
   if (var == "wifi_ssid")
     return s.wifi_ssid;
@@ -1820,6 +1824,13 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 
   strcpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str());
   strcpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str());
+  if (backup_ap_mode_enabled) { //only wifi setup
+    restart_required = true;
+    writeToEEPROM();
+    request->send(200, "text/html", "<html><body>restarting...wait...</body></html>");
+    return;
+  }
+
   // strcpy(s.http_username, request->getParam("http_username", true)->value().c_str());
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
@@ -2104,15 +2115,13 @@ void setup()
         Serial.println(F("WiFi AP created!"));
       }
     }*/
-  bool create_ap = false; //! s.sta_mode;
   WiFi.mode(WIFI_STA);
   WiFi.begin(s.wifi_ssid, s.wifi_password);
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
     Serial.println(F("WiFi Failed!"));
-    create_ap = true; // try to create AP instead
-    backup_ap_mode_on = true;
+    backup_ap_mode_enabled = true;
     check_forced_restart(true); // schedule restart
   }
   else
@@ -2127,7 +2136,7 @@ void setup()
     WiFi.persistent(true);
   }
 
-  if (create_ap) // Softap should be created if  cannot connect to wifi
+  if (backup_ap_mode_enabled) // Softap should be created if  cannot connect to wifi
   {              // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
 
     String mac = WiFi.macAddress();
@@ -2138,12 +2147,12 @@ void setup()
     String APSSID = String("ARSKANODE-") + mac;
     Serial.print(F("Creating AP:"));
     Serial.println(APSSID);
-    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
+//    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
+    if (WiFi.softAP(APSSID.c_str(),"", (int)random(1, 14), false, 3) == true)
     {
       Serial.println(F("WiFi AP created with ip"));
       Serial.println(WiFi.softAPIP().toString());
       // dnsServer.start(53, "*", WiFi.softAPIP());
-
       // server_web.on(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER,)
     }
     else
@@ -2207,8 +2216,14 @@ void setup()
   server_web.on("/admin", HTTP_GET, onWebAdminGet);
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-  server_web.on("/", HTTP_GET, onWebViewGet);
-  server_web.on("/", HTTP_POST, onWebViewPost);
+  if (backup_ap_mode_enabled) { //only show wifi credential form 
+    server_web.on("/", HTTP_GET, onWebAdminGet);
+    server_web.on("/", HTTP_POST, onWebAdminPost);
+  }
+  else {
+    server_web.on("/", HTTP_GET, onWebViewGet);
+    server_web.on("/", HTTP_POST, onWebViewPost);
+  }
 
   server_web.on("/update", HTTP_GET,   bootInUpdateMode); //now we should restart in update mode
 
@@ -2220,7 +2235,7 @@ void setup()
   server_web.on("/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/arska.js", "text/javascript"); });
 
-  /* if (create_ap) {
+  /* if (backup_ap_mode_enabled) {
      server_web.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
    }
    */

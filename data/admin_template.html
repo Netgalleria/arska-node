@@ -8,8 +8,9 @@
 
 <body onload="setEnergyMeterFields(%emt%);">
     <script>
-        CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
-        CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
+        const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
+        const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
+        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%'); 
     </script>
     <script src="arska.js"></script>
 
@@ -35,7 +36,7 @@
         <div class="secbr">
             <h3>Arska Server</h3>
         </div>
-        <div class="fld">
+      
             <div class="fldh">host:<input name="pg_host" type="text" value="%pg_host%" maxlen='29'></div>
 
             <div class="fldtiny" id="pg_cache_age_d">max cache age:<input class="inpnum" name="pg_cache_age" type="text"
@@ -53,7 +54,7 @@
                 <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema"
                         target="_blank">State list</a></div>
             </div>
-
+            <div id="wifid">
             <div class="secbr">
                 <h3>WiFi</h3>
             </div>
@@ -64,6 +65,7 @@
             <div class="fld">
                 <div>Wifi password</div>
                 <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
+            </div>
             </div>
             <div class="fld">
                 <h3>Admin access</h3>

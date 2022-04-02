@@ -1,5 +1,22 @@
 function setEnergyMeterFields(val) { //
     idx = parseInt(val);
+    if (backup_ap_mode_enabled == 1) { //show only wifi settings
+        //alert("backup_ap_mode_enabled:" + backup_ap_mode_enabled);
+        
+        var elements = document.querySelectorAll('div');
+        elements.forEach((el) => {
+            el.style.display = "none";
+        });
+        var wifid = document.querySelector('#wifid');
+        elements = wifid.querySelectorAll('div');
+
+        wifid.style.display = "block"
+        elements.forEach((el) => {
+            el.style.display = "block";
+        });
+        return;
+    }
+
     document.querySelector('#pg_cache_age_d').style.display = "none"; //now fixed, RFU
     var emhd = document.querySelector('#emhd');
     var empd = document.querySelector('#empd');
