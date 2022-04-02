@@ -84,6 +84,10 @@ bool backup_ap_mode_on = false;
 
 #define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
 
+/* System goes to  AP mode (config mode creates) if it cannot connect to existing wifi.
+In AP mode system is restarted (to retry wifi connection) after a delay.
+Call to check_forced_restart checks if it is time to restart or resets delay if reset_counter == true)
+*/
 void check_forced_restart(bool reset_counter = false)
 {
   // tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
@@ -118,12 +122,14 @@ AsyncWebServer server_web(80);
 
 // Clock functions, supports optional DS3231 RTC
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
+
 bool rtc_found = false;
 /*
     Sets the internal time
     epoch (seconds in GMT)
     microseconds
 */
+// Set internal clock from RTC or browser 
 void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
 {
   struct timeval tv;
@@ -158,6 +164,7 @@ RTC_DS3231 rtc;
    - sec   [0..59]
    Code based on https://de.wikipedia.org/wiki/Unixzeit example "unixzeit"
 */
+// Utility function to convert datetime elements to epoch time
 int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
 {
   const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                /* Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag */
@@ -167,9 +174,8 @@ int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
     days_since_1970 += 1; /* +Schalttag, wenn Jahr Schaltjahr ist */
   return sec + 60 * (min + 60 * (hour + 24 * days_since_1970));
 }
-/*
-    print time of RTC to Serial
-*/
+
+// print time of RTC to Serial, debugging function
 void printRTC()
 {
   DateTime dtrtc = rtc.now(); // get date time from RTC i
@@ -187,9 +193,7 @@ void printRTC()
   }
 }
 
-/*
-   set date/time of external RTC
-*/
+//set date/time of external RTC
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
@@ -199,6 +203,8 @@ void setRTC()
   gmtime_r(&now, &tm); // update the structure tm with the current GMT
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
 }
+
+// callback function (registered with settimeofday_cb ) called when ntp time update received, sets RTC
 void time_is_set(bool from_sntp)
 {
   if (from_sntp) // needs Core 3.0.0 or higher!
@@ -213,6 +219,7 @@ void time_is_set(bool from_sntp)
   }
 }
 
+// reads time from external RTC and set value to internal time
 void getRTC()
 {
   Serial.println(F("getRTC --> update internal clock"));
@@ -288,7 +295,7 @@ bool period_changed = true;
 bool restart_required = false;
 
 // data strcuture limits
-//#define CHANNELS 2
+//#define CHANNELS 2  // moded to platformio.ini
 #define CHANNEL_TYPES 6
 #define CH_TYPE_UNDEFINED1 0
 #define CH_TYPE_UNDEFINED2 1
@@ -298,6 +305,7 @@ bool restart_required = false;
 #define CH_TYPE_SHELLY_TARGET 5
 #define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
+// channels type string for admin UI
 const char *channel_type_strings[] PROGMEM = {
     "undefined",
     "undefined",
@@ -334,6 +342,7 @@ unsigned long energy_produced_period = 0;
 unsigned long power_produced_period_avg = 0;
 #endif
 
+// Target/condition row stucture, elements of target array in channel, stored in non-volatile memory 
 typedef struct
 {
   uint16_t upstates[CHANNEL_STATES_MAX];
@@ -342,6 +351,7 @@ typedef struct
   bool target_active; // for showing if the target is currently active
 } target_struct;
 
+// Channel stucture, elements of channel array in setting, stored in non-volatile memory 
 typedef struct
 {
   target_struct target[CHANNEL_TARGETS_MAX];
@@ -356,6 +366,7 @@ typedef struct
 } channel_struct;
 
 // TODO: add fixed ip, subnet?
+// Setting stucture, stored in non-volatile memory 
 typedef struct
 {
   int check_value;
@@ -390,7 +401,7 @@ typedef struct
 // this stores settings also to eeprom
 settings_struct s;
 
-uint16_t active_states[ACTIVE_STATES_MAX];
+uint16_t active_states[ACTIVE_STATES_MAX]; // current active states
 
 // parse char array to uint16_t array (e.g. states, ip address)
 // note: current version alter str_in, so use copy in calls if original still needed
@@ -437,6 +448,7 @@ bool test_wifi_settings(char *wifi_ssid, char *wifi_password, bool keep_connecte
   }
 }
 #define CONFIG_JSON_SIZE_MAX 1600
+//utility for read_config_file
 bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr)
 {
   if (doc.containsKey(key))
@@ -447,6 +459,7 @@ bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char
   return false;
 }
 
+// read config variables from config.json file
 bool read_config_file(bool init_settings)
 {
   Serial.println(F("Reading config file"));
@@ -481,7 +494,6 @@ bool read_config_file(bool init_settings)
   if (!init_settings) // read only basic config
     return true;
 
- // copy_doc_str(doc, (char *)"http_username", s.http_username);
   strcpy(s.http_username, "admin"); //use fixed name
   
   copy_doc_str(doc, (char *)"http_password", s.http_password);
@@ -548,7 +560,6 @@ void readFromEEPROM()
 // writes settigns to eeprom
 void writeToEEPROM()
 {
-  // channel
   EEPROM.put(eepromaddr, s); // write data to array in ram
   EEPROM.commit();
   Serial.print(F("writeToEEPROM:"));
@@ -582,6 +593,7 @@ void notFound(AsyncWebServerRequest *request)
   request->send(404, "text/plain", "Not found");
 }
 
+// Utility function to make http request, stores result to a cache file if defined
 String httpGETRequest(const char *url, const char *cache_file_name)
 {
   WiFiClient client;
@@ -598,7 +610,6 @@ String httpGETRequest(const char *url, const char *cache_file_name)
 
     if (strlen(cache_file_name) > 0) // write to a cache file
     {
-
       LittleFS.remove(cache_file_name); // Delete existing file, otherwise the configuration is appended to the file
 
       File cache_file = LittleFS.open(cache_file_name, "w"); // Open file for writing
@@ -805,7 +816,7 @@ uint16_t buf[REG_COUNT];
 uint16_t trans;
 
 
-// callback for ModBus, just debugging
+// callback for ModBus, curretnly just debugging
 bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
 { // Callback to monitor errors
   if (event != Modbus::EX_SUCCESS)
@@ -906,12 +917,11 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 } // read_inverter_sma_data
 #endif
 
-// read production data from inverters
+// read production data from inverters, calls inverter specific functions
 void read_inverter()
 {
   // global: recording_period_start
   // three globals updated: inverter_total_period_init, energy_produced_period, power_produced_period_avg
-
   long int total_energy = 0;
   long int current_power = 0;
 
@@ -952,7 +962,7 @@ void read_inverter()
 } // read_inverter
 
 #ifdef QUERY_ARSKA_ENABLED
-// return whether there is a valid cache file (exist, not expired)
+// returns true there is a valid cache file (exist and  not expired)
 bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
 {
   if (!LittleFS.exists(cache_file_name))
@@ -1107,8 +1117,6 @@ void refresh_states(time_t current_period_start)
   else
   {
     Serial.println(F("Cache not valid. Querying..."));
-    // TODO:hardcoded price area
-    //  String url_to_call = String(s.pg_url) + "&states=";
     String url_to_call = "http://" + String(s.pg_host) + "/state_series?price_area=" + price_area + "&location=" + String(s.forecast_loc) + "&api_key=" + String(s.pg_api_key);
     Serial.println(url_to_call);
     error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), pg_state_cache_filename), DeserializationOption::Filter(filter));
@@ -1271,9 +1279,6 @@ void get_status_fields(char *out)
   gmtime_r(&now_suntime, &tm_sun);
   snprintf(buff, 150, "<div class='fld'><div>Local time: %02d:%02d:%02d, solar time: %02d:%02d:%02d %s</div></div>", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, tm_sun.tm_hour, tm_sun.tm_min, tm_sun.tm_sec,rtc_status);
   strcat(out, buff);  
-
-  
-
   localtime_r(&recording_period_start, &tm_struct);
   sprintf(time1, "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   localtime_r(&energym_read_last, &tm_struct);
@@ -1756,8 +1761,7 @@ void onWebViewGet(AsyncWebServerRequest *request)
 
 
 
-//Process force channel form
-
+//Process channel force form
 void onWebViewPost(AsyncWebServerRequest *request)
 {
   time(&now);
@@ -1800,12 +1804,15 @@ void onWebViewPost(AsyncWebServerRequest *request)
     set_relays();
   request->redirect("/");
 }
+// restarts controller in update mode
 void bootInUpdateMode(AsyncWebServerRequest *request) {
     s.next_boot_ota_update = true;
     writeToEEPROM(); // save to non-volatile memory
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>wait...</body></html>");
     return;
 }
+
+// process admin form results
 void onWebAdminPost(AsyncWebServerRequest *request)
 {
   String message;
@@ -1929,6 +1936,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   request->redirect("/admin");
 }
 
+// returns status in json
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -1970,6 +1978,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 }
 
 // TODO: do we need authentication?
+// returns current states in json/rest
 void onWebStatesGet(AsyncWebServerRequest *request)
 {
   if (!LittleFS.exists(pg_state_cache_filename))
@@ -2008,6 +2017,7 @@ void onWebStatesGet(AsyncWebServerRequest *request)
   request->send(200, "application/json", output);
 }
 
+//Everythign starts from here in while starting the controller
 void setup()
 {
   Serial.begin(115200);
@@ -2192,9 +2202,8 @@ void setup()
   // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
   configTime(timezone_info, ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
 
-  // server_web.on("/reset", HTTP_GET, onWebResetGet);
   server_web.on("/status", HTTP_GET, onWebStatusGet);
-  server_web.on("/state_series", HTTP_GET, onWebStatesGet);
+  server_web.on("/state_series", HTTP_GET, onWebStatesGet); 
   server_web.on("/admin", HTTP_GET, onWebAdminGet);
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
@@ -2225,11 +2234,13 @@ void setup()
 
 } // end of setup()
 
+//returns start time period (first second of an hour if 60 minutes netting period) of time stamp, 
 long get_period_start_time(long ts)
 {
   return long(ts / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
 }
 
+// This function is executed repeatedly after setpup()
 void loop()
 {
   // Serial.print(F("Starting loop"));
