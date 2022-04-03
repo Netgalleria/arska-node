@@ -133,7 +133,7 @@ void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
   tv.tv_usec = us;
   settimeofday(&tv, NULL);
 }
-const int force_up_hours[] = {1, 2, 4, 8, 12, 24};
+const int force_up_hours[] = {0,1, 2, 4, 8, 12, 24};
 
 #ifdef RTC_DS3231_ENABLED
 #if ARDUINO_ESP8266_MAJOR < 3
@@ -1329,30 +1329,35 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
    // snprintf(buff3, 40, ", forced -> %02d:%02d, left: %02d:%02d ", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
     snprintf(buff4, 20, "-> %02d:%02d (%02d:%02d)", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
   }
- /* else
+  else
   {
-    strcpy(buff3, "");
+    strcpy(buff4, "");
   }
-*/
+
   snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>Current status: %s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2,  s.ch[channel_idx].gpio);
   strcat(out, buff);
+  Serial.printf("SHOW channel_idx: %d, forced: %s\n", channel_idx, buff4);
+
   if (show_force_up)
   {
-    snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br><input type='radio' id='fup_%d_none' name='fup_%d' value='0' %s><label for='fup_%d_none'>0</label>", channel_idx, channel_idx, s.ch[channel_idx].force_up_until > now ? "" : "checked", channel_idx);
+   // snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br><input type='radio' id='fup_%d_none' name='fup_%d' value='0' %s><label for='fup_%d_none'>0</label>", channel_idx, channel_idx, s.ch[channel_idx].force_up_until > now ? "" : "checked", channel_idx);
+    snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br>");
     strcat(out, buff);
 
     int hour_array_element_count = (int)(sizeof(force_up_hours) / sizeof(*force_up_hours));
     for (int hour_idx = 0; hour_idx < hour_array_element_count; hour_idx++)
     {
-
-      snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d'><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
+ 
+      snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now) && ( hour_idx == 0) )?"checked":"",channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
       strcat(out, buff);
+
       // current force_up_until, if set
       if ((s.ch[channel_idx].force_up_until > now) && (s.ch[channel_idx].force_up_until - now > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now < force_up_hours[hour_idx + 1] * 3600))
       {
         snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
         strcat(out, buff);
       }
+
     }
 
     strcat(out, "</div>");
@@ -1785,7 +1790,7 @@ void onWebViewPost(AsyncWebServerRequest *request)
       channel_idx = p->name().substring(4, 5).toInt();
       channel_already_forced = (s.ch[channel_idx].force_up_until > now);
       forced_up_hours = p->value().toInt();
-      // Serial.printf("channel_idx: %d, forced_up_hours: %ld\n", channel_idx, forced_up_hours);
+      Serial.printf("channel_idx: %d, forced_up_hours: %ld \n", channel_idx, forced_up_hours);
 
       // -1 - no change
       if ((forced_up_hours != -1) && (channel_already_forced || forced_up_hours > 0))
