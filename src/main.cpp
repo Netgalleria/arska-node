@@ -1313,13 +1313,13 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
   time(&now);
   char buff[200];
   char buff2[20];
-  //char buff3[40];
+  //char buff3[10];
   char buff4[20];
   tm tm_struct2;
   time_t from_now;
-  strcpy(buff2, s.ch[channel_idx].is_up ? "up" : "down");
+  strcpy(buff2, s.ch[channel_idx].is_up ? "🟥 up" : "⬜ down");
   if (s.ch[channel_idx].is_up != s.ch[channel_idx].wanna_be_up)
-    strcat(buff2, s.ch[channel_idx].wanna_be_up ? " (rising)" : "(dropping)");
+    strcat(buff2, s.ch[channel_idx].wanna_be_up ? " 🔺 rising" : "🔻 dropping");
 
   if (s.ch[channel_idx].force_up_until > now)
   {
@@ -1334,7 +1334,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     strcpy(buff4, "");
   }
 
-  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>Current status: %s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2,  s.ch[channel_idx].gpio);
+  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>%s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2,  s.ch[channel_idx].gpio);
   strcat(out, buff);
   Serial.printf("SHOW channel_idx: %d, forced: %s\n", channel_idx, buff4);
 
@@ -1822,7 +1822,7 @@ void bootInUpdateMode(AsyncWebServerRequest *request)
 {
   s.next_boot_ota_update = true;
   writeToEEPROM(); // save to non-volatile memory
-  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>wait...</body></html>");
+  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>wait for update mode...</body></html>");
   return;
 }
 
