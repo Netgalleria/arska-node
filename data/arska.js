@@ -17,7 +17,6 @@ function setEnergyMeterFields(val) { //
         return;
     }
 
-    document.querySelector('#pg_cache_age_d').style.display = "none"; //now fixed, RFU
     var emhd = document.querySelector('#emhd');
     var empd = document.querySelector('#empd');
     var emhd = document.querySelector('#emhd');

@@ -72,6 +72,8 @@ const char *config_file_name PROGMEM = "/config.json";
 time_t now; // this is the epoch
 tm tm_struct;
 
+bool processing_states = false; //trying to be "thread-safe", do not give state query http replies while processing
+
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 char ntp_server[35];
 char timezone_info[35]; // read from config.json "CET-1CEST,M3.5.0/02,M10.5.0/03", "EET-2EEST,M3.5.0/3,M10.5.0/4"
@@ -133,7 +135,7 @@ void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
   tv.tv_usec = us;
   settimeofday(&tv, NULL);
 }
-const int force_up_hours[] = {0,1, 2, 4, 8, 12, 24};
+const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24};
 
 #ifdef RTC_DS3231_ENABLED
 #if ARDUINO_ESP8266_MAJOR < 3
@@ -373,7 +375,7 @@ typedef struct
   channel_struct ch[CHANNELS];
 #ifdef QUERY_ARSKA_ENABLED
   char pg_host[MAX_URL_STR_LENGTH];
-  uint16_t pg_cache_age;
+  uint16_t pg_cache_age; // not anymore in use, replaced by "expires" from the server, remove
   char pg_api_key[37];
 #endif
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
@@ -512,8 +514,8 @@ bool read_config_file(bool init_settings)
 #ifdef QUERY_ARSKA_ENABLED
   copy_doc_str(doc, (char *)"pg_host", s.pg_host);
   copy_doc_str(doc, (char *)"pg_api_key", s.pg_api_key);
-  if (doc.containsKey("pg_cache_age"))
-    s.pg_cache_age = doc["pg_cache_age"];
+  /*if (doc.containsKey("pg_cache_age"))
+    s.pg_cache_age = doc["pg_cache_age"];*/
 #endif
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
@@ -920,7 +922,7 @@ void read_inverter()
   if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR)
   {
     reakOk = read_inverter_fronius_data(total_energy, current_power);
-    if ((long)inverter_total_period_init > total_energy)
+    if (((long)inverter_total_period_init > total_energy) && reakOk)
       inverter_total_period_init = 0; // day have changed probably, reset counter, we get day totals from Fronius
   }
 
@@ -954,7 +956,8 @@ void read_inverter()
 
 #ifdef QUERY_ARSKA_ENABLED
 // returns true there is a valid cache file (exist and  not expired)
-bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
+// bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
+bool is_cache_file_valid(const char *cache_file_name)
 {
   if (!LittleFS.exists(cache_file_name))
   {
@@ -968,7 +971,8 @@ bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
     return false;
   }
   StaticJsonDocument<16> filter;
-  filter["ts"] = true; // first get timestamp field
+  // filter["ts"] = true; // first get timestamp field, old way
+  filter["expires"] = true; // first check expires timestamp field
 
   StaticJsonDocument<50> doc_ts;
 
@@ -982,11 +986,12 @@ bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
     return false;
   }
 
-  unsigned long ts = doc_ts["ts"];
   time(&now);
-
+  unsigned long expires = doc_ts["expires"];
+  return expires > now;
+  /* old way, remove...
+  unsigned long ts = doc_ts["ts"];
   unsigned long age = now - ts;
-
   if (age > max_age_sec)
   {
     return false;
@@ -994,7 +999,9 @@ bool is_cache_file_valid(const char *cache_file_name, unsigned long max_age_sec)
   else
   {
     return true;
-  }
+  } 
+  */
+
 }
 #endif
 
@@ -1098,7 +1105,7 @@ void refresh_states(time_t current_period_start)
 
   // TODO: what happens if cache is expired and no connection to state server
 
-  if (is_cache_file_valid(pg_state_cache_filename, s.pg_cache_age))
+  if (is_cache_file_valid(pg_state_cache_filename))
   {
     Serial.println(F("Using cached data"));
     File cache_file = LittleFS.open(pg_state_cache_filename, "r");
@@ -1313,7 +1320,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
   time(&now);
   char buff[200];
   char buff2[20];
-  //char buff3[10];
+  // char buff3[10];
   char buff4[20];
   tm tm_struct2;
   time_t from_now;
@@ -1326,7 +1333,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     localtime_r(&s.ch[channel_idx].force_up_until, &tm_struct);
     from_now = s.ch[channel_idx].force_up_until - now;
     gmtime_r(&from_now, &tm_struct2);
-   // snprintf(buff3, 40, ", forced -> %02d:%02d, left: %02d:%02d ", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
+    // snprintf(buff3, 40, ", forced -> %02d:%02d, left: %02d:%02d ", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
     snprintf(buff4, 20, "-> %02d:%02d (%02d:%02d)", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
   }
   else
@@ -1334,21 +1341,21 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     strcpy(buff4, "");
   }
 
-  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>%s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2,  s.ch[channel_idx].gpio);
+  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>%s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2, s.ch[channel_idx].gpio);
   strcat(out, buff);
-  Serial.printf("SHOW channel_idx: %d, forced: %s\n", channel_idx, buff4);
+  // Serial.printf("SHOW channel_idx: %d, forced: %s\n", channel_idx, buff4);
 
   if (show_force_up)
   {
-   // snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br><input type='radio' id='fup_%d_none' name='fup_%d' value='0' %s><label for='fup_%d_none'>0</label>", channel_idx, channel_idx, s.ch[channel_idx].force_up_until > now ? "" : "checked", channel_idx);
+    // snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br><input type='radio' id='fup_%d_none' name='fup_%d' value='0' %s><label for='fup_%d_none'>0</label>", channel_idx, channel_idx, s.ch[channel_idx].force_up_until > now ? "" : "checked", channel_idx);
     snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br>");
     strcat(out, buff);
 
     int hour_array_element_count = (int)(sizeof(force_up_hours) / sizeof(*force_up_hours));
     for (int hour_idx = 0; hour_idx < hour_array_element_count; hour_idx++)
     {
- 
-      snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now) && ( hour_idx == 0) )?"checked":"",channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
+
+      snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
       strcat(out, buff);
 
       // current force_up_until, if set
@@ -1357,7 +1364,6 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
         snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
         strcat(out, buff);
       }
-
     }
 
     strcat(out, "</div>");
@@ -1506,11 +1512,9 @@ String setup_form_processor(const String &var)
     return s.pg_host;
   if (var == "pg_api_key")
     return s.pg_api_key;
-
+/* removed
   if (var == "pg_cache_age")
-    return String("7200"); // now fixed
-                           // return String(s.pg_cache_age);
-
+    return String("7200"); // now fixed */
 #endif
 
   for (int i = 0; i < CHANNELS; i++)
@@ -1876,7 +1880,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   strcpy(s.pg_host, request->getParam("pg_host", true)->value().c_str());
   strcpy(s.pg_api_key, request->getParam("pg_api_key", true)->value().c_str());
 
-  s.pg_cache_age = max((int)request->getParam("pg_cache_age", true)->value().toInt(), 3600);
+  // s.pg_cache_age = max((int)request->getParam("pg_cache_age", true)->value().toInt(), 3600);
 #endif
 
   // channel/target fields
@@ -1999,42 +2003,39 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 }
 
 // TODO: do we need authentication?
+// TODO: still in proto stage
 // returns current states in json/rest
 void onWebStatesGet(AsyncWebServerRequest *request)
 {
-  if (!LittleFS.exists(pg_state_cache_filename))
-  {
-    Serial.println(F("No cache file. "));
-    return;
-  }
-
-  File cache_file = LittleFS.open(pg_state_cache_filename, "r");
-  if (!cache_file)
-  { // failed to open the file, retrn empty result
-    Serial.println(F("Failed to open cache file. "));
-    return;
-  }
-
-  StaticJsonDocument<16> filter;
   char start_str[11];
   itoa(current_period_start, start_str, 10);
-  filter[(const char *)start_str] = true;
-
-  StaticJsonDocument<200> doc_ts;
-  DeserializationError error = deserializeJson(doc_ts, cache_file, DeserializationOption::Filter(filter));
-  cache_file.close();
-
-  if (error)
-  {
-    Serial.print(F("Arska server deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    return;
-  }
+    StaticJsonDocument<1000> doc; 
   String output;
+
+
+  unsigned long currentMillis = millis();
+
+  //testing, prevent simultaneous write and read of state data
+  while (processing_states) {
+    if (millis()-currentMillis> 3000) //timeout
+      break;
+  }
+
+
+    int state_idx = 0;
+    for (int i = 0; i < CHANNEL_STATES_MAX; i++)
+    {
+      if (active_states[i] == 0)
+        break;
+      else if (active_states[i] > STATES_DEVICE_MAX) // do not send device states
+        doc[(const char *)start_str][state_idx++] = active_states[i];
+  }
+
   time(&now);
-  doc_ts["ts"] = now;
-  doc_ts["node_priority"] = s.node_priority;
-  serializeJson(doc_ts, output);
+  doc["ts"] = now;
+  doc["expires"] = now + 121; // time-to-live of the result, under construction, TODO: set to parameters
+  doc["node_priority"] = s.node_priority;
+  serializeJson(doc, output);
   request->send(200, "application/json", output);
 }
 
@@ -2326,7 +2327,11 @@ void loop()
 #endif
 
     read_energy_meter();
+
+    processing_states = true;
     refresh_states(current_period_start);
+    processing_states = false;
+
     sensor_last_refresh = millis();
     set_relays(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
   }
