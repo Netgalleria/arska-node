@@ -89,8 +89,8 @@ function beforeSubmit() {
     document.querySelector('#ts').value = Date.now() / 1000;
     var http_password = document.querySelector('#http_password').value;
     var http_password2 = document.querySelector('#http_password2').value;
-    if (http_password && http_password.length < 6) {
-        alert('Password too short, minimum 6 characters.');
+    if (http_password && http_password.length < 5) {
+        alert('Password too short, minimum 5 characters.');
         return false;
     }
     if (http_password != http_password2) {

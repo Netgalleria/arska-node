@@ -72,7 +72,7 @@ const char *config_file_name PROGMEM = "/config.json";
 time_t now; // this is the epoch
 tm tm_struct;
 
-bool processing_states = false; //trying to be "thread-safe", do not give state query http replies while processing
+bool processing_states = false; // trying to be "thread-safe", do not give state query http replies while processing
 
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 char ntp_server[35];
@@ -414,8 +414,8 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[CHANNEL_STATES_MAX
 
   while (ptr)
   {
-    Serial.print(atol(ptr));
-    Serial.print(",");
+   /* Serial.print(atol(ptr));
+    Serial.print(","); */
     array_out[i] = atol(ptr);
     ptr = strtok(NULL, separator);
     i++;
@@ -548,7 +548,7 @@ bool read_config_file(bool init_settings)
 void readFromEEPROM()
 {
   EEPROM.get(eepromaddr, s);
-  Serial.print(F("readFromEEPROM:"));
+  Serial.println(F("readFromEEPROM: Reading settings from eeprom."));
 }
 
 // writes settigns to eeprom
@@ -556,7 +556,7 @@ void writeToEEPROM()
 {
   EEPROM.put(eepromaddr, s); // write data to array in ram
   EEPROM.commit();
-  Serial.print(F("writeToEEPROM:"));
+  Serial.print(F("writeToEEPROM: Writing settings to eeprom."));
 }
 
 // from https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
@@ -999,9 +999,8 @@ bool is_cache_file_valid(const char *cache_file_name)
   else
   {
     return true;
-  } 
+  }
   */
-
 }
 #endif
 
@@ -1591,9 +1590,9 @@ bool set_channel_switch(int channel_idx, bool up)
   // Serial.printf("set_channel_switch channel_type_group %d \n",channel_type_group);
   if (channel_type_group == CH_TYPE_GPIO_ONOFF)
   {
-    Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
+  /*  Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
     Serial.print(s.ch[channel_idx].gpio);
-    Serial.print(up);
+    Serial.print(up); */
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
     return true;
   }
@@ -1618,8 +1617,8 @@ bool set_channel_switch(int channel_idx, bool up)
     else
       return true;
   }
-  else
-    Serial.print(F("Cannot switch this channel"));
+  //else
+  //  Serial.print(F("Cannot switch this channel"));
 
   return false;
 }
@@ -2009,27 +2008,31 @@ void onWebStatesGet(AsyncWebServerRequest *request)
 {
   char start_str[11];
   itoa(current_period_start, start_str, 10);
-    StaticJsonDocument<1000> doc; 
+  //StaticJsonDocument<1000> doc;
+  DynamicJsonDocument doc(1024);
   String output;
-
 
   unsigned long currentMillis = millis();
 
-  //testing, prevent simultaneous write and read of state data
-  while (processing_states) {
-    if (millis()-currentMillis> 3000) //timeout
+  // testing, prevent simultaneous write and read of state data
+  while (processing_states)
+  {
+    if (millis() - currentMillis > 3000) // timeout
       break;
   }
 
+  JsonArray states_current = doc.createNestedArray((const char *)start_str);
 
-    int state_idx = 0;
-    for (int i = 0; i < CHANNEL_STATES_MAX; i++)
-    {
-      if (active_states[i] == 0)
-        break;
-      else if (active_states[i] > STATES_DEVICE_MAX) // do not send device states
-        doc[(const char *)start_str][state_idx++] = active_states[i];
+  for (int i = 0; i < CHANNEL_STATES_MAX; i++)
+  {
+    if (active_states[i] == 0)
+      break;
+    else if (active_states[i] > STATES_DEVICE_MAX) {// do not send device states
+  //    doc[(const char *)start_str][state_idx++] = active_states[i];
+      states_current.add(active_states[i]);
+    }
   }
+ 
 
   time(&now);
   doc["ts"] = now;
@@ -2043,7 +2046,9 @@ void onWebStatesGet(AsyncWebServerRequest *request)
 void setup()
 {
   Serial.begin(115200);
-  randomSeed(analogRead(0));
+  delay(2000); //wait for console settle - only needed when debugging
+
+  randomSeed(analogRead(0)); // initiate random generator
 
 #ifdef SENSOR_DS18B20_ENABLED
 
@@ -2115,7 +2120,7 @@ void setup()
       Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
 
-    Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
+   // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
 
@@ -2128,7 +2133,8 @@ void setup()
       }
     }*/
   WiFi.mode(WIFI_STA);
-  WiFi.begin(s.wifi_ssid, s.wifi_password);
+  WiFi.begin(s.wifi_ssid, s.wifi_password); 
+  Serial.printf("Trying to connect wifi [%s] with password [%s]\n",s.wifi_ssid,s.wifi_password);
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
@@ -2138,12 +2144,9 @@ void setup()
   }
   else
   {
-    Serial.print(F("IP Address: "));
+    Serial.printf("Connected to wifi [%s] with IP Address:",s.wifi_ssid);
     Serial.println(WiFi.localIP());
-    Serial.println(WiFi.macAddress());
-    Serial.println(s.http_username);
-    Serial.println(s.http_password);
-
+    //Serial.println(WiFi.macAddress());
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
   }
@@ -2162,7 +2165,7 @@ void setup()
     //    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
     if (WiFi.softAP(APSSID.c_str(), "", (int)random(1, 14), false, 3) == true)
     {
-      Serial.println(F("WiFi AP created with ip"));
+      Serial.print(F("WiFi AP created with ip:"));
       Serial.println(WiFi.softAPIP().toString());
       // dnsServer.start(53, "*", WiFi.softAPIP());
       // server_web.on(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER,)
@@ -2174,6 +2177,10 @@ void setup()
       ESP.restart();
     }
   }
+
+  Serial.printf("Web admin: [%s], password: [%s]\n",s.http_username,s.http_password);
+
+
 #ifdef RTC_DS3231_ENABLED
   Serial.println(F("Starting RTC!"));
   Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
