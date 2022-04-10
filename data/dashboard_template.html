@@ -6,18 +6,17 @@
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
-<body>
-
+<body onload="initForm('/');">
+    <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
-        <h1>Arska Node</h1>
-        <span><b>Dashboard</b></span> | <a href="/admin">Admin</a>
     </div>
     <div class="secbr">
         <h2>Status</h2>
     </div>
         %status_fields%
         <div class="fld">Active states: %states%</div>
-        <form method="post">
+        <form method="post"  onsubmit="setFormSubmitting()">
+            <input name="source" type="hidden" value="dashboard">
             %vch_0%
             %vch_1%
             %vch_2%

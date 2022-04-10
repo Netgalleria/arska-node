@@ -1,0 +1,40 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Arska Node | Admin Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body onload="initForm('/inputs');setEnergyMeterFields(%emt%);">
+    <script>
+        const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
+        const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
+        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%'); 
+    </script>
+    <script src="js/arska.js"></script>
+    <div class="secbr" id="headdiv">
+    </div>
+    <form method="post" onsubmit="setFormSubmitting()">
+        <input name="source" type="hidden" value="inputs">
+         %energy_meter_fields%
+        <div class="fldshort" id="baseld">base load (W):<input name="baseload" class="inpnum" type="text"
+                value="%baseload%"></div>
+
+        <div class="secbr">
+            <h3>Arska Server</h3>
+        </div>
+            <div class="fldh">host:<input name="pg_host" type="text" value="%pg_host%" maxlen='29'></div>
+            <div class="fld">API key:<input name="pg_api_key" type="text" value="%pg_api_key%" maxlen='36'></div>
+
+            <div class="secbr">
+                <h3>Location</h3>
+                <div class="fldtiny">lat:<input name="lat" type="text" value="%lat%"></div>
+                <div class="fldtiny">lon:<input name="lon" type="text" value="%lon%"></div>
+                <div class="fldshort">forecast location:<input name="forecast_loc" maxlen='29' type="text"
+                        value="%forecast_loc%"></div>
+            </div>
+            <br><input type="submit" value="Save">
+               </form>
+</body>
+
+</html>

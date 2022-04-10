@@ -1,0 +1,40 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Arska Node | Admin Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body onload="initForm('/channels');">
+    <script>
+        const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
+        const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
+        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%'); 
+    </script>
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script src="js/arska.js"></script>
+    <div class="secbr" id="headdiv">
+    </div>
+    <div class="secbr">
+        <h2>Status</h2>
+    </div>
+    %status_fields%
+    <div class="fld">Active states: %states%</div>
+    <br>
+
+    <form method="post"  onsubmit="setFormSubmitting()">
+        <input name="source" type="hidden" value="channels">
+        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
+        %chi_6% %cht_6% %chi_7% %cht_7% 
+        
+            <div class="fld">
+                <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema"
+                        target="_blank">State list</a></div>
+            </div>
+            <br><input type="submit" value="Save">
+               </form>
+
+
+</body>
+
+</html>

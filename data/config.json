@@ -1,6 +1,6 @@
 {
-    "wifi_ssid": "Your-Wifi-SSID",
-    "wifi_password": "your-wifi-password",
+    "wifi_ssid": "Feel The Nature HQ",
+    "wifi_password": "taustalevy",
     "http_password": "arska",
     "pg_host": "",
     "pg_cache_age": 7200,

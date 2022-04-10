@@ -4,105 +4,72 @@
     <title>Arska Node | Admin Dashboard</title>
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
-
-<body onload="setEnergyMeterFields(%emt%);">
+<body  onload="initForm('/admin');">
     <script>
-        const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
-        const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
-        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%'); 
+        const wifi_ssid = '%wifi_ssid%'; 
     </script>
-    <script src="arska.js"></script>
-
+    <script type="text/javascript" src="wifis.json"></script>
+    <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
-        <h1>Arska Node</h1>
-        <a href="/">Dashboard</a> | <span> <b>Admin</b> </span>
+       
     </div>
-    <div class="secbr">
-        <h2>Status</h2>
-    </div>
-    %status_fields%
-    <div class="fld">Active states: %states%</div>
-    <br>
-
-    <form method="post">
-        <h2>Settings</h2>
-        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
-        %chi_6% %cht_6% %chi_7% %cht_7% %energy_meter_fields%
-
-        <div class="fldshort" id="baseld">base load (W):<input name="baseload" class="inpnum" type="text"
-                value="%baseload%"></div>
-
-        <div class="secbr">
-            <h3>Arska Server</h3>
-        </div>
-            <div class="fldh">host:<input name="pg_host" type="text" value="%pg_host%" maxlen='29'></div>
-            <div class="fld">API key:<input name="pg_api_key" type="text" value="%pg_api_key%" maxlen='36'></div>
-
+    <form method="post" onsubmit="setFormSubmitting()">
+       <input name="source" type="hidden" value="admin">
+        <div id="wifid">
             <div class="secbr">
-                <div class="fldtiny">lat:<input name="lat" type="text" value="%lat%"></div>
-                <div class="fldtiny">lon:<input name="lon" type="text" value="%lon%"></div>
-                <div class="fldshort">forecast location:<input name="forecast_loc" maxlen='29' type="text"
-                        value="%forecast_loc%"></div>
-            </div>
-
-            <div class="fld">
-                <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema"
-                        target="_blank">State list</a></div>
-            </div>
-            <div id="wifid">
-            <div class="secbr">
-                <h3>WiFi</h3>
+                <h3>WiFi settings</h3>
             </div>
             <div class="fld">
-                <div>Wifi SSID</div>
-                <div><input name="wifi_ssid" type="text" value="%wifi_ssid%"></div>
+                <div>Wifi ssid</div>
+                <div><select name='wifi_ssid' id='wifi_ssid'></select>
+                
             </div>
             <div class="fld">
                 <div>Wifi password</div>
                 <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
             </div>
-            </div>
-            <div class="fld">
-                <h3>Admin access</h3>
-            </div>
-            <div class="fld">
-                <div>Access uid</div>
-                <div><input name="http_username" type="text" value="%http_username%" readonly></div>
-            </div>
+        </div>
+        <div class="fld">
+            <h3>Admin access</h3>
+        </div>
+        <div class="fldh">
+            <div>Change password for 'admin'</div>
+            <div><input name="http_password" id="http_password" type="password"></div>
+        </div>
+        <div class="fldh">
+            <div>Rewrite to change</div>
+            <div><input name="http_password2" id="http_password2" type="password"></div>
+        </div>
+        <div class="fld">
+            <br/>
+        </div>
+        <div class="secbr radio-toolbar">
+            Action (use with caution):<br><input type="radio" id="op_none" name="op" value="none" checked>
+            <label for="op_none">none</label>
 
-            <div class="fldh">
-                <div>Change admin password</div>
-                <div><input name="http_password" id="http_password" type="password"></div>
-            </div>
-            <div class="fldh">
-                <div>Rewrite to change</div>
-                <div><input name="http_password2" id="http_password2" type="password"></div>
-            </div>
+            <input type="radio" id="op_ts" name="op" value="ts">
+            <label for="op_ts">Sync with workstation time</label>
+            
+            <input type="radio" id="op_scan_wifis" name="op" value="scan_wifis">
+            <label for="op_scan_wifis">Rescan WiFis</label>
 
-            <div class="secbr">
-                Action (use with caution):<br><input type="radio" id="op_none" name="op" value="none" checked>
-                <label for="op_none">none</label>
+            <input type="radio" id="op_ota" name="op" value="ota">
+            <label for="op_ota">Firmware update mode</label>
 
-                <input type="radio" id="op_ts" name="op" value="ts">
-                <label for="op_ts">Sync with workstation time</label>
+            <input type="radio" id="op_reboot" name="op" value="reboot">
+            <label for="op_reboot">Restart</label>
 
-                <input type="radio" id="op_ota" name="op" value="ota">
-                <label for="op_ota">Firmware update mode</label>
+            <input type="radio" id="op_reset" name="op" value="reset">
+            <label for="op_reset">Reset to factory defaults</label>
+        </div>
 
-                <input type="radio" id="op_reboot" name="op" value="reboot">
-                <label for="op_reboot">Restart</label>
+        <input type="hidden" id="ts" name="ts">
+        <br><input type="submit" value="Save" onclick="checkAdminForm()">
 
-                <input type="radio" id="op_reset" name="op" value="reset">
-                <label for="op_reset">Reset to factory defaults</label>
-            </div>
-
-            <input type="hidden" id="ts" name="ts">
-            <br><input type="submit" value="Save" onclick="return beforeSubmit()" ;>
+       
     </form>
-
     <div class="secbr">
         <div><i>Program version: %prog_data%</i></div>
     </div>
 </body>
-
 </html>
