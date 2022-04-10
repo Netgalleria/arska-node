@@ -1,4 +1,5 @@
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>Arska Node | Admin Dashboard</title>
@@ -21,18 +22,65 @@
     %status_fields%
     <div class="fld">Active states: %states%</div>
     <br>
+    <input class="rsimp" type="text" id="rules_0" placeholder="Paste ruleset here!" onfocus="clearText(this)">
+    <script>
+        function clearText(elem) {
+            elem.value = '';
+        }
 
-    <form method="post"  onsubmit="setFormSubmitting()">
+        function processRulesetImport(evt) {
+            const fldA = evt.target.id.split("_");
+            channel_idx = parseInt(fldA[1]);
+
+            let data = evt.clipboardData.getData('text/plain');
+            try {
+                obj = JSON.parse(data);
+                evt.target.value = 'x';
+                document.getElementById(evt.target.id).value = '';
+                if ((!'rulesetId' in obj) || !('rules' in obj)) {
+                    alert("Invalid ruleset data.");
+                    return;
+                }
+                let import_it = confirm("Do you want to import rule set over existing rules?");
+
+            } catch (e) {
+                alert('Invalid ruleset (' + e + ')'); // error in the above string (in this case, yes)!
+                evt.target.value = '';
+                return false;
+            }
+
+            for(let i=0; i<CHANNELS;i++) {
+                let rule_states_e=  document.getElementById("st_" + channel_idx + "_" + i);
+                let rule_onoff_cb=  document.getElementById("ctcb_" + channel_idx + "_" + i);
+                
+                if (obj["rules"].length>=i+1) {
+                    rule_states_e.value = JSON.stringify(obj["rules"][i]["states"]).replace("[","").replace("]","");
+                    rule_onoff_cb.checked = obj["rules"][i]["on"];
+                }
+                else {
+                    rule_states_e.value = '';
+                    rule_onoff_cb.checked = false;
+                }
+            }
+        }
+        let rs1 = document.getElementById('rs1')
+        document.addEventListener('paste', e => {
+            processRulesetImport(e);
+        })
+
+    </script>
+    <form method="post" onsubmit="setFormSubmitting()">
+
         <input name="source" type="hidden" value="channels">
         %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
-        %chi_6% %cht_6% %chi_7% %cht_7% 
-        
-            <div class="fld">
-                <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema"
-                        target="_blank">State list</a></div>
-            </div>
-            <br><input type="submit" value="Save">
-               </form>
+        %chi_6% %cht_6% %chi_7% %cht_7%
+
+        <div class="fld">
+            <div><a href="https://github.com/Netgalleria/arska-node/wiki/State-numbering--example-schema"
+                    target="_blank">State list</a></div>
+        </div>
+        <br><input type="submit" value="Save">
+    </form>
 
 
 </body>

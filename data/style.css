@@ -107,6 +107,11 @@ h3 {
     width: 70%;
     margin-right: 2%;
 }
+
+.rsimp {
+    font-size:x-small;
+    width: 7em;
+}
 h1 {
     margin-block-start: 0em;
     margin-block-end: 0.2em;
