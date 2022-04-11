@@ -1277,7 +1277,7 @@ void get_status_fields(char *out)
 #ifdef SENSOR_DS18B20_ENABLED
 
   localtime_r(&temperature_updated, &tm_struct);
-  snprintf(buff, 150, "<div class='fld'><div>Temperature: %s (%02d:%02d:%02d)</div></div>", String(ds18B20_temp_c, 2).c_str(), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  snprintf(buff, 150, "<div class='fld'><div>Temperature: %s (%02d:%02d:%02d)</div></div>", String(ds18B20_temp_c, 1).c_str(), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   strcat(out, buff);
   //
 #endif
