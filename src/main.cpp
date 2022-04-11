@@ -1179,7 +1179,7 @@ void get_channel_config_fields(char *out, int channel_idx)
   snprintf(buff, 200, "<div class='fldtiny' id='d_uptimem_%d'>mininum up (sec): <input name='ch_uptimem_%d'  type='text' value='%d'></div></div>", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
   strcat(out, buff);
 
-  snprintf(buff, sizeof(buff), "<div class='fldshort'>type:<select name='chty_%d' id='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
+  snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select name='chty_%d' id='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
   strcat(out, buff);
   bool is_gpio_channel;
   for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPES; channel_type_idx++)
@@ -1200,6 +1200,11 @@ void get_channel_config_fields(char *out, int channel_idx)
     }
   }
   strcat(out, "</select></div>");
+
+  //Ruleset paste field
+  snprintf(buff, sizeof(buff), "import:<br><input class='rsimp' type='text' id='rules_%d' placeholder='Paste ruleset' onfocus='clearText(this)'>", channel_idx);
+  strcat(out, buff);
+      
 }
 
 // condition row fields for the admin form
@@ -1208,7 +1213,7 @@ void get_channel_target_fields(char *out, int channel_idx, int target_idx, int b
   String states = state_array_string(s.ch[channel_idx].target[target_idx].upstates);
   char float_buffer[32]; // to prevent overflow if initiated with a long number...
   dtostrf(s.ch[channel_idx].target[target_idx].target, 3, 1, float_buffer);
-  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule #%i states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div><div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' type='text' value='%s'></div><div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div></div>", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx,channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div><div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' type='text' value='%s'></div><div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div></div>", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx,channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
   return;
 }
 // energy meter fields for admin form

@@ -95,6 +95,11 @@ h3 {
     width: 20%;
     margin-right: 2%;
 }
+.flda {
+    float: left;
+    width: auto;
+    margin-right: 2%;
+}
 
 .fldtiny {
     float: left;
@@ -109,8 +114,9 @@ h3 {
 }
 
 .rsimp {
-    font-size:x-small;
+    font-size:small;
     width: 7em;
+    
 }
 h1 {
     margin-block-start: 0em;
