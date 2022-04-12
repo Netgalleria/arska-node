@@ -86,7 +86,6 @@ function initUrlBar(url) {
             b.innerHTML = sect.en;
             span.appendChild(b);
             headdiv.appendChild(span);
-
         }
         else {
             var a = document.createElement('a');
@@ -114,6 +113,13 @@ function initForm(url) {
     }
     else if (url == '/channels') {
         initChannelForm();
+    }
+    var footerdiv = document.getElementById("footerdiv");
+    if (footerdiv) {
+        footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki'>Arska Wiki</a> | <a href='http://netgalleria.fi/rd/?arska-states'>States</a> | <a href='http://netgalleria.fi/rd/?arska-rulesets'>Rulesets</a>";
+    }
+  
+  
 /* TESTING NEW FEATURES
         $.ajax({
             url: 'http://feelthenature.fi:8080/state_series?price_area=FI&states=all&location=Espoo&api_key=353f55d5-ca07-4d50-a790-2f2079c6e',
@@ -125,9 +131,9 @@ function initForm(url) {
             error: function (error) {
                 console.log(`Error ${error}`);
             }
-        });*/
-    }
-/*
+        });
+    } */
+/* 
     if (window.getAttribute('beforeunload') !== 'true') {
         window.addEventListener("beforeunload", function (e) {
             if (formSubmitting || !isDirty()) {
@@ -218,14 +224,23 @@ function processRulesetImport(evt) {
     for (let i = 0; i < CHANNELS; i++) {
         let rule_states_e = document.getElementById("st_" + channel_idx + "_" + i);
         let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
-
+        let rule_target_e = document.getElementById("t_" + channel_idx + "_" + i);
+    
         if (obj["rules"].length >= i + 1) {
             rule_states_e.value = JSON.stringify(obj["rules"][i]["states"]).replace("[", "").replace("]", "");
             rule_onoff_cb.checked = obj["rules"][i]["on"];
+            if (obj["rules"][i]["target"]) {
+                rule_target_e.value = obj["rules"][i]["target"];
+            }
+            else {
+                rule_target_e.value = 0;
+            }    
         }
         else {
             rule_states_e.value = '';
             rule_onoff_cb.checked = false;
+            rule_target_e.value = 0;
+
         }
     }
 }
