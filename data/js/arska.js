@@ -106,7 +106,10 @@ function initUrlBar(url) {
     // <a href="/">Dashboard</a> | <span> <b>Admin</b> </span>
 
 }
+
+//
 function initForm(url) {
+
     initUrlBar(url);
     if (url == '/admin') {
         initWifiForm();
@@ -116,7 +119,7 @@ function initForm(url) {
     }
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
-        footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki'>Arska Wiki</a> | <a href='http://netgalleria.fi/rd/?arska-states'>States</a> | <a href='http://netgalleria.fi/rd/?arska-rulesets'>Rulesets</a>";
+        footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> | <a href='http://netgalleria.fi/rd/?arska-states' target='arskaw'>States</a> | <a href='http://netgalleria.fi/rd/?arska-rulesets'  target='arskaw'>Rulesets</a>";
     }
   
   
@@ -162,8 +165,8 @@ function initWifiForm() {
         if (wifi.id) {
             var opt = document.createElement("option");
             opt.value = wifi.id;
-            if (wifi.id == wifi_ssid) //from constants via template processing
-                opt.selected = true;
+           // if (wifi.id == wifi_ssid) //from constants via template processing
+           //     opt.selected = true;
             opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
             wifi_sel.appendChild(opt);
         }
@@ -201,6 +204,8 @@ function clearText(elem) {
 }
 // Ruleset processing
 function processRulesetImport(evt) {
+    if (!evt.target.id.startsWith("rules_"))
+        return 
     const fldA = evt.target.id.split("_");
     channel_idx = parseInt(fldA[1]);
 

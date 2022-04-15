@@ -337,6 +337,7 @@ const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar AP
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
 unsigned long inverter_total_period_init = 0;
+bool inverter_total_period_init_ok = false;
 unsigned long energy_produced_period = 0;
 unsigned long power_produced_period_avg = 0;
 #endif
@@ -463,7 +464,6 @@ bool is_cache_file_valid(const char *cache_file_name)
   return expires > now;
 }
 
-
 //
 void scan_and_store_wifis()
 {
@@ -490,7 +490,6 @@ void scan_and_store_wifis()
   wifis_file.printf("{}]';");
   wifis_file.close();
 }
-
 
 // Testing before saving if Wifi settings are ok
 bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
@@ -884,7 +883,7 @@ bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
   }
   else
   {
-    Serial.println(F("Modbus read succesfull"));
+    Serial.println(F("Modbus read succesful"));
   }
 
   return true;
@@ -933,19 +932,21 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   uint16_t ip_port = s.energy_meter_port;
   uint8_t modbusip_unit = s.energy_meter_id;
 
-  Serial.print(F("ip_port, modbusip_unit: "));
-  Serial.print(ip_port);
-  Serial.println(modbusip_unit);
-
+  Serial.printf("ModBus host: [%s], ip_port: [%ld], unit_id: [%d] \n",remote.toString().c_str(),ip_port,modbusip_unit);
+ 
+  mb.task();
   if (!mb.isConnected(remote))
   {
-    Serial.print(F("Connecting Modbus TCP"));
-    bool cresult = mb.connect(remote, ip_port);
+    Serial.print(F("Connecting Modbus TCP..."));
+    bool cresult = mb.connect(remote, ip_port );
     Serial.println(cresult);
+    mb.task();
   }
 
   if (mb.isConnected(remote))
-  { // Check if connection to Modbus Slave is established
+  { // Check if connection to Modbus slave is established
+    mb.task();
+    Serial.println(F("Connection ok. Reading values from Modbus registries."));
     total_energy = get_mbus_value(remote, SMA_TOTALENERGY_OFFSET, 2, modbusip_unit);
     Serial.print(F(" total energy Wh:"));
     Serial.print(total_energy);
@@ -960,7 +961,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   }
   else
   {
-    Serial.println(F("NOT CONNECTED"));
+    Serial.println(F("Connection failed."));
     return false;
   }
 
@@ -971,48 +972,56 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 void read_inverter(bool period_changed)
 {
   // global: recording_period_start
-  // three globals updated: inverter_total_period_init, energy_produced_period, power_produced_period_avg
+  // 4 globals updated: inverter_total_period_init, inverter_total_period_init_ok, energy_produced_period, power_produced_period_avg
   long int total_energy = 0;
   long int current_power = 0;
 
-  bool reakOk = false;
+  bool readOk = false;
   if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR)
   {
-    reakOk = read_inverter_fronius_data(total_energy, current_power);
-    if (((long)inverter_total_period_init > total_energy) && reakOk)
+    readOk = read_inverter_fronius_data(total_energy, current_power);
+
+    if (((long)inverter_total_period_init > total_energy) && readOk)
     {
       inverter_total_period_init = 0; // day have changed probably, reset counter, we get day totals from Fronius
+      inverter_total_period_init_ok = true;
     }
   }
   else if (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP)
   {
-    reakOk = read_inverter_sma_data(total_energy, current_power);
+    readOk = read_inverter_sma_data(total_energy, current_power);
   }
 
-  if (reakOk)
+  if (readOk)
   {
     time(&energym_read_last);
-
-    if (period_changed)
+    if (period_changed || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
     {
       Serial.println(F("PERIOD CHANGED"));
-      inverter_total_period_init = total_energy; // global
+      inverter_total_period_init = total_energy;
+      inverter_total_period_init_ok = true;
     }
-
     energy_produced_period = total_energy - inverter_total_period_init;
-    long int time_since_recording_period_start = now - recording_period_start;
-
-    if (time_since_recording_period_start > USE_POWER_TO_ESTIMATE_ENERGY_SECS)
-    { // in the beginning of period use current power to estimate energy generated
-      power_produced_period_avg = energy_produced_period * 3600 / time_since_recording_period_start;
-    }
-    else
-    {
-      power_produced_period_avg = current_power;
-    }
-
-    Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
   }
+  else
+  { // read was not ok
+    Serial.println(F("Cannot read from the inverter."));
+    if (period_changed)
+    {
+      inverter_total_period_init = 0;
+      inverter_total_period_init_ok = false;
+      energy_produced_period = 0;
+    }
+  }
+
+  long int time_since_recording_period_start = now - recording_period_start;
+  if (time_since_recording_period_start > USE_POWER_TO_ESTIMATE_ENERGY_SECS) // in the beginning of period use current power to estimate energy generated
+    power_produced_period_avg = energy_produced_period * 3600 / time_since_recording_period_start;
+  else
+    power_produced_period_avg = current_power;
+
+  Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
+
 
 } // read_inverter
 
@@ -1201,10 +1210,9 @@ void get_channel_config_fields(char *out, int channel_idx)
   }
   strcat(out, "</select></div>");
 
-  //Ruleset paste field
+  // Ruleset paste field
   snprintf(buff, sizeof(buff), "import:<br><input class='rsimp' type='text' id='rules_%d' placeholder='Paste ruleset' onfocus='clearText(this)'>", channel_idx);
   strcat(out, buff);
-      
 }
 
 // condition row fields for the admin form
@@ -1213,7 +1221,7 @@ void get_channel_target_fields(char *out, int channel_idx, int target_idx, int b
   String states = state_array_string(s.ch[channel_idx].target[target_idx].upstates);
   char float_buffer[32]; // to prevent overflow if initiated with a long number...
   dtostrf(s.ch[channel_idx].target[target_idx].target, 3, 1, float_buffer);
-  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div><div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div><div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div></div>", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx,channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx,channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div><div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div><div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div></div>", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
   return;
 }
 // energy meter fields for admin form
@@ -1416,9 +1424,8 @@ String setup_form_processor(const String &var)
     return s.http_username;
   if (var == "http_password")
     return s.http_password;
-   if (var == "wifi_ssid")
+  if (var == "wifi_ssid")
     return s.wifi_ssid;
-
 
   if (var == "emt")
     return String(s.energy_meter_type);
@@ -1781,7 +1788,6 @@ void set_relays()
   }
 }
 
-
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -1792,6 +1798,9 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name)
 
 void onWebDashboardGet(AsyncWebServerRequest *request)
 {
+  /* if (backup_ap_mode_enabled)
+     request->redirect("/admin");
+   else*/
   sendForm(request, "/dashboard_template.html");
 }
 
@@ -1805,14 +1814,11 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
   sendForm(request, "/channels_template.html");
 }
 
-
 // Web admin form
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
   sendForm(request, "/admin_template.html");
 }
-
-
 
 // Process channel force form
 void onWebDashboardPost(AsyncWebServerRequest *request)
@@ -1899,10 +1905,10 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   s.lon = request->getParam("lon", true)->value().toFloat();
   strcpy(s.forecast_loc, request->getParam("forecast_loc", true)->value().c_str());
   // END OF INPUTS
-   writeToEEPROM();
+  writeToEEPROM();
   restart_required = true;
   request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
- // request->redirect("/channels");
+  // request->redirect("/channels");
 }
 
 // CHANNELS
@@ -1947,7 +1953,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
   }
   writeToEEPROM();
   // restart_required = true;
-  //request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/channels' /></head><body>restarting...wait...</body></html>");
+  // request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/channels' /></head><body>restarting...wait...</body></html>");
   request->redirect("/channels");
 }
 
@@ -1957,14 +1963,16 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   String message;
   // s.node_priority = request->getParam("node_priority", true)->value().toInt();
 
-  strcpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str());
-  strcpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str());
+  if (!(request->getParam("wifi_ssid", true)->value().equals("NA")))
+  {
+    strcpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str());
+    strcpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str());
+  }
 
+  // restart_required = true;
 
-    // restart_required = true;
+  // request->send(200, "text/html", F("<html><head></head><body><p>Wait about 10 seconds. If the parameters were correct you can soon connect to Arska in your wifi. Get IP address to connect from your router or monitor serial console.</p></body></html>"));
 
-   // request->send(200, "text/html", F("<html><head></head><body><p>Wait about 10 seconds. If the parameters were correct you can soon connect to Arska in your wifi. Get IP address to connect from your router or monitor serial console.</p></body></html>"));
-  
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
     if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
@@ -2000,7 +2008,6 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     scan_and_store_wifis_requested = true;
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>scanning queued</body></html>");
   }
-
 
   if (request->getParam("op", true)->value().equals("reset"))
   {
@@ -2097,7 +2104,6 @@ void onWebStateSeriesGet(AsyncWebServerRequest *request)
   serializeJson(doc, output);
   request->send(200, "application/json", output);
 }
-
 
 // Everythign starts from here in while starting the controller
 void setup()
@@ -2213,7 +2219,8 @@ void setup()
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
 
-    if (!LittleFS.exists(wifis_file_name)) { //no wifi list found
+    if (!LittleFS.exists(wifis_file_name))
+    { // no wifi list found
       Serial.println("No wifi list found - rescanning...");
       scan_and_store_wifis();
     }
@@ -2339,7 +2346,7 @@ void setup()
   // debug
   server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/wifis.json", "text/json"); });
-             
+
   /* if (backup_ap_mode_enabled) {
      server_web.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
    }
@@ -2378,7 +2385,8 @@ void loop()
     ESP.restart();
   }
 #endif
-  if (scan_and_store_wifis_requested) {
+  if (scan_and_store_wifis_requested)
+  {
     scan_and_store_wifis_requested = false;
     scan_and_store_wifis();
   }
