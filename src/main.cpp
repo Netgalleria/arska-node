@@ -120,6 +120,9 @@ AsyncWebServer server_web(80);
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
 
+WiFiClient client;
+HTTPClient httpRelay;
+
 // Clock functions, supports optional DS3231 RTC
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
 
@@ -293,6 +296,7 @@ time_t started = 0;
 bool period_changed = true;
 bool restart_required = false;
 bool scan_and_store_wifis_requested = false;
+bool set_relay_requested = false;
 // data strcuture limits
 //#define CHANNELS 2  // moded to platformio.ini
 #define CHANNEL_TYPES 6
@@ -648,10 +652,13 @@ void notFound(AsyncWebServerRequest *request)
 String httpGETRequest(const char *url, const char *cache_file_name)
 {
   WiFiClient client;
+  
   HTTPClient http;
+  http.setReuse(false);
 
-  http.begin(client, url);           //  IP address with path or Domain name with URL path
-  int httpResponseCode = http.GET(); //  Send HTTP POST request
+  http.begin(client, url); //  IP address with path or Domain name with URL path
+  //delay(1000);
+  int httpResponseCode = http.GET(); //  Send HTTP GET request
 
   String payload = "{}";
 
@@ -684,7 +691,7 @@ String httpGETRequest(const char *url, const char *cache_file_name)
   }
   else
   {
-    Serial.print(F("Error code: "));
+    Serial.print(F("Error, httpResponseCode: "));
     Serial.println(httpResponseCode);
     http.end();
     return String("");
@@ -693,6 +700,7 @@ String httpGETRequest(const char *url, const char *cache_file_name)
   http.end();
   return payload;
 }
+
 
 #ifdef SENSOR_DS18B20_ENABLED
 
@@ -948,6 +956,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     mb.task();
     Serial.println(F("Connection ok. Reading values from Modbus registries."));
     total_energy = get_mbus_value(remote, SMA_TOTALENERGY_OFFSET, 2, modbusip_unit);
+    mb.task();
     Serial.print(F(" total energy Wh:"));
     Serial.print(total_energy);
 
@@ -956,7 +965,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     Serial.println(current_power);
 
     mb.disconnect(remote); // disconect in the end
-
+    mb.task();
     return true;
   }
   else
@@ -964,7 +973,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     Serial.println(F("Connection failed."));
     return false;
   }
-
+   mb.task();
 } // read_inverter_sma_data
 #endif
 
@@ -1642,16 +1651,17 @@ bool set_channel_switch(int channel_idx, bool up)
     Serial.println(url_to_call);
 
     DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), ""));
-
+    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(),"")); //muutettu käyttämään omaa funtiota
     if (error)
     {
       Serial.print(F("Shelly relay call deserializeJson() failed: "));
       Serial.println(error.f_str());
       return false;
     }
-    else
+    else {
+      Serial.println(F("Shelly relay switched."));
       return true;
+    }
   }
   // else
   //   Serial.print(F("Cannot switch this channel"));
@@ -1786,6 +1796,7 @@ void set_relays()
       set_channel_switch(ch_to_switch, s.ch[ch_to_switch].is_up);
     }
   }
+ // Serial.println(F("set_relays finished."));
 }
 
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
@@ -1859,7 +1870,8 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
     }
   }
   if (forced_up_changes)
-    set_relays();
+    set_relay_requested = true;
+  //  set_relays(); //tämä ei ole hyvä idea, voit laittaa kyllä looppiin requestin, mutta ei suoraa kutsua koska shelly tekee verkkokutsun
   request->redirect("/");
 }
 
@@ -2166,26 +2178,7 @@ void setup()
 
   read_config_file(false); // read the rest
 
-  // split comma separated gpio string to an array
-  uint16_t channel_gpios[CHANNELS];
-  str_to_uint_array(CH_GPIOS, channel_gpios, ",");
-  for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
-  {
-    s.ch[channel_idx].gpio = channel_gpios[channel_idx];
-    s.ch[channel_idx].toggle_last = now;
-    // reset values fro eeprom
-    s.ch[channel_idx].wanna_be_up = false;
-    s.ch[channel_idx].is_up = false;
 
-    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
-    { // gpio channel
-      pinMode(s.ch[channel_idx].gpio, OUTPUT);
-      Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
-    }
-
-    // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
-    set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
-  }
 
   /*
     if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
@@ -2256,6 +2249,27 @@ void setup()
       delay(2000); // cannot create AP, restart
       ESP.restart();
     }
+  }
+
+  //init relays
+  // split comma separated gpio string to an array
+  uint16_t channel_gpios[CHANNELS];
+  str_to_uint_array(CH_GPIOS, channel_gpios, ",");
+  for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
+  {
+    s.ch[channel_idx].gpio = channel_gpios[channel_idx];
+    s.ch[channel_idx].toggle_last = now;
+    // reset values fro eeprom
+    s.ch[channel_idx].wanna_be_up = false;
+    s.ch[channel_idx].is_up = false;
+
+    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
+    { // gpio channel
+      pinMode(s.ch[channel_idx].gpio, OUTPUT);
+      Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
+    }
+    // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
+    set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
 
   Serial.printf("Web admin: [%s], password: [%s]\n", s.http_username, s.http_password);
@@ -2389,6 +2403,10 @@ void loop()
   {
     scan_and_store_wifis_requested = false;
     scan_and_store_wifis();
+  }
+  if (set_relay_requested) { // relays forced up or so...
+    set_relay_requested = false;
+    set_relays();
   }
 
   check_forced_restart(); // if in forced ap-mode restart if scheduled so
