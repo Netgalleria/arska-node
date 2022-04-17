@@ -7,6 +7,8 @@ More information in [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki)
 
 [Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions)
 
+If you have a decent ESP8266 microcontroller connected with a cable to your computer, you can start testing with [Web installation](https://iot.netgalleria.fi/arska-install/). 
+
 # Current status
 The software is under development (beta testing)
 
