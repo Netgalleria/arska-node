@@ -121,7 +121,7 @@ AsyncWebServer server_web(80);
 #include <ArduinoJson.h>
 
 WiFiClient client;
-HTTPClient httpRelay;
+//HTTPClient httpRelay;
 
 // Clock functions, supports optional DS3231 RTC
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
@@ -1312,7 +1312,7 @@ void get_status_fields(char *out)
   snprintf(buff, 150, "<div class='fld'><div>Local time: %02d:%02d:%02d, solar time: %02d:%02d:%02d %s</div></div>", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, tm_sun.tm_hour, tm_sun.tm_min, tm_sun.tm_sec, rtc_status);
   strcat(out, buff);
   localtime_r(&recording_period_start, &tm_struct);
-  sprintf(time1, "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  snprintf(time1, sizeof(time1),"%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   localtime_r(&energym_read_last, &tm_struct);
 
   if (energym_read_last == 0)
@@ -1322,7 +1322,7 @@ void get_status_fields(char *out)
   }
   else
   {
-    sprintf(time2, "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+    snprintf(time2, sizeof(time2),"%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
     strcpy(eupdate, "");
   }
 
@@ -2162,7 +2162,7 @@ void setup()
       s.ch[channel_idx].type = 0; // GPIO_ONOFF
       s.ch[channel_idx].uptime_minimum = 60;
       s.ch[channel_idx].force_up_until = 0;
-      sprintf(s.ch[channel_idx].id_str, "channel %d", channel_idx + 1);
+      snprintf(s.ch[channel_idx].id_str,sizeof(s.ch[channel_idx].id_str), "channel %d", channel_idx + 1);
       for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
       {
         s.ch[channel_idx].target[target_idx] = {{}, 0};
