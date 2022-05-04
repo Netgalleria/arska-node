@@ -568,16 +568,18 @@ uint16_t active_states[ACTIVE_STATES_MAX]; // current active states
 
 // parse char array to uint16_t array (e.g. states, ip address)
 // note: current version alter str_in, so use copy in calls if original still needed
+// TÄMÄ KAATUU ESP32:ssa?
 void str_to_uint_array(const char *str_in, uint16_t array_out[CHANNEL_STATES_MAX], const char *separator)
 {
-  char *ptr = strtok((char *)str_in, separator);
+  Serial.println("str_to_uint_array in");
+  char *ptr = strtok((char *)str_in, separator); // breaks string str into a series of tokens using the delimiter delim.
   byte i = 0;
-
+  Serial.println("str_to_uint_array 1");
   for (int ch_state_idx = 0; ch_state_idx < CHANNEL_STATES_MAX; ch_state_idx++)
   {
     array_out[ch_state_idx] = 0;
   }
-
+  Serial.println("str_to_uint_array 2");
   while (ptr)
   {
     /* Serial.print(atol(ptr));
@@ -590,6 +592,7 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[CHANNEL_STATES_MAX
       break;
     }
   }
+  Serial.println("str_to_uint_array out");
   return;
 }
 // returns true there is a valid cache file (exist and  not expired)
@@ -676,7 +679,7 @@ bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char
 }
 
 // read config variables from config.json file
-bool read_config_file(bool init_settings)
+bool read_config_file(bool read_all_settings)
 {
   Serial.println(F("Reading config file"));
   if (!LittleFS.exists(config_file_name))
@@ -706,8 +709,11 @@ bool read_config_file(bool init_settings)
   copy_doc_str(doc, (char *)"ntp_server", ntp_server);
   copy_doc_str(doc, (char *)"price_area", price_area);
 
-  if (!init_settings) // read only basic config
+  if (!read_all_settings)
+  { // read only basic config
+    Serial.println(F("Got basic config. Returning."));
     return true;
+  }
 
   strcpy(s.http_username, "admin"); // use fixed name
 
@@ -1090,7 +1096,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 {
   uint16_t ip_octets[CHANNEL_STATES_MAX];
   char host_ip[16];
-  strcpy(host_ip, s.energy_meter_host); // seuraava kutsu sotkee, siksi kopio
+  strcpy(host_ip, s.energy_meter_host); // must be locally allocated
   str_to_uint_array(host_ip, ip_octets, ".");
 
   IPAddress remote(ip_octets[0], ip_octets[1], ip_octets[2], ip_octets[3]);
@@ -1387,7 +1393,8 @@ void get_channel_target_fields(char *out, int channel_idx, int target_idx, int b
   String states = state_array_string(s.ch[channel_idx].target[target_idx].upstates);
   char float_buffer[32]; // to prevent overflow if initiated with a long number...
   dtostrf(s.ch[channel_idx].target[target_idx].target, 3, 1, float_buffer);
-  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div>\n<div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div>\n<div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div>\n</div>\n", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  // snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div>\n<div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div>\n<div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div>\n</div>\n", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div>\n<div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div>\n</div>\n", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
 
   return;
   //    + "</div></div><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' />");
@@ -1677,7 +1684,7 @@ String setup_form_processor(const String &var)
 
   if (var.startsWith("cht_"))
   {
-    char out[1500]; 
+    char out[1800];
     char buff[500];
     char buffstmt[50];
     char buffstmt2[200];
@@ -1685,13 +1692,14 @@ String setup_form_processor(const String &var)
     if (channel_idx >= CHANNELS)
       return String();
 
-    Serial.printf("var: %s\n",var.c_str());
+    Serial.printf("var: %s\n", var.c_str());
 
     for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
     {
       strcpy(buff, "");
       strcpy(buffstmt2, "");
       // return String();
+      // Serial.println("debug A");
       get_channel_target_fields(buff, channel_idx, target_idx, sizeof(buff) - 1);
       strncat(out, buff, 2000 - strlen(out) - 1);
 
@@ -1703,29 +1711,25 @@ String setup_form_processor(const String &var)
         int variable_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id;
         int oper_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id;
         long const_val = s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val;
-
         // TODO: alusta tai jotain
-        if (variable_id == -1 ||  oper_id == -1 )
+        if (variable_id == -1 || oper_id == -1)
           continue;
-        snprintf(buffstmt, 30, "%s[%d, %d, %ld]",(stmt_count>0)?", ":"", variable_id, oper_id, const_val);
+        snprintf(buffstmt, 30, "%s[%d, %d, %ld]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, const_val);
         stmt_count++;
         strcat(buffstmt2, buffstmt);
-
       }
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx,buffstmt2);
-      Serial.println(buffstmt2);
-      Serial.print("strlen(buff):");
-      Serial.println(strlen(buff));
-      Serial.println(buff);
-      strcat(out, buff);
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, buffstmt2);
 
+      strcat(out, buff);
+      Serial.print("strlen(out):");
+      Serial.println(strlen(out));
     }
     return out;
   }
   /*
    if (var.startsWith("chtB_"))
   {
-    
+
     char out[1500];
     char buff[300];
     char buffstmt[50];
@@ -1754,7 +1758,7 @@ String setup_form_processor(const String &var)
         Serial.println("X");
         Serial.println(buffstmt);
         Serial.println(strlen(out));
-        
+
       }
       snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value=''/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx);
       Serial.print("strlen(buff):");
@@ -1763,7 +1767,7 @@ String setup_form_processor(const String &var)
     }
     return out;
   }*/
-  
+
   if (var == "states")
   {
     return state_array_string(active_states);
@@ -2194,6 +2198,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
   StaticJsonDocument<300> stmts_json;
 
+  bool stmts_emptied = false;
   for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
   {
     snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
@@ -2214,43 +2219,53 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
     {
       // statements
-      // myös tyhjennys
+
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, target_idx);
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
-
-        Serial.print(stmts_fld);
-        Serial.print(": ");
-        Serial.println(request->getParam(stmts_fld, true)->value());
+        // empty all statements if there are somein the form post
+        if (!stmts_emptied)
+        {
+          stmts_emptied = true;
+          for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
+          {
+            s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = -1;
+            s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = -1;
+            s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val = 0;
+          }
+        }
 
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
         {
           Serial.print(F("deserializeJson() failed: "));
           Serial.println(error.f_str());
-
-          //  return;
         }
         else
         {
-          // JsonArray root_0 = stmts_json[0];
-          // HUOM: PUTSAUS
-          Serial.print("Rows:");
-          Serial.println(stmts_json.size());
-          for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), CONDITION_STATEMENTS_MAX); stmt_idx++)
+
+          if (stmts_json.size() > 0)
           {
-            s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = stmts_json[stmt_idx][0];
-            s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = stmts_json[stmt_idx][1];
-
+            Serial.print(stmts_fld);
+            Serial.print(": ");
+            Serial.println(request->getParam(stmts_fld, true)->value());
+            for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), CONDITION_STATEMENTS_MAX); stmt_idx++)
+            {
+              Serial.printf("Saving %d %d %d : %d, %d \n",channel_idx,target_idx,stmt_idx,(int)stmts_json[stmt_idx][0],(int)stmts_json[stmt_idx][1]);
+              s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = (int)stmts_json[stmt_idx][0];
+              s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = (byte)stmts_json[stmt_idx][1];
+              //TODO: conversion variables 10 exp
+              s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val = (byte)stmts_json[stmt_idx][2];
+            }
           } /* struct statement_st
-    {
-      int variable_idx;
-      byte oper_idx;
-      byte constant_type;
-      long const_val;
-    };
+     {
+       int variable_idx;
+       byte oper_idx;
+       byte constant_type;
+       long const_val;
+     };
 
-    */
+     */
             /*  int root_0_0 = root_0[0]; // 0
               int root_0_1 = root_0[1]; // 0
               int root_0_2 = root_0[2]; // 1
@@ -2261,7 +2276,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       snprintf(state_fld, 20, "st_%i_%i", channel_idx, target_idx);
       snprintf(target_fld, 20, "t_%i_%i", channel_idx, target_idx);
       snprintf(targetcb_fld, 20, "ctcb_%i_%i", channel_idx, target_idx);
-//TODO:kun poistat statet, niin jätä muut
+      // TODO:state_fld tallennus poistuu
       if (request->hasParam(state_fld, true))
       {
         str_to_uint_array(request->getParam(state_fld, true)->value().c_str(), s.ch[channel_idx].target[target_idx].upstates, ",");
@@ -2455,6 +2470,8 @@ void setup()
   Serial.println(F("LittleFS initialized"));
 #endif
   Serial.println(F("setup() starting"));
+  Serial.print(F("sizeof(s):"));
+  Serial.print(sizeof(s));
 
   EEPROM.begin(sizeof(s));
   readFromEEPROM();
@@ -2483,311 +2500,325 @@ void setup()
       }
     }
 
-  
 #ifdef OTA_UPDATE_ENABLED
-      s.next_boot_ota_update = false;
+    s.next_boot_ota_update = false;
 #endif
 
-      writeToEEPROM();
-    }
+    writeToEEPROM();
+  }
 
-    read_config_file(false); // read the rest
+  read_config_file(false); // read the rest
 
-    /*
-      if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
-      { // check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-        if (WiFi.softAP("arska-node", "arska", 1, false, 1) == true)
-        {
-          Serial.println(F("WiFi AP created!"));
-        }
-      }*/
-    WiFi.mode(WIFI_STA);
+  /*
+    if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
+    { // check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+      if (WiFi.softAP("arska-node", "arska", 1, false, 1) == true)
+      {
+        Serial.println(F("WiFi AP created!"));
+      }
+    }*/
+  WiFi.mode(WIFI_STA);
 
-    WiFi.begin(s.wifi_ssid, s.wifi_password);
-    Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
+  WiFi.begin(s.wifi_ssid, s.wifi_password);
+  Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
 
-    if (WiFi.waitForConnectResult() != WL_CONNECTED)
-    {
-      Serial.println(F("WiFi Failed!"));
-      WiFi.disconnect();
-      delay(100);
+  if (WiFi.waitForConnectResult() != WL_CONNECTED)
+  {
+    Serial.println(F("WiFi Failed!"));
+    WiFi.disconnect();
+    delay(100);
 
+    scan_and_store_wifis();
+
+    backup_ap_mode_enabled = true;
+    check_forced_restart(true); // schedule restart
+  }
+  else
+  {
+    Serial.printf("Connected to wifi [%s] with IP Address:", s.wifi_ssid);
+    Serial.println(WiFi.localIP());
+    // Serial.println(WiFi.macAddress());
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+
+    if (!LittleFS.exists(wifis_file_name))
+    { // no wifi list found
+      Serial.println("No wifi list found - rescanning...");
       scan_and_store_wifis();
+    }
+  }
 
-      backup_ap_mode_enabled = true;
-      check_forced_restart(true); // schedule restart
+  if (backup_ap_mode_enabled) // Softap should be created if  cannot connect to wifi
+  {                           // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+    WiFi.mode(WIFI_OFF);
+    delay(2000);
+    WiFi.mode(WIFI_AP);
+    // create ap-mode ssid for config wifi
+    String mac = WiFi.macAddress();
+    for (int i = 14; i > 0; i -= 3)
+    {
+      mac.remove(i, 1);
+    }
+    String APSSID = String("ARSKANODE-") + mac;
+    Serial.print(F("Creating AP:"));
+    Serial.println(APSSID);
+
+    //    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
+    if (WiFi.softAP(APSSID.c_str(), "", (int)random(1, 14), false, 3) == true)
+    {
+      Serial.print(F("WiFi AP created with ip:"));
+      Serial.println(WiFi.softAPIP().toString());
+
+      // dnsServer.start(53, "*", WiFi.softAPIP());
+      // server_web.on(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER,)
     }
     else
     {
-      Serial.printf("Connected to wifi [%s] with IP Address:", s.wifi_ssid);
-      Serial.println(WiFi.localIP());
-      // Serial.println(WiFi.macAddress());
-      WiFi.setAutoReconnect(true);
-      WiFi.persistent(true);
-
-      if (!LittleFS.exists(wifis_file_name))
-      { // no wifi list found
-        Serial.println("No wifi list found - rescanning...");
-        scan_and_store_wifis();
-      }
+      Serial.println(F("Cannot create AP, restarting"));
+      delay(2000); // cannot create AP, restart
+      ESP.restart();
     }
+  }
 
-    if (backup_ap_mode_enabled) // Softap should be created if  cannot connect to wifi
-    {                           // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-      WiFi.mode(WIFI_OFF);
-      delay(2000);
-      WiFi.mode(WIFI_AP);
-      // create ap-mode ssid for config wifi
-      String mac = WiFi.macAddress();
-      for (int i = 14; i > 0; i -= 3)
-      {
-        mac.remove(i, 1);
-      }
-      String APSSID = String("ARSKANODE-") + mac;
-      Serial.print(F("Creating AP:"));
-      Serial.println(APSSID);
-
-      //    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
-      if (WiFi.softAP(APSSID.c_str(), "", (int)random(1, 14), false, 3) == true)
-      {
-        Serial.print(F("WiFi AP created with ip:"));
-        Serial.println(WiFi.softAPIP().toString());
-
-        // dnsServer.start(53, "*", WiFi.softAPIP());
-        // server_web.on(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER,)
-      }
-      else
-      {
-        Serial.println(F("Cannot create AP, restarting"));
-        delay(2000); // cannot create AP, restart
-        ESP.restart();
-      }
+  // init relays
+  //  split comma separated gpio string to an array
+  uint16_t channel_gpios[CHANNELS];
+  char ch_gpios_local[35];
+  strcpy(ch_gpios_local, CH_GPIOS);
+  str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
+  for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
+  {
+    s.ch[channel_idx].gpio = channel_gpios[channel_idx];
+    s.ch[channel_idx].toggle_last = now;
+    // reset values fro eeprom
+    s.ch[channel_idx].wanna_be_up = false;
+    s.ch[channel_idx].is_up = false;
+    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
+    { // gpio channel
+      pinMode(s.ch[channel_idx].gpio, OUTPUT);
+      Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
+    // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
+    set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
+  }
 
-    // init relays
-    //  split comma separated gpio string to an array
-    uint16_t channel_gpios[CHANNELS];
-    str_to_uint_array(CH_GPIOS, channel_gpios, ",");
-    for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
-    {
-      s.ch[channel_idx].gpio = channel_gpios[channel_idx];
-      s.ch[channel_idx].toggle_last = now;
-      // reset values fro eeprom
-      s.ch[channel_idx].wanna_be_up = false;
-      s.ch[channel_idx].is_up = false;
-
-      if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
-      { // gpio channel
-        pinMode(s.ch[channel_idx].gpio, OUTPUT);
-        Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
-      }
-      // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
-      set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
-    }
-
-    Serial.printf("Web admin: [%s], password: [%s]\n", s.http_username, s.http_password);
+  Serial.printf("Web admin: [%s], password: [%s]\n", s.http_username, s.http_password);
 
 #ifdef RTC_DS3231_ENABLED
-    Serial.println(F("Starting RTC!"));
-    Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
-    if (!rtc.begin())
-    {
-      Serial.println(F("Couldn't find RTC!"));
-      Serial.flush();
-    }
-    else
-    {
-      rtc_found = true;
-      Serial.println(F("RTC found"));
-      Serial.flush();
-      settimeofday_cb(time_is_set); // register callback if time was sent
-      if (time(nullptr) < 1600000000)
-        getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
-    }
+  Serial.println(F("Starting RTC!"));
+  Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
+  if (!rtc.begin())
+  {
+    Serial.println(F("Couldn't find RTC!"));
+    Serial.flush();
+  }
+  else
+  {
+    rtc_found = true;
+    Serial.println(F("RTC found"));
+    Serial.flush();
+    settimeofday_cb(time_is_set); // register callback if time was sent
+    if (time(nullptr) < 1600000000)
+      getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
+  }
 
 #endif
 
 #ifdef OTA_UPDATE_ENABLED
-    // wait for update
-    if (s.next_boot_ota_update)
-    {
-      // TODO: password protection
-      s.next_boot_ota_update = false; // next boot is normal
-      writeToEEPROM();
+  // wait for update
+  if (s.next_boot_ota_update)
+  {
+    // TODO: password protection
+    s.next_boot_ota_update = false; // next boot is normal
+    writeToEEPROM();
 
-      server_OTA.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                    { request->send(200, "text/html", "<html><body><h2>Update mode</h2><a href='/update'>update</a> | <a href='/restart'>restart</a></body></html>"); });
+    server_OTA.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(200, "text/html", "<html><body><h2>Update mode</h2><a href='/update'>update</a> | <a href='/restart'>restart</a></body></html>"); });
 
-      server_OTA.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-                    {  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body></body></html>"); 
+    server_OTA.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+                  {  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body></body></html>"); 
                     ESP.restart(); });
 
-      AsyncElegantOTA.begin(&server_OTA, s.http_username, s.http_password); // Start ElegantOTA
-      server_ota_started = millis();
-      server_OTA.begin();
-      while (true)
-      {
-        delay(1000); // just wait here, until uploaded or restarted manually
-      }
+    AsyncElegantOTA.begin(&server_OTA, s.http_username, s.http_password); // Start ElegantOTA
+    server_ota_started = millis();
+    server_OTA.begin();
+    while (true)
+    {
+      delay(1000); // just wait here, until uploaded or restarted manually
     }
+  }
 #endif
 
-    // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
-    // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-    configTime(timezone_info, ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
+// configTime ESP32 and ESP8266 libraries differ
+#ifdef ESP32
+  configTime(0, 0, ntp_server); // First connect to NTP server, with 0 TZ offset
+  struct tm timeinfo;
+  /*
+  if (!getLocalTime(&timeinfo))
+  {
+    Serial.println("  Failed to obtain time");
+    return;
+  } */
+  setenv("TZ", timezone_info, 1); //  Now adjust the TZ.  Clock settings are adjusted to show the new local time
+  tzset();
+#elif defined(ESP8266)
+  // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
+  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+  configTime(timezone_info, ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
+#endif
 
-    server_web.on("/status", HTTP_GET, onWebStatusGet);
-    server_web.on("/state_series", HTTP_GET, onWebStateSeriesGet);
+  server_web.on("/status", HTTP_GET, onWebStatusGet);
+  server_web.on("/state_series", HTTP_GET, onWebStateSeriesGet);
 
-    server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
-                  {   
+  server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
+                {   
     if (!request->authenticate(s.http_username, s.http_password))
       return request->requestAuthentication();
     check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
     request->send(LittleFS, "/inputs_template.html", "text/html", false, setup_form_processor); });
 
-    server_web.on("/", HTTP_GET, onWebDashboardGet);
-    server_web.on("/", HTTP_POST, onWebDashboardPost);
+  server_web.on("/", HTTP_GET, onWebDashboardGet);
+  server_web.on("/", HTTP_POST, onWebDashboardPost);
 
-    server_web.on("/inputs", HTTP_GET, onWebInputsGet);
-    server_web.on("/inputs", HTTP_POST, onWebInputsPost);
+  server_web.on("/inputs", HTTP_GET, onWebInputsGet);
+  server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
-    server_web.on("/channels", HTTP_GET, onWebChannelsGet);
-    server_web.on("/channels", HTTP_POST, onWebChannelsPost);
+  server_web.on("/channels", HTTP_GET, onWebChannelsGet);
+  server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
-    server_web.on("/admin", HTTP_GET, onWebAdminGet);
+  server_web.on("/admin", HTTP_GET, onWebAdminGet);
 
-    server_web.on("/admin", HTTP_POST, onWebAdminPost);
+  server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-    server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
+  server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
-    server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->redirect("/"); }); // redirect url, if called from OTA
+  server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/"); }); // redirect url, if called from OTA
 
-    server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/style.css", "text/css"); });
-    /*  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                    { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
-    */
-    server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { 
+  server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/style.css", "text/css"); });
+  /*  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
+  */
+  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { 
                   //request->send(LittleFS, "/js/arska.js", "text/javascript"); 
                 request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });
 
-    server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/js/jquery-3.6.0.min.js", "text/javascript"); });
+  server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/js/jquery-3.6.0.min.js", "text/javascript"); });
 
-    // debug
-    server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/wifis.json", "text/json"); });
+  // debug
+  server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/wifis.json", "text/json"); });
 
-    /* if (backup_ap_mode_enabled) {
-       server_web.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
-     }
-     */
+  /* if (backup_ap_mode_enabled) {
+     server_web.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
+   }
+   */
 
-    server_web.onNotFound(notFound);
+  server_web.onNotFound(notFound);
 
-    server_web.begin();
+  server_web.begin();
 
-    Serial.print(F("setup() finished:"));
-    Serial.println(ESP.getFreeHeap());
+  Serial.print(F("setup() finished:"));
+  Serial.println(ESP.getFreeHeap());
 
-    // wifi_request.status = 0u; // listening //TESTING...
+  // wifi_request.status = 0u; // listening //TESTING...
 
-  } // end of setup()
+} // end of setup()
 
-  // returns start time period (first second of an hour if 60 minutes netting period) of time stamp,
-  long get_period_start_time(long ts)
-  {
-    return long(ts / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
-  }
+// returns start time period (first second of an hour if 60 minutes netting period) of time stamp,
+long get_period_start_time(long ts)
+{
+  return long(ts / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
+}
 
-  // This function is executed repeatedly after setpup()
-  void loop()
-  {
-    // Serial.print(F("Starting loop"));
-    /*if (!s.sta_mode) {
-      dnsServer.processNextRequest();
-    }*/
+// This function is executed repeatedly after setpup()
+void loop()
+{
+  // Serial.print(F("Starting loop"));
+  /*if (!s.sta_mode) {
+    dnsServer.processNextRequest();
+  }*/
 
 #ifdef OTA_UPDATE_ENABLED
-    // resetting and rebooting in update more
-    if (s.next_boot_ota_update || restart_required)
+  // resetting and rebooting in update more
+  if (s.next_boot_ota_update || restart_required)
+  {
+    delay(1000);
+    ESP.restart();
+  }
+#endif
+  if (scan_and_store_wifis_requested)
+  {
+    scan_and_store_wifis_requested = false;
+    scan_and_store_wifis();
+  }
+  if (set_relay_requested)
+  { // relays forced up or so...
+    set_relay_requested = false;
+    set_relays();
+  }
+
+  check_forced_restart(); // if in forced ap-mode restart if scheduled so
+  time(&now);
+  if (now < 1600000000) // we need clock set
+    return;
+  if (started < 1600000000)
+    started = now;
+
+  current_period_start = get_period_start_time(now); // long(now / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
+  if (get_period_start_time(now) == get_period_start_time(started))
+    recording_period_start = started;
+  else
+    recording_period_start = current_period_start;
+
+  if (previous_period_start != current_period_start)
+    period_changed = true; // more readable
+
+  if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
+  {
+    for (int wait_loop = 0; wait_loop < 10; wait_loop++)
     {
       delay(1000);
-      ESP.restart();
+      Serial.print('W');
+      if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
+        break;
     }
-#endif
-    if (scan_and_store_wifis_requested)
-    {
-      scan_and_store_wifis_requested = false;
-      scan_and_store_wifis();
-    }
-    if (set_relay_requested)
-    { // relays forced up or so...
-      set_relay_requested = false;
-      set_relays();
-    }
-
-    check_forced_restart(); // if in forced ap-mode restart if scheduled so
-    time(&now);
-    if (now < 1600000000) // we need clock set
-      return;
-    if (started < 1600000000)
-      started = now;
-
-    current_period_start = get_period_start_time(now); // long(now / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
-    if (get_period_start_time(now) == get_period_start_time(started))
-      recording_period_start = started;
-    else
-      recording_period_start = current_period_start;
-
-    if (previous_period_start != current_period_start)
-      period_changed = true; // more readable
-
     if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
     {
-      for (int wait_loop = 0; wait_loop < 10; wait_loop++)
-      {
-        delay(1000);
-        Serial.print('W');
-        if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
-          break;
-      }
-      if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
-      {
-        Serial.println(F("Restarting."));
-        ESP.restart(); // boot if cannot recover wifi in time
-      }
+      Serial.println(F("Restarting."));
+      ESP.restart(); // boot if cannot recover wifi in time
     }
+  }
 
-    // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
-    if (((millis() - sensor_last_refresh) > process_interval_s * 1000) || period_changed)
-    {
-      Serial.print(F("Reading sensor and meter data..."));
+  // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
+  if (((millis() - sensor_last_refresh) > process_interval_s * 1000) || period_changed)
+  {
+    Serial.print(F("Reading sensor and meter data..."));
 #ifdef SENSOR_DS18B20_ENABLED
-      read_sensor_ds18B20();
+    read_sensor_ds18B20();
 #endif
 
-      read_energy_meter();
+    read_energy_meter();
 
-      processing_states = true;
-      refresh_states(current_period_start);
-      processing_states = false;
+    processing_states = true;
+    refresh_states(current_period_start);
+    processing_states = false;
 
-      sensor_last_refresh = millis();
-      set_relays(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
-    }
-    if (period_changed)
-    {
-      previous_period_start = current_period_start;
-      period_changed = false;
-    }
+    sensor_last_refresh = millis();
+    set_relays(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
+  }
+  if (period_changed)
+  {
+    previous_period_start = current_period_start;
+    period_changed = false;
+  }
 
 #ifdef INVERTER_SMA_MODBUS_ENABLED
-    mb.task(); // process modbuss event queue
+  mb.task(); // process modbuss event queue
 #endif
 
-    // delay(5000);
-  }
+  // delay(5000);
+}

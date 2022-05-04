@@ -4,14 +4,14 @@ const sections = [{ "url": "/", "en": "Dashboard" }, { "url": "/inputs", "en": "
 const opers = JSON.parse('%OPERS%');
 const variables = JSON.parse('%VARIABLES%');
 
-    /*
+/*
 const opers = [["=", false, true, false, false]
-    , [">", true, false, false, false]
-    , ["<", true, false, true, false]
-    , ["!", false, false, true, true]
-    , [">=", true, true, false, false]
-    , ["<=", true, true, true, false]
-    , ["!=", false, true, true, false]];
+, [">", true, false, false, false]
+, ["<", true, false, true, false]
+, ["!", false, false, true, true]
+, [">=", true, true, false, false]
+, ["<=", true, true, true, false]
+, ["!=", false, true, true, false]];
 */
 /*
 const variables = [
@@ -33,9 +33,14 @@ var formSubmitting = false;
 var setFormSubmitting = function () {
     formSubmitting = true;
 };
+
 var submitChannelForm = function () {
-
-
+    // clean first storage input values
+    let stmts_s = document.querySelectorAll("input[id^='stmts_']");
+    for (let i = 0; i < stmts_s.length; i++) {
+        stmts_s[i].value = '[]';
+    }
+    // then save new values to be saved on the server
     let stmtDivs = document.querySelectorAll("div[id^='std_']");
     //  let stmt_arr = {};
     if (stmtDivs && stmtDivs.length > 0) {
@@ -60,11 +65,10 @@ var submitChannelForm = function () {
             stmt_list.push([var_val, op_val, const_val]);
             saveStoreEl.value = JSON.stringify(stmt_list);
         }
-
     }
 
-    // alert(JSON.stringify(stmt_arr));
-    //  document.getElementById("stmts_list").value = JSON.stringify(stmt_arr);
+   
+       
 
 
     alert("submitChannelForm");
@@ -82,7 +86,8 @@ function addOption(el, value, text, selected = false) {
     // then append it to the select element
     el.appendChild(opt);
 }
-function populateStmtField(varFld) {
+function populateStmtField(varFld, stmt = [-1, -1, 0]) {
+    console.log("populateStmtField" + JSON.stringify(stmt));
     if (varFld.options && varFld.options.length > 0) {
         //  alert(varFld.id + " already populated");
         return; //already populated
@@ -91,14 +96,14 @@ function populateStmtField(varFld) {
     document.getElementById(varFld.id.replace("var", "op")).style.display = "none";
 
     addOption(varFld, -2, "remove");
-    addOption(varFld, -1, "select", true);
+
+    addOption(varFld, -1, "select", (stmt[0] == -1));
 
     for (var i = 0; i < variables.length; i++) {
-        addOption(varFld, variables[i][0], variables[i][1]);
+     //   console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0]));
+        addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
     }
-  /*  for (variable in variables) {
-        addOption(varFld, variables[variable]["id"], variables[variable]["code"]);
-    }*/
+
 }
 function populateVariableSelects(field) {
     const selectEl = document.querySelectorAll("select[id^='var_']");
@@ -123,7 +128,7 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
         elem.type = type;
     return elem;
 }
-function addStmt(elBtn) {
+function addStmt_old(elBtn) {
 
     let div_to_search = elBtn.id.replace("addstmt_", "std_");
     const fldA = elBtn.id.split("_");
@@ -162,35 +167,95 @@ function addStmt(elBtn) {
 
 }
 
-function populateOper(el, var_this) {
-    // alert(el.id);
-    // alert(var_this);
+function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]) {
+ 
+    if (ch_idx == -1) { //from button click, no other parameters
+        fldA = elBtn.id.split("_");
+        ch_idx = parseInt(fldA[1]);
+        cond_idx = parseInt(fldA[2]);
+    }
+
+    //get next statement index if not defined
+    if (stmt_idx == -1) {  
+        stmt_idx = 0;
+        let div_to_search = "std_" + ch_idx + "_" + cond_idx;
+
+        let stmtDivs = document.querySelectorAll("div[id^='" + div_to_search + "']");
+        console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
+        for (let i = 0; i < stmtDivs.length; i++) {
+            fldB = stmtDivs[i].id.split("_");
+            stmt_idx = Math.max(parseInt(fldB[3]),stmt_idx);
+        }
+/*
+        if (stmtDivs && stmtDivs.length > 0) {
+            fldB = stmtDivs[stmtDivs.length - 1].id.split("_");
+            stmt_idx = max(parseInt(fldB[3]),stmt_idx); 
+        } */
+        stmt_idx++;
+        console.log("New stmt_idx:" + stmt_idx);
+    }
+
+
+
+    suffix = "_" + ch_idx + "_" + cond_idx + "_" + (stmt_idx);
+    console.log(suffix);
+
+  //  lastEl = document.getElementById("std_" + ch_idx + "_" + cond_idx + "_" + stmt_idx);
+    const sel_var = createElem("select", "var" + suffix, null, "fldstmt indent", null);
+    sel_var.addEventListener("change", setVar);
+    const sel_op = createElem("select", "op" + suffix, null, "fldstmt", null);
+    sel_op.on_change = 'setOper(this)';
+    const inp_const = createElem("input", "const" + suffix, 0, "fldtiny fldstmt inpnum", "text");
+    const div_std = createElem("div", "std" + suffix, null, "divstament", "text");
+    div_std.appendChild(sel_var);
+    div_std.appendChild(sel_op);
+    div_std.appendChild(inp_const);
+
+    elBtn.parentNode.insertBefore(div_std, elBtn);
+
+    populateStmtField(document.getElementById("var" + suffix), stmt);
+
+}
+
+
+function populateOper(el, var_this, stmt = [-1, -1, 0]) {
+
+    console.log("populateOper:" + el.id);
+    console.log(JSON.stringify(var_this));
+    console.log(JSON.stringify(stmt));
+    //set constant, TODO: handle exp
+    document.getElementById(el.id.replace("op", "const")).value = stmt[2];
+
     if (el.options.length == 0)
-        addOption(el, -1, "select", true);
+        addOption(el, -1, "select", (stmt[1] == -1));
     if (el.options)
         while (el.options.length > 1) {
             el.remove(1);
         }
-
     if (var_this) {
         for (let i = 0; i < opers.length; i++) {
-            //alert(variable);
-            if (var_this["type"] >= 50 && !opers[i][5])
+            if (var_this[2] >= 50 && !opers[i][5]) //2-type
                 continue;
-            if (var_this["type"] < 50 && opers[i][5])
+            if (var_this[2] < 50 && opers[i][5])
                 continue;
             const_id = el.id.replace("op", "const");
             console.log(const_id);
             el.style.display = "block";
             document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
-            addOption(el, opers[i][0],opers[i][1]);
+            addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
         }
-
     }
     else {
         ;
     }
 
+}
+function get_var_by_id(id) {
+    for (var i = 0; i < variables.length; i++) {
+        if (variables[i][0] == id) {
+            return variables[i];
+        }
+    };
 }
 // set variable in dropdown select
 function setVar(evt) {
@@ -200,13 +265,15 @@ function setVar(evt) {
     cond_idx = parseInt(fldA[2]);
     stmt_idx = parseInt(fldA[3]);
     if (el.value > -1) {
+        /*
         for (var i = 0; i < variables.length; i++) {
             if (variables[i][0] == el.value) {
                 var_this = variables[i];
                 break;
             }
-        }
-       // let var_this = variables[el.value];
+        } */
+        // let var_this = variables[el.value];
+        var_this = get_var_by_id(el.value);
         populateOper(document.getElementById(el.id.replace("var", "op")), var_this);
     }
     else if (el.value == -2) {
@@ -256,6 +323,7 @@ function setEnergyMeterFields(val) { //
 
 }
 function initChannelForm() {
+    /*
     let inputs = document.querySelectorAll("input");
     console.log("inputs.length:" + inputs.length);
     for (let i = 0; i < inputs.length; i++) {
@@ -264,13 +332,34 @@ function initChannelForm() {
         else
             console.log("id == name  " + inputs[i].id + " == " + inputs[i].name);
     }
-   
+   */
     var chtype;
     for (var ch = 0; ch < CHANNELS; ch++) {
         //ch_t_%d_1
         //TODO: fix if more types coming
         chtype = document.getElementById('chty_' + ch).value;
         setChannelFieldsByType(ch, chtype);
+    }
+
+
+    let stmts_s = document.querySelectorAll("input[id^='stmts_']");
+    console.log("stmts_s.length:" + stmts_s.length);
+    for (let i = 0; i < stmts_s.length; i++) {
+        if (stmts_s[i].value) {
+            fldA = stmts_s[i].id.split("_");
+            ch_idx = parseInt(fldA[1]);
+            cond_idx = parseInt(fldA[2]);
+            stmts = JSON.parse(stmts_s[i].value);
+            if (stmts && stmts.length > 0) {
+                console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
+                for (let j = 0; j < stmts.length; j++) {
+                    elBtn = document.getElementById("addstmt_" + ch_idx + "_" + cond_idx);
+                    addStmt(elBtn,ch_idx, cond_idx, j, stmts[j]);
+                    var_this = get_var_by_id(stmts[j][1]);
+                    populateOper(document.getElementById("op_" + ch_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
+                }
+            }
+        }
     }
 }
 
