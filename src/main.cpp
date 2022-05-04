@@ -22,11 +22,15 @@ const char compile_date[] = __DATE__ " " __TIME__;
 //#include <DNSServer.h> // for captive portal
 
 #ifdef ESP32 // not fully implemented with ESP32
+#pragma message("ESP32 version")
 #include <WiFi.h>
 #include <AsyncTCP.h>
+#include <HTTPClient.h>
 #elif defined(ESP8266) // tested only with ESP8266
+#pragma message("ESP8266 version")
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
+#include <ESP8266HTTPClient.h>
 #endif
 
 // features enabled
@@ -116,12 +120,11 @@ void check_forced_restart(bool reset_counter = false)
 AsyncWebServer server_web(80);
 
 // client
-#include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
 
 WiFiClient client;
-//HTTPClient httpRelay;
+// HTTPClient httpRelay;
 
 // Clock functions, supports optional DS3231 RTC
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
@@ -242,6 +245,159 @@ void getRTC()
 
 #endif
 
+/*
+Variables voisi olla tässä silloin kun tarvitaan eli kun periodi aktiivinen:
+- tästä rakenteesta tehdään vertailu käyttäjän antamiin ehtoihin, confitions
+- haetaan päivitys externaaliesta ja internaaleista kun uusi periodi,
+- extrenaaleja voisi olla laskettu vähän etukäteenkin, jolloin mahdolliset kyselevätkin noodit saisivat jo tiedot etukäteen ettei tarvitse samalla sekunnilla kysellä
+-  vai olisko kuitenkin selkeämpi, että valmiiksi laskettu vain sille tunnille, pitää vaan hoitaa, että jos "ala"noodi kysyelee liian aikaisin, niin annetaan lyhyt expiroitumisaika,
+    jotta ei jää aina tuntia jälkeen. Tähän voisi tehdä alanoodeille myös jonkin viiveen, että ei kysy aina vanhoja tietoja
+- externaalit muodostetaan valmiiksi haetuista json-filestä (prices, fcst) aina kun periodi vaihtuu
+*/
+/*
+jos ei löydy mitään operaattoria niin oletetaan booleaniksi
+"=" gt=false eq=true reverse=false.
+">" gt=true eq=false reverse=false
+"<"  gt=true eq=false reverse=true
+"!",  reverse=true isboolean=true jos löytyy ekana "!" niin reverse boolean
+
+">=" gt=true eq=true reverse=false
+"<="  gt=true eq=true reverse=true
+"!=" gt=false eq=true reverse=true
+
+
+
+
+[no operator] reverse=false isboolean=true
+*/
+struct oper_st
+{
+  byte id;
+  char code[3];
+  bool gt;
+  bool eq;
+  bool reverse;
+  bool boolean_only;
+};
+
+// shortest first,
+#define OPER_COUNT 7
+const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false}, {1, ">", true, false, false, false}, {2, "<", true, false, true, false}, {3, "!", false, false, true, true}, {4, ">=", true, true, false, false}, {5, "<=", true, true, true, false}, {6, "!=", false, true, true, false}};
+
+/*constant_type, variable_type
+long val_l
+type = 0 default long
+type = 1  10**1 stored to long  , ie. 1.5 -> 15
+... 10
+24 4 characters string stored to long, e.g. hhmm mmdd
+50 boolean, no reverse allowed
+51 boolean, reverse allowed
+
+
+*/
+struct variable_st
+{
+  byte id;
+  char code[20];
+  byte type;
+  long val_l;
+};
+
+// do not insert variables (will broke statements)
+#define VARIABLE_COUNT 5
+variable_st variables[VARIABLE_COUNT] = {{0, "price", 0}, {1, "price rank 9 h", 0}, {2, "price rank 24 h", 0}, {4, "night", 50}, {5, "winter day", 51}};
+
+struct statement_st
+{
+  int variable_id;
+  byte oper_id;
+  byte constant_type;
+  long const_val;
+};
+
+class Variables
+{
+public:
+  void set(const char *code, long value_l);
+  long get_l(const char *code);
+
+  // byte get_oper_idx(const char *code);
+
+  bool is_gt_than(const char *code1, const char *code2)
+  {
+    return true; // to be implemented};
+  }
+  bool is_eq_with(const char *code1, const char *code2)
+  {
+    return true; // to be implemented};
+  }
+  bool is_statement_true(const char *statement, bool default_value);
+  bool is_sentence_true(const char *statement);
+
+private:
+  int get_variable_index(const char *code);
+};
+
+void Variables::set(const char *code, long val_l)
+{
+  // Serial.printf("Setting variable %s to %ld (long)\n", code, val_l);
+  int idx = get_variable_index(code);
+  // Serial.printf("Variable index %d \n", idx);
+  if (idx != -1)
+  {
+    variables[idx].val_l = val_l;
+  }
+}
+
+long Variables::get_l(const char *code)
+{
+  int idx = get_variable_index(code);
+  if (idx != -1)
+  {
+    return variables[idx].val_l;
+  }
+  return -1;
+}
+/*
+byte Variables::get_oper_idx(const char *code)
+  {
+    for (int i = 0; i < OPER_COUNT; i++)
+      if (strcmp(code, opers[i].code) == 0)
+        return i;
+    return -1;
+  }
+*/
+int Variables::get_variable_index(const char *code)
+{
+  int var_count = (int)(sizeof(variables) / sizeof(variable_st));
+  for (int i = 0; i < var_count; i++)
+  {
+    if (strcmp(code, variables[i].code) == 0)
+      return i;
+  }
+  return -1;
+}
+
+const char *statement_separator PROGMEM = ";";
+bool Variables::is_statement_true(const char *statement, bool default_value)
+{
+  // pitäisikö olla jo tallennettu parsittu
+  // try to match with opers
+  // kelaa operaattorit läpi, jos löytyy match niin etene sen kanssa, jos ei niin palauta default
+
+  // jos boolean_only, niin
+  return true;
+}
+bool Variables::is_sentence_true(const char *sentence)
+{
+  // remove whitespace
+  // split to parts, check str_to_uint_array
+  // loop part until one is false or end
+  return true;
+}
+
+Variables vars;
+
 // Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
 #ifdef INVERTER_SMA_MODBUS_ENABLED
 #include <ModbusIP_ESP8266.h>
@@ -320,6 +476,8 @@ const char *channel_type_strings[] PROGMEM = {
 
 // #define CHANNEL_TARGETS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
+#define CONDITION_STATEMENTS_MAX 5
+
 #define ACTIVE_STATES_MAX 20
 
 #define MAX_CHANNELS_SWITCHED_AT_TIME 1
@@ -350,6 +508,7 @@ unsigned long power_produced_period_avg = 0;
 typedef struct
 {
   uint16_t upstates[CHANNEL_STATES_MAX];
+  statement_st statements[CONDITION_STATEMENTS_MAX];
   float target;
   bool switch_on;
   bool target_active; // for showing if the target is currently active
@@ -652,12 +811,12 @@ void notFound(AsyncWebServerRequest *request)
 String httpGETRequest(const char *url, const char *cache_file_name)
 {
   WiFiClient client;
-  
+
   HTTPClient http;
   http.setReuse(false);
 
   http.begin(client, url); //  IP address with path or Domain name with URL path
-  //delay(1000);
+  // delay(1000);
   int httpResponseCode = http.GET(); //  Send HTTP GET request
 
   String payload = "{}";
@@ -700,7 +859,6 @@ String httpGETRequest(const char *url, const char *cache_file_name)
   http.end();
   return payload;
 }
-
 
 #ifdef SENSOR_DS18B20_ENABLED
 
@@ -940,13 +1098,13 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   uint16_t ip_port = s.energy_meter_port;
   uint8_t modbusip_unit = s.energy_meter_id;
 
-  Serial.printf("ModBus host: [%s], ip_port: [%ld], unit_id: [%d] \n",remote.toString().c_str(),ip_port,modbusip_unit);
- 
+  Serial.printf("ModBus host: [%s], ip_port: [%ld], unit_id: [%d] \n", remote.toString().c_str(), ip_port, modbusip_unit);
+
   mb.task();
   if (!mb.isConnected(remote))
   {
     Serial.print(F("Connecting Modbus TCP..."));
-    bool cresult = mb.connect(remote, ip_port );
+    bool cresult = mb.connect(remote, ip_port);
     Serial.println(cresult);
     mb.task();
   }
@@ -973,7 +1131,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     Serial.println(F("Connection failed."));
     return false;
   }
-   mb.task();
+  mb.task();
 } // read_inverter_sma_data
 #endif
 
@@ -1030,7 +1188,6 @@ void read_inverter(bool period_changed)
     power_produced_period_avg = current_power;
 
   Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
-
 
 } // read_inverter
 
@@ -1190,11 +1347,11 @@ String state_array_string(uint16_t state_array[CHANNEL_STATES_MAX])
 void get_channel_config_fields(char *out, int channel_idx)
 {
   char buff[200];
-  snprintf(buff, 200, "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>", channel_idx, s.ch[channel_idx].id_str);
+  snprintf(buff, 200, "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>\n", channel_idx, s.ch[channel_idx].id_str);
   // Serial.println(strlen(out));
   strcat(out, buff);
 
-  snprintf(buff, 200, "<div class='fldtiny' id='d_uptimem_%d'>mininum up (sec): <input name='ch_uptimem_%d'  type='text' value='%d'></div></div>", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
+  snprintf(buff, 200, "<div class='fldtiny' id='d_uptimem_%d'>mininum up (sec): <input name='ch_uptimem_%d'  type='text' value='%d'></div>\n</div>\n", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
   strcat(out, buff);
 
   snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select name='chty_%d' id='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
@@ -1217,7 +1374,7 @@ void get_channel_config_fields(char *out, int channel_idx)
       }
     }
   }
-  strcat(out, "</select></div>");
+  strcat(out, "</select></div>\n");
 
   // Ruleset paste field
   snprintf(buff, sizeof(buff), "import:<br><input class='rsimp' type='text' id='rules_%d' placeholder='Paste ruleset' onfocus='clearText(this)'>", channel_idx);
@@ -1230,26 +1387,28 @@ void get_channel_target_fields(char *out, int channel_idx, int target_idx, int b
   String states = state_array_string(s.ch[channel_idx].target[target_idx].upstates);
   char float_buffer[32]; // to prevent overflow if initiated with a long number...
   dtostrf(s.ch[channel_idx].target[target_idx].target, 3, 1, float_buffer);
-  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div><div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div><div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div></div>", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'><div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div>\n<div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div>\n<div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div>\n</div>\n", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+
   return;
+  //    + "</div></div><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' />");
 }
 // energy meter fields for admin form
 void get_meter_config_fields(char *out)
 {
   char buff[200];
-  strcpy(out, "<div class='secbr'><h3>Energy meter</h3></div><div class='fld'><select name='emt' id='emt' onchange='setEnergyMeterFields(this.value)'>");
+  strcpy(out, "<div class='secbr'><h3>Energy meter</h3></div>\n<div class='fld'><select name='emt' id='emt' onchange='setEnergyMeterFields(this.value)'>");
 
   for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
   {
     snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
     strcat(out, buff);
   }
-  strcat(out, "</select></div>");
-  snprintf(buff, sizeof(buff), "<div id='emhd' class='fld'><div class='fldlong'>host:<input name='emh' id='emh' type='text' value='%s'></div>", s.energy_meter_host);
+  strcat(out, "</select></div>\n");
+  snprintf(buff, sizeof(buff), "<div id='emhd' class='fld'><div class='fldlong'>host:<input name='emh' id='emh' type='text' value='%s'></div>\n", s.energy_meter_host);
   strcat(out, buff);
-  snprintf(buff, sizeof(buff), "<div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text' value='%d'></div>", s.energy_meter_port);
+  snprintf(buff, sizeof(buff), "<div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text' value='%d'></div>\n", s.energy_meter_port);
   strcat(out, buff);
-  snprintf(buff, sizeof(buff), "<div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text' value='%d'></div></div>", s.energy_meter_id);
+  snprintf(buff, sizeof(buff), "<div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text' value='%d'></div>\n</div>\n", s.energy_meter_id);
   strcat(out, buff);
   // Serial.println(out);
   return;
@@ -1268,7 +1427,7 @@ void get_node_fields(char *out)
   strcat(out, buff);
   snprintf(buff, sizeof(buff), " <option value='255' %s>leaf</>", s.node_priority == 255 ? "selected" : "");
   strcat(out, buff);
-  strcat(out, "</select></div>");
+  strcat(out, "</select></div>\n");
 
   return;
 }
@@ -1289,12 +1448,12 @@ void get_status_fields(char *out)
 
   if (current_time < 1600000000)
   {
-    strcat(out, "<div class='fld'>CLOCK UNSYNCHRONIZED!</div>");
+    strcat(out, "<div class='fld'>CLOCK UNSYNCHRONIZED!</div>\n");
   }
 #ifdef SENSOR_DS18B20_ENABLED
 
   localtime_r(&temperature_updated, &tm_struct);
-  snprintf(buff, 150, "<div class='fld'><div>Temperature: %s (%02d:%02d:%02d)</div></div>", String(ds18B20_temp_c, 1).c_str(), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  snprintf(buff, 150, "<div class='fld'><div>Temperature: %s (%02d:%02d:%02d)</div>\n</div>\n", String(ds18B20_temp_c, 1).c_str(), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   strcat(out, buff);
   //
 #endif
@@ -1309,10 +1468,10 @@ void get_status_fields(char *out)
 #endif
   localtime_r(&current_time, &tm_struct);
   gmtime_r(&now_suntime, &tm_sun);
-  snprintf(buff, 150, "<div class='fld'><div>Local time: %02d:%02d:%02d, solar time: %02d:%02d:%02d %s</div></div>", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, tm_sun.tm_hour, tm_sun.tm_min, tm_sun.tm_sec, rtc_status);
+  snprintf(buff, 150, "<div class='fld'><div>Local time: %02d:%02d:%02d, solar time: %02d:%02d:%02d %s</div>\n</div>\n", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, tm_sun.tm_hour, tm_sun.tm_min, tm_sun.tm_sec, rtc_status);
   strcat(out, buff);
   localtime_r(&recording_period_start, &tm_struct);
-  snprintf(time1, sizeof(time1),"%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  snprintf(time1, sizeof(time1), "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   localtime_r(&energym_read_last, &tm_struct);
 
   if (energym_read_last == 0)
@@ -1322,7 +1481,7 @@ void get_status_fields(char *out)
   }
   else
   {
-    snprintf(time2, sizeof(time2),"%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+    snprintf(time2, sizeof(time2), "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
     strcpy(eupdate, "");
   }
 
@@ -1332,14 +1491,14 @@ void get_status_fields(char *out)
     float netEnergyInPeriod;
     float netPowerInPeriod;
     get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-    snprintf(buff, 150, "<div class='fld'><div>Period %s-%s: net energy in %d Wh, power in  %d W %s</div></div>", time1, time2, (int)netEnergyInPeriod, (int)netPowerInPeriod, eupdate);
+    snprintf(buff, 150, "<div class='fld'><div>Period %s-%s: net energy in %d Wh, power in  %d W %s</div>\n</div>\n", time1, time2, (int)netEnergyInPeriod, (int)netPowerInPeriod, eupdate);
     strcat(out, buff);
 #endif
   }
   else if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR or (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP))
   {
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-    snprintf(buff, 150, "<div class='fld'><div>Period %s-%s: produced %d Wh, power  %d W %s</div></div>", time1, time2, (int)energy_produced_period, (int)power_produced_period_avg, eupdate);
+    snprintf(buff, 150, "<div class='fld'><div>Period %s-%s: produced %d Wh, power  %d W %s</div>\n</div>\n", time1, time2, (int)energy_produced_period, (int)power_produced_period_avg, eupdate);
     strcat(out, buff);
 #endif
   }
@@ -1374,7 +1533,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     strcpy(buff4, "");
   }
 
-  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>%s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2, s.ch[channel_idx].gpio);
+  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div>\n<div class='fld'><div>%s</div>\n</div>\n<!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2, s.ch[channel_idx].gpio);
   strcat(out, buff);
   // Serial.printf("SHOW channel_idx: %d, forced: %s\n", channel_idx, buff4);
 
@@ -1398,12 +1557,67 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
       }
     }
 
-    strcat(out, "</div>");
+    strcat(out, "</div>\n");
   }
 
   return;
 }
 
+String admin_form_processor(const String &var)
+{
+  if (var == "wifi_ssid")
+    return s.wifi_ssid;
+
+  if (var == "wifi_ssid_edit")
+  {
+
+    Serial.printf("Free Heap %d\n", ESP.getFreeHeap());
+
+    return "";
+  }
+
+  if (var == "wifi_password")
+    return s.wifi_password;
+  if (var == "http_username")
+    return s.http_username;
+  if (var == "http_password")
+    return s.http_password;
+
+  return String();
+}
+
+String jscode_form_processor(const String &var)
+{
+  char out[600];
+  char buff[50];
+  if (var == F("OPERS"))
+  {
+    strcpy(out, "[");
+    for (int i = 0; i < OPER_COUNT; i++)
+    {
+      snprintf(buff, 40, "[%d, \"%s\", %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false");
+      strcat(out, buff);
+      if (i < OPER_COUNT - 1)
+        strcat(out, ", ");
+    }
+    strcat(out, "]");
+    return out;
+  }
+  if (var == F("VARIABLES"))
+  {
+    strcpy(out, "[");
+    for (int i = 0; i < VARIABLE_COUNT; i++)
+    {
+      snprintf(buff, 40, "[%d, \"%s\", %d]", variables[i].id, variables[i].code, variables[i].type);
+      strcat(out, buff);
+      if (i < VARIABLE_COUNT - 1)
+        strcat(out, ", ");
+    }
+    strcat(out, "]");
+    return out;
+  };
+  return String();
+}
 // varibles for the admin form
 String setup_form_processor(const String &var)
 {
@@ -1414,27 +1628,6 @@ String setup_form_processor(const String &var)
     return String(CHANNEL_TARGETS_MAX);
   if (var == "backup_ap_mode_enabled")
     return String(backup_ap_mode_enabled ? 1 : 0);
-
-  if (var == "wifi_ssid")
-    return s.wifi_ssid;
-
-  if (var == "wifi_ssid_edit")
-  {
-    char out[800];
-    Serial.printf("Free Heap %d\n", ESP.getFreeHeap());
-    // get_wifi_ssid_field(out);
-    Serial.println(out);
-    return "";
-  }
-
-  if (var == "wifi_password")
-    return s.wifi_password;
-  if (var == "http_username")
-    return s.http_username;
-  if (var == "http_password")
-    return s.http_password;
-  if (var == "wifi_ssid")
-    return s.wifi_ssid;
 
   if (var == "emt")
     return String(s.energy_meter_type);
@@ -1453,10 +1646,11 @@ String setup_form_processor(const String &var)
     return F("(disabled)")
 #endif
 
-  if (var == "prog_data")
+  if (var == F("prog_data"))
   {
     return String(compile_date);
   }
+
   if (var.startsWith("chi_"))
   {
     char out[800];
@@ -1483,38 +1677,93 @@ String setup_form_processor(const String &var)
 
   if (var.startsWith("cht_"))
   {
-    char out[2000];
+    char out[1500]; 
     char buff[500];
+    char buffstmt[50];
+    char buffstmt2[200];
+    int channel_idx = var.substring(4, 5).toInt();
+    if (channel_idx >= CHANNELS)
+      return String();
+
+    Serial.printf("var: %s\n",var.c_str());
+
+    for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+    {
+      strcpy(buff, "");
+      strcpy(buffstmt2, "");
+      // return String();
+      get_channel_target_fields(buff, channel_idx, target_idx, sizeof(buff) - 1);
+      strncat(out, buff, 2000 - strlen(out) - 1);
+
+      int stmt_count = 0;
+      for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
+      {
+        // statement_st stmt_this = s.ch[channel_idx].target[target_idx].statements;
+        //   TODO: CONSTANT CONVERSION
+        int variable_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id;
+        int oper_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id;
+        long const_val = s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val;
+
+        // TODO: alusta tai jotain
+        if (variable_id == -1 ||  oper_id == -1 )
+          continue;
+        snprintf(buffstmt, 30, "%s[%d, %d, %ld]",(stmt_count>0)?", ":"", variable_id, oper_id, const_val);
+        stmt_count++;
+        strcat(buffstmt2, buffstmt);
+
+      }
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx,buffstmt2);
+      Serial.println(buffstmt2);
+      Serial.print("strlen(buff):");
+      Serial.println(strlen(buff));
+      Serial.println(buff);
+      strcat(out, buff);
+
+    }
+    return out;
+  }
+  /*
+   if (var.startsWith("chtB_"))
+  {
+    
+    char out[1500];
+    char buff[300];
+    char buffstmt[50];
+    char buffstmt2[200];
     int channel_idx = var.substring(4, 5).toInt();
     if (channel_idx >= CHANNELS)
       return String();
 
     for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
     {
-      get_channel_target_fields(buff, channel_idx, target_idx, 500 - 1);
-      strncat(out, buff, 2000 - strlen(out) - 1);
+      int stmt_count = 0;
+      for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
+      {
+        // statement_st stmt_this = s.ch[channel_idx].target[target_idx].statements;
+        //   TODO: CONSTANT CONVERSION
+        int variable_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id;
+        int oper_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id;
+        long const_val = s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val;
+
+        // TODO: alusta tai jotain
+        if (variable_id == -1 ||  oper_id == -1 )
+          continue;
+        snprintf(buffstmt, 30, "%s [%d, %d, %ld]",(stmt_count>0)?",":" ", variable_id, oper_id, const_val);
+        stmt_count++;
+        strcat(buffstmt2, buffstmt);
+        Serial.println("X");
+        Serial.println(buffstmt);
+        Serial.println(strlen(out));
+        
+      }
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value=''/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx);
+      Serial.print("strlen(buff):");
+      Serial.println(strlen(buff));
+      strcat(out, buff);
     }
     return out;
-  }
-  if (var.startsWith("target_ch_"))
-  {
-    // e.g target_ch_0_1
-    char out[500];
-    int channel_idx = var.substring(10, 11).toInt();
-    int target_idx = var.substring(12, 13).toInt();
-    get_channel_target_fields(out, channel_idx, target_idx, 500);
-    return out;
-  }
-  // TODO:remnove old
-  if (var.startsWith("info_ch_"))
-  {
-    char out[500];
-    int channel_idx = var.substring(8, 9).toInt();
-    Serial.printf("debug target_ch_: %s %d \n", var.c_str(), channel_idx);
-    get_channel_config_fields(out, channel_idx);
-    return out;
-  }
-
+  }*/
+  
   if (var == "states")
   {
     return state_array_string(active_states);
@@ -1651,14 +1900,15 @@ bool set_channel_switch(int channel_idx, bool up)
     Serial.println(url_to_call);
 
     DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(),"")); //muutettu käyttämään omaa funtiota
+    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "")); // muutettu käyttämään omaa funtiota
     if (error)
     {
       Serial.print(F("Shelly relay call deserializeJson() failed: "));
       Serial.println(error.f_str());
       return false;
     }
-    else {
+    else
+    {
       Serial.println(F("Shelly relay switched."));
       return true;
     }
@@ -1796,7 +2046,7 @@ void set_relays()
       set_channel_switch(ch_to_switch, s.ch[ch_to_switch].is_up);
     }
   }
- // Serial.println(F("set_relays finished."));
+  // Serial.println(F("set_relays finished."));
 }
 
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
@@ -1805,6 +2055,13 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name)
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, template_name, "text/html", false, setup_form_processor);
+}
+void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemplateProcessor processor)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
+  request->send(LittleFS, template_name, "text/html", false, processor);
 }
 
 void onWebDashboardGet(AsyncWebServerRequest *request)
@@ -1826,9 +2083,10 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
 }
 
 // Web admin form
+
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
-  sendForm(request, "/admin_template.html");
+  sendForm(request, "/admin_template.html", admin_form_processor);
 }
 
 // Process channel force form
@@ -1922,14 +2180,19 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
   // request->redirect("/channels");
 }
-
+void readStatements(const char *s)
+{
+}
 // CHANNELS
 void onWebChannelsPost(AsyncWebServerRequest *request)
 {
   char ch_fld[20];
   char state_fld[20];
+  char stmts_fld[20];
   char target_fld[20];
   char targetcb_fld[20];
+
+  StaticJsonDocument<300> stmts_json;
 
   for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
   {
@@ -1950,10 +2213,55 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
     for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
     {
+      // statements
+      // myös tyhjennys
+      snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, target_idx);
+      if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
+      {
+
+        Serial.print(stmts_fld);
+        Serial.print(": ");
+        Serial.println(request->getParam(stmts_fld, true)->value());
+
+        DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
+        if (error)
+        {
+          Serial.print(F("deserializeJson() failed: "));
+          Serial.println(error.f_str());
+
+          //  return;
+        }
+        else
+        {
+          // JsonArray root_0 = stmts_json[0];
+          // HUOM: PUTSAUS
+          Serial.print("Rows:");
+          Serial.println(stmts_json.size());
+          for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), CONDITION_STATEMENTS_MAX); stmt_idx++)
+          {
+            s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = stmts_json[stmt_idx][0];
+            s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = stmts_json[stmt_idx][1];
+
+          } /* struct statement_st
+    {
+      int variable_idx;
+      byte oper_idx;
+      byte constant_type;
+      long const_val;
+    };
+
+    */
+            /*  int root_0_0 = root_0[0]; // 0
+              int root_0_1 = root_0[1]; // 0
+              int root_0_2 = root_0[2]; // 1
+              */
+        }
+      }
+
       snprintf(state_fld, 20, "st_%i_%i", channel_idx, target_idx);
       snprintf(target_fld, 20, "t_%i_%i", channel_idx, target_idx);
       snprintf(targetcb_fld, 20, "ctcb_%i_%i", channel_idx, target_idx);
-
+//TODO:kun poistat statet, niin jätä muut
       if (request->hasParam(state_fld, true))
       {
         str_to_uint_array(request->getParam(state_fld, true)->value().c_str(), s.ch[channel_idx].target[target_idx].upstates, ",");
@@ -2162,311 +2470,324 @@ void setup()
       s.ch[channel_idx].type = 0; // GPIO_ONOFF
       s.ch[channel_idx].uptime_minimum = 60;
       s.ch[channel_idx].force_up_until = 0;
-      snprintf(s.ch[channel_idx].id_str,sizeof(s.ch[channel_idx].id_str), "channel %d", channel_idx + 1);
+      snprintf(s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str), "channel %d", channel_idx + 1);
       for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
       {
         s.ch[channel_idx].target[target_idx] = {{}, 0};
+        for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
+        {
+          s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = -1;
+          s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = -1;
+          s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val = 0;
+        }
       }
     }
 
+  
 #ifdef OTA_UPDATE_ENABLED
-    s.next_boot_ota_update = false;
+      s.next_boot_ota_update = false;
 #endif
 
-    writeToEEPROM();
-  }
+      writeToEEPROM();
+    }
 
-  read_config_file(false); // read the rest
+    read_config_file(false); // read the rest
 
+    /*
+      if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
+      { // check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+        if (WiFi.softAP("arska-node", "arska", 1, false, 1) == true)
+        {
+          Serial.println(F("WiFi AP created!"));
+        }
+      }*/
+    WiFi.mode(WIFI_STA);
 
+    WiFi.begin(s.wifi_ssid, s.wifi_password);
+    Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
 
-  /*
-    if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
-    { // check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-      if (WiFi.softAP("arska-node", "arska", 1, false, 1) == true)
-      {
-        Serial.println(F("WiFi AP created!"));
-      }
-    }*/
-  WiFi.mode(WIFI_STA);
+    if (WiFi.waitForConnectResult() != WL_CONNECTED)
+    {
+      Serial.println(F("WiFi Failed!"));
+      WiFi.disconnect();
+      delay(100);
 
-  WiFi.begin(s.wifi_ssid, s.wifi_password);
-  Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
-
-  if (WiFi.waitForConnectResult() != WL_CONNECTED)
-  {
-    Serial.println(F("WiFi Failed!"));
-    WiFi.disconnect();
-    delay(100);
-
-    scan_and_store_wifis();
-
-    backup_ap_mode_enabled = true;
-    check_forced_restart(true); // schedule restart
-  }
-  else
-  {
-    Serial.printf("Connected to wifi [%s] with IP Address:", s.wifi_ssid);
-    Serial.println(WiFi.localIP());
-    // Serial.println(WiFi.macAddress());
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(true);
-
-    if (!LittleFS.exists(wifis_file_name))
-    { // no wifi list found
-      Serial.println("No wifi list found - rescanning...");
       scan_and_store_wifis();
-    }
-  }
 
-  if (backup_ap_mode_enabled) // Softap should be created if  cannot connect to wifi
-  {                           // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-    WiFi.mode(WIFI_OFF);
-    delay(2000);
-    WiFi.mode(WIFI_AP);
-    // create ap-mode ssid for config wifi
-    String mac = WiFi.macAddress();
-    for (int i = 14; i > 0; i -= 3)
-    {
-      mac.remove(i, 1);
-    }
-    String APSSID = String("ARSKANODE-") + mac;
-    Serial.print(F("Creating AP:"));
-    Serial.println(APSSID);
-
-    //    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
-    if (WiFi.softAP(APSSID.c_str(), "", (int)random(1, 14), false, 3) == true)
-    {
-      Serial.print(F("WiFi AP created with ip:"));
-      Serial.println(WiFi.softAPIP().toString());
-
-      // dnsServer.start(53, "*", WiFi.softAPIP());
-      // server_web.on(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER,)
+      backup_ap_mode_enabled = true;
+      check_forced_restart(true); // schedule restart
     }
     else
     {
-      Serial.println(F("Cannot create AP, restarting"));
-      delay(2000); // cannot create AP, restart
-      ESP.restart();
+      Serial.printf("Connected to wifi [%s] with IP Address:", s.wifi_ssid);
+      Serial.println(WiFi.localIP());
+      // Serial.println(WiFi.macAddress());
+      WiFi.setAutoReconnect(true);
+      WiFi.persistent(true);
+
+      if (!LittleFS.exists(wifis_file_name))
+      { // no wifi list found
+        Serial.println("No wifi list found - rescanning...");
+        scan_and_store_wifis();
+      }
     }
-  }
 
-  //init relays
-  // split comma separated gpio string to an array
-  uint16_t channel_gpios[CHANNELS];
-  str_to_uint_array(CH_GPIOS, channel_gpios, ",");
-  for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
-  {
-    s.ch[channel_idx].gpio = channel_gpios[channel_idx];
-    s.ch[channel_idx].toggle_last = now;
-    // reset values fro eeprom
-    s.ch[channel_idx].wanna_be_up = false;
-    s.ch[channel_idx].is_up = false;
+    if (backup_ap_mode_enabled) // Softap should be created if  cannot connect to wifi
+    {                           // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+      WiFi.mode(WIFI_OFF);
+      delay(2000);
+      WiFi.mode(WIFI_AP);
+      // create ap-mode ssid for config wifi
+      String mac = WiFi.macAddress();
+      for (int i = 14; i > 0; i -= 3)
+      {
+        mac.remove(i, 1);
+      }
+      String APSSID = String("ARSKANODE-") + mac;
+      Serial.print(F("Creating AP:"));
+      Serial.println(APSSID);
 
-    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
-    { // gpio channel
-      pinMode(s.ch[channel_idx].gpio, OUTPUT);
-      Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
+      //    if (WiFi.softAP(APSSID.c_str(), "arskanode", (int)random(1, 14), false, 3) == true)
+      if (WiFi.softAP(APSSID.c_str(), "", (int)random(1, 14), false, 3) == true)
+      {
+        Serial.print(F("WiFi AP created with ip:"));
+        Serial.println(WiFi.softAPIP().toString());
+
+        // dnsServer.start(53, "*", WiFi.softAPIP());
+        // server_web.on(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER,)
+      }
+      else
+      {
+        Serial.println(F("Cannot create AP, restarting"));
+        delay(2000); // cannot create AP, restart
+        ESP.restart();
+      }
     }
-    // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
-    set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
-  }
 
-  Serial.printf("Web admin: [%s], password: [%s]\n", s.http_username, s.http_password);
+    // init relays
+    //  split comma separated gpio string to an array
+    uint16_t channel_gpios[CHANNELS];
+    str_to_uint_array(CH_GPIOS, channel_gpios, ",");
+    for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
+    {
+      s.ch[channel_idx].gpio = channel_gpios[channel_idx];
+      s.ch[channel_idx].toggle_last = now;
+      // reset values fro eeprom
+      s.ch[channel_idx].wanna_be_up = false;
+      s.ch[channel_idx].is_up = false;
+
+      if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
+      { // gpio channel
+        pinMode(s.ch[channel_idx].gpio, OUTPUT);
+        Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
+      }
+      // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
+      set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
+    }
+
+    Serial.printf("Web admin: [%s], password: [%s]\n", s.http_username, s.http_password);
 
 #ifdef RTC_DS3231_ENABLED
-  Serial.println(F("Starting RTC!"));
-  Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
-  if (!rtc.begin())
-  {
-    Serial.println(F("Couldn't find RTC!"));
-    Serial.flush();
-  }
-  else
-  {
-    rtc_found = true;
-    Serial.println(F("RTC found"));
-    Serial.flush();
-    settimeofday_cb(time_is_set); // register callback if time was sent
-    if (time(nullptr) < 1600000000)
-      getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
-  }
+    Serial.println(F("Starting RTC!"));
+    Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
+    if (!rtc.begin())
+    {
+      Serial.println(F("Couldn't find RTC!"));
+      Serial.flush();
+    }
+    else
+    {
+      rtc_found = true;
+      Serial.println(F("RTC found"));
+      Serial.flush();
+      settimeofday_cb(time_is_set); // register callback if time was sent
+      if (time(nullptr) < 1600000000)
+        getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
+    }
 
 #endif
 
 #ifdef OTA_UPDATE_ENABLED
-  // wait for update
-  if (s.next_boot_ota_update)
-  {
-    // TODO: password protection
-    s.next_boot_ota_update = false; // next boot is normal
-    writeToEEPROM();
+    // wait for update
+    if (s.next_boot_ota_update)
+    {
+      // TODO: password protection
+      s.next_boot_ota_update = false; // next boot is normal
+      writeToEEPROM();
 
-    server_OTA.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(200, "text/html", "<html><body><h2>Update mode</h2><a href='/update'>update</a> | <a href='/restart'>restart</a></body></html>"); });
+      server_OTA.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+                    { request->send(200, "text/html", "<html><body><h2>Update mode</h2><a href='/update'>update</a> | <a href='/restart'>restart</a></body></html>"); });
 
-    server_OTA.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-                  {  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body></body></html>"); 
+      server_OTA.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+                    {  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body></body></html>"); 
                     ESP.restart(); });
 
-    AsyncElegantOTA.begin(&server_OTA, s.http_username, s.http_password); // Start ElegantOTA
-    server_ota_started = millis();
-    server_OTA.begin();
-    while (true)
-    {
-      delay(1000); // just wait here, until uploaded or restarted manually
+      AsyncElegantOTA.begin(&server_OTA, s.http_username, s.http_password); // Start ElegantOTA
+      server_ota_started = millis();
+      server_OTA.begin();
+      while (true)
+      {
+        delay(1000); // just wait here, until uploaded or restarted manually
+      }
     }
-  }
 #endif
 
-  // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
-  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  configTime(timezone_info, ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
+    // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
+    // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+    configTime(timezone_info, ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
 
-  server_web.on("/status", HTTP_GET, onWebStatusGet);
-  server_web.on("/state_series", HTTP_GET, onWebStateSeriesGet);
+    server_web.on("/status", HTTP_GET, onWebStatusGet);
+    server_web.on("/state_series", HTTP_GET, onWebStateSeriesGet);
 
-  server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
-                {   
+    server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
+                  {   
     if (!request->authenticate(s.http_username, s.http_password))
       return request->requestAuthentication();
     check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
     request->send(LittleFS, "/inputs_template.html", "text/html", false, setup_form_processor); });
 
-  server_web.on("/", HTTP_GET, onWebDashboardGet);
-  server_web.on("/", HTTP_POST, onWebDashboardPost);
+    server_web.on("/", HTTP_GET, onWebDashboardGet);
+    server_web.on("/", HTTP_POST, onWebDashboardPost);
 
-  server_web.on("/inputs", HTTP_GET, onWebInputsGet);
-  server_web.on("/inputs", HTTP_POST, onWebInputsPost);
+    server_web.on("/inputs", HTTP_GET, onWebInputsGet);
+    server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
-  server_web.on("/channels", HTTP_GET, onWebChannelsGet);
-  server_web.on("/channels", HTTP_POST, onWebChannelsPost);
+    server_web.on("/channels", HTTP_GET, onWebChannelsGet);
+    server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
-  server_web.on("/admin", HTTP_GET, onWebAdminGet);
-  server_web.on("/admin", HTTP_POST, onWebAdminPost);
+    server_web.on("/admin", HTTP_GET, onWebAdminGet);
 
-  server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
+    server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-  server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->redirect("/"); }); // redirect url, if called from OTA
+    server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
-  server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/style.css", "text/css"); });
-  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
-  server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/jquery-3.6.0.min.js", "text/javascript"); });
+    server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->redirect("/"); }); // redirect url, if called from OTA
 
-  // debug
-  server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/wifis.json", "text/json"); });
+    server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(LittleFS, "/style.css", "text/css"); });
+    /*  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                    { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
+    */
+    server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { 
+                  //request->send(LittleFS, "/js/arska.js", "text/javascript"); 
+                request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });
 
-  /* if (backup_ap_mode_enabled) {
-     server_web.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
-   }
-   */
+    server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(LittleFS, "/js/jquery-3.6.0.min.js", "text/javascript"); });
 
-  server_web.onNotFound(notFound);
+    // debug
+    server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(LittleFS, "/wifis.json", "text/json"); });
 
-  server_web.begin();
+    /* if (backup_ap_mode_enabled) {
+       server_web.addHandler(new CaptiveRequestHandler()).setFilter(ON_AP_FILTER);//only when requested from AP
+     }
+     */
 
-  Serial.print(F("setup() finished:"));
-  Serial.println(ESP.getFreeHeap());
+    server_web.onNotFound(notFound);
 
-  // wifi_request.status = 0u; // listening //TESTING...
+    server_web.begin();
 
-} // end of setup()
+    Serial.print(F("setup() finished:"));
+    Serial.println(ESP.getFreeHeap());
 
-// returns start time period (first second of an hour if 60 minutes netting period) of time stamp,
-long get_period_start_time(long ts)
-{
-  return long(ts / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
-}
+    // wifi_request.status = 0u; // listening //TESTING...
 
-// This function is executed repeatedly after setpup()
-void loop()
-{
-  // Serial.print(F("Starting loop"));
-  /*if (!s.sta_mode) {
-    dnsServer.processNextRequest();
-  }*/
+  } // end of setup()
+
+  // returns start time period (first second of an hour if 60 minutes netting period) of time stamp,
+  long get_period_start_time(long ts)
+  {
+    return long(ts / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
+  }
+
+  // This function is executed repeatedly after setpup()
+  void loop()
+  {
+    // Serial.print(F("Starting loop"));
+    /*if (!s.sta_mode) {
+      dnsServer.processNextRequest();
+    }*/
 
 #ifdef OTA_UPDATE_ENABLED
-  // resetting and rebooting in update more
-  if (s.next_boot_ota_update || restart_required)
-  {
-    delay(1000);
-    ESP.restart();
-  }
-#endif
-  if (scan_and_store_wifis_requested)
-  {
-    scan_and_store_wifis_requested = false;
-    scan_and_store_wifis();
-  }
-  if (set_relay_requested) { // relays forced up or so...
-    set_relay_requested = false;
-    set_relays();
-  }
-
-  check_forced_restart(); // if in forced ap-mode restart if scheduled so
-  time(&now);
-  if (now < 1600000000) // we need clock set
-    return;
-  if (started < 1600000000)
-    started = now;
-
-  current_period_start = get_period_start_time(now); // long(now / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
-  if (get_period_start_time(now) == get_period_start_time(started))
-    recording_period_start = started;
-  else
-    recording_period_start = current_period_start;
-
-  if (previous_period_start != current_period_start)
-    period_changed = true; // more readable
-
-  if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
-  {
-    for (int wait_loop = 0; wait_loop < 10; wait_loop++)
+    // resetting and rebooting in update more
+    if (s.next_boot_ota_update || restart_required)
     {
       delay(1000);
-      Serial.print('W');
-      if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
-        break;
+      ESP.restart();
     }
+#endif
+    if (scan_and_store_wifis_requested)
+    {
+      scan_and_store_wifis_requested = false;
+      scan_and_store_wifis();
+    }
+    if (set_relay_requested)
+    { // relays forced up or so...
+      set_relay_requested = false;
+      set_relays();
+    }
+
+    check_forced_restart(); // if in forced ap-mode restart if scheduled so
+    time(&now);
+    if (now < 1600000000) // we need clock set
+      return;
+    if (started < 1600000000)
+      started = now;
+
+    current_period_start = get_period_start_time(now); // long(now / (NETTING_PERIOD_MIN * 60UL)) * (NETTING_PERIOD_MIN * 60UL);
+    if (get_period_start_time(now) == get_period_start_time(started))
+      recording_period_start = started;
+    else
+      recording_period_start = current_period_start;
+
+    if (previous_period_start != current_period_start)
+      period_changed = true; // more readable
+
     if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
     {
-      Serial.println(F("Restarting."));
-      ESP.restart(); // boot if cannot recover wifi in time
+      for (int wait_loop = 0; wait_loop < 10; wait_loop++)
+      {
+        delay(1000);
+        Serial.print('W');
+        if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
+          break;
+      }
+      if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
+      {
+        Serial.println(F("Restarting."));
+        ESP.restart(); // boot if cannot recover wifi in time
+      }
     }
-  }
 
-  // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
-  if (((millis() - sensor_last_refresh) > process_interval_s * 1000) || period_changed)
-  {
-    Serial.print(F("Reading sensor and meter data..."));
+    // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
+    if (((millis() - sensor_last_refresh) > process_interval_s * 1000) || period_changed)
+    {
+      Serial.print(F("Reading sensor and meter data..."));
 #ifdef SENSOR_DS18B20_ENABLED
-    read_sensor_ds18B20();
+      read_sensor_ds18B20();
 #endif
 
-    read_energy_meter();
+      read_energy_meter();
 
-    processing_states = true;
-    refresh_states(current_period_start);
-    processing_states = false;
+      processing_states = true;
+      refresh_states(current_period_start);
+      processing_states = false;
 
-    sensor_last_refresh = millis();
-    set_relays(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
-  }
-  if (period_changed)
-  {
-    previous_period_start = current_period_start;
-    period_changed = false;
-  }
+      sensor_last_refresh = millis();
+      set_relays(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
+    }
+    if (period_changed)
+    {
+      previous_period_start = current_period_start;
+      period_changed = false;
+    }
 
 #ifdef INVERTER_SMA_MODBUS_ENABLED
-  mb.task(); // process modbuss event queue
+    mb.task(); // process modbuss event queue
 #endif
 
-  // delay(5000);
-}
+    // delay(5000);
+  }

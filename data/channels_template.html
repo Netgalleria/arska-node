@@ -10,7 +10,8 @@
     <script>
         const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
         const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
-        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%'); 
+        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%');
+    
     </script>
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
@@ -22,13 +23,14 @@
     %status_fields%
     <div class="fld">Active states: %states%</div>
     <br>
-    <form method="post" onsubmit="setFormSubmitting()">
+    <form method="post" onsubmit="submitChannelForm()">
 
         <input name="source" type="hidden" value="channels">
-        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
-        %chi_6% %cht_6% %chi_7% %cht_7%
+        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3%  %chi_4% %cht_4%  %chi_5% %cht_5% 
+        %chi_6% %cht_6% %chi_7% %cht_7% %
 
         <br><input type="submit" value="Save">
+
     </form>
 
     <div class="secbr" id="footerdiv">
