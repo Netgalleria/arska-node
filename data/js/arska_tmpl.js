@@ -35,14 +35,25 @@ var setFormSubmitting = function () {
 };
 
 var submitChannelForm = function () {
+    // set name attributes to inputs to post (not coming from server to save space)
+    let inputs = document.querySelectorAll("input[id^='ctcb_'], input[id^='t_'], input[id^='chty_']"); 
+    console.log("inputs.length:" + inputs.length);
+    for (let i = 0; i < inputs.length; i++) {
+        if (inputs[i].id != inputs[i].name) { 
+        inputs[i].name = inputs[i].id;
+        }
+    }
+
+    // statements from input fields 
     // clean first storage input values
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     for (let i = 0; i < stmts_s.length; i++) {
         stmts_s[i].value = '[]';
+        if (i==0)
+            stmts_s[i].name = stmts_s[i].id; //send at least one fiels even if empty
     }
     // then save new values to be saved on the server
     let stmtDivs = document.querySelectorAll("div[id^='std_']");
-    //  let stmt_arr = {};
     if (stmtDivs && stmtDivs.length > 0) {
         for (let i = 0; i < stmtDivs.length; i++) {
             const divEl = stmtDivs[i];
@@ -64,6 +75,7 @@ var submitChannelForm = function () {
             }
             stmt_list.push([var_val, op_val, const_val]);
             saveStoreEl.value = JSON.stringify(stmt_list);
+            saveStoreEl.name = saveStoreEl.id; // only fields with a name are posted 
         }
     }
 

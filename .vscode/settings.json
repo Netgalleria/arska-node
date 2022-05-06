@@ -13,6 +13,8 @@
         "string_view": "cpp",
         "initializer_list": "cpp",
         "ranges": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "system_error": "cpp",
+        "cmath": "cpp"
     }
 }
