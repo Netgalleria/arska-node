@@ -15,11 +15,32 @@
     </script>
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
+ 
+
+        <script type="text/javascript" language="javascript">
+         $(document).ready(function() {
+			
+            $("#driver").click(function(event){
+               $.getJSON('/status', function(jd) {
+                   alert(JSON.stringify(jd));
+                   alert(JSON.stringify(jd.variables));
+                   alert(JSON.stringify(jd.variables["0"]));
+                  $('#stage').html('<p> Price: ' + jd.variables["0"] + '</p>');
+               });
+            });
+				
+         });
+      </script>
+
     <div class="secbr" id="headdiv">
     </div>
     <div class="secbr">
         <h2>Status</h2>
     </div>
+    <div id="stage" style="background-color:#cc0;">
+        STAGE
+     </div>
+    <input type="button" id="driver" value="Load Data" />
     %status_fields%
     <div class="fld">Active states: %states%</div>
     <br>

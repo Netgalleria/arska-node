@@ -372,11 +372,11 @@ public:
   {
     return true; // to be implemented};
   }
-  bool is_statement_true(const char *statement, bool default_value);
-  bool is_sentence_true(const char *statement);
+  bool is_statement_true(statement_st *statement, bool default_value = false);
   int get_variable(int id, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
-  int internal_l_to_str(int id, long val_l, char *strbuff);
+  // int to_str(int id, long val_l, char *strbuff);
+  int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0);
 
 private:
   int get_variable_index(int id);
@@ -422,16 +422,24 @@ long Variables::float_to_internal_l(int id, float val_float)
   return -1;
 }
 
-int Variables::internal_l_to_str(int id, long val_l, char *strbuff)
+// int Variables::to_str(int id, long val_l, char *strbuff)
+int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val)
 {
   variable_st var;
   int idx = get_variable(id, &var);
+  long val_l;
+
   if (idx != -1)
   {
+    if (use_overwrite_val)
+      val_l = overwrite_val;
+    else
+      val_l = var.val_l;
+
     if (var.type < 10)
     {
       float val_f = val_l / pow(10, var.type);
-      dtostrf(val_f,  6, var.type, strbuff);
+      dtostrf(val_f, 1, var.type, strbuff);
       return strlen(strbuff);
     }
   }
@@ -497,21 +505,42 @@ return -1;*/
 }
 
 const char *statement_separator PROGMEM = ";";
-bool Variables::is_statement_true(const char *statement, bool default_value)
+bool Variables::is_statement_true(statement_st *statement, bool default_value)
+
 {
   // pitäisikö olla jo tallennettu parsittu
   // try to match with opers
   // kelaa operaattorit läpi, jos löytyy match niin etene sen kanssa, jos ei niin palauta default
+  variable_st var;
+  if (statement->variable_id == -1)
+  {
+    return default_value;
+  }
 
-  // jos boolean_only, niin
-  return true;
-}
-bool Variables::is_sentence_true(const char *sentence)
-{
-  // remove whitespace
-  // split to parts, check str_to_uint_array
-  // loop part until one is false or end
-  return true;
+  int variable_idx = get_variable(statement->variable_id, &var);
+  oper_st oper;
+  for (int i = 0; i < OPER_COUNT; i++)
+  {
+    if (opers[i].id == statement->oper_id)
+    {
+      oper = opers[i];
+      Serial.printf("Matching with oper %s\n", opers[i].code);
+    }
+  }
+  bool result = false;
+
+  if (oper.eq && var.val_l == statement->const_val)
+    result = true;
+
+  if (oper.gt && var.val_l > statement->const_val)
+    result = true;
+
+  if (oper.reverse)
+    result = !result;
+
+  Serial.printf("Statement %ld  %s  %ld  results %s\n", var.val_l, oper.code, statement->const_val, result ? "true" : "false");
+
+  return result;
 }
 
 Variables vars;
@@ -592,7 +621,7 @@ const char *channel_type_strings[] PROGMEM = {
     "Shelly target",
 };
 
-// #define CHANNEL_TARGETS_MAX 3 //platformio.ini
+// #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
 #define CONDITION_STATEMENTS_MAX 5
 
@@ -627,15 +656,15 @@ typedef struct
 {
   uint16_t upstates[CHANNEL_STATES_MAX];
   statement_st statements[CONDITION_STATEMENTS_MAX];
-  float target;
+  float target_val;
   bool switch_on;
-  bool target_active; // for showing if the target is currently active
-} target_struct;
+  bool condition_active; // for showing if the condition is currently active, for tracing
+} condition_struct;
 
 // Channel stucture, elements of channel array in setting, stored in non-volatile memory
 typedef struct
 {
-  target_struct target[CHANNEL_TARGETS_MAX];
+  condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
   uint8_t gpio;
   bool is_up;
@@ -1423,8 +1452,12 @@ void refresh_variables(time_t current_period_start)
   JsonObject variable_list = doc[start_str];
   Serial.print("p:");
 
-  Serial.println((long)variable_list["p"]);
-  vars.set(0, (long)variable_list["p"]);
+  float price = (float)variable_list["p"];
+  //vars.set(0, (long)(variable_list["p"]));
+  vars.set(0, (long)(price+0.5));
+  // vars.set(0, (float)(variable_list["p"]));
+   Serial.println(price);
+  Serial.println((long)(price + 0.5));
 
   vars.set(1, (long)variable_list["pr9"]);
   vars.set(2, (long)variable_list["pr24"]);
@@ -1556,17 +1589,15 @@ void aggregate_dayahead_prices_timeser(time_t record_start, time_t record_end, i
     snprintf(var_code, sizeof(var_code), "%ld", time);
     JsonObject json_obj = doc.createNestedObject(var_code);
 
-    long energyPriceSpot = prices[time_idx];
-    json_obj["p"] = energyPriceSpot;
-
-    // vars.set("p", energyPriceSpot); // tätä käytetään voimassaolevien kohdalla, ei tulevaisuuden aikasarjaan
+    float energyPriceSpot = prices[time_idx] / 100;
+    json_obj["p"] = prices[time_idx] / 100;
 
     // Serial.printf("Value of variable p: %ld\n", vars.get_l("p"));
 
     localtime_r(&time, &tm_struct_g);
 
     Serial.printf("\n\ntime_idx: %d , %04d%02d%02dT%02d00, ", time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
-    Serial.printf("energyPriceSpot: %ld \n", energyPriceSpot);
+    Serial.printf("energyPriceSpot: %f \n", energyPriceSpot);
 
     int price_block_count = (int)(sizeof(price_variable_blocks) / sizeof(*price_variable_blocks));
     for (int block_idx = 0; block_idx < price_block_count; block_idx++)
@@ -1902,7 +1933,7 @@ void get_channel_config_fields(char *out, int channel_idx)
     {
       bool target_based_channel = ((channel_type_idx & 1) == 1);
       if ((sensor_ds18b20_enabled && target_based_channel) || !target_based_channel)
-      { // cannot have target without sensors
+      { // cannot have condition without sensors
         snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
         strcat(out, buff);
       }
@@ -1916,22 +1947,21 @@ void get_channel_config_fields(char *out, int channel_idx)
 }
 
 // condition row fields for the admin form
-void get_channel_target_fields(char *out, int channel_idx, int target_idx, int buff_len)
+void get_channel_condition_fields(char *out, int channel_idx, int condition_idx, int buff_len)
 {
-  String states = state_array_string(s.ch[channel_idx].target[target_idx].upstates);
+  String states = state_array_string(s.ch[channel_idx].conditions[condition_idx].upstates);
   char float_buffer[32]; // to prevent overflow if initiated with a long number...
   char suffix[10];
-  snprintf(suffix, 10, "_%d_%d", channel_idx, target_idx);
+  snprintf(suffix, 10, "_%d_%d", channel_idx, condition_idx);
 
-  dtostrf(s.ch[channel_idx].target[target_idx].target, 3, 1, float_buffer);
-  // snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  <input name='st_%i_%i' id='st_%i_%i' type='text' value='%s'></div>\n<div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div>\n<div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div>\n</div>\n", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, states.c_str(), channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
-  // snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd_%i_%i' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td_%i_%i'>Target:<input class='inpnum' name='t_%i_%i' id='t_%i_%i' type='text' value='%s'></div>\n<div id='ctcbd_%i_%i'>on:<br><input type='checkbox' id='ctcb_%i_%i' name='ctcb_%i_%i' value='1' %s></div>\n</div>\n", channel_idx, target_idx, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, float_buffer, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  dtostrf(s.ch[channel_idx].conditions[condition_idx].target_val, 3, 1, float_buffer);
 
   // name attributes  will be added in javascript before submitting
-  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td%s'>Target:<input class='inpnum' id='t%s' type='text' value='%s'></div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].target[target_idx].target_active ? "* ACTIVE *" : "", target_idx + 1, suffix, suffix, float_buffer, suffix, suffix, s.ch[channel_idx].target[target_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td%s'>Target:<input class='inpnum' id='t%s' type='text' value='%s'></div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, float_buffer, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
   return;
   //    + "</div></div><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' />");
 }
+
 // energy meter fields for admin form
 void get_meter_config_fields(char *out)
 {
@@ -2164,8 +2194,8 @@ String setup_form_processor(const String &var)
   // Javascript replacements
   if (var == "CHANNELS")
     return String(CHANNELS);
-  if (var == "CHANNEL_TARGETS_MAX")
-    return String(CHANNEL_TARGETS_MAX);
+  if (var == "CHANNEL_CONDITIONS_MAX")
+    return String(CHANNEL_CONDITIONS_MAX);
   if (var == "backup_ap_mode_enabled")
     return String(backup_ap_mode_enabled ? 1 : 0);
 
@@ -2227,40 +2257,39 @@ String setup_form_processor(const String &var)
 
     Serial.printf("var: %s\n", var.c_str());
 
-    for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       strcpy(buff, "");
       strcpy(buffstmt2, "");
       // return String();
       // Serial.println("debug A");
-      get_channel_target_fields(buff, channel_idx, target_idx, sizeof(buff) - 1);
+      get_channel_condition_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
       strncat(out, buff, 2000 - strlen(out) - 1);
 
       int stmt_count = 0;
       char floatbuff[20];
       for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
       {
-        // statement_st stmt_this = s.ch[channel_idx].target[target_idx].statements;
+        // statement_st stmt_this = s.ch[channel_idx].conditions[condition_idx].statements;
         //   TODO: CONSTANT CONVERSION
-        int variable_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id;
-        int oper_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id;
-        long const_val = s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val;
+        int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
+        int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
+        long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
 
-        vars.internal_l_to_str(variable_id, s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val, floatbuff);
-
+        vars.to_str(variable_id, floatbuff, true, s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val);
 
         // TODO: alusta tai jotain
         if (variable_id == -1 || oper_id == -1)
           continue;
-          
-       // snprintf(buffstmt, 30, "%s[%d, %d, %ld]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, const_val);
+
+        // snprintf(buffstmt, 30, "%s[%d, %d, %ld]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, const_val);
         snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
         stmt_count++;
         strcat(buffstmt2, buffstmt);
       }
-      // snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, buffstmt2);
+      // snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
       // no name in stmts_ , copy later in js
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, buffstmt2);
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
 
       strcat(out, buff);
       Serial.print("strlen(out):");
@@ -2280,16 +2309,16 @@ String setup_form_processor(const String &var)
     if (channel_idx >= CHANNELS)
       return String();
 
-    for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       int stmt_count = 0;
       for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
       {
-        // statement_st stmt_this = s.ch[channel_idx].target[target_idx].statements;
+        // statement_st stmt_this = s.ch[channel_idx].conditions[condition_idx].statements;
         //   TODO: CONSTANT CONVERSION
-        int variable_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id;
-        int oper_id = s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id;
-        long const_val = s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val;
+        int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
+        int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
+        long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
 
         // TODO: alusta tai jotain
         if (variable_id == -1 ||  oper_id == -1 )
@@ -2302,7 +2331,7 @@ String setup_form_processor(const String &var)
         Serial.println(strlen(out));
 
       }
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value=''/></div>\n", channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx, channel_idx, target_idx);
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value=''/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx);
       Serial.print("strlen(buff):");
       Serial.println(strlen(buff));
       strcat(out, buff);
@@ -2466,7 +2495,7 @@ bool set_channel_switch(int channel_idx, bool up)
 }
 // set relays up and down,
 // MAX_CHANNELS_SWITCHED_AT_TIME defines how many channel can be switched at time
-void set_relays()
+void update_channel_statuses()
 {
   int active_state_count = 0;
   bool target_state_match_found;
@@ -2483,7 +2512,7 @@ void set_relays()
 
   // loop channels and check whether channel should be up
   for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
-  { // reset target_active variable
+  { // reset condition_active variable
 
     // if channel is up, keep it up at least minimum time
     // if force_up_until defined keep it up till that time
@@ -2503,9 +2532,9 @@ void set_relays()
       continue;
     }
 
-    for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
-      s.ch[channel_idx].target[target_idx].target_active = false;
+      s.ch[channel_idx].conditions[condition_idx].condition_active = false;
     }
 
     if (!s.ch[channel_idx].is_up && forced_up)
@@ -2518,14 +2547,14 @@ void set_relays()
     target_state_match_found = false;
     s.ch[channel_idx].wanna_be_up = false;
     // loop channel targets until there is match (or no more targets)
-    for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       // check matching states, i.e. if any of target states matches current active states
       for (int act_state_idx = 0; act_state_idx < active_state_count; act_state_idx++)
       {
         for (int ch_state_idx = 0; ch_state_idx < CHANNEL_STATES_MAX; ch_state_idx++)
         {
-          if (active_states[act_state_idx] == s.ch[channel_idx].target[target_idx].upstates[ch_state_idx])
+          if (active_states[act_state_idx] == s.ch[channel_idx].conditions[condition_idx].upstates[ch_state_idx])
           {
             target_state_match_found = true;
 #ifdef SENSOR_DS18B20_ENABLED
@@ -2533,18 +2562,18 @@ void set_relays()
             //  states are matching, check if the sensor value is below given target (channel should be up) or reached (should be down)
             // ONOFF
             bool target_based_channel = ((s.ch[channel_idx].type & 1) == 1);
-            bool target_not_reached = (ds18B20_temp_c < s.ch[channel_idx].target[target_idx].target);
+            bool target_not_reached = (ds18B20_temp_c < s.ch[channel_idx].conditions[condition_idx].target_val);
 
-            if ((!target_based_channel && s.ch[channel_idx].target[target_idx].switch_on) || (target_based_channel && target_not_reached))
+            if ((!target_based_channel && s.ch[channel_idx].conditions[condition_idx].switch_on) || (target_based_channel && target_not_reached))
             {
               s.ch[channel_idx].wanna_be_up = true;
-              s.ch[channel_idx].target[target_idx].target_active = true;
+              s.ch[channel_idx].conditions[condition_idx].condition_active = true;
             }
 #else
-            if (((s.ch[channel_idx].type & 1) == 0 && s.ch[channel_idx].target[target_idx].switch_on))
+            if (((s.ch[channel_idx].type & 1) == 0 && s.ch[channel_idx].conditions[condition_idx].switch_on))
             {
               s.ch[channel_idx].wanna_be_up = true;
-              s.ch[channel_idx].target[target_idx].target_active = true;
+              s.ch[channel_idx].conditions[condition_idx].condition_active = true;
             }
 #endif
             if (target_state_match_found)
@@ -2556,10 +2585,111 @@ void set_relays()
       }
       if (target_state_match_found)
         break;
-    } // target loop
+    } // conditions loop
 
   } // channel loop
+}
 
+// set relays up and down,
+// MAX_CHANNELS_SWITCHED_AT_TIME defines how many channel can be switched at time
+void update_channel_states2()
+{
+  // int active_state_count = 0;
+  bool target_state_match_found;
+  time(&now);
+
+  // how many current active states we do have
+  /*
+  for (int i = 0; i < CHANNEL_STATES_MAX; i++)
+  {
+    if (active_states[i] > 0)
+      active_state_count++;
+    else
+      break;
+  }
+  */
+
+  // loop channels and check whether channel should be up
+  for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
+  { // reset condition_active variable
+
+    bool wait_minimum_uptime = ((now - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+    if (s.ch[channel_idx].force_up_until == -1)
+    { // force down
+      s.ch[channel_idx].force_up_until = 0;
+      wait_minimum_uptime = false;
+    }
+    bool forced_up = (s.ch[channel_idx].force_up_until > now); // signal to keep it up
+
+    if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
+    {
+      Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %lld .\n", channel_idx, (int)(now - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
+      s.ch[channel_idx].wanna_be_up = true;
+      continue;
+    }
+
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
+    {
+      s.ch[channel_idx].conditions[condition_idx].condition_active = false;
+    }
+
+    if (!s.ch[channel_idx].is_up && forced_up)
+    { // the channel is now down but should be forced up
+      s.ch[channel_idx].wanna_be_up = true;
+      continue;
+    }
+
+    // now checking normal state based conditions
+    target_state_match_found = false;
+    s.ch[channel_idx].wanna_be_up = false;
+    // loop channel targets until there is match (or no more targets)
+    bool statement_true;
+    // if no statetements -> false (or defalt)
+    int nof_valid_statements;
+    bool one_or_more_failed;
+
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
+    {
+      nof_valid_statements = 0;
+      one_or_more_failed = false;
+      // now loop the statement until end or false statement
+      for (int statement_idx = 0; statement_idx < CONDITION_STATEMENTS_MAX; statement_idx++)
+      {
+        statement_st *statement = &s.ch[channel_idx].conditions[condition_idx].statements[statement_idx];
+        if (statement->variable_id != -1)
+        {
+          nof_valid_statements++;
+
+          Serial.printf("update_channel_states2 statement.variable_id: %d\n", statement->variable_id);
+          statement_true = vars.is_statement_true(statement);
+          if (!statement_true)
+          {
+            one_or_more_failed = true;
+            break;
+          }
+        }
+      }
+
+      if ((nof_valid_statements == 0) || one_or_more_failed)
+      {
+        Serial.printf("update_channel_states2 condition false\n");
+      }
+      else
+      {
+        s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].switch_on;
+        s.ch[channel_idx].conditions[condition_idx].condition_active = true;
+        Serial.printf("update_channel_states2 condition true\n");
+        break;
+      }
+
+    } // conditions loop
+
+  } // channel loop
+}
+
+void set_relays()
+{
+  //
   // random
   int rise_count = 0;
   int drop_count = 0;
@@ -2571,7 +2701,6 @@ void set_relays()
       drop_count++;
   }
 
-  //
   int switchings_to_todo;
   bool is_rise;
   int oper_count;
@@ -2592,7 +2721,7 @@ void set_relays()
       set_channel_switch(ch_to_switch, s.ch[ch_to_switch].is_up);
     }
   }
-  // Serial.println(F("set_relays finished."));
+  // Serial.println(F("update_channel_statuses finished."));
 }
 
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
@@ -2675,7 +2804,7 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   }
   if (forced_up_changes)
     set_relay_requested = true;
-  //  set_relays(); //tämä ei ole hyvä idea, voit laittaa kyllä looppiin requestin, mutta ei suoraa kutsua koska shelly tekee verkkokutsun
+  //  update_channel_statuses(); //tämä ei ole hyvä idea, voit laittaa kyllä looppiin requestin, mutta ei suoraa kutsua koska shelly tekee verkkokutsun
   request->redirect("/");
 }
 
@@ -2758,11 +2887,11 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     if (request->hasParam(ch_fld, true))
       s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
 
-    for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       // statements
 
-      snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, target_idx);
+      snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
         // empty all statements if there are somein the form post
@@ -2771,9 +2900,9 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
           stmts_emptied = true;
           for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
           {
-            s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = -1;
-            s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = -1;
-            s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val = 0;
+            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
+            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = -1;
+            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
           }
         }
 
@@ -2795,28 +2924,25 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
             int var_index;
             for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), CONDITION_STATEMENTS_MAX); stmt_idx++)
             {
-              Serial.printf("Saving %d %d %d : %d, %d \n", channel_idx, target_idx, stmt_idx, (int)stmts_json[stmt_idx][0], (int)stmts_json[stmt_idx][1]);
+              Serial.printf("Saving %d %d %d : %d, %d \n", channel_idx, condition_idx, stmt_idx, (int)stmts_json[stmt_idx][0], (int)stmts_json[stmt_idx][1]);
               var_index = vars.get_variable((int)stmts_json[stmt_idx][0], &var_this);
-              Serial.println("A");
               if (var_index != -1)
               {
                 int variable_id = (int)stmts_json[stmt_idx][0];
-                Serial.println("B");
-                s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = variable_id;
-                s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = (byte)stmts_json[stmt_idx][1];
+                s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = variable_id;
+                s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = (byte)stmts_json[stmt_idx][1];
                 // TODO: conversion variables 10 exp
-              
-               // Serial.printf("C [%s]\n",val_float_str);
-               // float val_f = atof(stmts_json[stmt_idx][2]);
+
+                // Serial.printf("C [%s]\n",val_float_str);
+                // float val_f = atof(stmts_json[stmt_idx][2]);
                 float val_f = stmts_json[stmt_idx][2];
-                Serial.printf("C2");
                 long long_val = vars.float_to_internal_l(variable_id, val_f);
-                Serial.println("D");
-                Serial.printf("Saving statement value of variable %d: %ld\n",(int)stmts_json[stmt_idx][0],long_val);
-                s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val = long_val;
+                Serial.printf("Saving statement value of variable %d: %ld\n", (int)stmts_json[stmt_idx][0], long_val);
+                s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = long_val;
               }
-              else {
-                Serial.printf("Error, cannot find variable with index %d\n",(int)stmts_json[stmt_idx][0]);
+              else
+              {
+                Serial.printf("Error, cannot find variable with index %d\n", (int)stmts_json[stmt_idx][0]);
               }
             }
           } /* struct statement_st
@@ -2835,16 +2961,16 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         }
       }
 
-      snprintf(state_fld, 20, "st_%i_%i", channel_idx, target_idx);
-      snprintf(target_fld, 20, "t_%i_%i", channel_idx, target_idx);
-      snprintf(targetcb_fld, 20, "ctcb_%i_%i", channel_idx, target_idx);
+      snprintf(state_fld, 20, "st_%i_%i", channel_idx, condition_idx);
+      snprintf(target_fld, 20, "t_%i_%i", channel_idx, condition_idx);
+      snprintf(targetcb_fld, 20, "ctcb_%i_%i", channel_idx, condition_idx);
       // TODO:state_fld tallennus poistuu
       if (request->hasParam(state_fld, true))
       {
-        str_to_uint_array(request->getParam(state_fld, true)->value().c_str(), s.ch[channel_idx].target[target_idx].upstates, ",");
-        s.ch[channel_idx].target[target_idx].target = request->getParam(target_fld, true)->value().toFloat();
+        str_to_uint_array(request->getParam(state_fld, true)->value().c_str(), s.ch[channel_idx].conditions[condition_idx].upstates, ",");
+        s.ch[channel_idx].conditions[condition_idx].target_val = request->getParam(target_fld, true)->value().toFloat();
       }
-      s.ch[channel_idx].target[target_idx].switch_on = request->hasParam(targetcb_fld, true); // cb checked
+      s.ch[channel_idx].conditions[condition_idx].switch_on = request->hasParam(targetcb_fld, true); // cb checked
     }
   }
   writeToEEPROM();
@@ -2949,10 +3075,12 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   // var_obj["uptime"] = (unsigned long)(millis() / 1000);
 
   char id_str[6];
+  char buff_value[20];
   for (int i = 0; i < VARIABLE_COUNT; i++)
   {
-    snprintf(id_str, 6, "%d");
-    var_obj[id_str] = vars.get_f(variables[i].id);
+    snprintf(id_str, 6, "%d", variables[i].id);
+    vars.to_str(variables[i].id, buff_value, false);
+    var_obj[id_str] = buff_value;
   }
 
   // TODO: näistä puuttu nyt sisäiset, pitäisikö lisätä vai poistaa kokonaan, onko tarvetta debugille
@@ -3058,14 +3186,14 @@ void setup()
       s.ch[channel_idx].uptime_minimum = 60;
       s.ch[channel_idx].force_up_until = 0;
       snprintf(s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str), "channel %d", channel_idx + 1);
-      for (int target_idx = 0; target_idx < CHANNEL_TARGETS_MAX; target_idx++)
+      for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
       {
-        s.ch[channel_idx].target[target_idx] = {{}, 0};
+        s.ch[channel_idx].conditions[condition_idx] = {{}, 0};
         for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
         {
-          s.ch[channel_idx].target[target_idx].statements[stmt_idx].variable_id = -1;
-          s.ch[channel_idx].target[target_idx].statements[stmt_idx].oper_id = -1;
-          s.ch[channel_idx].target[target_idx].statements[stmt_idx].const_val = 0;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = -1;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
         }
       }
     }
@@ -3338,6 +3466,8 @@ void loop()
   if (set_relay_requested)
   { // relays forced up or so...
     set_relay_requested = false;
+    update_channel_statuses();
+    update_channel_states2(); // new
     set_relays();
   }
 
@@ -3417,7 +3547,9 @@ void loop()
     processing_states = false;
 
     sensor_last_refresh = millis();
-    set_relays(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
+    update_channel_statuses(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
+    update_channel_states2();  // new pilot
+    set_relays();
   }
   if (period_changed)
   {
