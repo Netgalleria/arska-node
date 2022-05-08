@@ -1,6 +1,6 @@
 /*
-(C) Netgalleria Oy, 2021-2022
-Olli Rinne
+(C) Netgalleria Oy, Olli Rinne, 2021-2022
+
 
 Resource files (see data subfolder):
 - arska.js - web UI Javascript routines
@@ -41,7 +41,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
 //#define RTC_DS3231_ENABLED
 
-#define TARIFF_STATES_FI // add Finnish tariffs (yösähkö,kausisähkö) to active states
+#define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to active states
 
 #define OTA_UPDATE_ENABLED
 
@@ -64,11 +64,16 @@ const char *wifis_file_name PROGMEM = "/wifis.json";
 #define STATE_EXTRA_PRODUCTION 1010
 #define STATE_EXTRA_PRODUCTION_BNOON 1011
 #define STATE_EXTRA_PRODUCTION_ANOON 1012
-
+/*
 #define STATE_DAYENERGY_FI 130
 #define STATE_NIGHTENERGY_FI 131
 #define STATE_WINTERDAY_FI 140
 #define STATE_WINTERDAY_NO_FI 141
+*/
+#define VARIABLE_DAYENERGY_FI 130
+#define VARIABLE_NIGHTENERGY_FI 131
+#define VARIABLE_WINTERDAY_FI 140
+#define VARIABLE_WINTERDAY_NO_FI 141
 
 #include <ESPAsyncWebServer.h>
 
@@ -312,7 +317,7 @@ jos ei löydy mitään operaattoria niin oletetaan booleaniksi
 struct oper_st
 {
   byte id;
-  char code[3];
+  char code[4];
   bool gt;
   bool eq;
   bool reverse;
@@ -320,8 +325,8 @@ struct oper_st
 };
 
 // shortest first,
-#define OPER_COUNT 7
-const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false}, {1, ">", true, false, false, false}, {2, "<", true, false, true, false}, {3, "!", false, false, true, true}, {4, ">=", true, true, false, false}, {5, "<=", true, true, true, false}, {6, "!=", false, true, true, false}};
+#define OPER_COUNT 8
+const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false}, {1, ">", true, false, false, false}, {2, "<", true, false, true, false}, {3, ">=", true, true, false, false}, {4, "<=", true, true, true, false}, {5, "<>", false, true, true, false}, {6, "is", false, false, false, true}, {7, "not", false, false, true, true}};
 
 /*constant_type, variable_type
 long val_l
@@ -344,7 +349,7 @@ struct variable_st
 
 // do not insert variables (will broke statements)
 #define VARIABLE_COUNT 5
-variable_st variables[VARIABLE_COUNT] = {{0, "price", 1}, {1, "price rank 9h", 0}, {2, "price rank 24h", 0}, {4, "night", 50}, {5, "winter day", 51}};
+variable_st variables[VARIABLE_COUNT] = {{0, "price", 1}, {1, "price rank 9h", 0}, {2, "price rank 24h", 0}, {130, "day", 51}, {140, "winterday", 51}};
 
 struct statement_st
 {
@@ -359,6 +364,7 @@ class Variables
 public:
   void set(int id, long value_l);
   void set(int id, float val_f);
+  //void set(int id, bool val_b);
   long get_l(int id);
   float get_f(int id);
 
@@ -397,6 +403,16 @@ void Variables::set(int id, float val_f)
 {
   this->set(id, this->float_to_internal_l(id, val_f));
 }
+/*
+void Variables::set(int id, bool val_b)
+{
+  //  this->set(id, this->float_to_internal_l(id, val_b?1L:0L));
+  Serial.printf("Variables::set - boolean %d, %d \n", val_b ? "true" : "false");
+  if (val_b)
+    this->set(id, 1L);
+    else
+      this->set(id, 0L);
+} */
 
 long Variables::get_l(int id)
 {
@@ -440,6 +456,12 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
     {
       float val_f = val_l / pow(10, var.type);
       dtostrf(val_f, 1, var.type, strbuff);
+      return strlen(strbuff);
+    }
+    else if (var.type == 50 || var.type == 51)
+    {
+      sprintf(strbuff, "%s", (var.val_l == 1) ? "true" : "false");
+      Serial.printf("Logical variable, internal value = %ld -> %s\n", var.val_l, strbuff);
       return strlen(strbuff);
     }
   }
@@ -535,10 +557,14 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value)
   if (oper.gt && var.val_l > statement->const_val)
     result = true;
 
+  if (oper.boolean_only)
+    result = (var.val_l == 1);
+
+  // finally optional reverse
   if (oper.reverse)
     result = !result;
 
-  Serial.printf("Statement %ld  %s  %ld  results %s\n", var.val_l, oper.code, statement->const_val, result ? "true" : "false");
+  Serial.printf("Statement: %ld  %s  %ld  results %s\n", var.val_l, oper.code, statement->const_val, result ? "true" : "false");
 
   return result;
 }
@@ -602,23 +628,20 @@ bool scan_and_store_wifis_requested = false;
 bool set_relay_requested = false;
 // data strcuture limits
 //#define CHANNELS 2  // moded to platformio.ini
-#define CHANNEL_TYPES 6
+#define CHANNEL_TYPES 3
 #define CH_TYPE_UNDEFINED1 0
-#define CH_TYPE_UNDEFINED2 1
-#define CH_TYPE_GPIO_ONOFF 2
-#define CH_TYPE_GPIO_TARGET 3
-#define CH_TYPE_SHELLY_ONOFF 4
-#define CH_TYPE_SHELLY_TARGET 5
+//#define CH_TYPE_UNDEFINED2 1
+#define CH_TYPE_GPIO_ONOFF 1
+//#define CH_TYPE_GPIO_TARGET 3
+#define CH_TYPE_SHELLY_ONOFF 2
+//#define CH_TYPE_SHELLY_TARGET 5
 #define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
 // channels type string for admin UI
 const char *channel_type_strings[] PROGMEM = {
     "undefined",
-    "undefined",
-    "GPIO ON/OFF",
-    "GPIO target",
-    "Shelly ON/OFF",
-    "Shelly target",
+    "GPIO",
+    "Shelly",
 };
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
@@ -711,7 +734,7 @@ typedef struct
 // this stores settings also to eeprom
 settings_struct s;
 
-uint16_t active_states[ACTIVE_STATES_MAX]; // current active states
+// uint16_t active_states[ACTIVE_STATES_MAX]; // current active states
 
 // parse char array to uint16_t array (e.g. states, ip address)
 // note: current version alter str_in, so use copy in calls if original still needed
@@ -1341,6 +1364,7 @@ void read_inverter(bool period_changed)
 
 } // read_inverter
 
+/*
 // returns internal states based on time/date and measured energy values
 byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
 {
@@ -1379,25 +1403,26 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
   }
 #endif
 
-#ifdef TARIFF_STATES_FI
+#ifdef TARIFF_VARIABLES_FI
   // päiväsähkö/yösähkö (Finnish day/night tariff)
-  if (6 < tm_struct.tm_hour && tm_struct.tm_hour < 22)
-  { // day
-    state_array[idx++] = STATE_DAYENERGY_FI;
-  }
+  bool is_day = (6 < tm_struct.tm_hour && tm_struct.tm_hour < 22);
+  bool is_winterday = ((6 < tm_struct.tm_hour && tm_struct.tm_hour < 22) && (tm_struct.tm_mon > 9 || tm_struct.tm_mon < 3) && tm_struct.tm_wday != 0);
+  
+  if (is_day)
+    Serial.println("is_day");
   else
-  {
-    state_array[idx++] = STATE_NIGHTENERGY_FI;
-  }
-  // Finnish seasonal tariff, talvipäivä/winter day
-  if ((6 < tm_struct.tm_hour && tm_struct.tm_hour < 22) && (tm_struct.tm_mon > 9 || tm_struct.tm_mon < 3) && tm_struct.tm_wday != 0)
-  {
-    state_array[idx++] = STATE_WINTERDAY_FI;
-  }
+    Serial.println("not is_day");
+  Serial.println((long)(is_day ? 1L : 0L));
+
+  if (is_winterday)
+    Serial.println("is_winterday");
   else
-  {
-    state_array[idx++] = STATE_WINTERDAY_NO_FI;
-  }
+    Serial.println("not is_winterday");
+
+  vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day?1L:0L));
+ // vars.set(VARIABLE_NIGHTENERGY_FI, (long)(!is_day?1L:0L));
+  vars.set(VARIABLE_WINTERDAY_FI, (long)(is_winterday?1L:0L));
+ // vars.set(VARIABLE_WINTERDAY_NO_FI, (long)(!is_winterday?1L:0L));
 #endif
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
@@ -1412,7 +1437,39 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
   }
 
 #endif
+
   return idx;
+}
+*/
+void update_internal_variables() {
+  time(&now);
+  localtime_r(&now, &tm_struct);
+
+  time_t now_suntime = now + s.lon * 240;
+  byte sun_hour = int((now_suntime % (3600 * 24)) / 3600);
+  #ifdef TARIFF_VARIABLES_FI
+  // päiväsähkö/yösähkö (Finnish day/night tariff)
+  bool is_day = (6 < tm_struct.tm_hour && tm_struct.tm_hour < 22);
+  bool is_winterday = ((6 < tm_struct.tm_hour && tm_struct.tm_hour < 22) && (tm_struct.tm_mon > 9 || tm_struct.tm_mon < 3) && tm_struct.tm_wday != 0);
+  
+  if (is_day)
+    Serial.println("is_day");
+  else
+    Serial.println("not is_day");
+  Serial.println((long)(is_day ? 1L : 0L));
+
+  if (is_winterday)
+    Serial.println("is_winterday");
+  else
+    Serial.println("not is_winterday");
+
+  vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day?1L:0L));
+ // vars.set(VARIABLE_NIGHTENERGY_FI, (long)(!is_day?1L:0L));
+  vars.set(VARIABLE_WINTERDAY_FI, (long)(is_winterday?1L:0L));
+ // vars.set(VARIABLE_WINTERDAY_NO_FI, (long)(!is_winterday?1L:0L));
+#endif
+
+
 }
 
 // stub...
@@ -1453,10 +1510,10 @@ void refresh_variables(time_t current_period_start)
   Serial.print("p:");
 
   float price = (float)variable_list["p"];
-  //vars.set(0, (long)(variable_list["p"]));
-  vars.set(0, (long)(price+0.5));
+  // vars.set(0, (long)(variable_list["p"]));
+  vars.set(0, (long)(price + 0.5));
   // vars.set(0, (float)(variable_list["p"]));
-   Serial.println(price);
+  Serial.println(price);
   Serial.println((long)(price + 0.5));
 
   vars.set(1, (long)variable_list["pr9"]);
@@ -1475,7 +1532,7 @@ void refresh_variables(time_t current_period_start)
 
     */
 }
-
+/*
 // Refresh active states, internal and optionally queries Arska Server for states based on marker data and forecasts
 void refresh_states(time_t current_period_start)
 {
@@ -1534,6 +1591,7 @@ void refresh_states(time_t current_period_start)
       break;
   }
 }
+*/
 String getElementValue(String outerXML)
 {
   int s1 = outerXML.indexOf(">", 0);
@@ -1754,7 +1812,7 @@ bool get_price_data()
       if (period_idx >= 0 && period_idx < MAX_PRICE_PERIODS)
       {
         prices[period_idx] = price;
-        Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
+     //   Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
         price_array.add(price);
       }
       else
@@ -1862,7 +1920,7 @@ bool update_external_variables()
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
     prices[i] = (long)prices_array[i];
-    Serial.printf("prices[%d]: %ld\n", i, prices[i]);
+   // Serial.printf("prices[%d]: %ld\n", i, prices[i]);
   }
 
   time(&now);
@@ -1919,8 +1977,9 @@ void get_channel_config_fields(char *out, int channel_idx)
   snprintf(buff, 200, "<div class='fldtiny' id='d_uptimem_%d'>mininum up (sec): <input name='ch_uptimem_%d'  type='text' value='%d'></div>\n</div>\n", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
   strcat(out, buff);
 
-  snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select id='chty_%d' onchange='setChannelFields(this)'>", channel_idx);
+  snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select id='chty_%d' name='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
   strcat(out, buff);
+
   bool is_gpio_channel;
   for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPES; channel_type_idx++)
   {
@@ -1929,14 +1988,10 @@ void get_channel_config_fields(char *out, int channel_idx)
     is_gpio_channel = (s.ch[channel_idx].gpio != 255);
     // Serial.printf("is_gpio_channel %d %d %d\n",channel_idx,is_gpio_channel,s.ch[channel_idx].gpio);
 
-    if ((channel_type_idx >> 1 << 1 == CH_TYPE_GPIO_ONOFF && is_gpio_channel) || (channel_type_idx >> 1 << 1 != CH_TYPE_GPIO_ONOFF && !is_gpio_channel && channel_type_idx != 1))
+    if ((channel_type_idx == 1 && is_gpio_channel) || !(channel_type_idx == 1 || is_gpio_channel))
     {
-      bool target_based_channel = ((channel_type_idx & 1) == 1);
-      if ((sensor_ds18b20_enabled && target_based_channel) || !target_based_channel)
-      { // cannot have condition without sensors
-        snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
-        strcat(out, buff);
-      }
+      snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
+      strcat(out, buff);
     }
   }
   strcat(out, "</select></div>\n");
@@ -1957,7 +2012,8 @@ void get_channel_condition_fields(char *out, int channel_idx, int condition_idx,
   dtostrf(s.ch[channel_idx].conditions[condition_idx].target_val, 3, 1, float_buffer);
 
   // name attributes  will be added in javascript before submitting
-  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td%s'>Target:<input class='inpnum' id='t%s' type='text' value='%s'></div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, float_buffer, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
+  // snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td%s'>Target:<input class='inpnum' id='t%s' type='text' value='%s'></div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, float_buffer, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i conditions:  </div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
   return;
   //    + "</div></div><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' />");
 }
@@ -2255,7 +2311,7 @@ String setup_form_processor(const String &var)
     if (channel_idx >= CHANNELS)
       return String();
 
-    Serial.printf("var: %s\n", var.c_str());
+    // Serial.printf("var: %s\n", var.c_str());
 
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
@@ -2292,8 +2348,8 @@ String setup_form_processor(const String &var)
       snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
 
       strcat(out, buff);
-      Serial.print("strlen(out):");
-      Serial.println(strlen(out));
+      // Serial.print("strlen(out):");
+      // Serial.println(strlen(out));
     }
     return out;
   }
@@ -2338,11 +2394,11 @@ String setup_form_processor(const String &var)
     }
     return out;
   }*/
-
-  if (var == "states")
-  {
-    return state_array_string(active_states);
-  }
+  /*
+    if (var == "states")
+    {
+      return state_array_string(active_states);
+    } */
 
   if (var == "status_fields")
   {
@@ -2495,11 +2551,13 @@ bool set_channel_switch(int channel_idx, bool up)
 }
 // set relays up and down,
 // MAX_CHANNELS_SWITCHED_AT_TIME defines how many channel can be switched at time
+/*
 void update_channel_statuses()
 {
-  int active_state_count = 0;
+//  int active_state_count = 0;
   bool target_state_match_found;
   time(&now);
+
 
   // how many current active states we do have
   for (int i = 0; i < CHANNEL_STATES_MAX; i++)
@@ -2509,6 +2567,7 @@ void update_channel_statuses()
     else
       break;
   }
+
 
   // loop channels and check whether channel should be up
   for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
@@ -2589,7 +2648,7 @@ void update_channel_statuses()
 
   } // channel loop
 }
-
+*/
 // set relays up and down,
 // MAX_CHANNELS_SWITCHED_AT_TIME defines how many channel can be switched at time
 void update_channel_states2()
@@ -2670,17 +2729,18 @@ void update_channel_states2()
         }
       }
 
-      if ((nof_valid_statements == 0) || one_or_more_failed)
-      {
-        Serial.printf("update_channel_states2 condition false\n");
-      }
-      else
+      if (!(nof_valid_statements == 0) && !one_or_more_failed)
       {
         s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].switch_on;
         s.ch[channel_idx].conditions[condition_idx].condition_active = true;
-        Serial.printf("update_channel_states2 condition true\n");
+        //    Serial.printf("update_channel_states2 condition true\n");
         break;
       }
+      /*
+      else
+       {
+        Serial.printf("update_channel_states2 condition false\n");
+      }*/
 
     } // conditions loop
 
@@ -2869,7 +2929,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
   StaticJsonDocument<300> stmts_json;
 
-  bool stmts_emptied = false;
+  // bool stmts_emptied = false;
   for (int channel_idx = 0; channel_idx < CHANNELS; channel_idx++)
   {
     snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
@@ -2895,16 +2955,16 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
         // empty all statements if there are somein the form post
-        if (!stmts_emptied)
+        /*   if (!stmts_emptied)
+           {
+             stmts_emptied = true;*/
+        for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
         {
-          stmts_emptied = true;
-          for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
-          {
-            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
-            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = -1;
-            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
-          }
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = -1;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
         }
+        //   }
 
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
@@ -3118,18 +3178,18 @@ void onWebStateSeriesGet(AsyncWebServerRequest *request)
   }
 
   JsonArray states_current = doc.createNestedArray((const char *)start_str);
-
-  for (int i = 0; i < CHANNEL_STATES_MAX; i++)
-  {
-    if (active_states[i] == 0)
-      break;
-    else if (active_states[i] > STATES_DEVICE_MAX)
-    { // do not send device states
-      //    doc[(const char *)start_str][state_idx++] = active_states[i];
-      states_current.add(active_states[i]);
+  /*
+    for (int i = 0; i < CHANNEL_STATES_MAX; i++)
+    {
+      if (active_states[i] == 0)
+        break;
+      else if (active_states[i] > STATES_DEVICE_MAX)
+      { // do not send device states
+        //    doc[(const char *)start_str][state_idx++] = active_states[i];
+        states_current.add(active_states[i]);
+      }
     }
-  }
-
+  */
   time(&now);
   doc["ts"] = now;
   doc["expires"] = now + 121; // time-to-live of the result, under construction, TODO: set to parameters
@@ -3466,7 +3526,7 @@ void loop()
   if (set_relay_requested)
   { // relays forced up or so...
     set_relay_requested = false;
-    update_channel_statuses();
+    // update_channel_statuses();
     update_channel_states2(); // new
     set_relays();
   }
@@ -3542,13 +3602,16 @@ void loop()
     read_energy_meter();
 
     processing_states = true;
+
+    update_internal_variables();
+
     refresh_variables(current_period_start);
-    refresh_states(current_period_start);
+    // refresh_states(current_period_start);
     processing_states = false;
 
     sensor_last_refresh = millis();
-    update_channel_statuses(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
-    update_channel_states2();  // new pilot
+    // update_channel_statuses(); // tässä voisi katsoa onko tarvetta mennä tähän eli onko tullut muutosta
+    update_channel_states2(); // new pilot
     set_relays();
   }
   if (period_changed)

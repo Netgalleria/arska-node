@@ -15,6 +15,7 @@
         "ranges": "cpp",
         "regex": "cpp",
         "system_error": "cpp",
-        "cmath": "cpp"
+        "cmath": "cpp",
+        "functional": "cpp"
     }
 }

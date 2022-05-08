@@ -4,29 +4,6 @@ const sections = [{ "url": "/", "en": "Dashboard" }, { "url": "/inputs", "en": "
 const opers = JSON.parse('%OPERS%');
 const variables = JSON.parse('%VARIABLES%');
 
-/*
-const opers = [["=", false, true, false, false]
-, [">", true, false, false, false]
-, ["<", true, false, true, false]
-, ["!", false, false, true, true]
-, [">=", true, true, false, false]
-, ["<=", true, true, true, false]
-, ["!=", false, true, true, false]];
-*/
-/*
-const variables = [
-  { "id": 0, "code": "price", "type": "0" }
-    , { "id": 1, "code": "price rank 9 h", "type": 0 }
-    , { "id": 2, "code": "price rank 24 h", "type": 0 }
-    , { "id": 3, "code": "night", "type": 50 }
-    ,  {  "id": 4,"code": "winter day", "type": 51 }
-];
-*/
-/*
-const channels = [
-    { "id_str": "Syöttö", "gpio": 5, "is_up": true, "wanna_be_up": true, "type": 2, "uptime_minimum": 120 }
-    , { "id_str": "Tulistus", "gpio": 4, "is_up": false, "wanna_be_up": false, "type": 3, "uptime_minimum": 300 }];
-*/
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
 var formSubmitting = false;
@@ -79,17 +56,19 @@ var submitChannelForm = function () {
         }
     }
 
-   
-       
-
-
     alert("submitChannelForm");
     formSubmitting = true;
 
 };
 var isDirty = function () { return true; }
 
-
+function getVariable(variable_id) {
+    for (var i = 0; i < variables.length; i++) {
+        if (variables[i][0] == variable_id)
+            return variables[i];
+       }
+    return null;
+}
 function addOption(el, value, text, selected = false) {
     var opt = document.createElement("option");
     opt.value = value;
@@ -112,7 +91,7 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     addOption(varFld, -1, "select", (stmt[0] == -1));
 
     for (var i = 0; i < variables.length; i++) {
-     //   console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0]));
+        console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
         addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
     }
 
@@ -367,7 +346,7 @@ function initChannelForm() {
                 for (let j = 0; j < stmts.length; j++) {
                     elBtn = document.getElementById("addstmt_" + ch_idx + "_" + cond_idx);
                     addStmt(elBtn,ch_idx, cond_idx, j, stmts[j]);
-                    var_this = get_var_by_id(stmts[j][1]);
+                    var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
                     populateOper(document.getElementById("op_" + ch_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
                 }
             }
@@ -378,24 +357,24 @@ function initChannelForm() {
 function setChannelFieldsByType(ch, chtype) {
     for (var t = 0; t < CHANNEL_TARGETS_MAX; t++) {
         divid = 'td_' + ch + "_" + t;
-        var targetdiv = document.querySelector('#' + divid);
+     //   var targetdiv = document.querySelector('#' + divid);
         var cbdiv = document.querySelector('#ctcbd_' + ch + "_" + t);
-        var isTarget = (1 & chtype);
+      //  var isTarget = (1 & chtype);
         var uptimediv = document.querySelector('#d_uptimem_' + ch);
 
         if (chtype == 0)
             uptimediv.style.display = "none";
         else
             uptimediv.style.display = "block";
-
+/*
         if (isTarget) {
             targetdiv.style.display = "block";
             cbdiv.style.display = "none";
         } else {
             targetdiv.style.display = "none";
             cbdiv.style.display = "block";
-        }
-    }
+        } */
+    } 
 }
 function initUrlBar(url) {
     var headdiv = document.getElementById("headdiv");

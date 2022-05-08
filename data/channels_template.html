@@ -11,35 +11,44 @@
         const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
         const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
         const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%');
-    
+
     </script>
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
- 
 
-        <script type="text/javascript" language="javascript">
-         $(document).ready(function() {
-			
-            $("#driver").click(function(event){
-               $.getJSON('/status', function(jd) {
-                   alert(JSON.stringify(jd));
-                   alert(JSON.stringify(jd.variables));
-                   alert(JSON.stringify(jd.variables["0"]));
-                  $('#stage').html('<p> Price: ' + jd.variables["0"] + '</p>');
-               });
+
+    <script type="text/javascript" language="javascript">
+        //      const variables = JSON.parse('%VARIABLES%');
+        $(document).ready(function () {
+
+            $("#driver").click(function (event) {
+                $.getJSON('/status', function (data) {
+                    //     alert(JSON.stringify(jd));
+                    $('#variables').empty();
+                    $('#variables').html = '<ul>';
+                    $.each(data.variables, function (i, variable) {
+                        var_this = getVariable(i);
+                        console.log('index', i);
+                        if (variable[2] == 50 || variable[2] == 51)
+                            $('#variables').append('<li>' + var_this[1] + ':' + variable ? "ON" : "OFF" + '</li>');
+                        else
+                            $('#variables').append('<li>' + var_this[1] + ':' + variable + '</li>');
+                    });
+                    $('#variables').html = '</ul>';
+                });
+
             });
-				
-         });
-      </script>
+        });
+    </script>
 
     <div class="secbr" id="headdiv">
     </div>
     <div class="secbr">
         <h2>Status</h2>
     </div>
-    <div id="stage" style="background-color:#cc0;">
-        STAGE
-     </div>
+    <div id="variables">
+
+    </div>
     <input type="button" id="driver" value="Load Data" />
     %status_fields%
     <div class="fld">Active states: %states%</div>
@@ -47,8 +56,8 @@
     <form method="post" onsubmit="submitChannelForm()">
 
         <input name="source" type="hidden" value="channels">
-        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3%  %chi_4% %cht_4%  %chi_5% %cht_5% 
-        %chi_6% %cht_6% %chi_7% %cht_7% 
+        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
+        %chi_6% %cht_6% %chi_7% %cht_7%
 
         <br><input type="submit" value="Save">
 
