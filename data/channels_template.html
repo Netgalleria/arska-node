@@ -19,9 +19,25 @@
 
     <script type="text/javascript" language="javascript">
         //      const variables = JSON.parse('%VARIABLES%');
+     /*   function mycallback(data) {
+                    alert("Here: " + data.name);
+                }*/
+
         $(document).ready(function () {
 
             $("#driver").click(function (event) {
+
+                //************
+                // http://hayageek.com/cross-domain-ajax-request-jquery/
+               
+           /*     $.ajax({
+                    url: "https://iot.netgalleria.fi/jsonp.php",
+                    dataType: "jsonp",
+                });
+*/
+               
+                //*******************
+
                 $.getJSON('/status', function (data) {
                     //     alert(JSON.stringify(jd));
                     $('#variables').empty();
@@ -32,7 +48,7 @@
                         if (variable[2] == 50 || variable[2] == 51)
                             $('#variables').append('<li>' + var_this[1] + ':' + variable ? "ON" : "OFF" + '</li>');
                         else
-                            $('#variables').append('<li>' + var_this[1] + ':' + variable + '</li>');
+                            $('#variables').append('<li>' + var_this[1] + ':' + variable.replace('"', '').replace('"', '') + '</li>');
                     });
                     $('#variables').html = '</ul>';
                 });

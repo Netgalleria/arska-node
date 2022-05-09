@@ -64,16 +64,31 @@ const char *wifis_file_name PROGMEM = "/wifis.json";
 #define STATE_EXTRA_PRODUCTION 1010
 #define STATE_EXTRA_PRODUCTION_BNOON 1011
 #define STATE_EXTRA_PRODUCTION_ANOON 1012
-/*
-#define STATE_DAYENERGY_FI 130
-#define STATE_NIGHTENERGY_FI 131
-#define STATE_WINTERDAY_FI 140
-#define STATE_WINTERDAY_NO_FI 141
-*/
+
+// do not change variable id:s (will broke statements)
+#define VARIABLE_COUNT 10
+#define VARIABLE_PRICE 0
+#define VARIABLE_PRICERANK_9 1
+#define VARIABLE_PRICERANK_24 2
+#define VARIABLE_MM 110
+#define VARIABLE_MMDD 111
+#define VARIABLE_WDAY 112
+#define VARIABLE_HH 115
+#define VARIABLE_HHMM 116
 #define VARIABLE_DAYENERGY_FI 130
-#define VARIABLE_NIGHTENERGY_FI 131
 #define VARIABLE_WINTERDAY_FI 140
-#define VARIABLE_WINTERDAY_NO_FI 141
+
+struct variable_st
+{
+  byte id;
+  char code[20];
+  byte type;
+  long val_l;
+};
+
+// 24 4 characters string stored to long, e.g. hhmm mmdd
+
+variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", 1}, {VARIABLE_PRICERANK_9, "price rank 9h", 0}, {VARIABLE_PRICERANK_24, "price rank 24h", 0}, {VARIABLE_MM, "MM, month", 22}, {VARIABLE_MMDD, "MMDD, month+day", 24}, {VARIABLE_WDAY, "Weekday (1-7)", 0}, {VARIABLE_HH, "HH, hour", 22}, {VARIABLE_HHMM, "HHMM, hour+minute", 24}, {VARIABLE_DAYENERGY_FI, "day", 51}, {VARIABLE_WINTERDAY_FI, "winterday", 51}};
 
 #include <ESPAsyncWebServer.h>
 
@@ -153,7 +168,7 @@ const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24};
 const char *price_data_filename PROGMEM = "/price_data.json";
 const char *variables_filename PROGMEM = "/variables.json";
 const char *fcst_filename PROGMEM = "/fcst.json";
-const char *fcst_variables PROGMEM = "/variables.json";
+// const char *fcst_variables PROGMEM = "/variables.json";
 
 const int price_variable_blocks[] = {9, 24};
 // const int price_variable_blocks[] = {9};
@@ -282,7 +297,6 @@ void getRTC()
   {
     time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
     setInternalTime(newTime);
-    // Serial.print(F("UTC:")); Serial.println(newTime);
     printRTC();
   }
 }
@@ -339,17 +353,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 
 
 */
-struct variable_st
-{
-  byte id;
-  char code[20];
-  byte type;
-  long val_l;
-};
-
-// do not insert variables (will broke statements)
-#define VARIABLE_COUNT 5
-variable_st variables[VARIABLE_COUNT] = {{0, "price", 1}, {1, "price rank 9h", 0}, {2, "price rank 24h", 0}, {130, "day", 51}, {140, "winterday", 51}};
 
 struct statement_st
 {
@@ -364,20 +367,10 @@ class Variables
 public:
   void set(int id, long value_l);
   void set(int id, float val_f);
-  //void set(int id, bool val_b);
+  // void set(int id, bool val_b);
   long get_l(int id);
   float get_f(int id);
 
-  // byte get_oper_idx(const char *code);
-
-  bool is_gt_than(const char *code1, const char *code2)
-  {
-    return true; // to be implemented};
-  }
-  bool is_eq_with(const char *code1, const char *code2)
-  {
-    return true; // to be implemented};
-  }
   bool is_statement_true(statement_st *statement, bool default_value = false);
   int get_variable(int id, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
@@ -434,11 +427,14 @@ long Variables::float_to_internal_l(int id, float val_float)
     {
       return (long)int(val_float * pow(10, var.type) + 0.5);
     }
+    else if ((var.type == 22) || (var.type == 24))
+    {
+      return (long)int(val_float + 0.5);
+    }
   }
   return -1;
 }
 
-// int Variables::to_str(int id, long val_l, char *strbuff)
 int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val)
 {
   variable_st var;
@@ -456,6 +452,16 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
     {
       float val_f = val_l / pow(10, var.type);
       dtostrf(val_f, 1, var.type, strbuff);
+      return strlen(strbuff);
+    }
+    else if (var.type == 24)
+    { // 4 char number, 0 padding, e.g. hhmm
+      sprintf(strbuff, "\"%04ld\"", val_l);
+      return strlen(strbuff);
+    }
+    else if (var.type == 22)
+    { // 2 char number, 0 padding, e.g. hh
+      sprintf(strbuff, "\"%02ld\"", val_l);
       return strlen(strbuff);
     }
     else if (var.type == 50 || var.type == 51)
@@ -1191,7 +1197,6 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
       total_energy = Body_Data_item.value()["Value"]; // update and return new value
     }
   }
-  // Serial.println();
 
   return true;
 } // read_inverter_fronius
@@ -1407,17 +1412,8 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
   // päiväsähkö/yösähkö (Finnish day/night tariff)
   bool is_day = (6 < tm_struct.tm_hour && tm_struct.tm_hour < 22);
   bool is_winterday = ((6 < tm_struct.tm_hour && tm_struct.tm_hour < 22) && (tm_struct.tm_mon > 9 || tm_struct.tm_mon < 3) && tm_struct.tm_wday != 0);
-  
-  if (is_day)
-    Serial.println("is_day");
-  else
-    Serial.println("not is_day");
-  Serial.println((long)(is_day ? 1L : 0L));
 
-  if (is_winterday)
-    Serial.println("is_winterday");
-  else
-    Serial.println("not is_winterday");
+
 
   vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day?1L:0L));
  // vars.set(VARIABLE_NIGHTENERGY_FI, (long)(!is_day?1L:0L));
@@ -1441,35 +1437,31 @@ byte get_internal_states(uint16_t state_array[CHANNEL_STATES_MAX])
   return idx;
 }
 */
-void update_internal_variables() {
+void update_internal_variables()
+{
   time(&now);
   localtime_r(&now, &tm_struct);
 
   time_t now_suntime = now + s.lon * 240;
   byte sun_hour = int((now_suntime % (3600 * 24)) / 3600);
-  #ifdef TARIFF_VARIABLES_FI
+
+  vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
+  vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
+  vars.set(VARIABLE_WDAY, (long)(tm_struct.tm_wday + 6) % 7 + 1);
+
+  vars.set(VARIABLE_HH, (long)(tm_struct.tm_hour));
+  vars.set(VARIABLE_HHMM, (long)(tm_struct.tm_hour) * 100 + tm_struct.tm_min);
+
+#ifdef TARIFF_VARIABLES_FI
   // päiväsähkö/yösähkö (Finnish day/night tariff)
   bool is_day = (6 < tm_struct.tm_hour && tm_struct.tm_hour < 22);
   bool is_winterday = ((6 < tm_struct.tm_hour && tm_struct.tm_hour < 22) && (tm_struct.tm_mon > 9 || tm_struct.tm_mon < 3) && tm_struct.tm_wday != 0);
-  
-  if (is_day)
-    Serial.println("is_day");
-  else
-    Serial.println("not is_day");
-  Serial.println((long)(is_day ? 1L : 0L));
 
-  if (is_winterday)
-    Serial.println("is_winterday");
-  else
-    Serial.println("not is_winterday");
-
-  vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day?1L:0L));
- // vars.set(VARIABLE_NIGHTENERGY_FI, (long)(!is_day?1L:0L));
-  vars.set(VARIABLE_WINTERDAY_FI, (long)(is_winterday?1L:0L));
- // vars.set(VARIABLE_WINTERDAY_NO_FI, (long)(!is_winterday?1L:0L));
+  vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day ? 1L : 0L));
+  // vars.set(VARIABLE_NIGHTENERGY_FI, (long)(!is_day?1L:0L));
+  vars.set(VARIABLE_WINTERDAY_FI, (long)(is_winterday ? 1L : 0L));
+  // vars.set(VARIABLE_WINTERDAY_NO_FI, (long)(!is_winterday?1L:0L));
 #endif
-
-
 }
 
 // stub...
@@ -1496,10 +1488,16 @@ void refresh_variables(time_t current_period_start)
     error = deserializeJson(doc, cache_file, DeserializationOption::Filter(filter));
     cache_file.close();
   }
+  else
+  {
+    Serial.println(F("No valid variable file."));
+    return;
+  }
   if (error)
   {
     Serial.print(F("DeserializeJson() state query failed: "));
     Serial.println(error.f_str());
+    Serial.println(F("Returning..."));
     return;
   }
 
@@ -1511,87 +1509,15 @@ void refresh_variables(time_t current_period_start)
 
   float price = (float)variable_list["p"];
   // vars.set(0, (long)(variable_list["p"]));
-  vars.set(0, (long)(price + 0.5));
-  // vars.set(0, (float)(variable_list["p"]));
-  Serial.println(price);
-  Serial.println((long)(price + 0.5));
+  vars.set(VARIABLE_PRICE, (long)(price + 0.5));
 
-  vars.set(1, (long)variable_list["pr9"]);
-  vars.set(2, (long)variable_list["pr24"]);
+  vars.set(VARIABLE_PRICERANK_9, (long)variable_list["pr9"]);
+  vars.set(VARIABLE_PRICERANK_24, (long)variable_list["pr24"]);
 
   Serial.print("p(float):");
   Serial.println(vars.get_f(0));
-
-  /*
-    for (unsigned int i = 0; i < state_list.size(); i++)
-    {
-      active_states[idx++] = (uint16_t)state_list[i];
-      if (idx == CHANNEL_STATES_MAX)
-        break;
-    }
-
-    */
 }
-/*
-// Refresh active states, internal and optionally queries Arska Server for states based on marker data and forecasts
-void refresh_states(time_t current_period_start)
-{
 
-  // get first internal states, then add  more from PG server
-  byte idx = get_internal_states(active_states);
-
-#ifndef QUERY_ARSKA_ENABLED
-  return; // fucntionality disabled
-#endif
-  if (strlen(s.pg_host) == 0)
-    return;
-
-  Serial.print(F(" refresh_states "));
-  Serial.print(F("  current_period_start: "));
-  Serial.println(current_period_start);
-
-  StaticJsonDocument<16> filter;
-  char start_str[11];
-  itoa(current_period_start, start_str, 10);
-  filter[(const char *)start_str] = true;
-
-  StaticJsonDocument<300> doc;
-  DeserializationError error;
-
-  // TODO: what happens if cache is expired and no connection to state server
-
-  if (is_cache_file_valid(pg_state_cache_filename))
-  {
-    Serial.println(F("Using cached data"));
-    File cache_file = LittleFS.open(pg_state_cache_filename, "r");
-    error = deserializeJson(doc, cache_file, DeserializationOption::Filter(filter));
-    cache_file.close();
-  }
-  else
-  {
-    Serial.println(F("Cache not valid. Querying..."));
-    String url_to_call = "http://" + String(s.pg_host) + "/state_series?price_area=" + price_area + "&location=" + String(s.forecast_loc) + "&api_key=" + String(s.pg_api_key);
-    Serial.println(url_to_call);
-    error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), pg_state_cache_filename), DeserializationOption::Filter(filter));
-  }
-
-  if (error)
-  {
-    Serial.print(F("DeserializeJson() state query failed: "));
-    Serial.println(error.f_str());
-    return;
-  }
-
-  JsonArray state_list = doc[start_str];
-
-  for (unsigned int i = 0; i < state_list.size(); i++)
-  {
-    active_states[idx++] = (uint16_t)state_list[i];
-    if (idx == CHANNEL_STATES_MAX)
-      break;
-  }
-}
-*/
 String getElementValue(String outerXML)
 {
   int s1 = outerXML.indexOf(">", 0);
@@ -1812,7 +1738,7 @@ bool get_price_data()
       if (period_idx >= 0 && period_idx < MAX_PRICE_PERIODS)
       {
         prices[period_idx] = price;
-     //   Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
+        //   Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
         price_array.add(price);
       }
       else
@@ -1920,7 +1846,7 @@ bool update_external_variables()
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
     prices[i] = (long)prices_array[i];
-   // Serial.printf("prices[%d]: %ld\n", i, prices[i]);
+    // Serial.printf("prices[%d]: %ld\n", i, prices[i]);
   }
 
   time(&now);
@@ -1970,11 +1896,10 @@ String state_array_string(uint16_t state_array[CHANNEL_STATES_MAX])
 void get_channel_config_fields(char *out, int channel_idx)
 {
   char buff[200];
-  snprintf(buff, 200, "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>\n", channel_idx, s.ch[channel_idx].id_str);
-  // Serial.println(strlen(out));
+  snprintf(buff, 200, "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>", channel_idx, s.ch[channel_idx].id_str);
   strcat(out, buff);
 
-  snprintf(buff, 200, "<div class='fldtiny' id='d_uptimem_%d'>mininum up (sec): <input name='ch_uptimem_%d'  type='text' value='%d'></div>\n</div>\n", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
+  snprintf(buff, 200, "<div class='fldtiny' id='d_uptimem_%d'>mininum up (sec): <input name='ch_uptimem_%d'  type='text' value='%d'></div></div>", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
   strcat(out, buff);
 
   snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select id='chty_%d' name='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
@@ -1996,13 +1921,20 @@ void get_channel_config_fields(char *out, int channel_idx)
   }
   strcat(out, "</select></div>\n");
 
-  // Ruleset paste field
-  snprintf(buff, sizeof(buff), "import:<br><input class='rsimp' type='text' id='rules_%d' placeholder='Paste ruleset' onfocus='clearText(this)'>", channel_idx);
+  //  radio-toolbar
+  snprintf(buff, 200, "<div class='secbr'>\n<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template mode</label>\n", channel_idx, channel_idx, "", channel_idx);
   strcat(out, buff);
+  snprintf(buff, 200, "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d_0'>Advanced mode</label>\n</div>\n", channel_idx, channel_idx, "", channel_idx);
+  strcat(out, buff);
+
+  snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name'rts_%d' onchange='templateChanged(this)'></select><input type='checkbox' id='rtl_%d' value='1' %s></div>\n", channel_idx, channel_idx, channel_idx, channel_idx, "checked");
+  strcat(out, buff);
+
+  Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
 }
 
 // condition row fields for the admin form
-void get_channel_condition_fields(char *out, int channel_idx, int condition_idx, int buff_len)
+void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int buff_len)
 {
   String states = state_array_string(s.ch[channel_idx].conditions[condition_idx].upstates);
   char float_buffer[32]; // to prevent overflow if initiated with a long number...
@@ -2012,10 +1944,9 @@ void get_channel_condition_fields(char *out, int channel_idx, int condition_idx,
   dtostrf(s.ch[channel_idx].conditions[condition_idx].target_val, 3, 1, float_buffer);
 
   // name attributes  will be added in javascript before submitting
-  // snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i enabling states:  </div>\n<div class='fldtiny' id='td%s'>Target:<input class='inpnum' id='t%s' type='text' value='%s'></div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, float_buffer, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
-  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i conditions:  </div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
+  snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'>%s rule %i:  </div>\n<div id='ctcbd%s'>on:<br><input type='checkbox' id='ctcb%s' value='1' %s></div>\n</div>\n", suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "");
   return;
-  //    + "</div></div><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' />");
+  //    + "</div></div><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+' >");
 }
 
 // energy meter fields for admin form
@@ -2036,7 +1967,6 @@ void get_meter_config_fields(char *out)
   strcat(out, buff);
   snprintf(buff, sizeof(buff), "<div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text' value='%d'></div>\n</div>\n", s.energy_meter_id);
   strcat(out, buff);
-  // Serial.println(out);
   return;
 }
 
@@ -2159,7 +2089,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     strcpy(buff4, "");
   }
 
-  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div>\n<div class='fld'><div>%s</div>\n</div>\n<!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2, s.ch[channel_idx].gpio);
+  snprintf(buff, 200, "<div class='secbr'><h3>Channel %d - %s</h3></div><div class='fld'><div>%s</div></div><!-- gpio %d -->", channel_idx + 1, s.ch[channel_idx].id_str, buff2, s.ch[channel_idx].gpio);
   strcat(out, buff);
   // Serial.printf("SHOW channel_idx: %d, forced: %s\n", channel_idx, buff4);
 
@@ -2279,12 +2209,13 @@ String setup_form_processor(const String &var)
 
   if (var.startsWith("chi_"))
   {
-    char out[800];
+    char out[1200];
     int channel_idx = var.substring(4, 5).toInt();
     if (channel_idx >= CHANNELS)
       return String();
     get_channel_status_header(out, channel_idx, false);
     get_channel_config_fields(out, channel_idx);
+
     return out;
   }
   if (var.startsWith("vch_"))
@@ -2312,14 +2243,13 @@ String setup_form_processor(const String &var)
       return String();
 
     // Serial.printf("var: %s\n", var.c_str());
-
+    snprintf(out, 1800, "<div id='rd_%d'>", channel_idx);
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       strcpy(buff, "");
       strcpy(buffstmt2, "");
-      // return String();
-      // Serial.println("debug A");
-      get_channel_condition_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
+
+      get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
       strncat(out, buff, 2000 - strlen(out) - 1);
 
       int stmt_count = 0;
@@ -2343,62 +2273,15 @@ String setup_form_processor(const String &var)
         stmt_count++;
         strcat(buffstmt2, buffstmt);
       }
-      // snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
       // no name in stmts_ , copy later in js
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' value='[%s]'/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
-
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' value='[%s]'>\n</div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
       strcat(out, buff);
-      // Serial.print("strlen(out):");
-      // Serial.println(strlen(out));
     }
+    // snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name'rts_%d'></select><input type='checkbox' id='rtl_%d' value='1' %s></div>\n", channel_idx, channel_idx, channel_idx, channel_idx,"checked" );
+
+    strcat(out, "</div>\n"); // rd_X div
     return out;
   }
-  /*
-   if (var.startsWith("chtB_"))
-  {
-
-    char out[1500];
-    char buff[300];
-    char buffstmt[50];
-    char buffstmt2[200];
-    int channel_idx = var.substring(4, 5).toInt();
-    if (channel_idx >= CHANNELS)
-      return String();
-
-    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
-    {
-      int stmt_count = 0;
-      for (int stmt_idx = 0; stmt_idx < CONDITION_STATEMENTS_MAX; stmt_idx++)
-      {
-        // statement_st stmt_this = s.ch[channel_idx].conditions[condition_idx].statements;
-        //   TODO: CONSTANT CONVERSION
-        int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
-        int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
-        long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
-
-        // TODO: alusta tai jotain
-        if (variable_id == -1 ||  oper_id == -1 )
-          continue;
-        snprintf(buffstmt, 30, "%s [%d, %d, %ld]",(stmt_count>0)?",":" ", variable_id, oper_id, const_val);
-        stmt_count++;
-        strcat(buffstmt2, buffstmt);
-        Serial.println("X");
-        Serial.println(buffstmt);
-        Serial.println(strlen(out));
-
-      }
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this)' value='+' /><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value=''/></div>\n", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx);
-      Serial.print("strlen(buff):");
-      Serial.println(strlen(buff));
-      strcat(out, buff);
-    }
-    return out;
-  }*/
-  /*
-    if (var == "states")
-    {
-      return state_array_string(active_states);
-    } */
 
   if (var == "status_fields")
   {
@@ -2781,7 +2664,6 @@ void set_relays()
       set_channel_switch(ch_to_switch, s.ch[ch_to_switch].is_up);
     }
   }
-  // Serial.println(F("update_channel_statuses finished."));
 }
 
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
@@ -2822,6 +2704,39 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
   sendForm(request, "/admin_template.html", admin_form_processor);
+}
+
+void onWebTemplateGet(AsyncWebServerRequest *request)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+
+  if (!request->hasParam("id"))
+    request->send(404, "text/plain", "Not found");
+
+
+  StaticJsonDocument<16> filter;
+  AsyncWebParameter *p = request->getParam("id");
+  
+  Serial.printf("id: %s\n", p->value());
+
+  filter[p->value().c_str()] = true;
+
+  StaticJsonDocument<1024> doc;
+  // xxx
+  File template_file = LittleFS.open("/data/templates.json", "r");
+  DeserializationError error = deserializeJson(doc, template_file, DeserializationOption::Filter(filter));
+  String output;
+  if (error)
+  {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.c_str());
+    return;
+  }
+  template_file.close();
+  JsonObject root = doc[p->value().c_str()];
+  serializeJson(root, output);
+  request->send(200, "application/json", output);
 }
 
 // Process channel force form
@@ -2997,6 +2912,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
                 // float val_f = atof(stmts_json[stmt_idx][2]);
                 float val_f = stmts_json[stmt_idx][2];
                 long long_val = vars.float_to_internal_l(variable_id, val_f);
+                Serial.printf("float_to_internal_l: %f  -> %ld\n", val_f, long_val);
                 Serial.printf("Saving statement value of variable %d: %ld\n", (int)stmts_json[stmt_idx][0], long_val);
                 s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = long_val;
               }
@@ -3295,7 +3211,6 @@ void setup()
   {
     Serial.printf("Connected to wifi [%s] with IP Address:", s.wifi_ssid);
     Serial.println(WiFi.localIP());
-    // Serial.println(WiFi.macAddress());
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
 
@@ -3459,12 +3374,15 @@ void setup()
                   { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
   */
   server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { 
-                  //request->send(LittleFS, "/js/arska.js", "text/javascript"); 
-                request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });
+                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });
 
   server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/jquery-3.6.0.min.js", "text/javascript"); });
+                { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
+
+  server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
+
+  server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
   //**
   server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)

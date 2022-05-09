@@ -16,6 +16,7 @@
         "regex": "cpp",
         "system_error": "cpp",
         "cmath": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "cstdlib": "cpp"
     }
 }

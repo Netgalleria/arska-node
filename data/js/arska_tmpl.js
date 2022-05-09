@@ -91,7 +91,7 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     addOption(varFld, -1, "select", (stmt[0] == -1));
 
     for (var i = 0; i < variables.length; i++) {
-        console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
+      //  console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
         addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
     }
 
@@ -165,7 +165,6 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
         ch_idx = parseInt(fldA[1]);
         cond_idx = parseInt(fldA[2]);
     }
-
     //get next statement index if not defined
     if (stmt_idx == -1) {  
         stmt_idx = 0;
@@ -186,8 +185,6 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
         console.log("New stmt_idx:" + stmt_idx);
     }
 
-
-
     suffix = "_" + ch_idx + "_" + cond_idx + "_" + (stmt_idx);
     console.log(suffix);
 
@@ -203,11 +200,48 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
     div_std.appendChild(inp_const);
 
     elBtn.parentNode.insertBefore(div_std, elBtn);
-
     populateStmtField(document.getElementById("var" + suffix), stmt);
+}
+
+function populateTemplateSel(selEl) {
+    if (selEl.options && selEl.options.length > 0) {
+        return; //already populated
+    }
+    addOption(selEl, -1, "select", false);
+    $.getJSON('/data/template-list.json', function (data) {
+        $.each(data, function (i, row) {
+            addOption(selEl, row["id"], row["name"], false);     
+        });
+    });
 
 }
 
+function templateChanged(selEl) {
+  //  const fldA = selEl.id.split("_");
+    console.log(selEl.value);
+    template_idx = selEl.value;
+    url = '/data/templates?id=' + template_idx;
+    console.log(url);
+    $.getJSON(url, function (data) {
+        alert(JSON.stringify(data));
+    /*    $.each(data, function (i, row) {
+            addOption(selEl, row["id"], row["name"], false);     
+        }); */
+    });
+}
+
+function setRuleMode(ch_idx,rule_mode, reset) {
+   // alert("ch_idx:" + ch_idx + "   reset:" + reset);
+    $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
+    $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
+
+    $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));
+    $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));
+    if (rule_mode == 1) {
+        templateSelEl = document.getElementById("rts_" + ch_idx);
+        populateTemplateSel(templateSelEl);
+    }
+}
 
 function populateOper(el, var_this, stmt = [-1, -1, 0]) {
 
@@ -230,7 +264,7 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
             if (var_this[2] < 50 && opers[i][5])
                 continue;
             const_id = el.id.replace("op", "const");
-            console.log(const_id);
+          //  console.log(const_id);
             el.style.display = "block";
             document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
             addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
@@ -340,6 +374,7 @@ function initChannelForm() {
             fldA = stmts_s[i].id.split("_");
             ch_idx = parseInt(fldA[1]);
             cond_idx = parseInt(fldA[2]);
+            console.log(stmts_s[i].value);
             stmts = JSON.parse(stmts_s[i].value);
             if (stmts && stmts.length > 0) {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
