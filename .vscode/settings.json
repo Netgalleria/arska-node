@@ -18,5 +18,6 @@
         "cmath": "cpp",
         "functional": "cpp",
         "cstdlib": "cpp"
-    }
+    },
+    "C_Cpp.dimInactiveRegions": false
 }

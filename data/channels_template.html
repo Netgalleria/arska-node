@@ -1,21 +1,18 @@
 <html>
-
 <head>
     <meta charset="UTF-8">
-    <title>Arska Node | Admin Dashboard</title>
+    <title>Arska Node | Channel Settings</title>
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
 <body onload="initForm('/channels');">
     <script>
-        const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
-        const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
+
         const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%');
 
     </script>
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
-
 
     <script type="text/javascript" language="javascript">
         //      const variables = JSON.parse('%VARIABLES%');
@@ -67,8 +64,7 @@
     </div>
     <input type="button" id="driver" value="Load Data" />
     %status_fields%
-    <div class="fld">Active states: %states%</div>
-    <br>
+ 
     <form method="post" onsubmit="submitChannelForm()">
 
         <input name="source" type="hidden" value="channels">

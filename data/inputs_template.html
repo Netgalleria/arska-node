@@ -1,16 +1,11 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Arska Node | Admin Dashboard</title>
+    <title>Arska Node | Input Server Settings</title>
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
 <body onload="initForm('/inputs');setEnergyMeterFields(%emt%);">
-    <script>
-        const CHANNELS = parseInt('%CHANNELS%'); //parseInt hack to prevent automatic format to mess it up
-        const CHANNEL_TARGETS_MAX = parseInt('%CHANNEL_TARGETS_MAX%');
-        const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%'); 
-    </script>
     <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
     </div>

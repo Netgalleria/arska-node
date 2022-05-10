@@ -3,6 +3,11 @@ const sections = [{ "url": "/", "en": "Dashboard" }, { "url": "/inputs", "en": "
 
 const opers = JSON.parse('%OPERS%');
 const variables = JSON.parse('%VARIABLES%');
+const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
+const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent automatic format to mess it up
+const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
+
+
 
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
@@ -89,7 +94,6 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     addOption(varFld, -2, "remove");
 
     addOption(varFld, -1, "select", (stmt[0] == -1));
-
     for (var i = 0; i < variables.length; i++) {
       //  console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
         addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
@@ -119,47 +123,8 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
         elem.type = type;
     return elem;
 }
-function addStmt_old(elBtn) {
-
-    let div_to_search = elBtn.id.replace("addstmt_", "std_");
-    const fldA = elBtn.id.split("_");
-    const ch_idx = parseInt(fldA[1]);
-    const cond_idx = parseInt(fldA[2]);
-
-    let stmt_idx = -1;
-    let stmtDivs = document.querySelectorAll("div[id^='" + div_to_search + "']");
-    if (stmtDivs && stmtDivs.length > 0) {
-        const fldB = stmtDivs[stmtDivs.length - 1].id.split("_");
-        stmt_idx = parseInt(fldB[3]);
-    }
-
-    suffix = "_" + ch_idx + "_" + cond_idx + "_" + (stmt_idx + 1);
-
-    lastEl = document.getElementById("std_" + ch_idx + "_" + cond_idx + "_" + stmt_idx);
-
-    // create new element
-    // const elem = document.createElement('p');
-    //   <input class='fldtiny fldstmt inpnum' id='const" + suffix + "' type='text' value='0'>
-    const sel_var = createElem("select", "var" + suffix, null, "fldstmt indent", null);
-    sel_var.addEventListener("change", setVar);
-
-    const sel_op = createElem("select", "op" + suffix, null, "fldstmt", null);
-    sel_op.on_change = 'setOper(this)';
-    const inp_const = createElem("input", "const" + suffix, 0, "fldtiny fldstmt inpnum", "text");
-
-    const div_std = createElem("div", "std" + suffix, null, "divstament", "text");
-    div_std.appendChild(sel_var);
-    div_std.appendChild(sel_op);
-    div_std.appendChild(inp_const);
-
-    elBtn.parentNode.insertBefore(div_std, elBtn);
-
-    populateStmtField(document.getElementById("var" + suffix));
-
-}
 
 function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]) {
- 
     if (ch_idx == -1) { //from button click, no other parameters
         fldA = elBtn.id.split("_");
         ch_idx = parseInt(fldA[1]);
@@ -176,11 +141,7 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
             fldB = stmtDivs[i].id.split("_");
             stmt_idx = Math.max(parseInt(fldB[3]),stmt_idx);
         }
-/*
-        if (stmtDivs && stmtDivs.length > 0) {
-            fldB = stmtDivs[stmtDivs.length - 1].id.split("_");
-            stmt_idx = max(parseInt(fldB[3]),stmt_idx); 
-        } */
+
         stmt_idx++;
         console.log("New stmt_idx:" + stmt_idx);
     }
@@ -203,48 +164,74 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
     populateStmtField(document.getElementById("var" + suffix), stmt);
 }
 
-function populateTemplateSel(selEl) {
+
+
+
+function populateTemplateSel(selEl,template_id=-1) {
     if (selEl.options && selEl.options.length > 0) {
         return; //already populated
     }
+  
     addOption(selEl, -1, "select", false);
     $.getJSON('/data/template-list.json', function (data) {
         $.each(data, function (i, row) {
-            addOption(selEl, row["id"], row["name"], false);     
+            addOption(selEl, row["id"], row["name"], (template_id==row["id"]));     
         });
     });
 
 }
 
 function templateChanged(selEl) {
-  //  const fldA = selEl.id.split("_");
+    const fldA = selEl.id.split("_");
+    channel_idx = fldA[1];
     console.log(selEl.value);
     template_idx = selEl.value;
     url = '/data/templates?id=' + template_idx;
     console.log(url);
     $.getJSON(url, function (data) {
         alert(JSON.stringify(data));
-    /*    $.each(data, function (i, row) {
-            addOption(selEl, row["id"], row["name"], false);     
-        }); */
+        deleteStmtsUI(channel_idx);
+
+        $.each(data.conditions, function (cond_idx,  rule) {
+            alert(" cond_idx:" + cond_idx + "  rule json:" + JSON.stringify(rule)); 
+                document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
+            
+            $.each(rule.statements, function (j, stmt) {
+
+                elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+                console.log("stmt.values:" + JSON.stringify(stmt.values));
+                addStmt(elBtn, channel_idx, cond_idx, j, stmt.values);
+                var_this = get_var_by_id(stmt.values[0]); 
+                populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt.values);
+            });
+        });
+
+        // nyt ...
+       // elBtn = document.getElementById("addstmt_" + ch_idx + "_" + cond_idx);
+       // addStmt(elBtn,ch_idx, cond_idx, j, stmts[j]);
+ 
     });
 }
+function deleteStmtsUI(ch_idx) {
 
-function setRuleMode(ch_idx,rule_mode, reset) {
+    selector_str = "div[id^='std_" + ch_idx + "']";
+    document.querySelectorAll(selector_str).forEach(e => e.remove());
+}
+function setRuleMode(ch_idx,rule_mode, reset,template_id) {
    // alert("ch_idx:" + ch_idx + "   reset:" + reset);
     $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
     $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
 
-    $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));
+    
+    $('#rt_' + ch_idx + ' select').attr('disabled', (rule_mode != 1));
     $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));
     if (rule_mode == 1) {
         templateSelEl = document.getElementById("rts_" + ch_idx);
-        populateTemplateSel(templateSelEl);
+        populateTemplateSel(templateSelEl,template_id);
     }
 }
 
 function populateOper(el, var_this, stmt = [-1, -1, 0]) {
-
     console.log("populateOper:" + el.id);
     console.log(JSON.stringify(var_this));
     console.log(JSON.stringify(stmt));
@@ -348,24 +335,27 @@ function setEnergyMeterFields(val) { //
 
 }
 function initChannelForm() {
-    /*
-    let inputs = document.querySelectorAll("input");
-    console.log("inputs.length:" + inputs.length);
-    for (let i = 0; i < inputs.length; i++) {
-        if (inputs[i].id != inputs[i].name)
-            console.log("id <> name  " + inputs[i].id + " != " + inputs[i].name);
-        else
-            console.log("id == name  " + inputs[i].id + " == " + inputs[i].name);
-    }
-   */
+    console.log("initChannelForm");
     var chtype;
-    for (var ch = 0; ch < CHANNELS; ch++) {
+    for (var ch_idx = 0; ch_idx < CHANNEL_COUNT; ch_idx++) {
         //ch_t_%d_1
+        console.log("ch_idx:" + ch_idx);
         //TODO: fix if more types coming
-        chtype = document.getElementById('chty_' + ch).value;
-        setChannelFieldsByType(ch, chtype);
-    }
+        chtype = document.getElementById('chty_' + ch_idx).value;
+        setChannelFieldsByType(ch_idx, chtype);
 
+        rule_mode = channels[ch_idx]["cm"];
+        template_id = channels[ch_idx]["tid"];
+        console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
+
+        setRuleMode(ch_idx, rule_mode, false,template_id);
+        if (rule_mode == 1) {      
+            templateSelEl = document.getElementById("rts_" + ch_idx);
+            templateSelEl.value = template_id;
+            console.log("templateSelEl.value:" + templateSelEl.value);
+        }
+
+    }
 
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     console.log("stmts_s.length:" + stmts_s.length);
@@ -390,7 +380,7 @@ function initChannelForm() {
 }
 
 function setChannelFieldsByType(ch, chtype) {
-    for (var t = 0; t < CHANNEL_TARGETS_MAX; t++) {
+    for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         divid = 'td_' + ch + "_" + t;
      //   var targetdiv = document.querySelector('#' + divid);
         var cbdiv = document.querySelector('#ctcbd_' + ch + "_" + t);
@@ -531,7 +521,7 @@ function processRulesetImport(evt) {
         return false;
     }
 
-    for (let i = 0; i < CHANNELS; i++) {
+    for (let i = 0; i < CHANNEL_COUNT; i++) {
         let rule_states_e = document.getElementById("st_" + channel_idx + "_" + i);
         let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
         let rule_target_e = document.getElementById("t_" + channel_idx + "_" + i);
