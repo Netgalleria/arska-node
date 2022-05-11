@@ -16,6 +16,26 @@ var setFormSubmitting = function () {
     formSubmitting = true;
 };
 
+function updateStatus() {
+    $.getJSON('/status', function (data) {
+        $('#variables').empty();
+        $('#variables').html = '<ul>';
+        $.each(data.variables, function (i, variable) {
+            var_this = getVariable(i);
+            console.log('index', i);
+            if (variable[2] == 50 || variable[2] == 51)
+                $('#variables').append('<li>' + var_this[1] + ':' + variable ? "ON" : "OFF" + '</li>');
+            else
+                $('#variables').append('<li>' + var_this[1] + ':' + variable.replace('"', '').replace('"', '') + '</li>');
+        });
+        $('#variables').append('<li>updated:' + data.localtime.substring(11)  + '</li>');
+        
+        $('#variables').html = '</ul>';
+    });
+    if (document.getElementById('statusauto').checked) {
+        setTimeout(updateStatus, 60000);
+    }
+}
 var submitChannelForm = function () {
     // set name attributes to inputs to post (not coming from server to save space)
     let inputs = document.querySelectorAll("input[id^='ctcb_'], input[id^='t_'], input[id^='chty_']"); 
@@ -106,6 +126,7 @@ function populateVariableSelects(field) {
         populateStmtField(selectEl[i]);
     }
 }
+
 function createElem(tagName, id = null, value = null, class_ = "", type = null) {
     const elem = document.createElement(tagName);
     if (id)
@@ -116,9 +137,7 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
         for (const class_this of class_.split(" ")) {
             elem.classList.add(class_this);
         }
-
     }
-
     if (type)
         elem.type = type;
     return elem;
@@ -136,10 +155,14 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
         let div_to_search = "std_" + ch_idx + "_" + cond_idx;
 
         let stmtDivs = document.querySelectorAll("div[id^='" + div_to_search + "']");
-        console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
+       // console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
         for (let i = 0; i < stmtDivs.length; i++) {
             fldB = stmtDivs[i].id.split("_");
             stmt_idx = Math.max(parseInt(fldB[3]),stmt_idx);
+        }
+        if (stmtDivs.length >=RULE_STATEMENTS_MAX) {
+            alert('Max ' + RULE_STATEMENTS_MAX + ' statements allowed');
+            return false;
         }
 
         stmt_idx++;
@@ -189,27 +212,29 @@ function templateChanged(selEl) {
     url = '/data/templates?id=' + template_idx;
     console.log(url);
     $.getJSON(url, function (data) {
-        alert(JSON.stringify(data));
+      //  alert(JSON.stringify(data));
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx,  rule) {
-            alert(" cond_idx:" + cond_idx + "  rule json:" + JSON.stringify(rule)); 
+           // alert(" cond_idx:" + cond_idx + "  rule json:" + JSON.stringify(rule)); 
                 document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
             
+            elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
-
-                elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
                 console.log("stmt.values:" + JSON.stringify(stmt.values));
-                addStmt(elBtn, channel_idx, cond_idx, j, stmt.values);
+                stmt_obj = stmt.values;
+                if (stmt.hasOwnProperty('const_prompt')) {
+                    stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
+                }
+              
+                addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
                 var_this = get_var_by_id(stmt.values[0]); 
-                populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt.values);
+                populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
             });
+            if (rule.statements.length == 0) { // empty statement to start with
+                addStmt(elBtn);
+            }
         });
-
-        // nyt ...
-       // elBtn = document.getElementById("addstmt_" + ch_idx + "_" + cond_idx);
-       // addStmt(elBtn,ch_idx, cond_idx, j, stmts[j]);
- 
     });
 }
 function deleteStmtsUI(ch_idx) {
@@ -223,8 +248,10 @@ function setRuleMode(ch_idx,rule_mode, reset,template_id) {
     $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
 
     
+    document.getElementById("rt_" + ch_idx).style.display = (rule_mode != 1) ? "none" : "block";
+/*
     $('#rt_' + ch_idx + ' select').attr('disabled', (rule_mode != 1));
-    $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));
+    $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));*/
     if (rule_mode == 1) {
         templateSelEl = document.getElementById("rts_" + ch_idx);
         populateTemplateSel(templateSelEl,template_id);
@@ -377,13 +404,18 @@ function initChannelForm() {
             }
         }
     }
+   
+    if (document.getElementById('statusauto').checked) {
+        setTimeout(updateStatus, 2000);
+    }
+    
 }
 
 function setChannelFieldsByType(ch, chtype) {
     for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         divid = 'td_' + ch + "_" + t;
      //   var targetdiv = document.querySelector('#' + divid);
-        var cbdiv = document.querySelector('#ctcbd_' + ch + "_" + t);
+      //  var cbdiv = document.querySelector('#ctcbd_' + ch + "_" + t);
       //  var isTarget = (1 & chtype);
         var uptimediv = document.querySelector('#d_uptimem_' + ch);
 

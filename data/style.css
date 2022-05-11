@@ -1,13 +1,13 @@
 body {
     background-color: #1a1e15;
-    margin: 1.6em;
+    margin: 1.8em;
     font-size: 20px;
     font-family:  Helvetica, Arial, sans-serif;
     color: #f7f7e6
 }
 
 p {
-    font-size: 1em;
+    font-size: 1.8em;
     color: #b8b89d
 }
 
@@ -44,12 +44,12 @@ h3 {
 
 input,
 select {
-    font-size: 2em;
+    font-size: 1.8em;
 }
 
 input[type=checkbox] {
-    width: 40px;
-    height: 40px;
+    width: 30px;
+    height: 30px;
 }
 
 input[type=submit] {
@@ -115,8 +115,9 @@ h3 {
     float: left;
     width:fit-content;
 }
-.indent {
+.indent,#addstmtb {
     margin-left:2em;
+    clear:left;
 }
 .divstament {
     clear: both;
@@ -193,5 +194,19 @@ h2 {
   .radio-toolbar input[type="radio"]:checked + label {
       background-color: #f2ef99;
       border-color: hsl(59, 100%, 54%);
+  }
+/*box div */
+  .hb {
+    border-color: #f2ef99; border-style: dotted; margin-top: 50px; padding-left: 1em;
+  }
+  .hh3, .hh4 {
+    text-align: left;
+    margin-top: -20px;
+  }
+  .hh3 > span, .hh4 > span {
+      margin-left: 20px;
+    background-color: #1a1e15;
+    box-shadow: #1a1e15 11px 0px 0px,
+    #1a1e15 -13px 0px 0px;
   }
   

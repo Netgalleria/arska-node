@@ -4,12 +4,9 @@
     <title>Arska Node | Channel Settings</title>
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
-
 <body onload="initForm('/channels');">
     <script>
-
         const backup_ap_mode_enabled = parseInt('%backup_ap_mode_enabled%');
-
     </script>
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
@@ -19,7 +16,7 @@
      /*   function mycallback(data) {
                     alert("Here: " + data.name);
                 }*/
-
+ /* 
         $(document).ready(function () {
 
             $("#driver").click(function (event) {
@@ -27,14 +24,14 @@
                 //************
                 // http://hayageek.com/cross-domain-ajax-request-jquery/
                
-           /*     $.ajax({
+              $.ajax({
                     url: "https://iot.netgalleria.fi/jsonp.php",
                     dataType: "jsonp",
                 });
 */
                
                 //*******************
-
+/*
                 $.getJSON('/status', function (data) {
                     //     alert(JSON.stringify(jd));
                     $('#variables').empty();
@@ -49,20 +46,22 @@
                     });
                     $('#variables').html = '</ul>';
                 });
-
+                
             });
-        });
+        }); */
     </script>
 
     <div class="secbr" id="headdiv">
     </div>
     <div class="secbr">
         <h2>Status</h2>
+        <input type="checkbox" id="statusauto" checked="checked"><label for='statusauto'>Auto update</label> 
     </div>
+    
     <div id="variables">
 
     </div>
-    <input type="button" id="driver" value="Load Data" />
+
     %status_fields%
  
     <form method="post" onsubmit="submitChannelForm()">
