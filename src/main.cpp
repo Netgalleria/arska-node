@@ -24,12 +24,12 @@ const char compile_date[] = __DATE__ " " __TIME__;
 //#include <DNSServer.h> // for captive portal
 
 #ifdef ESP32 // not fully implemented with ESP32
-#pragma message("ESP32 version")
+//#pragma message("ESP32 version")
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
 #elif defined(ESP8266) // tested only with ESP8266
-#pragma message("ESP8266 version")
+//#pragma message("ESP8266 version")
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESP8266HTTPClient.h>
@@ -171,7 +171,7 @@ const char *host_prices PROGMEM = "transparency.entsoe.eu";
 const char *host_fcst PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData&loc=Espoo";
 
 // String url = "/api?securityToken=41c76142-eaab-4bc2-9dc4-5215017e4f6b&documentType=A44&In_Domain=10YFI-1--------U&Out_Domain=10YFI-1--------U&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202204200000&periodEnd=202204200100";
-String url_base = F("/api?documentType=A44&processType=A16");
+String url_base = "/api?documentType=A44&processType=A16";
 const char *securityToken = "41c76142-eaab-4bc2-9dc4-5215017e4f6b";
 const char *queryInOutDomain = "10YFI-1--------U";
 const char *outBiddingZone_Domain = "10YCZ-CEPS-----N";
@@ -1298,7 +1298,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   uint16_t ip_port = s.energy_meter_port;
   uint8_t modbusip_unit = s.energy_meter_id;
 
-  Serial.printf("ModBus host: [%s], ip_port: [%ld], unit_id: [%d] \n", remote.toString().c_str(), ip_port, modbusip_unit);
+  Serial.printf("ModBus host: [%s], ip_port: [%d], unit_id: [%d] \n", remote.toString().c_str(), ip_port, modbusip_unit);
 
   mb.task();
   if (!mb.isConnected(remote))
@@ -1396,8 +1396,8 @@ void update_internal_variables()
   time(&now);
   localtime_r(&now, &tm_struct);
 
-  time_t now_suntime = now + s.lon * 240;
-  byte sun_hour = int((now_suntime % (3600 * 24)) / 3600);
+  //time_t now_suntime = now + s.lon * 240;
+  //byte sun_hour = int((now_suntime % (3600 * 24)) / 3600);
 
   vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
   vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
@@ -1573,7 +1573,7 @@ bool getBCDCForecast()
   float sum_pv_fcst = 0;
   float pv_value_hour;
   float pv_fcst_hour;
-  float pv_value;
+  float pv_value = 0;
   float sum_pv_fcst_with_price = 0;
   long price;
   long long pvenergy_item_time;
@@ -1608,7 +1608,7 @@ bool getBCDCForecast()
       sum_pv_fcst_with_price += (float)pv_fcst_hour;
       pv_value_hour = price * pv_fcst_hour / 1000;
       pv_value += pv_value_hour;
-      Serial.printf("j: %d, price: %d,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
+      Serial.printf("j: %d, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
       }
 
       j++;
@@ -1688,7 +1688,7 @@ void aggregate_dayahead_prices_timeser(time_t record_start, time_t record_end, i
   {
     delay(5);
 
-    snprintf(var_code, sizeof(var_code), "%ld", time);
+    snprintf(var_code, sizeof(var_code), "%lld", time);
     JsonObject json_obj = doc.createNestedObject(var_code);
 
     float energyPriceSpot = prices[time_idx] / 100;
@@ -1721,7 +1721,7 @@ bool get_price_data()
 {
   // WiFiClientSecure client_https;
 
-  time_t period_start, period_end;
+  time_t period_start=0, period_end=0;
   time_t record_start = 0, record_end = 0;
   // long prices[MAX_PRICE_PERIODS];
   char date_str_start[13];
@@ -1765,7 +1765,7 @@ bool get_price_data()
    // prices[price_idx] = VARIABLE_LONG_UNKNOWN;
 
   // Use WiFiClientSecure class to create TLS connection
-  int r = 0; // retry counter
+  //int r = 0; // retry counter
   Serial.println(F("Connecting"));
 
   Serial.printf("before connect millis(): %lu\n", millis());
@@ -1916,26 +1916,25 @@ bool update_external_variables()
 {
   // WiFiClientSecure client_https;
 
-  time_t period_start, period_end;
+ // time_t period_start, period_end;
   time_t record_start = 0, record_end = 0;
-  char date_str_start[13];
-  char date_str_end[13];
+ // char date_str_start[13];
+ // char date_str_end[13];
 
   // WiFiClient client;
   Serial.printf("ESP.getFreeHeap():%d", ESP.getFreeHeap());
 
-  bool end_reached = false;
-  int price_rows = 0;
+ // bool end_reached = false;
+ // int price_rows = 0;
 
-  time_t start_ts,
-      end_ts; // this is the epoch
+  time_t start_ts, end_ts; // this is the epoch
 
   time(&start_ts);
   start_ts -= SECONDS_IN_DAY;
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
-  int pos = -1;
-  long price = VARIABLE_LONG_UNKNOWN;
+  //int pos = -1;
+  //long price = VARIABLE_LONG_UNKNOWN;
 
   DynamicJsonDocument doc(3072);
 
@@ -2046,7 +2045,7 @@ void get_channel_config_fields(char *out, int channel_idx)
   Serial.printf("s.ch[channel_idx].config_mode: %i", (byte)(s.ch[channel_idx].config_mode));
 
   //snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name'rts_%d' onchange='templateChanged(this)'></select><input type='checkbox' id='rtl_%d' value='1' %s></div>\n", channel_idx, channel_idx, channel_idx, channel_idx, "checked");
-  snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
+  snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
   strcat(out, buff);
 
   Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
@@ -2116,8 +2115,8 @@ void get_status_fields(char *out)
   time_t current_time;
   time(&current_time);
 
-  time_t now_suntime = current_time + (s.lon * 240);
-  tm tm_sun;
+ // time_t now_suntime = current_time + (s.lon * 240);
+ // tm tm_sun;
 
   char time1[9];
   char time2[9];
@@ -2414,7 +2413,7 @@ String setup_form_processor(const String &var)
         int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
         long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
 
-        vars.to_str(variable_id, floatbuff, true, s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val);
+        vars.to_str(variable_id, floatbuff, true, const_val);
 
         // TODO: alusta tai jotain
         if (variable_id == -1 || oper_id == -1)
@@ -2763,7 +2762,7 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
   StaticJsonDocument<16> filter;
   AsyncWebParameter *p = request->getParam("id");
 
-  Serial.printf("id: %s\n", p->value());
+  Serial.printf("id: %s\n", p->value().c_str());
 
   filter[p->value().c_str()] = true;
 
@@ -3543,13 +3542,13 @@ void loop()
   if (next_price_fetch < now)
   {
 
-    Serial.printf("now: %ld \n", now);
+    Serial.printf("now: %lld \n", now);
     next_price_fetch = now + 1200;
     ok = get_price_data();
     run_price_process = ok;
     time(&now);
     next_price_fetch = now + (ok ? 1200 : 120);
-    Serial.printf("next_price_fetch: %ld \n", next_price_fetch);
+    Serial.printf("next_price_fetch: %lld \n", next_price_fetch);
 
     // this could be in an own branch
     getBCDCForecast();

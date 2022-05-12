@@ -22,14 +22,14 @@ function updateStatus() {
         $('#variables').html = '<ul>';
         $.each(data.variables, function (i, variable) {
             var_this = getVariable(i);
-            console.log('index', i);
+           // console.log('index', i);
             if (variable[2] == 50 || variable[2] == 51)
                 $('#variables').append('<li>' + var_this[1] + ':' + variable ? "ON" : "OFF" + '</li>');
             else
                 $('#variables').append('<li>' + var_this[1] + ':' + variable.replace('"', '').replace('"', '') + '</li>');
         });
-        $('#variables').append('<li>updated:' + data.localtime.substring(11)  + '</li>');
-        
+        $('#variables').append('<li>updated:' + data.localtime.substring(11) + '</li>');
+
         $('#variables').html = '</ul>';
     });
     if (document.getElementById('statusauto').checked) {
@@ -40,13 +40,13 @@ var submitChannelForm = function () {
 
     if (!confirm("Save channel settings?"))
         return false;
-    
+
     // set name attributes to inputs to post (not coming from server to save space)
-    let inputs = document.querySelectorAll("input[id^='ctcb_'], input[id^='t_'], input[id^='chty_']"); 
+    let inputs = document.querySelectorAll("input[id^='ctcb_'], input[id^='t_'], input[id^='chty_']");
     console.log("inputs.length:" + inputs.length);
     for (let i = 0; i < inputs.length; i++) {
-        if (inputs[i].id != inputs[i].name) { 
-        inputs[i].name = inputs[i].id;
+        if (inputs[i].id != inputs[i].name) {
+            inputs[i].name = inputs[i].id;
         }
     }
 
@@ -55,7 +55,7 @@ var submitChannelForm = function () {
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     for (let i = 0; i < stmts_s.length; i++) {
         stmts_s[i].value = '[]';
-        if (i==0)
+        if (i == 0)
             stmts_s[i].name = stmts_s[i].id; //send at least one fiels even if empty
     }
     // then save new values to be saved on the server
@@ -95,7 +95,7 @@ function getVariable(variable_id) {
     for (var i = 0; i < variables.length; i++) {
         if (variables[i][0] == variable_id)
             return variables[i];
-       }
+    }
     return null;
 }
 function addOption(el, value, text, selected = false) {
@@ -106,6 +106,10 @@ function addOption(el, value, text, selected = false) {
     // then append it to the select element
     el.appendChild(opt);
 }
+
+
+
+
 function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     console.log("populateStmtField" + JSON.stringify(stmt));
     if (varFld.options && varFld.options.length > 0) {
@@ -118,7 +122,7 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
 
     addOption(varFld, -1, "select", (stmt[0] == -1));
     for (var i = 0; i < variables.length; i++) {
-      //  console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
+        //  console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
         addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
     }
 
@@ -146,24 +150,24 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
     return elem;
 }
 
-function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]) {
+function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0]) {
     if (ch_idx == -1) { //from button click, no other parameters
         fldA = elBtn.id.split("_");
         ch_idx = parseInt(fldA[1]);
         cond_idx = parseInt(fldA[2]);
     }
     //get next statement index if not defined
-    if (stmt_idx == -1) {  
+    if (stmt_idx == -1) {
         stmt_idx = 0;
         let div_to_search = "std_" + ch_idx + "_" + cond_idx;
 
         let stmtDivs = document.querySelectorAll("div[id^='" + div_to_search + "']");
-       // console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
+        // console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
         for (let i = 0; i < stmtDivs.length; i++) {
             fldB = stmtDivs[i].id.split("_");
-            stmt_idx = Math.max(parseInt(fldB[3]),stmt_idx);
+            stmt_idx = Math.max(parseInt(fldB[3]), stmt_idx);
         }
-        if (stmtDivs.length >=RULE_STATEMENTS_MAX) {
+        if (stmtDivs.length >= RULE_STATEMENTS_MAX) {
             alert('Max ' + RULE_STATEMENTS_MAX + ' statements allowed');
             return false;
         }
@@ -175,7 +179,7 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
     suffix = "_" + ch_idx + "_" + cond_idx + "_" + (stmt_idx);
     console.log(suffix);
 
-  //  lastEl = document.getElementById("std_" + ch_idx + "_" + cond_idx + "_" + stmt_idx);
+    //  lastEl = document.getElementById("std_" + ch_idx + "_" + cond_idx + "_" + stmt_idx);
     const sel_var = createElem("select", "var" + suffix, null, "fldstmt indent", null);
     sel_var.addEventListener("change", setVar);
     const sel_op = createElem("select", "op" + suffix, null, "fldstmt", null);
@@ -192,18 +196,22 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
 
 
 
-function populateTemplateSel(selEl,template_id=-1) {
+function populateTemplateSel(selEl, template_id = -1) {
     if (selEl.options && selEl.options.length > 0) {
         return; //already populated
     }
-  
     addOption(selEl, -1, "select", false);
     $.getJSON('/data/template-list.json', function (data) {
         $.each(data, function (i, row) {
-            addOption(selEl, row["id"], row["name"], (template_id==row["id"]));     
+            addOption(selEl, row["id"], row["name"], (template_id == row["id"]));
         });
-    });
+    });  
+}
 
+function saveVal(el) {
+    $.data(el, 'current', $(el).val());
+   // alert($.data(el, 'current'));
+    // $(selEl.id).data('lastValue',$(this).val());   
 }
 
 function templateChanged(selEl) {
@@ -215,14 +223,17 @@ function templateChanged(selEl) {
     console.log(url);
     $.getJSON(url, function (data) {
 
-        if (!confirm('Use template ' + data.name + ' - ' + data.desc))
+        if (!confirm('Use template ' + data.name + ' - ' + data.desc)) {
+            $(selEl).val($.data(selEl, 'current'));
             return false;
-        
+        }
+       
+
         deleteStmtsUI(channel_idx);
 
-        $.each(data.conditions, function (cond_idx,  rule) {
-                document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
-            
+        $.each(data.conditions, function (cond_idx, rule) {
+            document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
+
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
                 console.log("stmt.values:" + JSON.stringify(stmt.values));
@@ -230,9 +241,9 @@ function templateChanged(selEl) {
                 if (stmt.hasOwnProperty('const_prompt')) {
                     stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
                 }
-              
+
                 addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
-                var_this = get_var_by_id(stmt.values[0]); 
+                var_this = get_var_by_id(stmt.values[0]);
                 populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
             });
             if (rule.statements.length == 0) { // empty statement to start with
@@ -240,6 +251,8 @@ function templateChanged(selEl) {
             }
         });
     });
+
+  
     return true;
 }
 function deleteStmtsUI(ch_idx) {
@@ -247,18 +260,18 @@ function deleteStmtsUI(ch_idx) {
     selector_str = "div[id^='std_" + ch_idx + "']";
     document.querySelectorAll(selector_str).forEach(e => e.remove());
 }
-function setRuleMode(ch_idx,rule_mode, reset,template_id) {
+function setRuleMode(ch_idx, rule_mode, reset, template_id) {
     $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
     $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
 
-    
+
     document.getElementById("rt_" + ch_idx).style.display = (rule_mode != 1) ? "none" : "block";
-/*
-    $('#rt_' + ch_idx + ' select').attr('disabled', (rule_mode != 1));
-    $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));*/
+    /*
+        $('#rt_' + ch_idx + ' select').attr('disabled', (rule_mode != 1));
+        $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));*/
     if (rule_mode == 1) {
         templateSelEl = document.getElementById("rts_" + ch_idx);
-        populateTemplateSel(templateSelEl,template_id);
+        populateTemplateSel(templateSelEl, template_id);
     }
 }
 
@@ -282,7 +295,7 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
             if (var_this[2] < 50 && opers[i][5])
                 continue;
             const_id = el.id.replace("op", "const");
-          //  console.log(const_id);
+            //  console.log(const_id);
             el.style.display = "block";
             document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
             addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
@@ -379,8 +392,8 @@ function initChannelForm() {
         template_id = channels[ch_idx]["tid"];
         console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
 
-        setRuleMode(ch_idx, rule_mode, false,template_id);
-        if (rule_mode == 1) {      
+        setRuleMode(ch_idx, rule_mode, false, template_id);
+        if (rule_mode == 1) {
             templateSelEl = document.getElementById("rts_" + ch_idx);
             templateSelEl.value = template_id;
             console.log("templateSelEl.value:" + templateSelEl.value);
@@ -401,24 +414,24 @@ function initChannelForm() {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
                 for (let j = 0; j < stmts.length; j++) {
                     elBtn = document.getElementById("addstmt_" + ch_idx + "_" + cond_idx);
-                    addStmt(elBtn,ch_idx, cond_idx, j, stmts[j]);
+                    addStmt(elBtn, ch_idx, cond_idx, j, stmts[j]);
                     var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
                     populateOper(document.getElementById("op_" + ch_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
                 }
             }
         }
     }
-   
+
     if (document.getElementById('statusauto').checked) {
         setTimeout(updateStatus, 2000);
     }
-    
+
 }
 
 function setChannelFieldsByType(ch, chtype) {
     for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         divid = 'td_' + ch + "_" + t;
-  
+
         var uptimediv = document.querySelector('#d_uptimem_' + ch);
 
         if (chtype == 0)
@@ -426,7 +439,7 @@ function setChannelFieldsByType(ch, chtype) {
         else
             uptimediv.style.display = "block";
 
-    } 
+    }
 }
 function initUrlBar(url) {
     var headdiv = document.getElementById("headdiv");
