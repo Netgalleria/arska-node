@@ -1426,7 +1426,7 @@ void update_internal_variables()
     float netEnergyInPeriod;
     float netPowerInPeriod;
     get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-    vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod > 0) ? 1L : 0L);
+    vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod <0 ) ? 1L : 0L);
     vars.set(VARIABLE_SELLING_POWER, (long)(-netPowerInPeriod));
   }
 #endif
@@ -1856,7 +1856,7 @@ bool get_price_data()
       {
       
         prices[period_idx] = price;
-        //   Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
+        Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
         price_array.add(price);
       }
       else
@@ -2659,7 +2659,7 @@ void update_channel_states2()
       {
         s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].switch_on;
         s.ch[channel_idx].conditions[condition_idx].condition_active = true;
-        //    Serial.printf("update_channel_states2 condition true\n");
+        Serial.printf("update_channel_states2 condition true, wanna_be_up: %s\n",s.ch[channel_idx].wanna_be_up?"true":"false");
         break;
       }
       /*
@@ -2686,6 +2686,7 @@ void set_relays()
     if (s.ch[channel_idx].is_up && !s.ch[channel_idx].wanna_be_up)
       drop_count++;
   }
+  Serial.printf("set_relays rise_count: %d, drop_count: %d\n", rise_count, drop_count);
 
   int switchings_to_todo;
   bool is_rise;

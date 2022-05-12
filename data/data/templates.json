@@ -1,35 +1,27 @@
 {
     "1": {
         "id": 1,
-        "name": "Charge/heat nighttime",
-        "name_fi": "Lataa/lämmitä yöllä",
-        "desc": "blaa akjsdlak asld asldua lkadsdjkaskdiijksjd adklasjdklias  aksdjkalsi alksdjlas9ajdklas  askdjalsdja ",
-        "desc_fi": "paskdaksl  askldjakls  skadjklasd  aksdjaksdjla klasjdklasjdlas  lajsdasjldajsld lkasjdlasjdlasjlda laa",
+        "name": "Käytä vain yön halvimpina tunteina",
+        "desc": "Päällä ainoastaan yösähkön aikana halvimpina tunteina, voit määrittää päällä olevien tuntien määrän.",
         "uptime_minimum": 300,
         "conditions": [
-            {
-                "on": false,
-                "statements": [
-                    {
-                        "values": [
-                            0,
-                            2,
-                            13
-                        ],
-                        "const_prompt": "give minimum price blaa"
-                    }
-                ]
-            },
             {
                 "on": true,
                 "statements": [
                     {
                         "values": [
+                            130,
+                            7,
+                            null
+                        ]
+                    },
+                    {
+                        "values": [
                             1,
-                            3,
-                            2
+                            4,
+                            6
                         ],
-                        "const_prompt": "give minimum price blaa"
+                        "const_prompt": "Montako tuntia päällä yön aikana (1-9), ensisijaisesti halvimpina tunteina."
                     }
                 ]
             }
@@ -37,30 +29,19 @@
     },
     "2": {
         "id": 2,
-        "name": "Utilize cheap solar",
-        "name_fi": "Hyödynnä halpa aurinkosähkö",
-        "desc": "blaa akjsdlak asld asldua lkadsdjkaskdiijksjd adklasjdklias  aksdjkalsi alksdjlas9ajdklas  askdjalsdja ",
-        "desc_fi": "paskdaksl  askldjakls  skadjklasd  aksdjaksdjla klasjdklasjdlas  lajsdasjldajsld lkasjdlasjdlasjlda laa",
+        "name": "Hyödynnä halpa aurinkosähkö",
+        "desc": "Päällä ainoastaan kun oman tuotannon ylijäämää, mutta kalliin sähkön aikana myydään oma tuotano.",
         "uptime_minimum": 300,
         "conditions": [
-            {
-                "on": false,
+            {"on": false,
                 "statements": [
                     {
                         "values": [
                             0,
-                            2,
-                            12
+                            1,
+                            13
                         ],
-                        "const_prompt": "give minimum price blaa"
-                    },
-                    {
-                        "values": [
-                            0,
-                            2,
-                            2
-                        ],
-                        "const_prompt": "give minimum price blaa"
+                        "const_prompt": "Vähimmäishinta (esim. 13c/kWh), jolla myydään oma tuotanto."
                     }
                 ]
             },
@@ -69,11 +50,10 @@
                 "statements": [
                     {
                         "values": [
-                            1,
-                            3,
-                            2
-                        ],
-                        "const_prompt": "give minimum price blaa"
+                            100,
+                            6,
+                            0
+                        ]
                     }
                 ]
             }

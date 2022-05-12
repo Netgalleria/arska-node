@@ -1,10 +1,10 @@
 [
     {
         "id": 1,
-        "name": "Charge/heat nighttime"
+        "name": "Käytä vain yön halvimpina tunteina"
     },
     {
         "id": 2,
-        "name": "Utilize cheap solar"
+        "name": "Hyödynnä halpa aurinkosähkö"
     }
 ]

@@ -37,6 +37,10 @@ function updateStatus() {
     }
 }
 var submitChannelForm = function () {
+
+    if (!confirm("Save channel settings?"))
+        return false;
+    
     // set name attributes to inputs to post (not coming from server to save space)
     let inputs = document.querySelectorAll("input[id^='ctcb_'], input[id^='t_'], input[id^='chty_']"); 
     console.log("inputs.length:" + inputs.length);
@@ -81,7 +85,7 @@ var submitChannelForm = function () {
         }
     }
 
-    alert("submitChannelForm");
+
     formSubmitting = true;
 
 };
@@ -105,7 +109,6 @@ function addOption(el, value, text, selected = false) {
 function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     console.log("populateStmtField" + JSON.stringify(stmt));
     if (varFld.options && varFld.options.length > 0) {
-        //  alert(varFld.id + " already populated");
         return; //already populated
     }
     document.getElementById(varFld.id.replace("var", "const")).style.display = "none";
@@ -189,7 +192,6 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt=[-1,-1,0]
 
 
 
-
 function populateTemplateSel(selEl,template_id=-1) {
     if (selEl.options && selEl.options.length > 0) {
         return; //already populated
@@ -212,11 +214,13 @@ function templateChanged(selEl) {
     url = '/data/templates?id=' + template_idx;
     console.log(url);
     $.getJSON(url, function (data) {
-      //  alert(JSON.stringify(data));
+
+        if (!confirm('Use template ' + data.name + ' - ' + data.desc))
+            return false;
+        
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx,  rule) {
-           // alert(" cond_idx:" + cond_idx + "  rule json:" + JSON.stringify(rule)); 
                 document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
             
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
@@ -236,6 +240,7 @@ function templateChanged(selEl) {
             }
         });
     });
+    return true;
 }
 function deleteStmtsUI(ch_idx) {
 
@@ -243,7 +248,6 @@ function deleteStmtsUI(ch_idx) {
     document.querySelectorAll(selector_str).forEach(e => e.remove());
 }
 function setRuleMode(ch_idx,rule_mode, reset,template_id) {
-   // alert("ch_idx:" + ch_idx + "   reset:" + reset);
     $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
     $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
 
@@ -414,23 +418,14 @@ function initChannelForm() {
 function setChannelFieldsByType(ch, chtype) {
     for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         divid = 'td_' + ch + "_" + t;
-     //   var targetdiv = document.querySelector('#' + divid);
-      //  var cbdiv = document.querySelector('#ctcbd_' + ch + "_" + t);
-      //  var isTarget = (1 & chtype);
+  
         var uptimediv = document.querySelector('#d_uptimem_' + ch);
 
         if (chtype == 0)
             uptimediv.style.display = "none";
         else
             uptimediv.style.display = "block";
-/*
-        if (isTarget) {
-            targetdiv.style.display = "block";
-            cbdiv.style.display = "none";
-        } else {
-            targetdiv.style.display = "none";
-            cbdiv.style.display = "block";
-        } */
+
     } 
 }
 function initUrlBar(url) {
