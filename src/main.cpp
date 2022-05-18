@@ -25,6 +25,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 
 #ifdef ESP32 // not fully implemented with ESP32
 //#pragma message("ESP32 version")
+
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
@@ -876,13 +877,14 @@ bool read_config_file(bool read_all_settings)
     Serial.println(F("No config file. "));
     return false;
   }
+
   File file = LittleFS.open(config_file_name, "r");
   if (!file)
   { // failed to open the file, retrn empty result
     Serial.println(F("Failed to open config file. "));
     return false;
   }
-
+  Serial.println(F("Got config file"));
   StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc;
   DeserializationError error = deserializeJson(doc, file);
   file.close();
@@ -908,6 +910,7 @@ bool read_config_file(bool read_all_settings)
 
   copy_doc_str(doc, (char *)"http_password", s.http_password);
 
+  Serial.println(F("Testing wifi settings"));
   // do not copy non-working wifi settings
   if (doc.containsKey("wifi_ssid") && doc.containsKey("wifi_password"))
   {
@@ -916,6 +919,7 @@ bool read_config_file(bool read_all_settings)
     copy_doc_str(doc, (char *)"wifi_ssid", wifi_ssid);
     copy_doc_str(doc, (char *)"wifi_password", wifi_password);
 
+    //    if (true)
     if (test_wifi_settings(wifi_ssid, wifi_password))
     {
       strcpy(s.wifi_ssid, wifi_ssid);
@@ -2177,7 +2181,7 @@ void get_status_fields(char *out)
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
   time(&now);
-  char buff[200];
+  char buff[220];
   char buff2[160];
   char buff4[20];
   tm tm_struct2;
@@ -2200,26 +2204,26 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     strcpy(buff4, "");
   }
 
-  snprintf(buff, 200, "<div class='secbr cht'>%s<span>%d - %s</span></div>", buff2, channel_idx + 1, s.ch[channel_idx].id_str, s.ch[channel_idx].gpio);
-  // snprintf(buff, 200, "<div class='fld'><div>%s</div></div><!-- gpio %d -->",  buff2, s.ch[channel_idx].gpio);
+  snprintf(buff, 220, "<div class='secbr cht'>%s<span>%d - %s</span></div><!-- gpio %d -->", buff2, channel_idx + 1, s.ch[channel_idx].id_str, s.ch[channel_idx].gpio);
+  // snprintf(buff, 220, "<div class='fld'><div>%s</div></div><!-- gpio %d -->",  buff2, s.ch[channel_idx].gpio);
   strcat(out, buff);
 
   if (show_force_up)
   {
-    snprintf(buff, 200, "<div class='secbr radio-toolbar'>Set channel up for:<br>");
+    snprintf(buff, 220, "<div class='secbr radio-toolbar'>Set channel up for:<br>");
     strcat(out, buff);
 
     int hour_array_element_count = (int)(sizeof(force_up_hours) / sizeof(*force_up_hours));
     for (int hour_idx = 0; hour_idx < hour_array_element_count; hour_idx++)
     {
 
-      snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
+      snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
       strcat(out, buff);
 
       // current force_up_until, if set
       if ((s.ch[channel_idx].force_up_until > now) && (s.ch[channel_idx].force_up_until - now > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now < force_up_hours[hour_idx + 1] * 3600))
       {
-        snprintf(buff, 200, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
+        snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
         strcat(out, buff);
       }
     }
@@ -2541,17 +2545,18 @@ int get_channel_to_switch(bool is_rise, int switch_count)
 // switch channel up/down
 bool set_channel_switch(int channel_idx, bool up)
 {
-  int channel_type_group = (s.ch[channel_idx].type >> 1 << 1); // we do not care about the last bit
+  // int channel_type_group = (s.ch[channel_idx].type >> 1 << 1); // we do not care about the last bit
   // Serial.printf("set_channel_switch channel_type_group %d \n",channel_type_group);
-  if (channel_type_group == CH_TYPE_GPIO_ONOFF)
+  if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
-    /*  Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
-      Serial.print(s.ch[channel_idx].gpio);
-      Serial.print(up); */
+    Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
+    Serial.print(s.ch[channel_idx].gpio);
+    Serial.print("  ");
+    Serial.println(up);
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
     return true;
   }
-  else if (channel_type_group == CH_TYPE_SHELLY_ONOFF && s.energy_meter_type == ENERGYM_SHELLY3EM)
+  else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_ONOFF && s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
     String url_to_call = "http://" + String(s.energy_meter_host) + "/relay/0?turn=";
     if (up)
@@ -3238,10 +3243,23 @@ void setup()
         Serial.println(F("WiFi AP created!"));
       }
     }*/
-  WiFi.mode(WIFI_STA);
+  Serial.println("Starting wifi");
+  // disableCore0WDT();
 
-  WiFi.begin(s.wifi_ssid, s.wifi_password);
+  // DO NOT TOUCH
+  //   This is here to force the ESP32 to reset the WiFi and initialise correctly.
+  /*Serial.print("WIFI status = ");
+  Serial.println(WiFi.getMode());
+  WiFi.disconnect(true);
+  delay(1000);
+  WiFi.mode(WIFI_STA);
+  delay(1000);
+  Serial.print("WIFI status = ");
+  Serial.println(WiFi.getMode());
+  // End silly stuff !!!*/
+  WiFi.mode(WIFI_STA);
   Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
+  WiFi.begin(s.wifi_ssid, s.wifi_password);
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
@@ -3313,11 +3331,13 @@ void setup()
     // reset values fro eeprom
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
-    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
+    //    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
+    if (s.ch[channel_idx].type  == CH_TYPE_GPIO_ONOFF)
     { // gpio channel
       pinMode(s.ch[channel_idx].gpio, OUTPUT);
       Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
+ 
     // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
