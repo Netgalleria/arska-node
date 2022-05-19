@@ -16,36 +16,39 @@ var setFormSubmitting = function () {
 };
 
 function statusCBClicked(elCb) {
-    if (elCb.checked) {
-        setTimeout(updateStatus, 1000);
-    }
+    //if (elCb.checked) {
+    setTimeout(function () { updateStatus(elCb.checked); }, 1000);
+    //}
     document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 }
 
-function updateStatus() {
-    document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+function updateStatus(show_variables = true) {
 
     $.getJSON('/status', function (data) {
-        $("#tblVariables_tb").empty();
-        $.each(data.variables, function (i, variable) {
-            var_this = getVariable(i);
-            if (variable[2] == 50 || variable[2] == 51) {
-                newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable ? "ON" : "OFF" + '</td></tr>';
-            }
-            else {
-                newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td></tr>';
-            }
-            $(newRow).appendTo($("#tblVariables_tb"));
-        });
-        $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
+        if (show_variables) {
+            document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+
+            $("#tblVariables_tb").empty();
+            $.each(data.variables, function (i, variable) {
+                var_this = getVariable(i);
+                if (variable[2] == 50 || variable[2] == 51) {
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable ? "ON" : "OFF" + '</td></tr>';
+                }
+                else {
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td></tr>';
+                }
+                $(newRow).appendTo($("#tblVariables_tb"));
+            });
+            $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
+        }
 
         $.each(data.channels, function (i, channel_status) {
             show_channel_status(i, channel_status)
         });
     });
-    if (document.getElementById('statusauto').checked) {
-        setTimeout(updateStatus, 60000);
-    }
+    //  if (document.getElementById('statusauto').checked) {
+    setTimeout(function () { updateStatus(show_variables); }, 60000);
+    //  }
 }
 
 function show_channel_status(channel_idx, is_up) {
@@ -112,6 +115,12 @@ var submitChannelForm = function (e) {
         }
     }
     // console.log("form valid: ",$("#chFrm").valid());
+    //enable before submit for posting
+    let disSels = document.querySelectorAll('select[disabled="disabled"], input[disabled="disabled"]');
+    for (var i = 0; i < disSels.length; i++) {
+        disSels[i].disabled = false;
+    }
+
 
     formSubmitting = true;
 
@@ -143,21 +152,20 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
         return; //already populated
     }
     fldA = varFld.id.split("_");
-    ch_idx = parseInt(fldA[1]);
+    channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
 
     document.getElementById(varFld.id.replace("var", "const")).style.display = "none";
     document.getElementById(varFld.id.replace("var", "op")).style.display = "none";
 
-    advanced_mode = document.getElementById("mo_" + ch_idx + "_0").checked;
+    advanced_mode = document.getElementById("mo_" + channel_idx + "_0").checked;
 
-    if (advanced_mode) {
-        addOption(varFld, -2, "remove");
-        addOption(varFld, -1, "select", (stmt[0] == -1));
-    }
+
+    addOption(varFld, -2, "remove");
+    addOption(varFld, -1, "select", (stmt[0] == -1));
+
     for (var i = 0; i < variables.length; i++) {
-        if ((advanced_mode) || stmt[0] == variables[i][0])
-            addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
+        addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
     }
 }
 
@@ -188,16 +196,16 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
     return elem;
 }
 
-function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0]) {
-    if (ch_idx == -1) { //from button click, no other parameters
+function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0]) {
+    if (channel_idx == -1) { //from button click, no other parameters
         fldA = elBtn.id.split("_");
-        ch_idx = parseInt(fldA[1]);
+        channel_idx = parseInt(fldA[1]);
         cond_idx = parseInt(fldA[2]);
     }
     //get next statement index if not defined
     if (stmt_idx == -1) {
         stmt_idx = 0;
-        let div_to_search = "std_" + ch_idx + "_" + cond_idx;
+        let div_to_search = "std_" + channel_idx + "_" + cond_idx;
 
         let stmtDivs = document.querySelectorAll("div[id^='" + div_to_search + "']");
         // console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
@@ -214,10 +222,10 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-1, -1
         console.log("New stmt_idx:" + stmt_idx);
     }
 
-    suffix = "_" + ch_idx + "_" + cond_idx + "_" + (stmt_idx);
+    suffix = "_" + channel_idx + "_" + cond_idx + "_" + (stmt_idx);
     console.log(suffix);
 
-    //  lastEl = document.getElementById("std_" + ch_idx + "_" + cond_idx + "_" + stmt_idx);
+    //  lastEl = document.getElementById("std_" + channel_idx + "_" + cond_idx + "_" + stmt_idx);
     const sel_var = createElem("select", "var" + suffix, null, "fldstmt indent", null);
     sel_var.addEventListener("change", setVar);
     const sel_op = createElem("select", "op" + suffix, null, "fldstmt", null);
@@ -298,57 +306,55 @@ function templateChanged(selEl) {
 
     });
 
+    // fixing ui fields is delayed to get dom parsed ready?
+    setTimeout(function () { fillStmtRules(channel_idx, 1); }, 1000);
+
     return true;
 }
-function deleteStmtsUI(ch_idx) {
+function deleteStmtsUI(channel_idx) {
 
-    selector_str = "div[id^='std_" + ch_idx + "']";
+    selector_str = "div[id^='std_" + channel_idx + "']";
     document.querySelectorAll(selector_str).forEach(e => e.remove());
 
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
-        document.getElementById("ctcb_" + ch_idx + "_" + cond_idx).checked = false;
+        document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = false;
     }
 }
-function setRuleMode(ch_idx, rule_mode, reset, template_id) {
-    /*
-        $('#rt_' + ch_idx + ' select').attr('disabled', (rule_mode != 1));
-        $('#rt_' + ch_idx + ' input').attr('disabled', (rule_mode != 1));*/
-    if (rule_mode == 1) {
-        templateSelEl = document.getElementById("rts_" + ch_idx);
+
+function setRuleMode(channel_idx, rule_mode, reset, template_id) {
+    if (rule_mode == 1 || true) {
+        templateSelEl = document.getElementById("rts_" + channel_idx);
         populateTemplateSel(templateSelEl, template_id);
     }
-    // $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
-    // $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
-    $('#rd_' + ch_idx + ' select').prop('readonly', (rule_mode != 0));
-    $('#rd_' + ch_idx + ' input').prop('readonly', (rule_mode != 0));
-    $('#rd_' + ch_idx).prop('readonly', (rule_mode != 0));
 
-    // $('#rd_' + ch_idx + ' input').
-    document.getElementById("rt_" + ch_idx).style.display = (rule_mode != 1) ? "none" : "block";
+    console.log("New rule mode:", rule_mode);
+    $('#rd_' + channel_idx + ' select').attr('disabled', (rule_mode != 0));
+    $('#rd_' + channel_idx + ' input').attr('disabled', (rule_mode != 0)); //jos ei iteroi?
+    $('#rd_' + channel_idx + ' input').prop('readonly', (rule_mode != 0));
+
+    $('#rd_' + channel_idx + ' .addstmtb').css({ "display": ((rule_mode != 0) ? "none" : "block") });
+    $('#rts_' + channel_idx).css({ "display": ((rule_mode == 0) ? "none" : "block") });
+
+    fillStmtRules(channel_idx, rule_mode);
 }
 
 function populateOper(el, var_this, stmt = [-1, -1, 0]) {
     fldA = el.id.split("_");
-    ch_idx = parseInt(fldA[1]);
+    channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
 
-    advanced_mode = document.getElementById("mo_" + ch_idx + "_0").checked;
+    rule_mode = document.getElementById("mo_" + channel_idx + "_0").checked ? 0 : 1;
 
     document.getElementById(el.id.replace("op", "const")).value = stmt[2];
-    if (advanced_mode) {
-        if (el.options.length == 0)
-            addOption(el, -1, "select", (stmt[1] == -1));
-        if (el.options)
-            while (el.options.length > 1) {
-                el.remove(1);
-            }
-    }
-    else {
-        while (el.options.length > 0) {
+
+    if (el.options.length == 0)
+        addOption(el, -1, "select", (stmt[1] == -1));
+    if (el.options)
+        while (el.options.length > 1) {
             el.remove(1);
         }
-    }
+
     if (var_this) {
         for (let i = 0; i < opers.length; i++) {
             if (var_this[2] >= 50 && !opers[i][5]) //2-type
@@ -359,15 +365,19 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
             //  console.log(const_id);
             el.style.display = "block";
             document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
-            if (advanced_mode || (opers[i][0] == stmt[1]))
-                addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
+            // if (advanced_mode || (opers[i][0] == stmt[1]))
+            addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
         }
     }
 
-
-    el.readonly = (!advanced_mode);
-    document.getElementById(el.id.replace("op_", "var_")).readonly = (!advanced_mode);
-    document.getElementById(el.id.replace("op_", "const_")).readonly = (!advanced_mode);
+    /*
+        el.readonly = (!advanced_mode);
+        document.getElementById(el.id.replace("op_", "var_")).readonly = (!advanced_mode);
+        document.getElementById(el.id.replace("op_", "const_")).readonly = (!advanced_mode);
+        */
+    el.disabled = (rule_mode != 0);
+    document.getElementById(el.id.replace("op_", "var_")).disabled = (rule_mode != 0);
+    document.getElementById(el.id.replace("op_", "const_")).disabled = (rule_mode != 0);
 }
 
 function get_var_by_id(id) {
@@ -381,16 +391,16 @@ function get_var_by_id(id) {
 function setVar(evt) {
     const el = evt.target;
     const fldA = el.id.split("_");
-    ch_idx = parseInt(fldA[1]);
+    channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
     stmt_idx = parseInt(fldA[3]);
-    if (el.value > -1) {
+    if (el.value > -1) { //variable selected
         // let var_this = variables[el.value];
         var_this = get_var_by_id(el.value);
         populateOper(document.getElementById(el.id.replace("var", "op")), var_this);
     }
     else if (el.value == -2) {
-        // if (!document.getElementById("var_" + ch_idx + "_" + cond_idx + "_" + stmt_idx + 2) && stmt_idx>0) { //is last
+        // if (!document.getElementById("var_" + channel_idx + "_" + cond_idx + "_" + stmt_idx + 2) && stmt_idx>0) { //is last
         if (confirm("Confirm")) {
             //viimeinen olisi hyvä jättää, jos poistaa välistä niin numerot frakmentoituu
             var elem = document.getElementById(el.id.replace("var", "std"));
@@ -433,28 +443,53 @@ function setEnergyMeterFields(val) { //
         empd.style.display = "none";
         emidd.style.display = "none";
     }
-
 }
+
+function fillStmtRules(channel_idx, rule_mode) {
+    console.log("fillStmtRules", channel_idx, rule_mode);
+
+    for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
+        firstStmtVarId = "var_" + channel_idx + "_" + cond_idx + "_0";
+        firstStmtVar = document.getElementById(firstStmtVarId);
+        first_var_defined = !!firstStmtVar;
+
+
+
+        //if (first_var_defined)
+        //    first_var_defined = (firstStmtVar.value >= 0);
+
+        show_rule = (rule_mode == 0) || first_var_defined;
+
+        //just debug
+        if (first_var_defined)
+            console.log(firstStmtVar.id, "firstStmtVarId.value", firstStmtVar.value, "show_rule", show_rule);
+        else
+            console.log(firstStmtVarId, "undefined or 0");
+
+
+        document.getElementById("ru_" + channel_idx + "_" + cond_idx).style.display = (show_rule ? "block" : "none");
+
+        if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
+            elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+            console.log("addStmt", channel_idx, cond_idx, 0);
+            addStmt(elBtn, channel_idx, cond_idx, 0);
+        }
+    }
+}
+
 function initChannelForm() {
     console.log("initChannelForm");
     var chtype;
-    for (var ch_idx = 0; ch_idx < CHANNEL_COUNT; ch_idx++) {
+
+    //oli tässä
+    for (var channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
         //ch_t_%d_1
-        console.log("ch_idx:" + ch_idx);
+        console.log("channel_idx:" + channel_idx);
         //TODO: fix if more types coming
-        chtype = document.getElementById('chty_' + ch_idx).value;
-        setChannelFieldsByType(ch_idx, chtype);
+        chtype = document.getElementById('chty_' + channel_idx).value;
+        setChannelFieldsByType(channel_idx, chtype);
 
-        rule_mode = channels[ch_idx]["cm"];
-        template_id = channels[ch_idx]["tid"];
-        console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
 
-        if (rule_mode == 1) {
-            templateSelEl = document.getElementById("rts_" + ch_idx);
-            templateSelEl.value = template_id;
-            console.log("templateSelEl.value:" + templateSelEl.value);
-        }
-        setRuleMode(ch_idx, rule_mode, false, template_id);
     }
 
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
@@ -462,42 +497,44 @@ function initChannelForm() {
     for (let i = 0; i < stmts_s.length; i++) {
         if (stmts_s[i].value) {
             fldA = stmts_s[i].id.split("_");
-            ch_idx = parseInt(fldA[1]);
+            channel_idx = parseInt(fldA[1]);
             cond_idx = parseInt(fldA[2]);
             console.log(stmts_s[i].value);
             stmts = JSON.parse(stmts_s[i].value);
             if (stmts && stmts.length > 0) {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
                 for (let j = 0; j < stmts.length; j++) {
-                    elBtn = document.getElementById("addstmt_" + ch_idx + "_" + cond_idx);
-                    addStmt(elBtn, ch_idx, cond_idx, j, stmts[j]);
+                    elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+                    addStmt(elBtn, channel_idx, cond_idx, j, stmts[j]);
                     var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
-                    populateOper(document.getElementById("op_" + ch_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
+                    populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
                 }
             }
         }
     }
-    /*
-    // add at least one statement for each rule
+
+    //siirretty tähän populoinnin jälkeen
+
+
+
     for (let channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
-        for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {  
-            firstStmtVarId = "var_" + channel_idx + "_" + cond_idx + "_0";
-            console.log("Testing:", firstStmtVarId);
-            if (!document.getElementById(firstStmtVarId)) {
-                elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-                console.log("addstmt_" + channel_idx + "_" + cond_idx);
-                addStmt(elBtn, channel_idx, cond_idx, 0);   
-            }       
+        rule_mode = channels[channel_idx]["cm"];
+        template_id = channels[channel_idx]["tid"];
+        console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
+
+        if (rule_mode == 1) {
+            templateSelEl = document.getElementById("rts_" + channel_idx);
+            templateSelEl.value = template_id;
+            console.log("templateSelEl.value:" + templateSelEl.value);
         }
+        setRuleMode(channel_idx, rule_mode, false, template_id);
+        //  rule_mode = channels[channel_idx]["cm"];
+        // fillStmtRules(channel_idx, rule_mode);
     }
-*/
+
 
     if (document.getElementById('statusauto').checked) {
-        console.log("setTimeout updateStatus 5000");
-        setTimeout(updateStatus, 5000);
-    }
-    else {
-        console.log("setTimeout updateStatus not enabled");
+        setTimeout(function () { updateStatus(true); }, 3000);
     }
 
 }
@@ -553,6 +590,9 @@ function initUrlBar(url) {
 }
 
 //
+
+
+
 function initForm(url) {
     initUrlBar(url);
     if (url == '/admin') {
@@ -561,6 +601,11 @@ function initForm(url) {
     else if (url == '/channels') {
         initChannelForm();
     }
+    else if (url == '/') {
+        setTimeout(function () { updateStatus(false); }, 3000);
+    }
+
+
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
         footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> | <a href='http://netgalleria.fi/rd/?arska-states' target='arskaw'>States</a> | <a href='http://netgalleria.fi/rd/?arska-rulesets'  target='arskaw'>Rulesets</a>";

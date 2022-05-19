@@ -2017,7 +2017,6 @@ void get_channel_config_fields(char *out, int channel_idx)
   strcat(out, buff);
   Serial.printf("s.ch[channel_idx].config_mode: %i", (byte)(s.ch[channel_idx].config_mode));
 
-  // snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name'rts_%d' onchange='templateChanged(this)'></select><input type='checkbox' id='rtl_%d' value='1' %s></div>\n", channel_idx, channel_idx, channel_idx, channel_idx, "checked");
   snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
   strcat(out, buff);
 
@@ -2034,9 +2033,6 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
   dtostrf(s.ch[channel_idx].conditions[condition_idx].target_val, 3, 1, float_buffer);
 
   // name attributes  will be added in javascript before submitting
-  /* snprintf(out, buff_len, "<div class='secbr'>\n<div id='sd%s' class='fldlong'><b>%s rule %i: </b></div>\n<div id='ctcbd%s'><input type='checkbox' id='ctcb%s' value='1' %s><label for='ctcbd%s'>Keep channel up if the rule is matching.</label></div>\n</div>\n"
-   , suffix, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* ACTIVE *" : "", condition_idx + 1, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "",suffix);
-   */
   snprintf(out, buff_len, "<div class='secbr'><span>rule %i: %s</span></div><div class='secbr'><input type='checkbox' id='ctcb%s' value='1' %s><label for='ctcbd%s'>Up if the rule is matching</label></div>\n", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* MATCHING *" : "", suffix, s.ch[channel_idx].conditions[condition_idx].switch_on ? "checked" : "", suffix);
   return;
 }
@@ -2242,7 +2238,7 @@ String jscode_form_processor(const String &var)
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
   char out[600];
   char buff[50];
-  if (var == F"RULE_STATEMENTS_MAX")
+  if (var == F("RULE_STATEMENTS_MAX"))
     return String(RULE_STATEMENTS_MAX);
   if (var == "CHANNEL_COUNT")
     return String(CHANNEL_COUNT);
@@ -2335,7 +2331,6 @@ String setup_form_processor(const String &var)
     if (channel_idx >= CHANNEL_COUNT)
       return String();
 
-    // snprintf(out,1200,"<div id='chdiv_%d' class='hb'><h3 class='hh3'><span>%d - %s</span></h3>",channel_idx,channel_idx+1, s.ch[channel_idx].id_str); // close on "cht_"
     snprintf(out, 1200, "<div id='chdiv_%d' class='hb'>", channel_idx); // close on "cht_"
     get_channel_status_header(out, channel_idx, false);
     get_channel_config_fields(out, channel_idx);
@@ -2368,14 +2363,17 @@ String setup_form_processor(const String &var)
     int channel_idx = var.substring(4, 5).toInt();
     // if (channel_idx >= 1)
     if (channel_idx >= CHANNEL_COUNT)
-
       return String();
 
     // Serial.printf("var: %s\n", var.c_str());
-    snprintf(out, 1800, "<div id='rd_%d'>", channel_idx);
+    snprintf(out, 1800, "<div id='rd_%d'>", channel_idx); //div envelope for all channel rules
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
-      strcpy(buff, "");
+
+      //strcpy(buff, "");
+      sprintf(buff, "<div id='ru_%d_%d'>",channel_idx,condition_idx); //open ru_X
+      strncat(out, buff, 2000 - strlen(out) - 1);
+      
       strcpy(buffstmt2, "");
 
       get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
@@ -2385,8 +2383,6 @@ String setup_form_processor(const String &var)
       char floatbuff[20];
       for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
       {
-        // statement_st stmt_this = s.ch[channel_idx].conditions[condition_idx].statements;
-        //   TODO: CONSTANT CONVERSION
         int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
         int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
         long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
@@ -2406,6 +2402,7 @@ String setup_form_processor(const String &var)
       snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
 
       strcat(out, buff);
+      strcat(out, "</div>"); //close ru_X
     }
     // snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name'rts_%d'></select><input type='checkbox' id='rtl_%d' value='1' %s></div>\n", channel_idx, channel_idx, channel_idx, channel_idx,"checked" );
 

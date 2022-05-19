@@ -224,3 +224,6 @@ h2 {
 td {padding: 5px;}
 tr:nth-child(even) {background: #373a3b}
 tr:nth-child(odd) {background: #181817}
+input[type="text"]:disabled {
+    color: #dddddd;
+  }
