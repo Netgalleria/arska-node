@@ -666,11 +666,7 @@ const char *channel_type_strings[] PROGMEM = {
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
-
 #define RULE_STATEMENTS_MAX 5
-
-#define ACTIVE_STATES_MAX 20
-
 #define MAX_CHANNELS_SWITCHED_AT_TIME 1
 
 #define MAX_CH_ID_STR_LENGTH 10
@@ -698,7 +694,7 @@ unsigned long power_produced_period_avg = 0;
 // Target/condition row stucture, elements of target array in channel, stored in non-volatile memory
 typedef struct
 {
-  uint16_t upstates[CHANNEL_STATES_MAX];
+  uint16_t upstates[CHANNEL_STATES_MAX];  //remove
   statement_st statements[RULE_STATEMENTS_MAX];
   float target_val;
   bool switch_on;
@@ -1447,8 +1443,8 @@ long get_price_for_time(time_t ts)
   int price_idx = (int)(ts - prices_first_period) / (NETTING_PERIOD_MIN * 60);
   if (price_idx < 0 || price_idx >= MAX_PRICE_PERIODS)
   {
-    Serial.printf("price_idx: %i , prices_first_period: ", price_idx);
-    Serial.println(prices_first_period);
+    // Serial.printf("price_idx: %i , prices_first_period: ", price_idx);
+    //  Serial.println(prices_first_period);
     return VARIABLE_LONG_UNKNOWN;
   }
 
@@ -1597,7 +1593,7 @@ bool getBCDCForecast()
     if (j < PV_FORECAST_HOURS)
       pv_fcst[j] = pvenergy_item["value"];
 
-    Serial.print("value:");
+    Serial.print(" value:");
     Serial.println((float)pvenergy_item["value"]);
     pv_fcst_hour = (float)pvenergy_item["value"];
 
@@ -1981,26 +1977,10 @@ bool update_external_variables()
 }
 
 // https://github.com/me-no-dev/ESPAsyncWebServer#send-large-webpage-from-progmem-containing-templates
-/*
+
 // returns a string from state integer array
 
-String state_array_string(uint16_t state_array[CHANNEL_STATES_MAX])
-{
-  String states = String();
-  for (int i = 0; i < CHANNEL_STATES_MAX; i++)
-  {
-    if (state_array[i] > 0)
-    {
-      states += String(state_array[i]);
-      if (i + 1 < CHANNEL_STATES_MAX && (state_array[i + 1] > 0))
-        states += String(",");
-    }
-    else
-      break;
-  }
-  return states;
-}
-*/
+
 // channel config fields for the admin form
 void get_channel_config_fields(char *out, int channel_idx)
 {
@@ -2033,7 +2013,7 @@ void get_channel_config_fields(char *out, int channel_idx)
   //  radio-toolbar
   snprintf(buff, 200, "<div class='secbr'>\n<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template mode</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == 1) ? "checked='checked'" : "", channel_idx, channel_idx);
   strcat(out, buff);
-  snprintf(buff, 200, "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d_0'>Advanced mode</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == 0) ? "checked='checked'" : "", channel_idx, channel_idx);
+  snprintf(buff, 200, "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced mode</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == 0) ? "checked='checked'" : "", channel_idx, channel_idx);
   strcat(out, buff);
   Serial.printf("s.ch[channel_idx].config_mode: %i", (byte)(s.ch[channel_idx].config_mode));
 
@@ -2262,10 +2242,12 @@ String jscode_form_processor(const String &var)
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
   char out[600];
   char buff[50];
-  if (var == "RULE_STATEMENTS_MAX")
+  if (var == F"RULE_STATEMENTS_MAX")
     return String(RULE_STATEMENTS_MAX);
   if (var == "CHANNEL_COUNT")
     return String(CHANNEL_COUNT);
+  if (var == F("CHANNEL_CONDITIONS_MAX"))
+    return String(CHANNEL_CONDITIONS_MAX);
   if (var == F("OPERS"))
   {
     strcpy(out, "[");
@@ -2421,7 +2403,7 @@ String setup_form_processor(const String &var)
         strcat(buffstmt2, buffstmt);
       }
       // no name in stmts_ , copy later in js
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d'><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
 
       strcat(out, buff);
     }
@@ -2782,6 +2764,7 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
 // Process channel force form
 void onWebDashboardPost(AsyncWebServerRequest *request)
 {
+
   time(&now);
   int params = request->params();
   int channel_idx;
@@ -2893,32 +2876,40 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       s.ch[channel_idx].uptime_minimum = request->getParam(ch_fld, true)->value().toInt();
     }
 
-    snprintf(ch_fld, 20, "id_ch_%i", channel_idx);
+    snprintf(ch_fld, 20, "id_ch_%i", channel_idx); // channel id
     if (request->hasParam(ch_fld, true))
       strcpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str());
 
-    snprintf(ch_fld, 20, "chty_%i", channel_idx);
+    snprintf(ch_fld, 20, "chty_%i", channel_idx); // channel type
     if (request->hasParam(ch_fld, true))
       s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
 
-    snprintf(ch_fld, 20, "mo_%i", channel_idx);
+    snprintf(ch_fld, 20, "mo_%i", channel_idx); // channel rule mode
     if (request->hasParam(ch_fld, true))
       s.ch[channel_idx].config_mode = request->getParam(ch_fld, true)->value().toInt();
 
-    snprintf(ch_fld, 20, "rts_%i", channel_idx);
+    snprintf(ch_fld, 20, "rts_%i", channel_idx); // channe rule template
     Serial.println(ch_fld);
     if (request->hasParam(ch_fld, true))
     {
-      Serial.println("found");
-      Serial.println(request->getParam(ch_fld, true)->value().toInt());
+      //  Serial.println("found");
+      //  Serial.println(request->getParam(ch_fld, true)->value().toInt());
       s.ch[channel_idx].template_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       // statements
-
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
+      Serial.println(stmts_fld);
+      Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
+
+      if (request->hasParam(stmts_fld, true))
+      {
+        Serial.println(request->getParam(stmts_fld, true)->value().isEmpty() ? "isEmpty" : "not empty");
+        Serial.println(request->getParam(stmts_fld, true)->value());
+      }
+
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
         // empty all statements if there are somein the form post
@@ -2941,7 +2932,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         }
         else
         {
-
+          Serial.printf("stmts_json.size() %d \n", (int)stmts_json.size());
+          Serial.println(request->getParam(stmts_fld, true)->value());
           if (stmts_json.size() > 0)
           {
             Serial.print(stmts_fld);
@@ -3073,6 +3065,8 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   LittleFS.remove(pg_state_cache_filename);
   request->redirect("/admin");
 }
+
+
 
 // returns status in json
 void onWebStatusGet(AsyncWebServerRequest *request)
@@ -3332,12 +3326,12 @@ void setup()
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
     //    if ((s.ch[channel_idx].type >> 1 << 1) == CH_TYPE_GPIO_ONOFF)
-    if (s.ch[channel_idx].type  == CH_TYPE_GPIO_ONOFF)
+    if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
     { // gpio channel
       pinMode(s.ch[channel_idx].gpio, OUTPUT);
       Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
- 
+
     // Serial.println((s.ch[channel_idx].is_up ? "HIGH" : "LOW"));
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
@@ -3412,7 +3406,9 @@ void setup()
   // server_web.on("/state_series", HTTP_GET, onWebStateSeriesGet);
 
   server_web.on("/", HTTP_GET, onWebDashboardGet);
+
   server_web.on("/", HTTP_POST, onWebDashboardPost);
+
   /*
     server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request) {
       if (!request->authenticate(s.http_username, s.http_password))

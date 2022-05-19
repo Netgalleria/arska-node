@@ -3,11 +3,10 @@ const sections = [{ "url": "/", "en": "Dashboard" }, { "url": "/inputs", "en": "
 
 const opers = JSON.parse('%OPERS%');
 const variables = JSON.parse('%VARIABLES%');
-const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent automatic format to mess it up
+const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
+const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
-
-
 
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
@@ -20,14 +19,14 @@ function statusCBClicked(elCb) {
     if (elCb.checked) {
         setTimeout(updateStatus, 1000);
     }
-    document.getElementById("variables").style.display =  document.getElementById("statusauto").checked ? "block" : "none";
+    document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 }
 
 function updateStatus() {
-    document.getElementById("variables").style.display =  document.getElementById("statusauto").checked ? "block" : "none";
+    document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 
     $.getJSON('/status', function (data) {
-      $("#tblVariables_tb").empty();
+        $("#tblVariables_tb").empty();
         $.each(data.variables, function (i, variable) {
             var_this = getVariable(i);
             if (variable[2] == 50 || variable[2] == 51) {
@@ -38,11 +37,11 @@ function updateStatus() {
             }
             $(newRow).appendTo($("#tblVariables_tb"));
         });
-       $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
+        $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
 
         $.each(data.channels, function (i, channel_status) {
-           show_channel_status(i, channel_status) 
-        });      
+            show_channel_status(i, channel_status)
+        });
     });
     if (document.getElementById('statusauto').checked) {
         setTimeout(updateStatus, 60000);
@@ -53,11 +52,12 @@ function show_channel_status(channel_idx, is_up) {
     status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
     href = is_up ? "#green" : "#red";
     console.log(status_el.id + ", " + href);
-    status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href',href);
-   // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
+    status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+    // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
 }
 
-var submitChannelForm = function () {
+var submitChannelForm = function (e) {
+    // e.preventDefault();
 
     if (!confirm("Save channel settings?"))
         return false;
@@ -77,24 +77,28 @@ var submitChannelForm = function () {
     for (let i = 0; i < stmts_s.length; i++) {
         stmts_s[i].value = '[]';
         if (i == 0)
-            stmts_s[i].name = stmts_s[i].id; //send at least one fiels even if empty
+            stmts_s[i].name = stmts_s[i].id; //send at least one field even if empty
     }
+
     // then save new values to be saved on the server
     let stmtDivs = document.querySelectorAll("div[id^='std_']");
     if (stmtDivs && stmtDivs.length > 0) {
         for (let i = 0; i < stmtDivs.length; i++) {
+            console.log("stmp element ", i);
             const divEl = stmtDivs[i];
             const fldA = divEl.id.split("_");
             const var_val = parseInt(document.getElementById(divEl.id.replace("std", "var")).value);
             const op_val = parseInt(document.getElementById(divEl.id.replace("std", "op")).value);
+
             if (var_val < 0 || op_val < 0)
                 continue;
 
             //todo decimal, test  that number valid
             const const_val = parseFloat(document.getElementById(divEl.id.replace("std", "const")).value);
-            //  stmt_arr[divEl.id.replace("std_", "")] = [var_val, op_val, const_val];
+
             saveStoreId = "stmts_" + fldA[1] + "_" + fldA[2];
-            console.log(saveStoreId + "+ " + JSON.stringify([var_val, op_val, const_val]));
+
+            // console.log(saveStoreId + " " + JSON.stringify([var_val, op_val, const_val]));
             saveStoreEl = document.getElementById(saveStoreId);
             let stmt_list = [];
             if (saveStoreEl.value) {
@@ -102,13 +106,16 @@ var submitChannelForm = function () {
             }
             stmt_list.push([var_val, op_val, const_val]);
             saveStoreEl.value = JSON.stringify(stmt_list);
+
             saveStoreEl.name = saveStoreEl.id; // only fields with a name are posted 
+            console.log(saveStoreEl.id, saveStoreEl.name, saveStoreEl.value);
         }
     }
-
+    // console.log("form valid: ",$("#chFrm").valid());
 
     formSubmitting = true;
 
+    return true;
 };
 var isDirty = function () { return true; }
 
@@ -132,22 +139,32 @@ function addOption(el, value, text, selected = false) {
 
 
 function populateStmtField(varFld, stmt = [-1, -1, 0]) {
-    console.log("populateStmtField" + JSON.stringify(stmt));
     if (varFld.options && varFld.options.length > 0) {
         return; //already populated
     }
+    fldA = varFld.id.split("_");
+    ch_idx = parseInt(fldA[1]);
+    cond_idx = parseInt(fldA[2]);
+
     document.getElementById(varFld.id.replace("var", "const")).style.display = "none";
     document.getElementById(varFld.id.replace("var", "op")).style.display = "none";
 
-    addOption(varFld, -2, "remove");
+    advanced_mode = document.getElementById("mo_" + ch_idx + "_0").checked;
 
-    addOption(varFld, -1, "select", (stmt[0] == -1));
-    for (var i = 0; i < variables.length; i++) {
-        //  console.log(variables[i][0] + ", " + variables[i][1] + ", " + (stmt[0] == variables[i][0])+ ", stmt[0]:" +stmt[0] );
-        addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
+    if (advanced_mode) {
+        addOption(varFld, -2, "remove");
+        addOption(varFld, -1, "select", (stmt[0] == -1));
     }
-
+    for (var i = 0; i < variables.length; i++) {
+        if ((advanced_mode) || stmt[0] == variables[i][0])
+            addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
+    }
 }
+
+
+
+
+//unused?
 function populateVariableSelects(field) {
     const selectEl = document.querySelectorAll("select[id^='var_']");
     for (let i = 0; i < selectEl.length; i++) {
@@ -206,7 +223,7 @@ function addStmt(elBtn, ch_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-1, -1
     const sel_op = createElem("select", "op" + suffix, null, "fldstmt", null);
     sel_op.on_change = 'setOper(this)';
     const inp_const = createElem("input", "const" + suffix, 0, "fldtiny fldstmt inpnum", "text");
-    const div_std = createElem("div", "std" + suffix, null, "divstament", "text");
+    const div_std = createElem("div", "std" + suffix, -2147483648, "divstament", "text");
     div_std.appendChild(sel_var);
     div_std.appendChild(sel_op);
     div_std.appendChild(inp_const);
@@ -226,33 +243,35 @@ function populateTemplateSel(selEl, template_id = -1) {
         $.each(data, function (i, row) {
             addOption(selEl, row["id"], row["name"], (template_id == row["id"]));
         });
-    });  
+    });
 }
 
 function saveVal(el) {
     $.data(el, 'current', $(el).val());
-   // alert($.data(el, 'current'));
+    // alert($.data(el, 'current'));
     // $(selEl.id).data('lastValue',$(this).val());   
 }
 
 function templateChanged(selEl) {
     const fldA = selEl.id.split("_");
     channel_idx = fldA[1];
-    console.log(selEl.value);
+    console.log(selEl.value, channel_idx);
     template_idx = selEl.value;
     url = '/data/templates?id=' + template_idx;
-    console.log(url);
+    console.log(url, selEl.id);
     $.getJSON(url, function (data) {
-
+        if (template_idx == -1 && confirm('Remove template definitions')) {
+            deleteStmtsUI(channel_idx);
+            return true;
+        }
         if (!confirm('Use template ' + data.name + ' - ' + data.desc)) {
             $(selEl).val($.data(selEl, 'current'));
             return false;
         }
-       
-
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx, rule) {
+            console.log("ctcb_" + channel_idx + "_" + cond_idx);
             document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
 
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
@@ -267,19 +286,29 @@ function templateChanged(selEl) {
                 var_this = get_var_by_id(stmt.values[0]);
                 populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
             });
+
+            /*
             if (rule.statements.length == 0) { // empty statement to start with
-                addStmt(elBtn);
+                addStmt(elBtn, channel_idx, cond_idx, 0);
+                console.log("add empty stmt");
             }
+            else
+                console.log("rule.statements.length:",rule.statements.length);*/
         });
+
     });
 
-  
     return true;
 }
 function deleteStmtsUI(ch_idx) {
 
     selector_str = "div[id^='std_" + ch_idx + "']";
     document.querySelectorAll(selector_str).forEach(e => e.remove());
+
+    // reset up/down checkboxes
+    for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
+        document.getElementById("ctcb_" + ch_idx + "_" + cond_idx).checked = false;
+    }
 }
 function setRuleMode(ch_idx, rule_mode, reset, template_id) {
     /*
@@ -289,24 +318,37 @@ function setRuleMode(ch_idx, rule_mode, reset, template_id) {
         templateSelEl = document.getElementById("rts_" + ch_idx);
         populateTemplateSel(templateSelEl, template_id);
     }
-    $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
-    $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
+    // $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
+    // $('#rd_' + ch_idx + ' input').attr('disabled', (rule_mode != 0));
+    $('#rd_' + ch_idx + ' select').prop('readonly', (rule_mode != 0));
+    $('#rd_' + ch_idx + ' input').prop('readonly', (rule_mode != 0));
+    $('#rd_' + ch_idx).prop('readonly', (rule_mode != 0));
+
+    // $('#rd_' + ch_idx + ' input').
     document.getElementById("rt_" + ch_idx).style.display = (rule_mode != 1) ? "none" : "block";
 }
 
 function populateOper(el, var_this, stmt = [-1, -1, 0]) {
-    console.log("populateOper:" + el.id);
-    console.log(JSON.stringify(var_this));
-    console.log(JSON.stringify(stmt));
-    //set constant, TODO: handle exp
-    document.getElementById(el.id.replace("op", "const")).value = stmt[2];
+    fldA = el.id.split("_");
+    ch_idx = parseInt(fldA[1]);
+    cond_idx = parseInt(fldA[2]);
 
-    if (el.options.length == 0)
-        addOption(el, -1, "select", (stmt[1] == -1));
-    if (el.options)
-        while (el.options.length > 1) {
+    advanced_mode = document.getElementById("mo_" + ch_idx + "_0").checked;
+
+    document.getElementById(el.id.replace("op", "const")).value = stmt[2];
+    if (advanced_mode) {
+        if (el.options.length == 0)
+            addOption(el, -1, "select", (stmt[1] == -1));
+        if (el.options)
+            while (el.options.length > 1) {
+                el.remove(1);
+            }
+    }
+    else {
+        while (el.options.length > 0) {
             el.remove(1);
         }
+    }
     if (var_this) {
         for (let i = 0; i < opers.length; i++) {
             if (var_this[2] >= 50 && !opers[i][5]) //2-type
@@ -317,20 +359,17 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
             //  console.log(const_id);
             el.style.display = "block";
             document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
-            addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
+            if (advanced_mode || (opers[i][0] == stmt[1]))
+                addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
         }
     }
-   
-    fldA = el.id.split("_");
-    ch_idx = parseInt(fldA[1]);
-    rule_mode = channels[ch_idx]["cm"];
-    el.disabled = (rule_mode != 0); //operator
-    document.getElementById(el.id.replace("op_", "var_")).disabled = (rule_mode != 0); //variable
-    document.getElementById(el.id.replace("op_", "const_")).disabled = (rule_mode != 0); //constant
-    
-  //  $('#rd_' + ch_idx + ' select').attr('disabled', (rule_mode != 0));
 
+
+    el.readonly = (!advanced_mode);
+    document.getElementById(el.id.replace("op_", "var_")).readonly = (!advanced_mode);
+    document.getElementById(el.id.replace("op_", "const_")).readonly = (!advanced_mode);
 }
+
 function get_var_by_id(id) {
     for (var i = 0; i < variables.length; i++) {
         if (variables[i][0] == id) {
@@ -410,7 +449,6 @@ function initChannelForm() {
         template_id = channels[ch_idx]["tid"];
         console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
 
-      //  setRuleMode(ch_idx, rule_mode, false, template_id);
         if (rule_mode == 1) {
             templateSelEl = document.getElementById("rts_" + ch_idx);
             templateSelEl.value = template_id;
@@ -439,6 +477,20 @@ function initChannelForm() {
             }
         }
     }
+    /*
+    // add at least one statement for each rule
+    for (let channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
+        for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {  
+            firstStmtVarId = "var_" + channel_idx + "_" + cond_idx + "_0";
+            console.log("Testing:", firstStmtVarId);
+            if (!document.getElementById(firstStmtVarId)) {
+                elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+                console.log("addstmt_" + channel_idx + "_" + cond_idx);
+                addStmt(elBtn, channel_idx, cond_idx, 0);   
+            }       
+        }
+    }
+*/
 
     if (document.getElementById('statusauto').checked) {
         console.log("setTimeout updateStatus 5000");
@@ -466,9 +518,9 @@ function setChannelFieldsByType(ch, chtype) {
 function initUrlBar(url) {
     var headdiv = document.getElementById("headdiv");
 
-  /*  var h1 = document.createElement('h1');
-    h1.innerHTML = "Arska Node";
-    headdiv.appendChild(h1);*/
+    /*  var h1 = document.createElement('h1');
+      h1.innerHTML = "Arska Node";
+      headdiv.appendChild(h1);*/
     var hdspan = document.createElement('span');
     hdspan.innerHTML = "Arska Node<br>";
     hdspan.classList.add("cht");
