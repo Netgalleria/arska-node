@@ -5,10 +5,10 @@ Arska is a microcontroller (ESP32, limited functionality with ESP8266) based app
 ![Arska Diagram](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska%20Node%20ESP32%20diagram.png)
 
 Arska can control various electric switches connected to e.g. water heater and car chargers. It can also privide potential-free signal for temperature control for example to heat-pumps. Arska controls devices based on following data:
-- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries.
+- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries (.
 - Real time energy export/import of the property (measured by [Shelly 3EM](https://shelly.cloud/products/shelly-3em-smart-home-automation-energy-meter/) ) or solar production (selected Fronius and SMA inverters supported).
-    - Current date and time
-    - Solar forecast from BCDC Energia, available in Finland
+- Current date and time
+- Solar forecast from BCDC Energia, available in Finland
 
 More information in [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) .
 
