@@ -7,14 +7,15 @@
 </head>
 
 <body onload="initForm('/');">
+    <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
+
     <div class="secbr" id="headdiv">
     </div>
     <div class="secbr">
         <h2>Status</h2>
     </div>
         %status_fields%
-        <div class="fld">Active states: %states%</div>
         <form method="post"  onsubmit="setFormSubmitting()">
             <input name="source" type="hidden" value="dashboard">
             %vch_0%
@@ -29,6 +30,30 @@
         </form>
         <div class="secbr" id="footerdiv">
         </div>   
+        <svg>
+            <defs>
+                <linearGradient id="linearGradient49116" x1="-77.92" x2="-9.924" y1="209.7" y2="209.7" gradientTransform="rotate(-33.07 -268.3 -28.99)" gradientUnits="userSpaceOnUse">
+                    <stop stop-color="#fff" offset="0" />
+                </linearGradient>
+            </defs>
+            <symbol id="red" transform="translate(-197.5 -37.72)">
+                <g stroke-linecap="round">
+                    <circle cx="50" cy="49.5" r="49" fill="#ec0600" stroke="#fff" stroke-width="1.819" style="paint-order:normal" />
+                    <path d="m70.51 26.68a30 30 0 0 1 7.155 33.06 30 30 0 0 1-28.18 18.71 30 30 0 0 1-27.69-19.42 30 30 0 0 1 7.992-32.87" fill="none" stroke="url(#linearGradient49116)" stroke-width="8" />
+                    <path d="m52.63 16.35v24.31" fill="#ffffd7" stop-color="#000000" stroke="#fff" stroke-width="8" style="font-variation-settings:normal" />
+                </g>
+                <text transform="scale(.9607 1.041)" x="35.378014" y="60.869041" fill="#ffffff" font-family="sans-serif" font-size="16.17px" stroke="#ffffff" stroke-width=".3032" word-spacing="0px" style="line-height:1.25" xml:space="preserve"><tspan x="35.378014" y="60.869041" fill="#ffffff" font-size="16.17px" stroke="#ffffff" stroke-width=".3032">OFF</tspan></text>
+            </symbol>
+            <symbol id="green" transform="translate(-197.5 -37.72)">
+    
+                <g stroke-linecap="round">
+                    <circle cx="50" cy="49.5" r="49" fill="#3db600" stroke="#fff" stroke-width="1.819" style="paint-order:normal" />
+                    <path d="m70.51 26.68a30 30 0 0 1 7.155 33.06 30 30 0 0 1-28.18 18.71 30 30 0 0 1-27.69-19.42 30 30 0 0 1 7.992-32.87" fill="none" stroke="url(#linearGradient49116)" stroke-width="8" />
+                    <path d="m52.63 16.35v24.31" fill="#ffffd7" stop-color="#000000" stroke="#fff" stroke-width="8" style="font-variation-settings:normal" />
+                </g>
+                <text transform="scale(.9607 1.041)" x="35.378014" y="60.869041" fill="#ffffff" font-family="sans-serif" font-size="16.17px" stroke="#ffffff" stroke-width=".3032" word-spacing="0px" style="line-height:1.25" xml:space="preserve"><tspan x="38.378014" y="60.869041" fill="#ffffff" font-size="16.17px" stroke="#ffffff" stroke-width=".3032">ON</tspan></text>
+            </symbol>
+        </svg>
 </body>
 
 </html>
