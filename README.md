@@ -1,14 +1,14 @@
-# Arska Node
-Arska Node makes your energy purchases greener and saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest and lower carbon intensive hours.
+# Arska
+Arska makes your energy purchases greener and saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest and lower carbon intensive hours.
 
-Arska Node is a microcontroller (ESP8266) based application for managing energy consumption. It can switch on and of loads  based on measured consumption and production information as well as price and renevable energy forecast. Arska Node gets preprocessed market and energy forecast data from Arska Server (optional). 
+Arska is a microcontroller (ESP32, limited functionality with ESP8266) based application for managing energy consumption. It can switch on and of loads  based on measured consumption and production information as well as price and renevable energy forecast. Arska gets preprocessed market and energy forecast data from Arska Server (optional). 
 
-More information in [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) .
+More information in [Arska Wiki](https://github.com/Netgalleria/Arska/wiki) .
 
-[Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions)
+[Discussions, English or Finnish](https://github.com/Netgalleria/Arska/discussions)
 
 # Current status
-The software is under development (beta testing)
+The software is under development (beta testing). For earlier versions see: [Arska Node](https://github.com/Netgalleria/arska-node) 
 
 # Thanks
     - https://github.com/me-no-dev/ESPAsyncWebServer  - Control UI web server
