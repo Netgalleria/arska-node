@@ -12,43 +12,6 @@
     <script src="js/arska.js"></script>
 
     <script type="text/javascript" language="javascript">
-        //      const variables = JSON.parse('%VARIABLES%');
-     /*   function mycallback(data) {
-                    alert("Here: " + data.name);
-                }*/
- /* 
-        $(document).ready(function () {
-
-            $("#driver").click(function (event) {
-
-                //************
-                // http://hayageek.com/cross-domain-ajax-request-jquery/
-               
-              $.ajax({
-                    url: "https://iot.netgalleria.fi/jsonp.php",
-                    dataType: "jsonp",
-                });
-*/
-               
-                //*******************
-/*
-                $.getJSON('/status', function (data) {
-                    //     alert(JSON.stringify(jd));
-                    $('#variables').empty();
-                    $('#variables').html = '<ul>';
-                    $.each(data.variables, function (i, variable) {
-                        var_this = getVariable(i);
-                        console.log('index', i);
-                        if (variable[2] == 50 || variable[2] == 51)
-                            $('#variables').append('<li>' + var_this[1] + ':' + variable ? "ON" : "OFF" + '</li>');
-                        else
-                            $('#variables').append('<li>' + var_this[1] + ':' + variable.replace('"', '').replace('"', '') + '</li>');
-                    });
-                    $('#variables').html = '</ul>';
-                });
-                
-            });
-        }); */
     </script>
 
     <div class="secbr" id="headdiv">
@@ -68,21 +31,14 @@
     </div>
     <div class="secbr">
         <input type="checkbox" id="statusauto"  onclick="statusCBClicked(this)"><label for='statusauto'>Show variables</label> 
-    </div>
-
-    
-
+    </div>  
     %status_fields%
  
-
     <form method="post" id="chFrm" onsubmit="return submitChannelForm(event)">
-
         <input name="source" type="hidden" value="channels">
         %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
         %chi_6% %cht_6% %chi_7% %cht_7%
-
         <br><input type="submit" value="Save">
-
     </form>
 
     <div class="secbr" id="footerdiv">

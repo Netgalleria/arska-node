@@ -1,78 +1,100 @@
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>Arska Node | Admin Dashboard</title>
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
-<body  onload="initForm('/admin');">
+
+<body onload="initForm('/admin');">
     <script>
         const wifi_ssid = '%wifi_ssid%'; 
     </script>
     <script type="text/javascript" src="wifis.json"></script>
+    <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
-       
+
     </div>
     <form method="post" onsubmit="setFormSubmitting()">
-       <input name="source" type="hidden" value="admin">
+        <input name="source" type="hidden" value="admin">
         <div id="wifid">
             <div class="secbr">
                 <h3>WiFi settings</h3>
             </div>
             <div class="fld">
                 <div>Wifi ssid</div>
-                <div><select name='wifi_ssid' id='wifi_ssid'><option value="NA">Select WiFi</option></select>
-                
+                <div><select name='wifi_ssid' id='wifi_ssid'>
+                        <option value="NA">Select WiFi</option>
+                    </select>
+
+                </div>
+                <div class="fld">
+                    <div>Wifi password</div>
+                    <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
+                </div>
             </div>
             <div class="fld">
-                <div>Wifi password</div>
-                <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
+                <h3>Admin access</h3>
             </div>
-        </div>
-        <div class="fld">
-            <h3>Admin access</h3>
-        </div>
-        <div class="fldh">
-            <div>Change password for 'admin'</div>
-            <div><input name="http_password" id="http_password" type="password"></div>
-        </div>
-        <div class="fldh">
-            <div>Rewrite to change</div>
-            <div><input name="http_password2" id="http_password2" type="password"></div>
-        </div>
-        <div class="fld">
-            <br/>
-        </div>
-        <div class="secbr radio-toolbar">
-            Action (use with caution):<br><input type="radio" id="op_none" name="op" value="none" checked>
-            <label for="op_none">none</label>
+            <div class="fldh">
+                <div>Change password for 'admin'</div>
+                <div><input name="http_password" id="http_password" type="password"></div>
+            </div>
+            <div class="fldh">
+                <div>Rewrite to change</div>
+                <div><input name="http_password2" id="http_password2" type="password"></div>
+            </div>
+            <div class="fld">
+                <br />
+            </div>
+            <div class="fld">
+                <h3>Localization</h3>
+            </div>
+            <div class="secbr">
+                <input type="hidden" id="lang_db" value="%lang%">Preferred language (mostly still only English texts
+                available):
+                <br><select id="lang" name="lang">
+                    <option value="en">English</option>
+                    <option value="fi">Finnish</option>
+                </select>
+            </div>
+            <div class="fld">
+                <br />
+            </div>
 
-            <input type="radio" id="op_ts" name="op" value="ts">
-            <label for="op_ts">Sync with workstation time</label>
-            
-            <input type="radio" id="op_scan_wifis" name="op" value="scan_wifis">
-            <label for="op_scan_wifis">Rescan WiFis</label>
+            <div class="secbr radio-toolbar">
+                Action (use with caution):<br><input type="radio" id="op_none" name="op" value="none" checked>
+                <label for="op_none">none</label>
 
-            <input type="radio" id="op_ota" name="op" value="ota">
-            <label for="op_ota">Firmware update mode</label>
+                <input type="radio" id="op_ts" name="op" value="ts">
+                <label for="op_ts">Sync with workstation time</label>
 
-            <input type="radio" id="op_reboot" name="op" value="reboot">
-            <label for="op_reboot">Restart</label>
+                <input type="radio" id="op_scan_wifis" name="op" value="scan_wifis">
+                <label for="op_scan_wifis">Rescan WiFis</label>
 
-            <input type="radio" id="op_reset" name="op" value="reset">
-            <label for="op_reset">Reset to factory defaults</label>
-        </div>
+                <input type="radio" id="op_ota" name="op" value="ota">
+                <label for="op_ota">Firmware update mode</label>
 
-        <input type="hidden" id="ts" name="ts">
-        <br><input type="submit" value="Save" onclick="checkAdminForm()">
+                <input type="radio" id="op_reboot" name="op" value="reboot">
+                <label for="op_reboot">Restart</label>
 
-       
+                <input type="radio" id="op_reset" name="op" value="reset">
+                <label for="op_reset">Reset to factory defaults</label>
+            </div>
+   
+
+            <input type="hidden" id="ts" name="ts">
+            <br><input type="submit" value="Save" onclick="checkAdminForm()">
+
+
     </form>
-    
+
     <div class="secbr" id="footerdiv">
-        </div>
+    </div>
     <div class="secbr">
         <div><i>Program version: %prog_data%</i></div>
     </div>
 </body>
+
 </html>

@@ -1,8 +1,10 @@
 {
     "1": {
         "id": 1,
-        "name": "Käytä vain yön halvimpina tunteina",
-        "desc": "Päällä ainoastaan yösähkön aikana halvimpina tunteina, voit määrittää päällä olevien tuntien määrän.",
+        "name": "Only on during cheapest night hours",
+        "name_fi": "Käytä vain yön halvimpina tunteina",
+        "desc": "On only during cheapest night hours. You can define number of hours",
+        "desc_fi": "Päällä ainoastaan yösähkön aikana halvimpina tunteina, voit määrittää päällä olevien tuntien määrän.",
         "uptime_minimum": 300,
         "conditions": [
             {
@@ -27,10 +29,16 @@
             }
         ]
     },
+
+
+
+
     "2": {
         "id": 2,
-        "name": "Hyödynnä halpa aurinkosähkö",
-        "desc": "Päällä ainoastaan kun oman tuotannon ylijäämää, mutta kalliin sähkön aikana myydään oma tuotano.",
+        "name": "On when cheap own solar production",
+        "name_fi": "Hyödynnä halpa aurinkosähkö",
+        "desc": "On only when there is excess own production and price is not high.",
+        "desc_fi": "Päällä ainoastaan kun oman tuotannon ylijäämää, mutta kalliin sähkön aikana myydään oma tuotanto.",
         "uptime_minimum": 300,
         "conditions": [
             {"on": false,

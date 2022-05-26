@@ -1,10 +1,12 @@
 [
     {
         "id": 1,
-        "name": "Käytä vain yön halvimpina tunteina"
+        "name": "Only on during cheapest night hours",
+        "name_fi": "Käytä vain yön halvimpina tunteina"
     },
     {
         "id": 2,
-        "name": "Hyödynnä halpa aurinkosähkö"
+        "name": "On when cheap own solar production",
+        "name_fi": "Hyödynnä halpa aurinkosähkö"
     }
 ]

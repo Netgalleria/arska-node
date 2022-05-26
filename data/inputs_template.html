@@ -1,38 +1,259 @@
 <html>
+
 <head>
     <meta charset="UTF-8">
     <title>Arska Node | Input Server Settings</title>
     <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
-<body onload="initForm('/inputs');setEnergyMeterFields(%emt%);">
+<body onload="initForm('/inputs')">
+    <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
     </div>
-    <form method="post" onsubmit="setFormSubmitting()">
-        <input name="source" type="hidden" value="inputs">
-         %energy_meter_fields%
+    <form method="post" id="inpFrm" onsubmit="return submitInputsForm(event)""> 
+        <input name=" source" type="hidden" value="inputs">
+
+
+        <div class='secbr'>
+            <h3>Energy meter</h3>
+        </div>
+        <div class="indent">
+            <div class='fld'><select name='emt' id='emt'
+                    onchange='setEnergyMeterFields(this.value)'>%emt_options%</select>
+            </div>
+            <div id='emhd' class='fld'>
+                <div class='fldlong'>host:<input name='emh' id='emh' type='text' value='%emh%'></div>
+                <div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text' value='%emp%'></div>
+                <div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text' value='%emid%'></div>
+            </div>
+        </div>
+
+
         <div class="fldshort" id="baseld">base load (W):<input name="baseload" class="inpnum" type="text"
                 value="%baseload%"></div>
 
         <div class="secbr">
-            <h3>Arska Server</h3>
+            <h3>Arska variable mode</h3>
         </div>
-            <div class="fldh">host:<input name="pg_host" type="text" value="%pg_host%" maxlen='29'></div>
-            <div class="fld">API key:<input name="pg_api_key" type="text" value="%pg_api_key%" maxlen='36'></div>
+        <input type="hidden" id="VARIABLE_SOURCE_ENABLED" value="%VARIABLE_SOURCE_ENABLED%">
+        <input type="hidden" id="variable_mode_db" value="%variable_mode%">
+        <div class="secbr"><input type="radio" id="variable_mode_0" name="variable_mode" value="0"
+                onchange="setVariableMode(this.value)"><label for='vm0'>Source - calculate variables based on
+                market
+                and forecast info</label></div>
+        <div class="indent">
+            <div class="secbr">EntsoE API key:<br><input class="fldlong" id="entsoe_api_key" name="entsoe_api_key"
+                    type="text" value="%entsoe_api_key%" maxlen='36'></div>
+
 
             <div class="secbr">
-                <h3>Location</h3>
-                <div class="fldtiny">lat:<input name="lat" type="text" value="%lat%"></div>
-                <div class="fldtiny">lon:<input name="lon" type="text" value="%lon%"></div>
-                <div class="fldshort">forecast location:<input name="forecast_loc" maxlen='29' type="text"
-                        value="%forecast_loc%"></div>
+                <input type="hidden" id="entsoe_area_code_db" value="%entsoe_area_code%">Price area:
+                <br><select id="entsoe_area_code" name="entsoe_area_code">
+                    <option value="#">not in use</option>
+                    <option value='10YAT-APG------L'>Austria, APG 🇦🇹</option>
+                    <option value='10YBE----------2'>Belgium, Elia 🇧🇪</option>
+                    <option value='10YCA-BULGARIA-R'>Bulgaria, ESO 🇧🇬</option>
+                    <option value='10YHR-HEP------M'>Croatia, HOPS 🇭🇷</option>
+                    <option value='10YCZ-CEPS-----N'>Czech Republic, CEPS 🇨🇿</option>
+                    <option value='10Y1001A1001A82H'>DE-LU 🇩🇪</option>
+                    <option value='10YDK-1--------W'>DK1 🇩🇰</option>
+                    <option value='10YDK-2--------M'>DK2 🇩🇰</option>
+                    <option value='10Y1001A1001A39I'>Estonia, Elering 🇪🇪</option>
+                    <option value='10YFI-1--------U'>Finland, Fingrid 🇫🇮</option>
+                    <option value='10YFR-RTE------C'>France, RTE 🇫🇷</option>
+                    <option value='10YGR-HTSO-----Y'>Greece, IPTO 🇬🇷</option>
+                    <option value='10YHU-MAVIR----U'>Hungary, MAVIR 🇭🇺</option>
+                    <option value='10Y1001A1001A59C'>Ireland (SEM) 🇮🇪</option>
+                    <option value='10Y1001A1001A885'>Italy_Saco_AC 🇮🇹</option>
+                    <option value='10Y1001A1001A893'>Italy_Saco_DC 🇮🇹</option>
+                    <option value='10Y1001C--00096J'>IT-Calabria 🇮🇹</option>
+                    <option value='10Y1001A1001A70O'>IT-Centre-North 🇮🇹</option>
+                    <option value='10Y1001A1001A71M'>IT-Centre-South 🇮🇹</option>
+                    <option value='10Y1001A1001A73I'>IT-North 🇮🇹</option>
+                    <option value='10Y1001A1001A74G'>IT-Sardinia 🇮🇹</option>
+                    <option value='10Y1001A1001A75E'>IT-Sicily 🇮🇹</option>
+                    <option value='10Y1001A1001A788'>IT-South 🇮🇹</option>
+                    <option value='10YLV-1001A00074'>Latvia, AST 🇱🇻</option>
+                    <option value='10YLT-1001A0008Q'>Lithuania, Litgrid 🇱🇹</option>
+                    <option value='10YNL----------L'>Netherlands, TenneT NL 🇳🇱</option>
+                    <option value='10YNO-1--------2'>NO1 🇳🇴</option>
+                    <option value='10YNO-2--------T'>NO2 🇳🇴</option>
+                    <option value='10YNO-3--------J'>NO3 🇳🇴</option>
+                    <option value='10YNO-4--------9'>NO4 🇳🇴</option>
+                    <option value='10Y1001A1001A48H'>NO5 🇳🇴</option>
+                    <option value='50Y0JVU59B4JWQCU'>NO2NSL 🇳🇴</option>
+                    <option value='10YPL-AREA-----S'>Poland, PSE SA 🇵🇱</option>
+                    <option value='10YPT-REN------W'>Portugal, REN 🇵🇹</option>
+                    <option value='10YRO-TEL------P'>Romania, Transelectrica 🇷🇴</option>
+                    <option value='10Y1001A1001A44P'>SE1 🇸🇪</option>
+                    <option value='10Y1001A1001A45N'>SE2 🇸🇪</option>
+                    <option value='10Y1001A1001A46L'>SE3 🇸🇪</option>
+                    <option value='10Y1001A1001A47J'>SE4 🇸🇪</option>
+                    <option value='10YCS-SERBIATSOV'>Serbia, EMS 🇷🇸</option>
+                    <option value='10YSK-SEPS-----K'>Slovakia, SEPS 🇸🇰</option>
+                    <option value='10YSI-ELES-----O'>Slovenia, ELES 🇸🇮</option>
+                    <option value='10YES-REE------0'>Spain, REE 🇪🇸</option>
+                    <option value='10YCH-SWISSGRIDZ'>Switzerland, Swissgrid 🇨🇭</option>
+                </select>
             </div>
-            <br><input type="submit" value="Save">
-               </form>
 
-               <div class="secbr" id="footerdiv">
+            <div class="secbr">
+                <input type="hidden" id="forecast_loc_db" value="%forecast_loc%">Forecast
+                location (only Finland supported):<br><select id="forecast_loc" name="forecast_loc">
+                    <option value="#">not in use</option>
+                    <option>Akaa</option>
+                    <option>Alajärvi</option>
+                    <option>Alavus</option>
+                    <option>Espoo</option>
+                    <option>Forssa</option>
+                    <option>Haapajärvi</option>
+                    <option>Haapavesi</option>
+                    <option>Hamina</option>
+                    <option>Hanko</option>
+                    <option>Harjavalta</option>
+                    <option>Heinola</option>
+                    <option>Helsinki</option>
+                    <option>Hetta</option>
+                    <option>Huittinen</option>
+                    <option>Hyvinkää</option>
+                    <option>Hämeenlinna</option>
+                    <option>Iisalmi</option>
+                    <option>Ikaalinen</option>
+                    <option>Imatra</option>
+                    <option>Inari</option>
+                    <option>Jakobstad</option>
+                    <option>Joensuu</option>
+                    <option>Juankoski</option>
+                    <option>Jyväskylä</option>
+                    <option>Jämsä</option>
+                    <option>Järvenpää</option>
+                    <option>Kaarina</option>
+                    <option>Kajaani</option>
+                    <option>Kalajoki</option>
+                    <option>Kankaanpää</option>
+                    <option>Kannus</option>
+                    <option>Karkkila</option>
+                    <option>Kaskinen</option>
+                    <option>Kauhajoki</option>
+                    <option>Kauhava</option>
+                    <option>Kauniainen</option>
+                    <option>Kemi</option>
+                    <option>Kemijärvi</option>
+                    <option>Kerava</option>
+                    <option>Keuruu</option>
+                    <option>Kilpisjärvi</option>
+                    <option>Kitee</option>
+                    <option>Kittilä</option>
+                    <option>Kiuruvesi</option>
+                    <option>Kokemäki</option>
+                    <option>Kokkola</option>
+                    <option>Kotka</option>
+                    <option>Kouvola</option>
+                    <option>Kristinestad</option>
+                    <option>Kuhmo</option>
+                    <option>Kuopio</option>
+                    <option>Kurikka</option>
+                    <option>Kuusamo</option>
+                    <option>Lahti</option>
+                    <option>Laitila</option>
+                    <option>Lappeenranta</option>
+                    <option>Lapua</option>
+                    <option>Lieksa</option>
+                    <option>Lohja</option>
+                    <option>Loimaa</option>
+                    <option>Loviisa</option>
+                    <option>Mariehamn</option>
+                    <option>Mikkeli</option>
+                    <option>Muonio</option>
+                    <option>Mänttä-Vilppula</option>
+                    <option>Naantali</option>
+                    <option>Nilsiä</option>
+                    <option>Nivala</option>
+                    <option>Nokia</option>
+                    <option>Nurmes</option>
+                    <option>Nykarleby</option>
+                    <option>Närpes</option>
+                    <option>Orimattila</option>
+                    <option>Orivesi</option>
+                    <option>Oulainen</option>
+                    <option>Oulu</option>
+                    <option>Outokumpu</option>
+                    <option>Paimio</option>
+                    <option>Pargas</option>
+                    <option>Parkano</option>
+                    <option>Pello</option>
+                    <option>Pieksämäki</option>
+                    <option>Pori</option>
+                    <option>Porvoo</option>
+                    <option>Pudasjärvi</option>
+                    <option>Pyhäjärvi</option>
+                    <option>Raahe</option>
+                    <option>Raisio</option>
+                    <option>Raseborg</option>
+                    <option>Rauma</option>
+                    <option>Riihimäki</option>
+                    <option>Rovaniemi</option>
+                    <option>Saarijärvi</option>
+                    <option>Saariselkä</option>
+                    <option>Salla</option>
+                    <option>Salo</option>
+                    <option>Sastamala</option>
+                    <option>Savonlinna</option>
+                    <option>Seinäjoki</option>
+                    <option>Sodankylä</option>
+                    <option>Somero</option>
+                    <option>Suonenjoki</option>
+                    <option>Tampere</option>
+                    <option>Tornio</option>
+                    <option>Turku</option>
+                    <option>Ulvila</option>
+                    <option>Utsjoki</option>
+                    <option>Uusikaupunki</option>
+                    <option>Vaasa</option>
+                    <option>Valkeakoski</option>
+                    <option>Vantaa</option>
+                    <option>Varkaus</option>
+                    <option>Viitasaari</option>
+                    <option>Vilppula</option>
+                    <option>Virrat</option>
+                    <option>Ylivieska</option>
+                    <option>Ylöjärvi</option>
+                    <option>Ähtäri</option>
+                    <option>Äänekoski</option>
+                </select>
             </div>
-                    </body>
+        </div>
+        <div class="secbr">
+            <input type="radio" id="variable_mode_1" name="variable_mode" value="1"
+                onchange="setVariableMode(this.value)"><label for='vm1'>Replica - get variables from another Arska
+                device</label>
+        </div>
+        <div class="indent">
+            <div class="secbr">Variable source:<br><input class="fldlong" id="variable_server" name="variable_server"
+                    type="text" value="%variable_server%" maxlen='29'></div>
+        </div>
+        <div class="influx_div">
+            <div class="secbr">
+                <h3>InfluxDb Server</h3>
+            </div>
+            <div class="indent">
+                <input type="hidden" id="INFLUX_REPORT_ENABLED" value="%INFLUX_REPORT_ENABLED%">
+                <div class="secbr">Server URL:<br><input id="influx_url" name="influx_url" type="text"
+                        value="%influx_url%" maxlen='69'></div>
+                <div class="secbr">Token:<br><input id="influx_token" name="influx_token" type="text"
+                        value="%influx_token%" maxlen='99'></div>
+                <div class="secbr">Org:<br><input id="influx_org" name="influx_org" type="text" value="%influx_org%"
+                        maxlen='30'></div>
+                <div class="secbr">Bucket:<br><input id="influx_bucket" name="influx_bucket" type="text"
+                        value="%influx_bucket%" maxlen='19'></div>
+            </div>
+        </div>
+        <br><input type="submit" value="Save">
+    </form>
+
+    <div class="secbr" id="footerdiv">
+    </div>
+</body>
 
 </html>
