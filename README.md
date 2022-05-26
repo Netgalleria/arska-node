@@ -9,6 +9,8 @@ More information in [Arska Wiki](https://github.com/Netgalleria/Arska/wiki) .
 
 # Current status
 The software is under development (beta testing). For earlier versions see: [Arska Node](https://github.com/Netgalleria/arska-node) 
+# License 
+The software is licenced under GPL v.3 license. For other licencing options contact olli@netgalleria.fi .
 
 # Thanks
     - https://github.com/me-no-dev/ESPAsyncWebServer  - Control UI web server
