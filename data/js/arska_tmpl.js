@@ -647,11 +647,20 @@ function initForm(url) {
     initUrlBar(url);
     if (url == '/admin') {
         initWifiForm();
+
+        //set timezone select element
+        var timezone = document.getElementById("timezone_db").value;
+        $('#timezone option').filter(function () {
+            return this.value.indexOf(timezone) > -1;
+        }).prop('selected', true);
+
         // set language select element
         var lang = document.getElementById("lang_db").value;
         $('#lang option').filter(function () {
             return this.value.indexOf(lang) > -1;
         }).prop('selected', true);
+
+
     }
     else if (url == '/channels') {
         initChannelForm();
@@ -695,7 +704,8 @@ function initForm(url) {
 
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
-        footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
+       // footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
+          footerdiv.innerHTML = "<a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> ";
     }
 }
 

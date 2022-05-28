@@ -15,7 +15,7 @@ Resource files (see data subfolder):
 #include <math.h> //round
 
 #include <EEPROM.h>
-#define EEPROM_CHECK_VALUE 12345
+#define EEPROM_CHECK_VALUE 12349
 
 #include <LittleFS.h>
 
@@ -79,9 +79,6 @@ tm tm_struct;
 bool processing_variables = false; // trying to be "thread-safe", do not give state query http replies while processing
 
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-// char ntp_server[35];
-// char timezone_info[35]; // read from config.json "CET-1CEST,M3.5.0/02,M10.5.0/03", "EET-2EEST,M3.5.0/3,M10.5.0/4"
-// char price_area[8];
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
 bool backup_ap_mode_enabled = false;
@@ -822,8 +819,7 @@ typedef struct
   char entsoe_api_key[37];
   char entsoe_area_code[17];
   char ntp_server[35];
-  char timezone_info[35]; // read from config.json "CET-1CEST,M3.5.0/02,M10.5.0/03", "EET-2EEST,M3.5.0/3,M10.5.0/4"
-  char price_area[8];
+  char timezone[4]; // read from config.json "CET-1CEST,M3.5.0/02,M10.5.0/03", "EET-2EEST,M3.5.0/3,M10.5.0/4", TODO:short version in eeprom
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
   uint32_t baseload; // production above baseload is "free" to use/store
 #endif
@@ -982,9 +978,6 @@ bool read_config_file(bool read_all_settings)
   }
 
   // first read global settings (not stored to settings structure s)
-  copy_doc_str(doc, (char *)"timezone_info", s.timezone_info);
-  copy_doc_str(doc, (char *)"ntp_server", s.ntp_server);
-  copy_doc_str(doc, (char *)"price_area", s.price_area);
 
   if (!read_all_settings)
   { // read only basic config
@@ -1015,6 +1008,13 @@ bool read_config_file(bool read_all_settings)
     else
       Serial.println("Skipping invalid wifi settings from config file.");
   }
+
+  copy_doc_str(doc, (char *)"timezone", s.timezone);
+  copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code);
+  
+  copy_doc_str(doc, (char *)"ntp_server", s.ntp_server);
+
+  s.variable_mode = 0;
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
   if (doc.containsKey("baseload"))
@@ -2376,6 +2376,9 @@ String admin_form_processor(const String &var)
   if (var == "lang")
     return s.lang;
 
+  if (var == F("timezone"))
+    return String(s.timezone);
+
   return String();
 }
 
@@ -2437,6 +2440,8 @@ String inputs_form_processor(const String &var)
   if (var == F("entsoe_area_code"))
     return String(s.entsoe_area_code);
 
+
+
   if (var == F("variable_server"))
     return String(s.variable_server);
   if (var == F("forecast_loc"))
@@ -2454,7 +2459,7 @@ String inputs_form_processor(const String &var)
     return String(s_influx.url);
   if (var == F("influx_token"))
   {
-    Serial.printf("returned %s\n", s_influx.token);
+//    Serial.printf("returned %s\n", s_influx.token);
     return String(s_influx.token);
   }
   if (var == F("influx_org"))
@@ -2524,7 +2529,6 @@ String jscode_form_processor(const String &var)
     strcat(out, "]");
     return out;
   };
-
   if (var == "lang")
     return s.lang;
 
@@ -2717,8 +2721,6 @@ int get_channel_to_switch(bool is_rise, int switch_count)
 // switch channel up/down
 bool set_channel_switch(int channel_idx, bool up)
 {
-  // int channel_type_group = (s.ch[channel_idx].type >> 1 << 1); // we do not care about the last bit
-  // Serial.printf("set_channel_switch channel_type_group %d \n",channel_type_group);
   if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
     Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
@@ -3020,13 +3022,13 @@ void onWebInputsPost(AsyncWebServerRequest *request)
     restart_required = true;
     s.energy_meter_type = request->getParam("emt", true)->value().toInt();
   }
-  strcpy(s.energy_meter_host, request->getParam("emh", true)->value().c_str());
+  strncpy(s.energy_meter_host, request->getParam("emh", true)->value().c_str(),sizeof(s.energy_meter_host));
   s.energy_meter_port = request->getParam("emp", true)->value().toInt();
   s.energy_meter_id = request->getParam("emid", true)->value().toInt();
+
 #ifdef INVERTER_FRONIUS_SOLARAPI_ENABLED
   s.baseload = request->getParam("baseload", true)->value().toInt();
 #endif
-
   s.variable_mode = (byte)request->getParam("variable_mode", true)->value().toInt();
   if (s.variable_mode == 0)
   {
@@ -3048,7 +3050,6 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   {
     strcpy(s.variable_server, request->getParam("variable_server", true)->value().c_str());
   }
-
 #ifdef INFLUX_REPORT_ENABLED
   strncpy(s_influx.url, request->getParam("influx_url", true)->value().c_str(), sizeof(s_influx.url));
   // Serial.printf("influx_url:%s\n", s_influx.url);
@@ -3231,6 +3232,9 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
       strcpy(s.http_password, request->getParam("http_password", true)->value().c_str());
   }
+
+  strncpy(s.timezone, request->getParam("timezone", true)->value().c_str(),4);
+
   strcpy(s.lang, request->getParam("lang", true)->value().c_str());
 
   // ADMIN
@@ -3425,19 +3429,7 @@ void setup()
       }
     }*/
   Serial.println("Starting wifi");
-  // disableCore0WDT();
 
-  // DO NOT TOUCH
-  //   This is here to force the ESP32 to reset the WiFi and initialise correctly.
-  /*Serial.print("WIFI status = ");
-  Serial.println(WiFi.getMode());
-  WiFi.disconnect(true);
-  delay(1000);
-  WiFi.mode(WIFI_STA);
-  delay(1000);
-  Serial.print("WIFI status = ");
-  Serial.println(WiFi.getMode());
-  // End silly stuff !!!*/
   WiFi.mode(WIFI_STA);
   Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
   WiFi.begin(s.wifi_ssid, s.wifi_password);
@@ -3568,6 +3560,12 @@ void setup()
     }
   }
 #endif
+  // "CET-1CEST,M3.5.0/02,M10.5.0/03", "EET-2EEST,M3.5.0/3,M10.5.0/4"
+  char timezone_info[35];
+  if (strcmp("EET", s.timezone) == 0)
+    strcpy(timezone_info, "EET-2EEST,M3.5.0/3,M10.5.0/4");
+  else // CET default
+    strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
 
 // configTime ESP32 and ESP8266 libraries differ
 #ifdef ESP32
@@ -3579,12 +3577,12 @@ void setup()
     Serial.println("  Failed to obtain time");
     return;
   } */
-  setenv("TZ", s.timezone_info, 1); //  Now adjust the TZ.  Clock settings are adjusted to show the new local time
+  setenv("TZ",timezone_info, 1);
   tzset();
 #elif defined(ESP8266)
   // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
   // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  configTime(s.timezone_info, s.ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
+  configTime(timezone_info, s.ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
 #endif
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
