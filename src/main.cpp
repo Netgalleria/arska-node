@@ -16,6 +16,7 @@ Resource files (see data subfolder):
 
 #include <EEPROM.h>
 #define EEPROM_CHECK_VALUE 12349
+#define DEBUG
 
 #include <LittleFS.h>
 
@@ -125,12 +126,14 @@ WiFiClient client;
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
 
 bool rtc_found = false;
-/*
-    Sets the internal time
-    epoch (seconds in GMT)
-    microseconds
-*/
-// Set internal clock from RTC or browser
+
+
+/**
+ * @brief Set the internal clock from RTC or browser
+ * 
+ * @param epoch  epoch (seconds in GMT)
+ * @param microseconds 
+ */
 void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
 {
   struct timeval tv;
@@ -143,12 +146,14 @@ const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24};
 const char *price_data_filename PROGMEM = "/price_data.json";
 const char *variables_filename PROGMEM = "/variables.json";
 const char *fcst_filename PROGMEM = "/fcst.json";
-// const char *fcst_variables PROGMEM = "/variables.json";
 
 const int price_variable_blocks[] = {9, 24};
 // const int price_variable_blocks[] = {9};
-
-#define NETTING_PERIOD_MIN 60
+/**
+ * @brief Netting time in minutes, (in Finland) 60 -> 15 minutes 2023
+ * 
+ */
+#define NETTING_PERIOD_MIN 60 
 #define NETTING_PERIOD_SEC (NETTING_PERIOD_MIN * 60)
 
 #define PV_FORECAST_HOURS 24
@@ -216,7 +221,11 @@ RTC_DS3231 rtc;
 */
 // Utility function to convert datetime elements to epoch time
 
-// print time of RTC to Serial, debugging function
+
+/**
+ * @brief print time of RTC to Serial, debugging function
+ * 
+ */
 void printRTC()
 {
   DateTime dtrtc = rtc.now(); // get date time from RTC i
@@ -234,7 +243,11 @@ void printRTC()
   }
 }
 
-// set date/time of external RTC
+
+/**
+ * @brief set date/time of external RTC. Used only if RTC is enabled.
+ * 
+ */
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
@@ -245,7 +258,12 @@ void setRTC()
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
 }
 
-// callback function (registered with settimeofday_cb ) called when ntp time update received, sets RTC
+
+/**
+ * @brief Callback function (registered with settimeofday_cb ) called when ntp time update received, sets RTC
+ * 
+ * @param from_sntp true if update is from sntp service
+ */
 void time_is_set(bool from_sntp)
 {
   if (from_sntp) // needs Core 3.0.0 or higher!
@@ -260,7 +278,10 @@ void time_is_set(bool from_sntp)
   }
 }
 
-// reads time from external RTC and set value to internal time
+/**
+ * @brief Reads time from external RTC and set value to internal time
+ * 
+ */
 void getRTC()
 {
   Serial.println(F("getRTC --> update internal clock"));
@@ -278,31 +299,36 @@ void getRTC()
 }
 
 #endif
+ 
 
-/*
-jos ei löydy mitään operaattoria niin oletetaan booleaniksi
-"=" gt=false eq=true reverse=false.
-">" gt=true eq=false reverse=false
-"<"  gt=true eq=false reverse=true
-"!",  reverse=true isboolean=true jos löytyy ekana "!" niin reverse boolean
+/**
+ * @brief Operator handling rules
 
-">=" gt=true eq=true reverse=false
-"<="  gt=true eq=false reverse=true
-"!=" gt=false eq=true reverse=true
-[no operator] reverse=false isboolean=true
-*/
+ * 
+ */
 struct oper_st
 {
-  byte id;
-  char code[4];
-  bool gt;
-  bool eq;
-  bool reverse;
-  bool boolean_only;
+  byte id; //!< identifier used in data structures
+  char code[4]; //!< code used in UI
+  bool gt; //!< true if variable is greater than the compared value 
+  bool eq; //!< true if variable is equal with then compared value 
+  bool reverse; //!< negate comparison result
+  bool boolean_only; //!< hand variable value as boolean (1=true), eq and reverse possible
 };
 
-// shortest first,
 #define OPER_COUNT 8
+/** 
+ * @brief Statament checking conditions
+ * @details 
+0, "=", eq=true  \n 
+1, ">", gt=true  \n 
+2, "<", gt and eq are true, result is reversed so reverse=true \n
+3, ">=",gt and eq are true \n
+4, "<=", gt=true and result is reversed so reverse=true \n
+5, "<>", eq=true and thre result is reversed so reverse=true \n
+6, "is", boolean_only=true \n
+7, "not",  boolean_only=true and because not reverse=true
+ */
 const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false}, {1, ">", true, false, false, false}, {2, "<", true, true, true, false}, {3, ">=", true, true, false, false}, {4, "<=", true, false, true, false}, {5, "<>", false, true, true, false}, {6, "is", false, false, false, true}, {7, "not", false, false, true, true}};
 
 /*constant_type, variable_type
@@ -310,11 +336,14 @@ long val_l
 type = 0 default long
 type = 1  10**1 stored to long  , ie. 1.5 -> 15
 ... 10
-22 2 characters string
-24 4 characters string stored to long, e.g. hhmm mmdd
-50 boolean, no reverse allowed
-51 boolean, reverse allowed
 */
+#define CONSTANT_TYPE_DEC0 0 //!< integer(long) value 
+#define CONSTANT_TYPE_DEC1 1 //!< numeric value, 1 decimal
+#define CONSTANT_TYPE_CHAR_2 22 //!< 2 characters string to long, e.g. hh 
+#define CONSTANT_TYPE_CHAR_4 24 //!< 4 characters string to long, e.g. hhmm 
+#define CONSTANT_TYPE_BOOLEAN_NO_REVERSE 50 //!< boolean , no reverse allowed 
+#define CONSTANT_TYPE_BOOLEAN_REVERSE_OK 51 //!< boolean , reverse allowed 
+
 
 struct statement_st
 {
@@ -360,6 +389,11 @@ struct statement_st
 // combined
 #define VARIABLE_DEPENDS_PRICE_SOLAR 3
 
+/**
+ * @brief Class defines variables defined by measurements, calculations and used to define channel statuses
+ * 
+ */
+
 class Variables
 {
 public:
@@ -371,8 +405,6 @@ public:
   bool is_set(int id);
   void set(int id, long value_l);
   void set(int id, float val_f);
-  // void set(int id, time_t val_time);
-  //  void set(int id, bool val_b);
   long get_l(int id);
   float get_f(int id);
 
@@ -380,16 +412,24 @@ public:
   int get_variable_by_id(int id, variable_st *variable);
   void get_variable_by_idx(int idx, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
-  // int to_str(int id, long val_l, char *strbuff);
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0);
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
-  // 24 4 characters string stored to long, e.g. hhmm mmdd
-
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", 1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", 1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", 1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", 1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", 1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", 51, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", 22, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", 24, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", 22, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", 24, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", 51, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", 51, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", 1, VARIABLE_DEPENDS_SENSOR}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}
+  , {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}
+  , {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}
+  , {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}
+  , {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}
+  , {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}
+  , {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}
+  , {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}
+  , {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}
+  , {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}
+  , {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
   int get_variable_index(int id);
 };
+
 bool Variables::is_set(int id)
 {
   int idx = get_variable_index(id);
@@ -450,7 +490,7 @@ long Variables::float_to_internal_l(int id, float val_float)
     {
       return (long)int(val_float * pow(10, var.type) + 0.5);
     }
-    else if ((var.type == 22) || (var.type == 24))
+    else if ((var.type == CONSTANT_TYPE_CHAR_2) || (var.type == CONSTANT_TYPE_CHAR_4))
     {
       return (long)int(val_float + 0.5);
     }
@@ -481,19 +521,19 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
       dtostrf(val_f, 1, var.type, strbuff);
       return strlen(strbuff);
     }
-    else if (var.type == 24)
+    else if (var.type == CONSTANT_TYPE_CHAR_4)
     { // 4 char number, 0 padding, e.g. hhmm
       // sprintf(strbuff, "\"%04ld\"", val_l);
       sprintf(strbuff, "%04ld", val_l);
       return strlen(strbuff);
     }
-    else if (var.type == 22)
+    else if (var.type == CONSTANT_TYPE_CHAR_2)
     { // 2 char number, 0 padding, e.g. hh
       // sprintf(strbuff, "\"%02ld\"", val_l);
       sprintf(strbuff, "%02ld", val_l);
       return strlen(strbuff);
     }
-    else if (var.type == 50 || var.type == 51)
+    else if (var.type == CONSTANT_TYPE_BOOLEAN_NO_REVERSE || var.type == CONSTANT_TYPE_BOOLEAN_REVERSE_OK)
     {
       sprintf(strbuff, "%s", (var.val_l == 1) ? "true" : "false");
       Serial.printf("Logical variable, internal value = %ld -> %s\n", var.val_l, strbuff);
@@ -619,16 +659,25 @@ typedef struct
 
 influx_settings_struct s_influx;
 
-Point period_data("arska_period");
+Point period_data("arska_period"); //!< Influx buffer
 
+/**
+ * @brief 
+ * 
+ * @param ts timestamp written to buffer point
+ */
 void add_variables_to_influx_buffer(time_t ts)
 {
-
   period_data.setTime(ts);
   if (vars.is_set(VARIABLE_PRICE))
     period_data.addField("price", vars.get_f(VARIABLE_PRICE));
   else
     Serial.print("Price not set");
+
+#ifdef DEBUG
+  period_data.addField("freeHeap", (long)ESP.getFreeHeap());
+  period_data.addField("uptime", (long)(millis()/1000));
+#endif
 
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
     period_data.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
@@ -639,6 +688,12 @@ void add_variables_to_influx_buffer(time_t ts)
   if (vars.is_set(VARIABLE_SELLING_ENERGY))
     period_data.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
 }
+/**
+ * @brief Writes Influx buffer to specified server
+ * 
+ * @return true if successful
+ * @return false if not successful
+ */
 
 bool write_buffer_to_influx()
 {
@@ -866,7 +921,14 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SI
   }
   return;
 }
-// returns true there is a valid cache file (exist and  not expired)
+
+/**
+ * @brief Checks if given cache files exists and is not expired
+ * 
+ * @param cache_file_name file name in liitlefs 
+ * @return true  if valid
+ * @return false if not valid
+ */
 bool is_cache_file_valid(const char *cache_file_name)
 {
   if (!LittleFS.exists(cache_file_name))
@@ -901,7 +963,10 @@ bool is_cache_file_valid(const char *cache_file_name)
   return expires > now;
 }
 
-//
+/**
+ * @brief Scans wireless networks on the area and stores list to a file. Do not run interactively (from a http call).
+ * 
+ */
 void scan_and_store_wifis()
 {
   int n = WiFi.scanNetworks();
@@ -928,7 +993,15 @@ void scan_and_store_wifis()
   wifis_file.close();
 }
 
-// Testing before saving if Wifi settings are ok
+// 
+/**
+ * @brief Tests wifi setting before saving, do not run interactively (from http call)
+ * 
+ * @param wifi_ssid wifi name/id
+ * @param wifi_password  wifi password
+ * @return true - connect succeeded with given params
+ * @return false - connect unsuccessful with given params
+ */
 bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
 {
   WiFi.mode(WIFI_STA);
@@ -938,8 +1011,20 @@ bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
   WiFi.disconnect();
   return success;
 }
+
+
 #define CONFIG_JSON_SIZE_MAX 1600
-// utility for read_config_file
+/**
+ * @brief Utility for reading a config file - to be tuned
+ * 
+ * @param doc 
+ * @param key 
+ * @param tostr 
+ * @return true 
+ * @return false 
+ */
+ * 
+
 bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr)
 {
   if (doc.containsKey(key))
@@ -1031,8 +1116,10 @@ bool read_config_file(bool read_all_settings)
   copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc);
   return true;
 }
-
-// reads settings from eeprom
+/**
+ * @brief Reads settings from eeprom to s and s_influx data structures
+ * 
+ */
 void readFromEEPROM()
 {
   EEPROM.get(eepromaddr, s);
@@ -1046,7 +1133,10 @@ void readFromEEPROM()
   Serial.println(used_size);
 }
 
-// writes settings to eeprom
+/**
+ * @brief Writes settings to eeprom
+ * 
+ */
 void writeToEEPROM()
 {
   int used_size = sizeof(s);
@@ -1090,7 +1180,14 @@ void notFound(AsyncWebServerRequest *request)
   request->send(404, "text/plain", "Not found");
 }
 
-// Utility function to make http request, stores result to a cache file if defined
+
+/**
+ * @brief Utility function to make http request, stores result to a cache file if defined
+ * 
+ * @param url Url to call
+ * @param cache_file_name optional cache file name to store result
+ * @return String 
+ */
 String httpGETRequest(const char *url, const char *cache_file_name)
 {
   WiFiClient client;
@@ -1152,7 +1249,12 @@ String httpGETRequest(const char *url, const char *cache_file_name)
 
 #ifdef SENSOR_DS18B20_ENABLED
 
-// Read temperature values from DS18B20 senson
+/**
+ * @brief Read temperature values from DS18B20 sensor (change library)
+ * 
+ * @return true - if read successful
+ * @return false - if read unsuccessful
+ */ 
 bool read_sensor_ds18B20()
 {
   sensors.requestTemperatures();
@@ -1188,7 +1290,12 @@ float energyout_prev = 0;
 float energyin = 0;
 float energyout = 0;
 
-// return energy/power values read from Shelly
+/**
+ * @brief Get previous read energy values  
+ * 
+ * @param netEnergyInPeriod 
+ * @param netPowerInPeriod 
+ */
 void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
 {
   netEnergyInPeriod = (energyin - energyout - energyin_prev + energyout_prev);
@@ -1203,7 +1310,12 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
   Serial.printf("get_values_shelly3m netEnergyInPeriod: %f, netPowerInPeriod %f , meter_read_ts %ld, last_period_last_ts %ld\n", netEnergyInPeriod, netPowerInPeriod, meter_read_ts, last_period_last_ts);
 }
 
-// reads grid export/import from Shelly 3EM
+/**
+ * @brief Read energy export/import values from Shelly3EM energy meter
+ * 
+ * @param netEnergyInPeriod 
+ * @param netPowerInPeriod 
+ */
 bool read_meter_shelly3em()
 {
   if (strlen(s.energy_meter_host) == 0)
@@ -1267,8 +1379,14 @@ bool read_meter_shelly3em()
 #endif
 
 #ifdef INVERTER_FRONIUS_SOLARAPI_ENABLED
-
-// Reads production data from Fronius invertes (http/json Solar API)
+/**
+ * @brief Reads production data from Fronius invertes (http/json Solar API)
+ * 
+ * @param total_energy address to total energy 
+ * @param current_power  address to current power
+ * @return true if successful
+ * @return false if failed
+ */
 bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
 {
   //  globals updated: inverter_total_period_init
@@ -1324,7 +1442,15 @@ ModbusIP mb; // ModbusIP object
 uint16_t buf[REG_COUNT];
 uint16_t trans;
 
-// callback for ModBus, curretnly just debugging
+/**
+ * @brief callback for ModBus, currently just debugging
+ * 
+ * @param event 
+ * @param transactionId 
+ * @param data 
+ * @return true 
+ * @return false 
+ */
 bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
 { // Callback to monitor errors
   if (event != Modbus::EX_SUCCESS)
@@ -1348,7 +1474,16 @@ bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
   return true;
 }
 
-// gets ModBus Hreg value
+
+/**
+ * @brief Get the  ModBus Hreg value
+ * 
+ * @param remote 
+ * @param reg_offset 
+ * @param reg_num 
+ * @param modbusip_unit 
+ * @return long int 
+ */
 long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num, uint8_t modbusip_unit)
 {
   long int combined;
@@ -1378,7 +1513,14 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
   }
   return combined;
 }
-// reads production data from SMA inverted (ModBus TCP)
+/**
+ * @brief Reads production data from SMA inverted (ModBus TCP)
+ * 
+ * @param total_energy 
+ * @param current_power 
+ * @return true 
+ * @return false 
+ */
 bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 {
   uint16_t ip_octets[MAX_SPLIT_ARRAY_SIZE];
@@ -1489,9 +1631,6 @@ void update_internal_variables()
   time(&now);
   localtime_r(&now, &tm_struct);
 
-  // time_t now_suntime = now + s.lon * 240;
-  // byte sun_hour = int((now_suntime % (3600 * 24)) / 3600);
-
   vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
   vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
   vars.set(VARIABLE_WDAY, (long)(tm_struct.tm_wday + 6) % 7 + 1);
@@ -1590,7 +1729,6 @@ void refresh_variables(time_t current_period_start)
     return;
   }
 
-  //***
 
   // JsonArray state_list = doc[start_str];
   JsonObject variable_list = doc[start_str];
@@ -2014,7 +2152,13 @@ bool get_price_data()
   return read_ok;
 }
 
-// update calculated variable values from another device
+ 
+/**
+ * @brief Update calculated variable values from another device, under construction
+ * 
+ * @return true 
+ * @return false 
+ */
 bool query_external_variables()
 {
   StaticJsonDocument<16> filter;
@@ -3630,7 +3774,6 @@ void setup()
 
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
-  //**
   server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, variables_filename, F("application/json")); });
   server_web.on(fcst_filename, HTTP_GET, [](AsyncWebServerRequest *request)
@@ -3638,7 +3781,6 @@ void setup()
   server_web.on(price_data_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, price_data_filename, F("text/plain")); });
 
-  //**
 
   // debug
   server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
