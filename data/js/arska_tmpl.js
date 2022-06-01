@@ -11,7 +11,7 @@ const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
 const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
 const lang = '%lang%';
-
+const using_default_password = ('%using_default_password%' === 'true'); 
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
 var formSubmitting = false;
@@ -612,7 +612,7 @@ function initUrlBar(url) {
       h1.innerHTML = "Arska Node";
       headdiv.appendChild(h1);*/
     var hdspan = document.createElement('span');
-    hdspan.innerHTML = "Arska Node<br>";
+    hdspan.innerHTML = "Arska<br>";
     hdspan.classList.add("cht");
     headdiv.appendChild(hdspan);
 
@@ -647,6 +647,11 @@ function initForm(url) {
     initUrlBar(url);
     if (url == '/admin') {
         initWifiForm();
+
+        if (using_default_password) {
+            document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
+        }
+        
 
         //set timezone select element
         var timezone = document.getElementById("timezone_db").value;

@@ -158,8 +158,12 @@ h2 {
   }
   #headdiv span {
     color: #f7f7e6;
-    text-decoration: none
+    text-decoration: none;
+    
   }
+  .warn{font-family: sans-serif, Arial;
+    font-size: 1.4em;
+color:yellow }
 
   /* https://markheath.net/post/customize-radio-button-css */
   .radio-toolbar {

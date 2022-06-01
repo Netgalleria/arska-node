@@ -37,6 +37,8 @@
             <div class="fld">
                 <h3>Admin access</h3>
             </div>
+            <div class="fld warn" id="password_note">
+            </div>
             <div class="fldh">
                 <div>Change password for 'admin'</div>
                 <div><input name="http_password" id="http_password" type="password"></div>
@@ -97,6 +99,7 @@
 
     </form>
 
+    <form method="POST" action="/upload-config" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
     <div class="secbr" id="footerdiv">
     </div>
     <div class="secbr">
