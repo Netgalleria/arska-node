@@ -11,7 +11,8 @@ const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
 const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
 const lang = '%lang%';
-const using_default_password = ('%using_default_password%' === 'true'); 
+const using_default_password = ('%using_default_password%' === 'true');
+const compile_date = '%compile_date%';
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
 var formSubmitting = false;
@@ -68,7 +69,7 @@ function updateStatus(show_variables = true) {
 function show_channel_status(channel_idx, is_up) {
     status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
     href = is_up ? "#green" : "#red";
-    console.log(status_el.id + ", " + href);
+    //console.log(status_el.id + ", " + href);
     status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
     // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
 }
@@ -273,14 +274,14 @@ function populateTemplateSel(selEl, template_id = -1) {
     addOption(selEl, -1, "select", false);
     $.getJSON('/data/template-list.json', function (data) {
         $.each(data, function (i, row) {
-            addOption(selEl, row["id"], _ltext(row,"name"), (template_id == row["id"]));
+            addOption(selEl, row["id"], _ltext(row, "name"), (template_id == row["id"]));
         });
     });
 }
 
 // unused ?
 function saveVal(el) {
-    $.data(el, 'current', $(el).val()); 
+    $.data(el, 'current', $(el).val());
 }
 
 //localised text
@@ -290,8 +291,8 @@ function _ltext(obj, prop) {
     else if (obj.hasOwnProperty(prop))
         return obj[prop];
     else
-        return '['+prop+']';
- }
+        return '[' + prop + ']';
+}
 
 function templateChanged(selEl) {
     const fldA = selEl.id.split("_");
@@ -305,7 +306,7 @@ function templateChanged(selEl) {
             deleteStmtsUI(channel_idx);
             return true;
         }
-        if (!confirm('Use template ' + _ltext(data,"name") + ' - ' + _ltext(data,"desc"))) {
+        if (!confirm('Use template ' + _ltext(data, "name") + ' - ' + _ltext(data, "desc"))) {
             $(selEl).val($.data(selEl, 'current'));
             return false;
         }
@@ -651,7 +652,7 @@ function initForm(url) {
         if (using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
-        
+
 
         //set timezone select element
         var timezone = document.getElementById("timezone_db").value;
@@ -709,10 +710,11 @@ function initForm(url) {
 
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
-       // footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
-          footerdiv.innerHTML = "<a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> ";
+        // footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
+        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + compile_date + "</i></div>";
     }
 }
+
 
 // for sorting wifis by signal strength
 function compare_wifis(a, b) {
@@ -756,7 +758,49 @@ function checkAdminForm() {
         alert('Passwords do not match!');
         return false;
     }
+    var op_test_gpio = document.getElementById("op_test_gpio");
+    if (op_test_gpio.checked) {
+        document.querySelector('#test_gpio').value = prompt("GPIO to test", "-1");
+    }
     return true;
+}
+function doAction(action) {
+    actiond_fld = document.getElementById("action");
+    actiond_fld.value = action;
+    save_form = document.getElementById("save_form");
+    if (action == 'ts') {
+        if (confirm('Syncronize device with workstation time?')) {
+            document.querySelector('#ts').value = Date.now() / 1000;
+            save_form.submit();
+        }
+    }
+    else if (action == 'ota') {
+        if (confirm('Backup configuration always before update! \nRestart in firmware update mode? ')) {
+            save_form.submit();
+        }
+    }
+    else if (action == 'reboot') {
+        if (confirm('Restart the device')) {
+            save_form.submit();
+        }
+    }
+    else if (action == 'scan_wifis') {
+        if (confirm('Scan WiFi networks now?')) {
+            save_form.submit();
+        }
+    }
+    else if (action == 'reset') {
+        if (confirm('Backup configuration before reset! \nReset configuration? ')) {
+            save_form.submit();
+        }
+    }
+    else if (action == 'test_gpio') {
+        document.querySelector('#test_gpio').value = prompt("GPIO to test", "-1");
+        save_form.submit();
+        
+    }
+     
+        
 }
 
 // remove?

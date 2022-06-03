@@ -39,7 +39,6 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #include <ESP8266HTTPClient.h>
 #endif
 
-
 // features enabled
 // #define SENSOR_DS18B20_ENABLED
 #define METER_SHELLY3EM_ENABLED
@@ -62,7 +61,8 @@ const char compile_date[] = __DATE__ " " __TIME__;
 
 const char *config_file_name PROGMEM = "/config.json";
 const char *wifis_file_name PROGMEM = "/wifis.json";
-const char *default_http_password = "arska";
+const char *default_http_password PROGMEM = "arska";
+const char *required_fs_version PROGMEM = "2022-06-02-001";
 
 struct variable_st
 {
@@ -294,7 +294,32 @@ void getRTC()
   }
 }
 
+#endif // rtc
+
+// const char *required_fs_version PROGMEM = "2022-06-02-001";
+bool is_filesystem_up_to_date()
+{
+  bool is_ok;
+  String current_version;
+  File info_file = LittleFS.open("/data/fsinfo.txt", "r");
+
+  if (info_file.available())
+  {
+    String current_version = info_file.readStringUntil('\n');
+    is_ok = (current_version.compareTo(required_fs_version) <= 0);
+
+#ifdef DEBUG
+    if (is_ok)
+      Serial.printf("Current fs version %s is ok.\n", current_version.c_str());
+    else
+      Serial.printf("Current fs version %s is too old.\n", current_version.c_str());
 #endif
+  }
+  else
+    is_ok = false;
+  info_file.close();
+  return is_ok;
+}
 
 /**
  * @brief Operator handling rules
@@ -770,6 +795,7 @@ time_t energym_read_last = 0;
 time_t started = 0;
 bool period_changed = true;
 bool restart_required = false;
+int test_gpio = -1; //!< if not -1 then gpio should be tested in loop
 bool scan_and_store_wifis_requested = false;
 bool set_relay_requested = false;
 // data strcuture limits
@@ -1207,10 +1233,9 @@ String httpGETRequest(const char *url, const char *cache_file_name)
       File cache_file = LittleFS.open(cache_file_name, "w"); // Open file for writing
       if (!cache_file)
       {
-        Serial.println(F("Failed to create file:"));
-        Serial.print(cache_file_name);
-        Serial.print(", ");
-        Serial.println(cache_file);
+        Serial.println(F("Failed to create a cache file:"));
+        Serial.println(cache_file_name);
+        http.end();
         return String("");
       }
       int bytesWritten = cache_file.print(http.getString());
@@ -1248,6 +1273,7 @@ bool read_sensor_ds18B20()
 {
   sensors.requestTemperatures();
   float value_read = sensors.getTempCByIndex(0);
+  Serial.printf("Temperature reading after first try: %f \n", value_read);
   if (value_read < -126) // Trying to reset sensor
   {
     digitalWrite(ONEWIRE_VOLTAGE_GPIO, LOW);
@@ -1270,10 +1296,12 @@ bool read_sensor_ds18B20()
 
 #endif
 
+#define RESTART_AFTER_LAST_OK_METER_READ 1800 //!< If all energy meter readings are failed within this period, restart the device
+
 #ifdef METER_SHELLY3EM_ENABLED
 unsigned last_period = 0;
 long last_period_last_ts = 0;
-long meter_read_ts = 0;
+long meter_read_ts = 0; //!< Last time meter was read successfully
 float energyin_prev = 0;
 float energyout_prev = 0;
 float energyin = 0;
@@ -1313,8 +1341,8 @@ bool read_meter_shelly3em()
   DynamicJsonDocument doc(2048);
 
   String url = "http://" + String(s.energy_meter_host) + "/status";
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url.c_str(), ""));
   Serial.println(url);
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url.c_str(), ""));
 
   if (error)
   {
@@ -1323,7 +1351,7 @@ bool read_meter_shelly3em()
     return false;
   }
 
-  meter_read_ts = doc["unixtime"];
+  meter_read_ts = doc["unixtime"]; //!< get time from Shelly response
   unsigned now_period = int(meter_read_ts / (NETTING_PERIOD_SEC));
 
   if (last_period != now_period and last_period > 0)
@@ -1362,7 +1390,6 @@ bool read_meter_shelly3em()
     energyin_prev = energyin;
     energyout_prev = energyout;
   }
-
   return true;
 }
 #endif
@@ -1559,7 +1586,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 #endif
 
 // read production data from inverters, calls inverter specific functions
-void read_inverter(bool period_changed)
+bool read_inverter(bool period_changed)
 {
   // global: recording_period_start
   // 4 globals updated: inverter_total_period_init, inverter_total_period_init_ok, energy_produced_period, power_produced_period_avg
@@ -1612,6 +1639,7 @@ void read_inverter(bool period_changed)
 
   Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
 
+  return readOk;
 } // read_inverter
 
 void update_internal_variables()
@@ -2611,6 +2639,9 @@ String jscode_form_processor(const String &var)
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
   char out[600];
   char buff[50];
+  if (var == F("compile_date"))
+    return String(compile_date);
+
   if (var == F("RULE_STATEMENTS_MAX"))
     return String(RULE_STATEMENTS_MAX);
   if (var == "CHANNEL_COUNT")
@@ -2667,9 +2698,8 @@ String jscode_form_processor(const String &var)
   if (var == "lang")
     return s.lang;
 
-    if (var == F("using_default_password"))
-    return (strcmp(s.http_password,default_http_password)==0)?"true":"false";
-    
+  if (var == F("using_default_password"))
+    return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
 
   return String();
 }
@@ -2683,10 +2713,6 @@ String setup_form_processor(const String &var)
   if (var == "backup_wifi_config_mode")
     return String(backup_wifi_config_mode ? 1 : 0);
 
-  if (var == F("prog_data"))
-  {
-    return String(compile_date);
-  }
 
   if (var.startsWith("chi_"))
   {
@@ -2773,7 +2799,7 @@ String setup_form_processor(const String &var)
     strcat(out, "</div>\n"); // rd_X div
 
     strcat(out, "</div>"); // chdiv_
-    Serial.printf("cht_ out with %d\n", strlen(out));
+                           // Serial.printf("cht_ out with %d\n", strlen(out));
     return out;
   }
 
@@ -2817,19 +2843,28 @@ String setup_form_processor(const String &var)
 // read grid or production info from energy meter/inverter
 void read_energy_meter()
 {
+  bool readOk;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
 #ifdef METER_SHELLY3EM_ENABLED
-    bool readOk = read_meter_shelly3em();
-    if (readOk)
-      time(&energym_read_last);
+    readOk = read_meter_shelly3em();
 #endif
   }
   else if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR or (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP))
   {
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-    read_inverter(period_changed);
+    readOk = read_inverter(period_changed);
 #endif
+  }
+
+  time(&now);
+  if (readOk)
+    energym_read_last = now;
+  else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now) && (energym_read_last > 0))
+  {
+    Serial.println(("Restarting after failed energy meter reads."));
+    delay(2000);
+    ESP.restart();
   }
 }
 
@@ -3023,7 +3058,7 @@ void set_relays()
 
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
 {
-  Serial.printf("sendForm1: %s\n", template_name);
+  // Serial.printf("sendForm1: %s\n", template_name);
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
@@ -3054,11 +3089,11 @@ void reset_config(bool reset_password)
   strcpy(s.http_username, "admin");
   if (reset_password)
 
-    strcpy(s.http_password,default_http_password);
+    strcpy(s.http_password, default_http_password);
   else
-  strcpy(s.http_password,current_password);
+    strcpy(s.http_password, current_password);
 
-  strcpy(s.http_password,default_http_password);
+  strcpy(s.http_password, default_http_password);
   s.variable_mode == VARIABLE_MODE_SOURCE;
 
   strcpy(s.ntp_server, "europe.pool.ntp.org");
@@ -3113,18 +3148,18 @@ void export_config(AsyncWebServerRequest *request)
   DynamicJsonDocument doc(2048);
 
   String output;
-  char buff_value[20];
+  char export_time[20];
   time_t current_time;
   time(&current_time);
   localtime_r(&current_time, &tm_struct);
-  snprintf(buff_value, 20, "%04d-%02d-%02d %02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
-  doc["export_time"] = buff_value;
+  snprintf(export_time, 20, "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  doc["export_time"] = export_time;
 
   doc["check_value"] = s.check_value;
   doc["wifi_ssid"] = s.wifi_ssid;
   doc["wifi_password"] = s.wifi_password; // TODO: maybe not here
   doc["http_username"] = s.http_username;
-  //doc["http_password"] = s.http_password; // TODO: maybe not here
+  // doc["http_password"] = s.http_password; // TODO: maybe not here
   doc["variable_mode"] = s.variable_mode;
   if (s.variable_mode == VARIABLE_MODE_SOURCE)
   {
@@ -3185,8 +3220,11 @@ void export_config(AsyncWebServerRequest *request)
   }
   serializeJson(doc, output);
 
+  char Content_Disposition[70];
+  snprintf(Content_Disposition, 70, "attachment; name=arska-config-%s.json", export_time);
   AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
-  response->addHeader("Content-Disposition", "attachment; name=\"arska-config.json\"");
+  response->addHeader("Content-Disposition", Content_Disposition);
+  Serial.println(Content_Disposition);
 
   request->send(response);
 }
@@ -3222,7 +3260,7 @@ bool read_config_file(const char *config_file_name)
 
   copy_doc_str(doc, (char *)"wifi_ssid", s.wifi_password);
   copy_doc_str(doc, (char *)"wifi_password", s.wifi_password);
-  //copy_doc_str(doc, (char *)"http_password", s.http_password);
+  // copy_doc_str(doc, (char *)"http_password", s.http_password);
   s.variable_mode = get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
   copy_doc_str(doc, (char *)"entsoe_api_key", s.entsoe_api_key);
   copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code);
@@ -3355,12 +3393,13 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
 {
   /* if (backup_wifi_config_mode)
      request->redirect("/admin");
-   else*/  
-   if (strcmp(s.http_password,default_http_password)==0) {
-   request->redirect("/admin");
-   return;
-   }
-   sendForm(request, "/dashboard_template.html");
+   else*/
+  if (strcmp(s.http_password, default_http_password) == 0)
+  {
+    request->redirect("/admin");
+    return;
+  }
+  sendForm(request, "/dashboard_template.html");
 }
 
 void onWebInputsGet(AsyncWebServerRequest *request)
@@ -3673,7 +3712,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 // process admin form results
 void onWebAdminPost(AsyncWebServerRequest *request)
 {
-   if (!request->authenticate(s.http_username, s.http_password))
+  if (!request->authenticate(s.http_username, s.http_password))
   {
     return request->requestAuthentication();
   }
@@ -3693,18 +3732,19 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     Serial.println(F("Password ...."));
     if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
+    {
       strcpy(s.http_password, request->getParam("http_password", true)->value().c_str());
-    else
-      Serial.println(F("Passwords are  not matching"));
-    // String hashed=  generateDigestHash(s.http_username, s.http_password,"realm");
+    }
+    // else
+    //   Serial.println(F("Passwords are not matching"));
   }
 
   strncpy(s.timezone, request->getParam("timezone", true)->value().c_str(), 4);
-
   strcpy(s.lang, request->getParam("lang", true)->value().c_str());
 
-  // ADMIN
-  if (request->getParam("op", true)->value().equals("ts"))
+  // admin actions
+  Serial.println(request->getParam("action", true)->value().c_str());
+  if (request->getParam("action", true)->value().equals("ts"))
   {
     time_t ts = request->getParam("ts", true)->value().toInt();
     setInternalTime(ts);
@@ -3715,25 +3755,32 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   }
 
 #ifdef OTA_UPDATE_ENABLED
-  if (request->getParam("op", true)->value().equals("ota"))
+  if (request->getParam("action", true)->value().equals("ota"))
   {
     bootInUpdateMode(request);
   }
 #endif
 
-  if (request->getParam("op", true)->value().equals("reboot"))
+  if (request->getParam("action", true)->value().equals("reboot"))
   {
     restart_required = true;
   }
 
-  if (request->getParam("op", true)->value().equals("scan_wifis"))
+  if (request->getParam("action", true)->value().equals("scan_wifis"))
   {
     scan_and_store_wifis_requested = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>scanning queued</body></html>");
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
 
-  if (request->getParam("op", true)->value().equals("reset"))
+  if (request->getParam("action", true)->value().equals("op_test_gpio"))
+  {
+    test_gpio = request->getParam("test_gpio", true)->value().toInt();
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/admin' /></head><body>GPIO testing</body></html>");
+    return;
+  }
+
+  if (request->getParam("action", true)->value().equals("reset"))
   {
     Serial.println(F("Starting reset..."));
     reset_config(false);
@@ -3742,7 +3789,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   writeToEEPROM();
 
   // if (backup_wifi_config_mode) //restart always if in AP-mode
-  restart_required = true;
+  //restart_required = true;
   //
 
   if (restart_required)
@@ -3843,7 +3890,11 @@ void setup()
   }
   Serial.println(F("LittleFS initialized"));
 
-  Serial.println(F("setup() starting"));
+  // TODO: notify, ota-update
+  if (is_filesystem_up_to_date())
+    Serial.println(F("Filesystem is up-to-date."));
+  else
+    Serial.println(F("Filesystem is too old."));
 
   // initiate EEPROM with correct size
   int eeprom_used_size = sizeof(s);
@@ -4153,6 +4204,21 @@ long get_period_start_time(long ts)
  */
 void loop()
 {
+  // test gpio
+  if (test_gpio != -1)
+  {
+    Serial.printf("Testing gpio %d\n", test_gpio);
+    pinMode(test_gpio, OUTPUT);
+    for (int j = 0; j < 3; j++)
+    {
+      digitalWrite(test_gpio, LOW);
+      delay(1000);
+      digitalWrite(test_gpio, HIGH);
+      delay(500);
+    }
+    test_gpio = -1;
+    Serial.println(F("GPIO Testing ready"));
+  }
 
 #ifdef OTA_UPDATE_ENABLED
   // resetting and rebooting in update more

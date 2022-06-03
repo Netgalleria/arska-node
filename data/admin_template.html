@@ -16,94 +16,95 @@
     <div class="secbr" id="headdiv">
 
     </div>
-    <form method="post" onsubmit="setFormSubmitting()">
+    <form id="save_form" method="post" onsubmit="setFormSubmitting()">
         <input name="source" type="hidden" value="admin">
         <div id="wifid">
             <div class="secbr">
                 <h3>WiFi settings</h3>
             </div>
-            <div class="fld">
-                <div>Wifi ssid</div>
-                <div><select name='wifi_ssid' id='wifi_ssid'>
-                        <option value="NA">Select WiFi</option>
-                    </select>
-
-                </div>
+            <div class="indent">
                 <div class="fld">
-                    <div>Wifi password</div>
-                    <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
+                    <div>Wifi ssid</div>
+                    <div><select name='wifi_ssid' id='wifi_ssid'>
+                            <option value="NA">Select WiFi</option>
+                        </select>
+
+                    </div>
+                    <div class="fld">
+                        <div>Wifi password</div>
+                        <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
+                    </div>
                 </div>
             </div>
-            <div class="fld">
-                <h3>Admin access</h3>
-            </div>
-            <div class="fld warn" id="password_note">
-            </div>
-            <div class="fldh">
-                <div>Change password for 'admin'</div>
-                <div><input name="http_password" id="http_password" type="password"></div>
-            </div>
-            <div class="fldh">
-                <div>Rewrite to change</div>
-                <div><input name="http_password2" id="http_password2" type="password"></div>
-            </div>
-            <div class="fld">
-                <br />
-            </div>
-            <div class="fld">
-                <h3>Localization</h3>
-            </div>
-            <div class="secbr">
-                <input type="hidden" id="timezone_db" value="%timezone%">Timezone:
-                <br><select id="timezone" name="timezone">
-                    <option value="EET">EET</option>
-                    <option value="CET">CET</option>
-                </select>
-            </div>
-            <div class="secbr">
-                <input type="hidden" id="lang_db" value="%lang%">Preferred language (mostly still only English texts
-                available):
-                <br><select id="lang" name="lang">
-                    <option value="en">English</option>
-                    <option value="fi">Finnish</option>
-                </select>
-            </div>
-            <div class="fld">
-                <br />
-            </div>
+        </div>
+        <div class="fld">
+            <h3>Admin access</h3>
+        </div>
+        <div class="fld warn" id="password_note">
+        </div>
+        <div class="fldh">
+            <div>Change password for 'admin'</div>
+            <div><input name="http_password" id="http_password" type="password"></div>
+        </div>
+        <div class="fldh">
+            <div>Rewrite to change</div>
+            <div><input name="http_password2" id="http_password2" type="password"></div>
+        </div>
+        <div class="fld">
+            <br />
+        </div>
+        <div class="fld">
+            <h3>Localization</h3>
+        </div>
+        <div class="secbr indent">
+            <input type="hidden" id="timezone_db" value="%timezone%">Timezone:
+            <br><select id="timezone" name="timezone">
+                <option value="EET">EET</option>
+                <option value="CET">CET</option>
+            </select>
+        </div>
+        <div class="secbr indent">
+            <input type="hidden" id="lang_db" value="%lang%">Preferred language (mostly still only English texts
+            available):
+            <br><select id="lang" name="lang">
+                <option value="en">English</option>
+                <option value="fi">Finnish</option>
+            </select>
+        </div>
+        <div class="fld">
+            <br />
+        </div>
 
-            <div class="secbr radio-toolbar">
-                Action (use with caution):<br><input type="radio" id="op_none" name="op" value="none" checked>
-                <label for="op_none">none</label>
-
-                <input type="radio" id="op_ts" name="op" value="ts">
-                <label for="op_ts">Sync with workstation time</label>
-
-                <input type="radio" id="op_scan_wifis" name="op" value="scan_wifis">
-                <label for="op_scan_wifis">Rescan WiFis</label>
-
-                <input type="radio" id="op_ota" name="op" value="ota">
-                <label for="op_ota">Firmware update mode</label>
-
-                <input type="radio" id="op_reboot" name="op" value="reboot">
-                <label for="op_reboot">Restart</label>
-
-                <input type="radio" id="op_reset" name="op" value="reset">
-                <label for="op_reset">Reset to factory defaults</label>
-            </div>
-   
-
-            <input type="hidden" id="ts" name="ts">
-            <br><input type="submit" value="Save" onclick="checkAdminForm()">
-
+        <input type="hidden" id="ts" name="ts">
+        <input type="hidden" id="action" name="action">
+        <br><input type="submit" value="Save" onclick="checkAdminForm()">
+        <input type="hidden" id="test_gpio" name="test_gpio" value="-1">
 
     </form>
+    <div id="actiond">
+        <div class="secbr">
+            <h3>Maintenance actions</h3>
+        </div>
+        <div class="indent">
+            <button id="act_ts" class="actBtn" onclick="return doAction('ts')">Sync with workstation time</button>
+            <button id="act_scan_wifis" class="actBtn" onclick="return doAction('scan_wifis')">Rescan WiFis</button>
+            <button id="act_ota" class="actBtn" onclick="return doAction('ota')">Firmware update mode</button>
+            <button id="act_test_gpio" class="actBtn" onclick="return doAction('test_gpio')">Test GPIO</button>
+            <button id="act_reboot" class="actBtn" onclick="return doAction('reboot')">Restart</button>
+            <button id="act_reset" class="actBtn" onclick="return doAction('reset')">Reset settings</button>
+            <h4>Backup and restore</h4>
+            <form id="file_form" method="POST" action="/upload-config" enctype="multipart/form-data"></form>
+            <a id="act_backup_config" class="actBtn" href="/export-config">Backup configuration</a>
 
-    <form method="POST" action="/upload-config" enctype="multipart/form-data"><input type="file" name="data"/><input type="submit" name="upload" value="Upload" title="Upload File"></form>
-    <div class="secbr" id="footerdiv">
+
+            <input type="button" class="actBtn" id="loadfile" value="Restore configuration"
+                onclick="document.getElementById('file_upload').click();" />
+            <input type="file" style="display:none;" id="file_upload" name="file"
+                onchange="document.getElementById('file_form').submit();" />
+            </form>
+        </div>
     </div>
-    <div class="secbr">
-        <div><i>Program version: %prog_data%</i></div>
+    <div class="secbr" id="footerdiv">
     </div>
 </body>
 
