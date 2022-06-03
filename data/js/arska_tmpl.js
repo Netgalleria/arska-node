@@ -12,6 +12,7 @@ const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
 const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
+const DEBUG_MODE = ('%DEBUG_MODE%' === 'true');
 const compile_date = '%compile_date%';
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes

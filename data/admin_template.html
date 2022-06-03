@@ -25,14 +25,14 @@
             <div class="indent">
                 <div class="fld">
                     <div>Wifi ssid</div>
-                    <div><select name='wifi_ssid' id='wifi_ssid'>
+                    <div  class="fldh"><select name='wifi_ssid' id='wifi_ssid'>
                             <option value="NA">Select WiFi</option>
                         </select>
 
                     </div>
                     <div class="fld">
-                        <div>Wifi password</div>
-                        <div><input name="wifi_password" type="password" value="%wifi_password%"></div>
+                        <div >Wifi password</div>
+                        <div class="fldh"><input name="wifi_password" type="password" value="%wifi_password%"></div>
                     </div>
                 </div>
             </div>
@@ -40,15 +40,17 @@
         <div class="fld">
             <h3>Admin access</h3>
         </div>
-        <div class="fld warn" id="password_note">
-        </div>
-        <div class="fldh">
-            <div>Change password for 'admin'</div>
-            <div><input name="http_password" id="http_password" type="password"></div>
-        </div>
-        <div class="fldh">
-            <div>Rewrite to change</div>
-            <div><input name="http_password2" id="http_password2" type="password"></div>
+        <div class="indent">
+            <div class="fld warn" id="password_note">
+            </div>
+            <div class="fldh">
+                <div>Change password for 'admin'</div>
+                <div><input name="http_password" id="http_password" type="password"></div>
+            </div>
+            <div class="fldh">
+                <div>Rewrite to change</div>
+                <div><input name="http_password2" id="http_password2" type="password"></div>
+            </div>
         </div>
         <div class="fld">
             <br />

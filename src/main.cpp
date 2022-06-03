@@ -16,7 +16,7 @@ Resource files (see data subfolder):
 
 #include <EEPROM.h>
 #define EEPROM_CHECK_VALUE 12349
-#define DEBUG
+#define DEBUG_MODE
 
 #include <LittleFS.h>
 
@@ -179,8 +179,7 @@ String url_base = "/api?documentType=A44&processType=A16";
 
 tm tm_struct_g;
 time_t next_query_input_data;
-bool update_external_variables_queued = false;
-bool influx_write_queued = false;
+
 
 // https://transparency.entsoe.eu/api?securityToken=41c76142-eaab-4bc2-9dc4-5215017e4f6b&documentType=A44&In_Domain=10YFI-1--------U&Out_Domain=10YFI-1--------U&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202104200000&periodEnd=202104200100
 const int httpsPort = 443;
@@ -308,7 +307,7 @@ bool is_filesystem_up_to_date()
     String current_version = info_file.readStringUntil('\n');
     is_ok = (current_version.compareTo(required_fs_version) <= 0);
 
-#ifdef DEBUG
+#ifdef DEBUG_MODE
     if (is_ok)
       Serial.printf("Current fs version %s is ok.\n", current_version.c_str());
     else
@@ -682,7 +681,7 @@ void add_variables_to_influx_buffer(time_t ts)
   else
     Serial.print("Price not set");
 
-#ifdef DEBUG
+#ifdef DEBUG_MODE
   period_data.addField("freeHeap", (long)ESP.getFreeHeap());
   period_data.addField("uptime", (long)(millis() / 1000));
 #endif
@@ -794,10 +793,17 @@ time_t previous_period_start = 0;
 time_t energym_read_last = 0;
 time_t started = 0;
 bool period_changed = true;
-bool restart_required = false;
-int test_gpio = -1; //!< if not -1 then gpio should be tested in loop
-bool scan_and_store_wifis_requested = false;
-bool set_relay_requested = false;
+
+//task requests to be fullfilled in loop asyncronously
+bool todo_in_loop_update_external_variables = false;
+bool todo_in_loop_influx_write = false;
+bool todo_in_loop_restart = false;
+
+bool todo_in_loop_test_gpio = false; //!< gpio should be tested in loop
+int gpio_to_test_in_loop = -1; //!< if not -1 then gpio should be tested in loop
+bool todo_in_loop_scan_wifis = false;
+bool todo_in_loop_set_relays = false;
+
 // data strcuture limits
 //#define CHANNEL_COUNT 2  // moved to platformio.ini
 #define CHANNEL_TYPES 3
@@ -1032,8 +1038,10 @@ bool test_wifi_settings(char *wifi_ssid, char *wifi_password)
 
 bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr)
 {
+#ifdef DEBUG_MODE  
   Serial.print("debug: ");
   Serial.println(key);
+#endif
   if (doc.containsKey(key))
   {
     strcpy(tostr, doc[key]);
@@ -2678,11 +2686,9 @@ String jscode_form_processor(const String &var)
   }
   if (var == F("VARIABLES")) // used by Javascript
   {
-
     strcpy(out, "[");
     int variable_count = vars.get_variable_count();
     variable_st variable;
-
     for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
     {
       // YYY
@@ -2700,6 +2706,10 @@ String jscode_form_processor(const String &var)
 
   if (var == F("using_default_password"))
     return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
+  if (var == F("DEBUG_MODE"))
+#ifdef DEBUG_MODE
+    return "true";
+#endif
 
   return String();
 }
@@ -3491,7 +3501,7 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
     }
   }
   if (forced_up_changes)
-    set_relay_requested = true;
+    todo_in_loop_set_relays = true;
   //  update_channel_statuses(); //tämä ei ole hyvä idea, voit laittaa kyllä looppiin requestin, mutta ei suoraa kutsua koska shelly tekee verkkokutsun
   request->redirect("/");
 }
@@ -3503,7 +3513,7 @@ void bootInUpdateMode(AsyncWebServerRequest *request)
     return request->requestAuthentication();
   s.next_boot_ota_update = true;
   writeToEEPROM(); // save to non-volatile memory
-  restart_required = true;
+  todo_in_loop_restart = true;
   request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>Wait for update mode...</body></html>");
   return;
 }
@@ -3517,7 +3527,7 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   // INPUTS
   if (s.energy_meter_type != request->getParam("emt", true)->value().toInt())
   {
-    restart_required = true;
+    todo_in_loop_restart = true;
     s.energy_meter_type = request->getParam("emt", true)->value().toInt();
   }
   strncpy(s.energy_meter_host, request->getParam("emh", true)->value().c_str(), sizeof(s.energy_meter_host));
@@ -3558,7 +3568,7 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   // END OF INPUTS
   writeToEEPROM();
   // Serial.printf("2...influx_url:%s\n", s_influx.url);
-  restart_required = true;
+  todo_in_loop_restart = true;
   request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
   // request->redirect("/channels");
 }
@@ -3704,8 +3714,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     }
   }
   writeToEEPROM();
-  // restart_required = true;
-  // request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/channels' /></head><body>restarting...wait...</body></html>");
+    // todo_in_loop_restart = true;
+// request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/channels' /></head><body>restarting...wait...</body></html>");
   request->redirect("/channels");
 }
 
@@ -3723,7 +3733,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     strcpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str());
     strcpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str());
-    restart_required = true;
+    todo_in_loop_restart = true;
   }
 
   // request->send(200, "text/html", F("<html><head></head><body><p>Wait about 10 seconds. If the parameters were correct you can soon connect to Arska in your wifi. Get IP address to connect from your router or monitor serial console.</p></body></html>"));
@@ -3763,19 +3773,21 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 
   if (request->getParam("action", true)->value().equals("reboot"))
   {
-    restart_required = true;
+    todo_in_loop_restart = true;
   }
 
   if (request->getParam("action", true)->value().equals("scan_wifis"))
   {
-    scan_and_store_wifis_requested = true;
+    todo_in_loop_scan_wifis = true;
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
 
   if (request->getParam("action", true)->value().equals("op_test_gpio"))
   {
-    test_gpio = request->getParam("test_gpio", true)->value().toInt();
+    gpio_to_test_in_loop = request->getParam("test_gpio", true)->value().toInt();
+    
+        todo_in_loop_test_gpio = true;
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/admin' /></head><body>GPIO testing</body></html>");
     return;
   }
@@ -3784,15 +3796,13 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     Serial.println(F("Starting reset..."));
     reset_config(false);
-    restart_required = true;
+    todo_in_loop_restart = true;
   }
   writeToEEPROM();
 
-  // if (backup_wifi_config_mode) //restart always if in AP-mode
-  //restart_required = true;
-  //
 
-  if (restart_required)
+
+  if (todo_in_loop_restart)
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body>restarting...wait...</body></html>");
 
   // END OF ADMIN
@@ -4204,33 +4214,35 @@ long get_period_start_time(long ts)
  */
 void loop()
 {
+  #ifdef DEBUG_MODE
   // test gpio
-  if (test_gpio != -1)
+  if (todo_in_loop_test_gpio )
   {
-    Serial.printf("Testing gpio %d\n", test_gpio);
-    pinMode(test_gpio, OUTPUT);
+    Serial.printf("Testing gpio %d\n", gpio_to_test_in_loop);
+    pinMode(gpio_to_test_in_loop, OUTPUT);
     for (int j = 0; j < 3; j++)
     {
-      digitalWrite(test_gpio, LOW);
+      digitalWrite(gpio_to_test_in_loop, LOW);
       delay(1000);
-      digitalWrite(test_gpio, HIGH);
+      digitalWrite(gpio_to_test_in_loop, HIGH);
       delay(500);
     }
-    test_gpio = -1;
+    todo_in_loop_test_gpio = false;
     Serial.println(F("GPIO Testing ready"));
   }
+#endif
 
 #ifdef OTA_UPDATE_ENABLED
   // resetting and rebooting in update more
-  if (s.next_boot_ota_update || restart_required)
+  if (s.next_boot_ota_update || todo_in_loop_restart)
   {
     delay(1000);
     ESP.restart();
   }
 #endif
-  if (scan_and_store_wifis_requested)
+  if (todo_in_loop_scan_wifis)
   {
-    scan_and_store_wifis_requested = false;
+    todo_in_loop_scan_wifis = false;
     scan_and_store_wifis();
   }
 
@@ -4241,9 +4253,9 @@ void loop()
     return;
   }
 
-  if (set_relay_requested)
+  if (todo_in_loop_set_relays)
   { // relays forced up or so...
-    set_relay_requested = false;
+    todo_in_loop_set_relays = false;
     // update_channel_statuses();
     update_relay_states(); // new
     set_relays();
@@ -4267,7 +4279,7 @@ void loop()
 // TODO: tästö voisi lähteä kutsumaan influsxdata-siirtoa
 #ifdef INFLUX_REPORT_ENABLED
     add_variables_to_influx_buffer(previous_period_start);
-    influx_write_queued = true;
+    todo_in_loop_influx_write = true;
 #endif
   }
 
@@ -4291,24 +4303,23 @@ void loop()
   // getLocalTime(&timeinfo);
   // time(&now);
 
-  if (update_external_variables_queued)
+  if (todo_in_loop_update_external_variables)
   {
     // TEST
     // query_external_variables();
 
-    update_external_variables_queued = false;
+    todo_in_loop_update_external_variables = false;
     ok = update_external_variables();
     Serial.println("Returned from update_external_variables");
     return;
   }
 
 #ifdef INFLUX_REPORT_ENABLED
-  if (influx_write_queued)
+  if (todo_in_loop_influx_write)
   {
-    influx_write_queued = false;
+    todo_in_loop_influx_write = false;
     write_buffer_to_influx();
   }
-
 #endif
 
   if (next_query_input_data < now)
@@ -4322,7 +4333,7 @@ void loop()
     Serial.printf("now: %ld \n", now);
     next_query_input_data = now + 1200;
     ok = get_price_data();
-    update_external_variables_queued = ok;
+    todo_in_loop_update_external_variables = ok;
     time(&now);
     next_query_input_data = now + (ok ? 1200 : 120);
     Serial.printf("next_query_input_data: %ld \n", next_query_input_data);
