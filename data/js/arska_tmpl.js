@@ -41,6 +41,20 @@ function statusCBClicked(elCb) {
 // update variables and channels statuses to channels form
 function updateStatus(show_variables = true) {
     $.getJSON('/status', function (data) {
+        msgdiv = document.getElementById("msgdiv");
+        keyfd = document.getElementById("keyfd");
+        if (msgdiv) {
+            msgDate = new Date(data.last_msg_ts * 1000);
+            msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2) ;
+            //last_msg_type,msgDate.toLocaleDateString() 
+            msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + msgDate.toLocaleTimeString()  + ' ' + data.last_msg_msg  + '</span>';            
+        }   
+        if (keyfd) {
+            selling = data.variables["102"];
+            price = data.variables["0"];
+            selling_text = (selling > 0) ? "Selling: " : "Buying: ";
+            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average)<br>Price: <span class="big">' + price + ' ¢/kWh </span>';            
+        }
         if (show_variables) {
             document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 
@@ -57,7 +71,6 @@ function updateStatus(show_variables = true) {
             });
             $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
         }
-
         $.each(data.channels, function (i, channel_status) {
             show_channel_status(i, channel_status)
         });
@@ -67,11 +80,15 @@ function updateStatus(show_variables = true) {
     //  }
 }
 
+
 function show_channel_status(channel_idx, is_up) {
     status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
     href = is_up ? "#green" : "#red";
     //console.log(status_el.id + ", " + href);
-    status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+    if (status_el)
+        status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+    else
+        console.log("Element does not exist:" + "status_" + channel_idx);
     // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
 }
 

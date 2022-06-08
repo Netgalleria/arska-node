@@ -96,6 +96,7 @@ h3 {
     clear: both;
 }
 
+
 .fldh {
     float: left;
     width: 44%;
@@ -209,6 +210,19 @@ color:yellow }
   .radio-toolbar input[type="radio"]:checked + label {
       background-color: #f2ef99;
       border-color: #f7f7e6;
+  }
+
+  .msg0 {
+    color:green;
+  }
+  .msg1 {
+    color:yellow;
+  }
+  .msg2 {
+    color:red;
+  }
+  .msg3 {
+    color:red;
   }
 /*box div */
   .hb {

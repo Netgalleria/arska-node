@@ -64,6 +64,8 @@ const char *wifis_file_name PROGMEM = "/wifis.json";
 const char *default_http_password PROGMEM = "arska";
 const char *required_fs_version PROGMEM = "2022-06-02-001";
 
+
+
 struct variable_st
 {
   byte id;
@@ -80,6 +82,7 @@ struct variable_st
 time_t now; // this is the epoch
 tm tm_struct;
 
+
 // TODO: check if needed, not in use currently
 bool processing_variables = false; // trying to be "thread-safe", do not give state query http replies while processing
 
@@ -89,6 +92,26 @@ time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically
 bool backup_wifi_config_mode = false;
 
 #define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
+
+#define  MSG_TYPE_INFO 0
+#define  MSG_TYPE_WARN 1
+#define  MSG_TYPE_ERROR 2
+#define  MSG_TYPE_FATAL 3
+
+struct msg_st{
+  byte type; //0 info, 1-warn, 2 - error, 3-fatal
+  time_t ts;
+  char msg[70];
+};
+
+msg_st last_msg;
+
+void log_msg(byte type, const char *msg) {
+  strncpy(last_msg.msg, msg, 69);
+  last_msg.msg[70] = '\0';
+  last_msg.type = type;
+  time(&last_msg.ts);
+}
 
 /**
  * @brief System goes to  AP mode (config mode creates) if it cannot connect to existing wifi.
@@ -1343,8 +1366,10 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
  */
 bool read_meter_shelly3em()
 {
-  if (strlen(s.energy_meter_host) == 0)
+  if (strlen(s.energy_meter_host) == 0) {
     return false;
+  }
+    
 
   DynamicJsonDocument doc(2048);
 
@@ -1824,7 +1849,7 @@ bool get_solar_forecast()
 
   // Specify content-type header
   client_http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  client_http.setUserAgent("ArskaNodeESP");
+  client_http.setUserAgent("ArskaESP");
 
   // Send HTTP POST request
   int httpResponseCode = client_http.POST(query_data_raw);
@@ -1834,6 +1859,7 @@ bool get_solar_forecast()
   {
     Serial.print(F("deserializeJson() failed: "));
     Serial.println(error.c_str());
+    log_msg(MSG_TYPE_ERROR,PSTR("Failed to read energy forecast data"));
     return false;
   }
 
@@ -2058,7 +2084,8 @@ bool get_price_data()
   Serial.printf("before connect millis(): %lu\n", millis());
   if (!client_https.connect(host_prices, httpsPort))
   {
-    Serial.println(F("NOT connected to EntsoE server. Quitting price query."));
+    log_msg(MSG_TYPE_ERROR, PSTR("Not connected to EntsoE server. Quitting price query."));
+
     return false;
   }
 
@@ -2184,6 +2211,10 @@ bool get_price_data()
     Serial.printf("Prices are not saved, end_reached %d, price_rows %d \n", end_reached, price_rows);
   }
   Serial.println(read_ok ? F("Price query OK") : F("Price query failed"));
+
+  if (!read_ok)
+    log_msg(MSG_TYPE_ERROR,PSTR("Failed to price data."));
+
   return read_ok;
 }
 
@@ -2209,8 +2240,11 @@ bool query_external_variables()
 
   Serial.println("query_external_variables b");
 
-  if (strlen(s.variable_server) == 0)
-    return false;
+  if (strlen(s.variable_server) == 0) {
+    log_msg(MSG_TYPE_ERROR, PSTR("Variable server undefined."));
+       return false;
+  }
+ 
 
   snprintf(variable_url, sizeof(variable_url), "http://%s/status", s.variable_server);
   Serial.println(variable_url);
@@ -2222,6 +2256,8 @@ bool query_external_variables()
   {
     Serial.print("deserializeJson() failed: ");
     Serial.println(error.c_str());
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot process variable data."));
+
     return false;
   }
 
@@ -2876,7 +2912,10 @@ void read_energy_meter()
     delay(2000);
     ESP.restart();
   }
+  else 
+     log_msg(MSG_TYPE_ERROR,PSTR("Failed to read energy meter."));
 }
+  //
 
 // returns channel to switch
 // There can be multiple channels which could be switched but not all are switched at the same round
@@ -3817,7 +3856,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   {
     return request->requestAuthentication();
   }
-  StaticJsonDocument<550> doc; // oli 128, lisätty heapille ja invertterille
+  StaticJsonDocument<1000> doc; // 
   String output;
 
   JsonObject var_obj = doc.createNestedObject("variables");
@@ -3864,6 +3903,10 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   snprintf(buff_value, 20, "%04d-%02d-%02d %02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   doc["localtime"] = buff_value;
 
+  doc["last_msg_msg"] = last_msg.msg;
+  doc["last_msg_ts"] = last_msg.ts;
+  doc["last_msg_type"] = last_msg.type;
+  
   serializeJson(doc, output);
   request->send(200, "application/json", output);
 }
@@ -3875,7 +3918,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
 void setup()
 {
-
+ 
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
@@ -4197,6 +4240,7 @@ void setup()
 
   Serial.print(F("setup() finished:"));
   Serial.println(ESP.getFreeHeap());
+ 
 
   // wifi_request.status = 0u; // listening //TESTING...
 
@@ -4264,8 +4308,12 @@ void loop()
   time(&now);
   if (now < 1600000000) // we need clock set
     return;
-  if (started < 1600000000)
-    started = now;
+
+
+  if (started < 1600000000) {
+     started = now;
+     log_msg(MSG_TYPE_INFO,PSTR("Process started and processing"));
+  }  
 
   current_period_start = get_period_start_time(now);
   if (get_period_start_time(now) == get_period_start_time(started))
@@ -4299,17 +4347,14 @@ void loop()
     }
   }
 
-  bool ok;
+  bool processed_ok;
   // getLocalTime(&timeinfo);
   // time(&now);
 
   if (todo_in_loop_update_external_variables)
   {
-    // TEST
-    // query_external_variables();
-
     todo_in_loop_update_external_variables = false;
-    ok = update_external_variables();
+    processed_ok = update_external_variables();
     Serial.println("Returned from update_external_variables");
     return;
   }
@@ -4332,10 +4377,10 @@ void loop()
       } */
     Serial.printf("now: %ld \n", now);
     next_query_input_data = now + 1200;
-    ok = get_price_data();
-    todo_in_loop_update_external_variables = ok;
+    processed_ok = get_price_data();
+    todo_in_loop_update_external_variables = processed_ok;
     time(&now);
-    next_query_input_data = now + (ok ? 1200 : 120);
+    next_query_input_data = now + (processed_ok ? 1200 : 120);
     Serial.printf("next_query_input_data: %ld \n", next_query_input_data);
 
     // this could be in an own branch
