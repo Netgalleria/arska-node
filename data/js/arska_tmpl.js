@@ -52,8 +52,11 @@ function updateStatus(show_variables = true) {
         if (keyfd) {
             selling = data.variables["102"];
             price = data.variables["0"];
-            selling_text = (selling > 0) ? "Selling: " : "Buying: ";
-            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average)<br>Price: <span class="big">' + price + ' ¢/kWh </span>';            
+            
+            emDate = new Date(data.energym_read_last * 1000);
+         
+            selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
+            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average '+  emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>';            
         }
         if (show_variables) {
             document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
@@ -87,8 +90,7 @@ function show_channel_status(channel_idx, is_up) {
     //console.log(status_el.id + ", " + href);
     if (status_el)
         status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
-    else
-        console.log("Element does not exist:" + "status_" + channel_idx);
+ 
     // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
 }
 

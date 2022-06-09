@@ -224,6 +224,10 @@ color:yellow }
   .msg3 {
     color:red;
   }
+  .big {
+      font-size: larger;
+      font-weight: bold;
+  }
 /*box div */
   .hb {
     margin-top: 25px; padding: 1em;
