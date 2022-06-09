@@ -41,6 +41,8 @@ const char compile_date[] = __DATE__ " " __TIME__;
 
 // features enabled
 // #define SENSOR_DS18B20_ENABLED
+
+#define MAX_DS18B20_SENSORS 3
 #define METER_SHELLY3EM_ENABLED
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
@@ -367,7 +369,7 @@ struct oper_st
 6, "is", boolean_only=true \n
 7, "not",  boolean_only=true and because not reverse=true
  */
-//TODO: maybe operator NA - not available 
+// TODO: maybe operator NA - not available
 const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false}, {1, ">", true, false, false, false}, {2, "<", true, true, true, false}, {3, ">=", true, true, false, false}, {4, "<=", true, false, true, false}, {5, "<>", false, true, true, false}, {6, "is", false, false, false, true}, {7, "not", false, false, true, true}};
 
 /*constant_type, variable_type
@@ -393,7 +395,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 19
+#define VARIABLE_COUNT 21
 
 #define VARIABLE_PRICE 0        //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1  //!< price rank within 9 hours window
@@ -455,7 +457,7 @@ public:
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
   int get_variable_index(int id);
 };
 
@@ -800,6 +802,7 @@ OneWire oneWire(ONEWIRE_DATA_GPIO);
 // Pass our oneWire reference to Dallas Temperature sensor
 DallasTemperature sensors(&oneWire);
 float ds18B20_temp_c;
+int sensor_count = 0;
 #else
 bool sensor_ds18b20_enabled = false;
 #endif
@@ -1248,12 +1251,11 @@ String httpGETRequest(const char *url, const char *cache_file_name)
 
   String payload = "{}";
 
-  Serial.print(F("httpResponseCode: "));
-  Serial.println(httpResponseCode);
+  /* Serial.print(F("httpResponseCode: "));
+   Serial.println(httpResponseCode);*/
 
   if (httpResponseCode > 0)
   {
-
     payload = http.getString();
 
     if (strlen(cache_file_name) > 0) // write to a cache file
@@ -1324,6 +1326,30 @@ bool read_sensor_ds18B20()
     return false;
 }
 
+// new pilot
+bool read_ds18b20_sensors()
+{
+  DeviceAddress device_address;
+  sensors.requestTemperatures();
+  delay(50);
+
+  // Loop through each device, print out temperature data
+  Serial.printf("sensor_count:%d\n", sensor_count);
+  int j;
+  for (j = 0; j < sensor_count; j++)
+  {
+    // Get the  address
+    if (sensors.getAddress(device_address, j))
+    {
+      float tempC = sensors.getTempC(device_address);
+      Serial.printf("Device %d, temp C: %f\n", j, tempC);
+      vars.set(VARIABLE_SENSOR_1 + j, tempC);
+      time(&temperature_updated);
+    }
+  }
+  return true;
+}
+
 #endif
 
 #define RESTART_AFTER_LAST_OK_METER_READ 1800 //!< If all energy meter readings are failed within this period, restart the device
@@ -1351,21 +1377,21 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
   {
     netPowerInPeriod = shelly3em_power_in;
     netEnergyInPeriod = 0;
-    Serial.printf("get_values_shelly3m  shelly3em_read_count: %ld, netPowerInPeriod: %f, netEnergyInPeriod: %f\n", shelly3em_read_count, netPowerInPeriod, netEnergyInPeriod);
+    //  Serial.printf("get_values_shelly3m  shelly3em_read_count: %ld, netPowerInPeriod: %f, netEnergyInPeriod: %f\n", shelly3em_read_count, netPowerInPeriod, netEnergyInPeriod);
   }
   else
   {
     netEnergyInPeriod = (shelly3em_e_in - shelly3em_e_out - shelly3em_e_in_prev + shelly3em_e_out_prev);
-    Serial.printf("get_values_shelly3m netEnergyInPeriod (%f) = (shelly3em_e_in (%f) - shelly3em_e_out (%f) - shelly3em_e_in_prev (%f) + shelly3em_e_out_prev (%f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
+    //  Serial.printf("get_values_shelly3m netEnergyInPeriod (%f) = (shelly3em_e_in (%f) - shelly3em_e_out (%f) - shelly3em_e_in_prev (%f) + shelly3em_e_out_prev (%f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
     if ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts) != 0)
     {
       netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts)));
-      Serial.printf("get_values_shelly3m netPowerInPeriod (%f) = round(netEnergyInPeriod (%f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts);
+      //    Serial.printf("get_values_shelly3m netPowerInPeriod (%f) = round(netEnergyInPeriod (%f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts);
     }
     else // Do we ever get here with counter check
     {
       netPowerInPeriod = 0;
-      Serial.printf("get_values_shelly3m netPowerInPeriod = 0, shelly3em_meter_read_ts: %ld", shelly3em_meter_read_ts);
+      //  Serial.printf("get_values_shelly3m netPowerInPeriod = 0, shelly3em_meter_read_ts: %ld", shelly3em_meter_read_ts);
       //  netPowerInPeriod = -shelly3em_power_in;
     }
   }
@@ -1436,7 +1462,7 @@ bool read_meter_shelly3em()
   {
     Serial.println(F("Shelly - first query since boot"));
     shelly3em_last_period = now_period;
-    shelly3em_last_period_last_ts = shelly3em_meter_read_ts;//  -process_interval_s; // estimate
+    shelly3em_last_period_last_ts = shelly3em_meter_read_ts; //  -process_interval_s; // estimate
     shelly3em_e_in_prev = shelly3em_e_in;
     shelly3em_e_out_prev = shelly3em_e_out;
   }
@@ -1824,7 +1850,6 @@ void update_price_variables(time_t current_period_start)
     vars.set_NA(VARIABLE_PRICE);
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price info for current period."));
   }
-
 
   // set current price and forecasted solar avg price difference
   if (vars.is_set(VARIABLE_PVFORECAST_AVGPRICE24) && vars.is_set(VARIABLE_PRICE))
@@ -3972,9 +3997,15 @@ void setup()
   //  voltage to 1-wire bus
   //  voltage from data pin so we can reset the bus (voltage low) if needed
   pinMode(ONEWIRE_VOLTAGE_GPIO, OUTPUT);
-  Serial.printf("Setting channel ONEWIRE_VOLTAGE_GPIO with gpio %d to OUTPUT mode\n", ONEWIRE_VOLTAGE_GPIO);
+  Serial.printf(PSTR("Setting channel ONEWIRE_VOLTAGE_GPIO with gpio %d to OUTPUT mode\n"), ONEWIRE_VOLTAGE_GPIO);
   digitalWrite(ONEWIRE_VOLTAGE_GPIO, HIGH);
   sensors.begin();
+  delay(1000); // let the sensors settle
+  // Grab a count of devices on the wire
+  DeviceAddress tempDeviceAddress;
+  sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
+  Serial.printf(PSTR("sensor_count:%d\n"), sensor_count);
+
 #endif
 
   // TODO: pitäisikö olla jo kevyempi
@@ -4052,7 +4083,7 @@ void setup()
   Serial.println("Starting wifi");
 
   WiFi.mode(WIFI_STA);
-  Serial.printf("Trying to connect wifi [%s] with password [%s]\n", s.wifi_ssid, s.wifi_password);
+  Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
   WiFi.begin(s.wifi_ssid, s.wifi_password);
 
   if (WiFi.waitForConnectResult() != WL_CONNECTED)
@@ -4393,10 +4424,8 @@ void loop()
     }
   }
 
-
   // getLocalTime(&timeinfo);
   // time(&now);
-
 
 #ifdef INFLUX_REPORT_ENABLED
   if (todo_in_loop_influx_write)
@@ -4436,7 +4465,8 @@ void loop()
     read_energy_meter();
 
 #ifdef SENSOR_DS18B20_ENABLED
-    read_sensor_ds18B20(); // this can last a while due to possible reset timeout
+    // read_sensor_ds18B20(); // this can last a while due to possible reset timeout
+    read_ds18b20_sensors();
 #endif
     update_time_based_variables();
     update_meter_based_variables();
