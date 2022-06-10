@@ -172,7 +172,7 @@ const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24};
 
 const char *price_data_filename PROGMEM = "/price_data.json";
 const char *variables_filename PROGMEM = "/variables.json";
-const char *fcst_filename PROGMEM = "/fcst.json"; // TODO: we need it only for debuggin?, remove?
+const char *fcst_filename PROGMEM = "/fcst.json"; // TODO: we need it only for debugging?, remove?
 
 const int price_variable_blocks[] = {9, 24}; //!< price ranks are calculated in 9 and 24 period windows
 
@@ -827,6 +827,7 @@ bool todo_in_loop_restart = false;
 bool todo_in_loop_test_gpio = false; //!< gpio should be tested in loop
 int gpio_to_test_in_loop = -1;       //!< if not -1 then gpio should be tested in loop
 bool todo_in_loop_scan_wifis = false;
+bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
 
 // data strcuture limits
@@ -898,6 +899,14 @@ typedef struct
   int template_id;
 } channel_struct;
 
+#ifdef SENSOR_DS18B20_ENABLED
+typedef struct
+{
+  DeviceAddress address;
+  char id_str[MAX_CH_ID_STR_LENGTH];
+} sensor_struct;
+#endif
+
 // TODO: add fixed ip, subnet?
 // Setting stucture, stored in non-volatile memory
 typedef struct
@@ -924,6 +933,9 @@ typedef struct
   char forecast_loc[MAX_ID_STR_LENGTH];
   byte variable_mode; // VARIABLE_MODE_SOURCE, VARIABLE_MODE_REPLICA
   char lang[3];       // preferred language
+#ifdef SENSOR_DS18B20_ENABLED
+  sensor_struct sensors[MAX_DS18B20_SENSORS];
+#endif
 } settings_struct;
 
 // this stores settings also to eeprom
@@ -1301,6 +1313,7 @@ String httpGETRequest(const char *url, const char *cache_file_name)
  * @return true - if read successful
  * @return false - if read unsuccessful
  */
+/*
 bool read_sensor_ds18B20()
 {
   sensors.requestTemperatures();
@@ -1325,7 +1338,33 @@ bool read_sensor_ds18B20()
   else
     return false;
 }
+*/
 
+// New function check and documentate
+bool scan_sensors()
+{
+  DeviceAddress device_address;
+  sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
+  Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
+  int j;
+  // clear first
+  for (j = 0; j < MAX_DS18B20_SENSORS; j++)
+  {
+    s.sensors[j].address[0] = 0;
+    strcpy(s.sensors[j].id_str, "-");
+  }
+
+  for (j = 0; j < sensor_count; j++)
+  {
+    if (sensors.getAddress(device_address, j))
+    {
+      memcpy(s.sensors[j].address, device_address,sizeof(device_address));
+      sprintf(s.sensors[j].id_str, "sensor %d", j + 1);
+    }
+  }
+  return true;
+}
+/*
 // new pilot
 bool read_ds18b20_sensors()
 {
@@ -1346,6 +1385,43 @@ bool read_ds18b20_sensors()
       vars.set(VARIABLE_SENSOR_1 + j, tempC);
       time(&temperature_updated);
     }
+  }
+  return true;
+}
+*/
+// new using stored addresses
+bool read_ds18b20_sensors()
+{
+  Serial.println(F("Starting read_ds18b20_sensors"));
+  DeviceAddress device_address;
+  sensors.requestTemperatures();
+  delay(50);
+  int32_t temp_raw;
+  float temp_c;
+
+  // Loop through each device, print out temperature data
+  Serial.printf("sensor_count:%d\n", sensor_count);
+  int j;
+  for (j = 0; j < sensor_count; j++)
+  {
+    // Get the  address
+    if (s.sensors[j].address != 0)
+    {
+      memcpy(device_address,s.sensors[j].address,sizeof(device_address));
+      temp_raw = sensors.getTemp(s.sensors[j].address);
+      if (temp_raw != DEVICE_DISCONNECTED_RAW)
+      {
+        temp_c = sensors.rawToCelsius(temp_raw);
+
+        Serial.printf("Device %d, temp C: %f\n", j, temp_c);
+        vars.set(VARIABLE_SENSOR_1 + j, temp_c);
+        time(&temperature_updated); // TODO: per sensor?
+      }
+      else
+        Serial.printf("DEBUG Sensor %d, DEVICE_DISCONNECTED_RAW\n", j);
+    }
+    else
+      Serial.printf("DEBUG Sensor %d, no address\n", j);
   }
   return true;
 }
@@ -3891,6 +3967,15 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     return;
   }
 
+  if (request->getParam("action", true)->value().equals("scan_sensors"))
+  {
+    todo_in_loop_scan_sensors = true;
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
+    return;
+  }
+
+  
+
   if (request->getParam("action", true)->value().equals("op_test_gpio"))
   {
     gpio_to_test_in_loop = request->getParam("test_gpio", true)->value().toInt();
@@ -4365,6 +4450,13 @@ void loop()
   {
     todo_in_loop_scan_wifis = false;
     scan_and_store_wifis();
+  }
+
+  if (todo_in_loop_scan_sensors)
+  {
+    todo_in_loop_scan_sensors = false;
+    if (scan_sensors())
+      writeToEEPROM();
   }
 
   check_forced_restart(); //!< if in forced ap-mode restart when time out

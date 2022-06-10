@@ -809,6 +809,11 @@ function doAction(action) {
             save_form.submit();
         }
     }
+    else if (action == 'scan_sensors') {
+        if (confirm('Scan connected temperature sensors? This can change sensor numbers, so scan only if neccessary and check sensor rules after scanning.')) {
+            save_form.submit();
+        }
+    }
     else if (action == 'reset') {
         if (confirm('Backup configuration before reset! \nReset configuration? ')) {
             save_form.submit();
