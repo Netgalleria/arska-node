@@ -1340,30 +1340,102 @@ bool read_sensor_ds18B20()
 }
 */
 
+void print_onewire_address(DeviceAddress deviceAddress) {
+  for (uint8_t i = 0; i < 8; i++){
+    if (deviceAddress[i] < 16) Serial.print("0");
+      Serial.print(deviceAddress[i], HEX);
+  }
+}
+
 // New function check and documentate
 bool scan_sensors()
 {
   DeviceAddress device_address;
+  int j;
+  int32_t temp_raw;
+  bool sensor_already_listed;
+  int first_free_slot;
+  
+  sensors.begin(); //initiate bus
+  delay(1000); // let the sensors settle
+
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
   Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
-  int j;
-  // clear first
+
+  sensors.requestTemperatures();
+  delay(50);
+
+  // clear first nonexistent sensors
   for (j = 0; j < MAX_DS18B20_SENSORS; j++)
   {
-    s.sensors[j].address[0] = 0;
+    if (s.sensors[j].address[0] != 0)
+    {
+      if (sensors.getTemp(s.sensors[j].address) != DEVICE_DISCONNECTED_RAW) {// still online?
+        Serial.println(sensors.getTemp(s.sensors[j].address));
+        print_onewire_address(s.sensors[j].address);
+        Serial.printf(" still online in slot %d\n", j);
+        continue;
+      }
+    }
+    Serial.printf(PSTR("DEBUG: scan_sensors, slot %d cleared\n"), j);
+    memset(s.sensors[j].address, 0, sizeof(DeviceAddress));
     strcpy(s.sensors[j].id_str, "-");
   }
 
   for (j = 0; j < sensor_count; j++)
   {
-    if (sensors.getAddress(device_address, j))
+    if (sensors.getAddress(device_address, j)) // there is a sensor with this idx
     {
-      memcpy(s.sensors[j].address, device_address,sizeof(device_address));
-      sprintf(s.sensors[j].id_str, "sensor %d", j + 1);
+      sensor_already_listed = false;
+      for (int k = 0; k < MAX_DS18B20_SENSORS; k++)
+      {
+        // verify that this is working
+        if (memcmp(device_address, s.sensors[k].address, sizeof(device_address)) == 0)
+        {
+          sensor_already_listed = true;
+          print_onewire_address(device_address);
+          Serial.printf("DEBUG:  %02X == %02X\n", (int)device_address[1],(int)s.sensors[k].address[1]);
+          Serial.printf("DEBUG: sensor_already_listed in slot %d\n", k);
+          break;
+        }
+        else {
+          print_onewire_address(device_address);
+           Serial.printf("DEBUG:  %02X <> %042\n", (int)device_address[1],(int)s.sensors[k].address[1]);
+        }
+      }
+      if (!sensor_already_listed)
+      {
+        first_free_slot = MAX_DS18B20_SENSORS;
+        for (int l = 0; l < MAX_DS18B20_SENSORS; l++)
+        {
+          if (s.sensors[l].address[0] == 0)
+          {
+            first_free_slot = l;
+            break;
+          }
+        }
+        if (first_free_slot < MAX_DS18B20_SENSORS)
+        { // now we have a slot for the sensor just found
+        Serial.printf("DEBUG: new sensor to slot slot %d\n", first_free_slot);
+         memcpy(s.sensors[first_free_slot].address, device_address, sizeof(device_address));
+         printf(s.sensors[first_free_slot].id_str, "sensor %d", j + 1);
+        }
+        else
+          break; // no more free slots, no reason to loop
+      }
     }
+  }
+  Serial.println("DEBUG AFTER SCAN:");
+  for (int k = 0; k < MAX_DS18B20_SENSORS; k++)
+  {
+    print_onewire_address(s.sensors[k].address);
+    Serial.printf("sensor %d \n",k);
+    
   }
   return true;
 }
+
+
 /*
 // new pilot
 bool read_ds18b20_sensors()
@@ -1402,12 +1474,12 @@ bool read_ds18b20_sensors()
   // Loop through each device, print out temperature data
   Serial.printf("sensor_count:%d\n", sensor_count);
   int j;
-  for (j = 0; j < sensor_count; j++)
+  for (j = 0; j < MAX_DS18B20_SENSORS; j++)
   {
     // Get the  address
     if (s.sensors[j].address != 0)
     {
-      memcpy(device_address,s.sensors[j].address,sizeof(device_address));
+      memcpy(device_address, s.sensors[j].address, sizeof(device_address));
       temp_raw = sensors.getTemp(s.sensors[j].address);
       if (temp_raw != DEVICE_DISCONNECTED_RAW)
       {
@@ -1417,11 +1489,15 @@ bool read_ds18b20_sensors()
         vars.set(VARIABLE_SENSOR_1 + j, temp_c);
         time(&temperature_updated); // TODO: per sensor?
       }
-      else
+      else {
         Serial.printf("DEBUG Sensor %d, DEVICE_DISCONNECTED_RAW\n", j);
+        vars.set_NA(VARIABLE_SENSOR_1 + j);
+      }
     }
-    else
+    else {
       Serial.printf("DEBUG Sensor %d, no address\n", j);
+      vars.set_NA(VARIABLE_SENSOR_1 + j);
+    }
   }
   return true;
 }
@@ -3973,8 +4049,6 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
-
-  
 
   if (request->getParam("action", true)->value().equals("op_test_gpio"))
   {
