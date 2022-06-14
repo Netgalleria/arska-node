@@ -12,8 +12,11 @@ const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
 const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
+const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
 const DEBUG_MODE = ('%DEBUG_MODE%' === 'true');
 const compile_date = '%compile_date%';
+
+let variable_list = {}; // populate later
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
 var formSubmitting = false;
@@ -64,11 +67,17 @@ function updateStatus(show_variables = true) {
             $("#tblVariables_tb").empty();
             $.each(data.variables, function (i, variable) {
                 var_this = getVariable(i);
+                //console.log(JSON.stringify(var_this));
+                if (var_this[0] in variable_list)
+                    variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                else
+                    variable_desc = "";
+                
                 if (variable[2] == 50 || variable[2] == 51) {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable ? "ON" : "OFF" + '</td></tr>';
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable ? "ON" : "OFF" + '</td><td>' + variable_desc + '</td></tr>';
                 }
                 else {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td></tr>';
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + '</td></tr>';
                 }
                 $(newRow).appendTo($("#tblVariables_tb"));
             });
@@ -109,7 +118,7 @@ var submitChannelForm = function (e) {
         return false;
 
     // set name attributes to inputs to post (not coming from server to save space)
-    let inputs = document.querySelectorAll("input[id^='ctcb_'], input[id^='t_'], input[id^='chty_']");
+    let inputs = document.querySelectorAll("input[id^='t_'], input[id^='chty_']");
     console.log("inputs.length:" + inputs.length);
     for (let i = 0; i < inputs.length; i++) {
         if (inputs[i].id != inputs[i].name) {
@@ -285,6 +294,12 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
     populateStmtField(document.getElementById("var" + suffix), stmt);
 }
 
+function getVariableList() {
+    $.getJSON('/data/variable-info.json', function (data) {
+        variable_list = data;
+    });
+}
+
 
 
 function populateTemplateSel(selEl, template_id = -1) {
@@ -333,8 +348,18 @@ function templateChanged(selEl) {
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx, rule) {
-            console.log("ctcb_" + channel_idx + "_" + cond_idx);
-            document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
+          //  console.log("ctcb_" + channel_idx + "_" + cond_idx);
+          //  document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
+         /*   if (rule["on"])
+                document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = true;
+            else
+                document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
+            */
+            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = !rule["on"];
+            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = rule["on"];
+            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").disabled = rule["on"];
+            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").disabled = !rule["on"];
+        
 
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
@@ -372,7 +397,9 @@ function deleteStmtsUI(channel_idx) {
 
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
-        document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = false;
+       // document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = false;
+       document.getElementById("ctrb_" + channel_idx + "_" + cond_idx +"_1").checked = false;
+        document.getElementById("ctrb_" + channel_idx + "_" + cond_idx +"_0").checked = true;
     }
 }
 
@@ -384,13 +411,20 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
 
     console.log("New rule mode:", rule_mode);
     $('#rd_' + channel_idx + ' select').attr('disabled', (rule_mode != 0));
-    $('#rd_' + channel_idx + ' input').attr('disabled', (rule_mode != 0)); //jos ei iteroi?
-    $('#rd_' + channel_idx + ' input').prop('readonly', (rule_mode != 0));
+    $('#rd_' + channel_idx + " input[type='text']").attr('disabled', (rule_mode != 0)); //jos ei iteroi?
+    $('#rd_' + channel_idx + " input[type='text']").prop('readonly', (rule_mode != 0));
 
     $('#rd_' + channel_idx + ' .addstmtb').css({ "display": ((rule_mode != 0) ? "none" : "block") });
     $('#rts_' + channel_idx).css({ "display": ((rule_mode == 0) ? "none" : "block") });
 
     fillStmtRules(channel_idx, rule_mode);
+    if (rule_mode == 0) //enable all
+        $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false); 
+
+   // $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', (rule_mode != 0)); 
+ //   $("#rd_" + channel_idx + " input[type='radio']:checked").attr("disabled", false);
+ //   $('#rd_' + channel_idx + " input[type='radio']").prop('readonly', (rule_mode != 0));
+   
 }
 
 function populateOper(el, var_this, stmt = [-1, -1, 0]) {
@@ -519,9 +553,6 @@ function fillStmtRules(channel_idx, rule_mode) {
         firstStmtVarId = "var_" + channel_idx + "_" + cond_idx + "_0";
         firstStmtVar = document.getElementById(firstStmtVarId);
         first_var_defined = !!firstStmtVar;
-
-
-
         //if (first_var_defined)
         //    first_var_defined = (firstStmtVar.value >= 0);
 
@@ -685,10 +716,9 @@ function initForm(url) {
         $('#lang option').filter(function () {
             return this.value.indexOf(lang) > -1;
         }).prop('selected', true);
-
-
     }
     else if (url == '/channels') {
+        getVariableList();
         initChannelForm();
     }
     else if (url == '/') {
@@ -745,6 +775,18 @@ function initWifiForm() {
     var wifisp = JSON.parse(wifis);
     wifisp.sort(compare_wifis);
     var wifi_sel = document.getElementById("wifi_ssid");
+
+    wifisp.forEach(function (wifi, i) {
+        if (wifi.id) {
+            var opt = document.createElement("option");
+            if (backup_wifi_config_mode && i == 0)
+                opt.selected = true;
+            opt.value = wifi.id;
+            opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
+            wifi_sel.appendChild(opt);
+        }
+    });
+/*
     wifisp.forEach(wifi => {
         if (wifi.id) {
             var opt = document.createElement("option");
@@ -752,7 +794,7 @@ function initWifiForm() {
             opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
             wifi_sel.appendChild(opt);
         }
-    })
+    }); */
 }
 
 function setChannelFields(obj) {
@@ -859,12 +901,19 @@ function processRulesetImport(evt) {
 
     for (let i = 0; i < CHANNEL_COUNT; i++) {
         let rule_states_e = document.getElementById("st_" + channel_idx + "_" + i);
-        let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
+      //  let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
+        let rule_onoff_rb_0 = document.getElementById("ctrb_" + channel_idx + "_" + i + "_0");
+        let rule_onoff_rb_1 = document.getElementById("ctrb_" + channel_idx + "_" + i + "_1");
         let rule_target_e = document.getElementById("t_" + channel_idx + "_" + i);
 
         if (obj["rules"].length >= i + 1) {
             rule_states_e.value = JSON.stringify(obj["rules"][i]["states"]).replace("[", "").replace("]", "");
-            rule_onoff_cb.checked = obj["rules"][i]["on"];
+        //    rule_onoff_cb.checked = obj["rules"][i]["on"];
+            if (obj["rules"][i]["on"])
+                rule_onoff_rb_1.checked = true;
+            else
+                rule_onoff_rb_0.checked = true;
+                
             if (obj["rules"][i]["target"]) {
                 rule_target_e.value = obj["rules"][i]["target"];
             }
@@ -874,7 +923,8 @@ function processRulesetImport(evt) {
         }
         else {
             rule_states_e.value = '';
-            rule_onoff_cb.checked = false;
+           // rule_onoff_cb.checked = false;
+            rule_onoff_rb_0.checked = true;
             rule_target_e.value = 0;
 
         }

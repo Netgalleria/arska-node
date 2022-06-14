@@ -1,0 +1,90 @@
+{
+    "0": {
+        "id": "price",
+        "en": "current price c/kWh"
+    },
+    "1": {
+        "id": "price rank 9h",
+        "en": "price rank in 9 hours, 1 if now lowest price, 9 if highest"
+    },
+    "2": {
+        "id": "price rank 24h",
+        "en": "price rank in 24 hours, 1 if now lowest price, 24 if highest"
+    },
+    "20": {
+        "id": "pv forecast 24 h",
+        "en": "solar power forecast for next 24 hours, 0.. ca.25"
+    },
+    "21": {
+        "id": "pv value 24 h",
+        "en": "value of future solar power, next 24 h, cents"
+    },
+    "22": {
+        "id": "pv price avg 24 h",
+        "en": "average price of future solar power, next 24 h, c/kWh"
+    },
+    "23": {
+        "id": "future pv higher",
+        "en": "amount future avarage solar power price is higher than current price, +- c/kWh"
+    },
+    "100": {
+        "id": "extra production",
+        "en": "true if there is extra production, measured from grid or inverter production"
+    },
+    "101": {
+        "id": "production (per) W",
+        "en": "average production  in current period, W"
+    },
+    "102": {
+        "id": "selling power W",
+        "en": "average power exported to the grid in current period, W"
+    },
+    "103": {
+        "id": "selling Wh",
+        "en": "energy exported to the grid in current period, Wh"
+    },
+    "110": {
+        "id": "mm, month",
+        "en": "current month, 01-12"
+    },
+    "111": {
+        "id": "mmdd",
+        "en": "current month and day, e.g. 0501 fir first of May"
+    },
+    "112": {
+        "id": "weekday (1-7)",
+        "en": "weekday, 1-Monday...7-Sunday"
+    },
+    "115": {
+        "id": "hh, hour",
+        "en": "current hour, 01-23"
+    },
+    "116": {
+        "id": "hhmm",
+        "en": "current hour and minute, e.g. 1200 - noon"
+    },
+    "130": {
+        "id": "day",
+        "en": "true if day tariff (Finnish tariff, 0700-2200) effective"
+    },
+    "140": {
+        "id": "winterday",
+        "en": "true if winter day tariff (Finnish) effective"
+    },
+    "201": {
+        "id": "sensor 1 temperature",
+        "en": "sensor 1 temperature, C"
+    },
+    "202": {
+        "id": "sensor 2 temperature",
+        "en": "sensor 2 temperature, C"
+    },
+    "203": {
+        "id": "sensor 3 temperature",
+        "en": "sensor 3 temperature, C"
+    },
+    "1001": {
+        "id": "updated",
+        "en": "update time"
+    }
+}
