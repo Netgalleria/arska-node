@@ -49,7 +49,7 @@ function updateStatus(show_variables = true) {
         if (msgdiv) {
             
             console.log("cookie msg_read", getCookie("msg_read"));
-            if (data.last_msg_ts > getCookie("msg_read") || true) {
+            if (data.last_msg_ts > getCookie("msg_read")) {
                 msgDate = new Date(data.last_msg_ts * 1000);
                 msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
                 //last_msg_type,msgDate.toLocaleDateString() 
