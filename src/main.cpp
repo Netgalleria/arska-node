@@ -2778,7 +2778,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 
   if (show_force_up)
   {
-    snprintf(buff, 220, "<div class='secbr radio-toolbar'>Set channel up for:<br>");
+    snprintf(buff, 220, "<div class='secbr radio-toolbar'>Set channel up for next:<br>");
     strcat(out, buff);
 
     int hour_array_element_count = (int)(sizeof(force_up_hours) / sizeof(*force_up_hours));
@@ -3178,10 +3178,10 @@ bool set_channel_switch(int channel_idx, bool up)
 {
   if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
-    Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
+  /*  Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
     Serial.print(s.ch[channel_idx].gpio);
     Serial.print("  ");
-    Serial.println(up);
+    Serial.println(up);*/
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
     return true;
   }
@@ -4469,7 +4469,7 @@ void setup()
     if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
     { // gpio channel
       pinMode(s.ch[channel_idx].gpio, OUTPUT);
-      Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
+  //    Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
@@ -4602,7 +4602,7 @@ void loop()
   if (started < 1600000000)
   {
     started = now;
-    log_msg(MSG_TYPE_INFO, PSTR("Process started and processing"));
+    log_msg(MSG_TYPE_INFO, PSTR("Started processing"));
   }
 
   current_period_start = get_period_start_time(now);

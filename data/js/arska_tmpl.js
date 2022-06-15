@@ -47,19 +47,23 @@ function updateStatus(show_variables = true) {
         msgdiv = document.getElementById("msgdiv");
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
-            msgDate = new Date(data.last_msg_ts * 1000);
-            msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2) ;
-            //last_msg_type,msgDate.toLocaleDateString() 
-            msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + msgDate.toLocaleTimeString()  + ' ' + data.last_msg_msg  + '</span>';            
-        }   
+            
+            console.log("cookie msg_read", getCookie("msg_read"));
+            if (data.last_msg_ts > getCookie("msg_read") || true) {
+                msgDate = new Date(data.last_msg_ts * 1000);
+                msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
+                //last_msg_type,msgDate.toLocaleDateString() 
+                msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + msgDate.toLocaleTimeString() + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
+            }
+        }
         if (keyfd) {
             selling = data.variables["102"];
             price = data.variables["0"];
-            
+
             emDate = new Date(data.energym_read_last * 1000);
-         
+
             selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
-            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average '+  emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>';            
+            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>';
         }
         if (show_variables) {
             document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
@@ -72,7 +76,7 @@ function updateStatus(show_variables = true) {
                     variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
                 else
                     variable_desc = "";
-                
+
                 if (variable[2] == 50 || variable[2] == 51) {
                     newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable ? "ON" : "OFF" + '</td><td>' + variable_desc + '</td></tr>';
                 }
@@ -99,7 +103,7 @@ function show_channel_status(channel_idx, is_up) {
     //console.log(status_el.id + ", " + href);
     if (status_el)
         status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
- 
+
     // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
 }
 
@@ -348,18 +352,18 @@ function templateChanged(selEl) {
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx, rule) {
-          //  console.log("ctcb_" + channel_idx + "_" + cond_idx);
-          //  document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
-         /*   if (rule["on"])
-                document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = true;
-            else
-                document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
-            */
+            //  console.log("ctcb_" + channel_idx + "_" + cond_idx);
+            //  document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
+            /*   if (rule["on"])
+                   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = true;
+               else
+                   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
+               */
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = !rule["on"];
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = rule["on"];
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").disabled = rule["on"];
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").disabled = !rule["on"];
-        
+
 
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
@@ -397,9 +401,9 @@ function deleteStmtsUI(channel_idx) {
 
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
-       // document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = false;
-       document.getElementById("ctrb_" + channel_idx + "_" + cond_idx +"_1").checked = false;
-        document.getElementById("ctrb_" + channel_idx + "_" + cond_idx +"_0").checked = true;
+        // document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = false;
+        document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
+        document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
     }
 }
 
@@ -419,12 +423,12 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
 
     fillStmtRules(channel_idx, rule_mode);
     if (rule_mode == 0) //enable all
-        $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false); 
+        $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false);
 
-   // $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', (rule_mode != 0)); 
- //   $("#rd_" + channel_idx + " input[type='radio']:checked").attr("disabled", false);
- //   $('#rd_' + channel_idx + " input[type='radio']").prop('readonly', (rule_mode != 0));
-   
+    // $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', (rule_mode != 0)); 
+    //   $("#rd_" + channel_idx + " input[type='radio']:checked").attr("disabled", false);
+    //   $('#rd_' + channel_idx + " input[type='radio']").prop('readonly', (rule_mode != 0));
+
 }
 
 function populateOper(el, var_this, stmt = [-1, -1, 0]) {
@@ -770,6 +774,33 @@ function initForm(url) {
 function compare_wifis(a, b) {
     return ((a.rssi > b.rssi) ? -1 : 1);
 }
+// cookie function, check messages read etc, https://www.w3schools.com/js/js_cookies.asp
+function setCookie(cname, cvalue, exdays) {
+    const d = new Date();
+    d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+    let expires = "expires=" + d.toUTCString();
+    document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+}
+
+function getCookie(cname) {
+    let name = cname + "=";
+    let ca = document.cookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+        }
+        if (c.indexOf(name) == 0) {
+            return c.substring(name.length, c.length);
+        }
+    }
+    return "";
+}
+
+function set_msg_read(elBtn) {
+    setCookie("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
+    document.getElementById("msgdiv").innerHTML = "";
+}
 
 function initWifiForm() {
     var wifisp = JSON.parse(wifis);
@@ -786,15 +817,15 @@ function initWifiForm() {
             wifi_sel.appendChild(opt);
         }
     });
-/*
-    wifisp.forEach(wifi => {
-        if (wifi.id) {
-            var opt = document.createElement("option");
-            opt.value = wifi.id;
-            opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
-            wifi_sel.appendChild(opt);
-        }
-    }); */
+    /*
+        wifisp.forEach(wifi => {
+            if (wifi.id) {
+                var opt = document.createElement("option");
+                opt.value = wifi.id;
+                opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
+                wifi_sel.appendChild(opt);
+            }
+        }); */
 }
 
 function setChannelFields(obj) {
@@ -864,10 +895,10 @@ function doAction(action) {
     else if (action == 'test_gpio') {
         document.querySelector('#test_gpio').value = prompt("GPIO to test", "-1");
         save_form.submit();
-        
+
     }
-     
-        
+
+
 }
 
 // remove?
@@ -901,19 +932,19 @@ function processRulesetImport(evt) {
 
     for (let i = 0; i < CHANNEL_COUNT; i++) {
         let rule_states_e = document.getElementById("st_" + channel_idx + "_" + i);
-      //  let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
+        //  let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
         let rule_onoff_rb_0 = document.getElementById("ctrb_" + channel_idx + "_" + i + "_0");
         let rule_onoff_rb_1 = document.getElementById("ctrb_" + channel_idx + "_" + i + "_1");
         let rule_target_e = document.getElementById("t_" + channel_idx + "_" + i);
 
         if (obj["rules"].length >= i + 1) {
             rule_states_e.value = JSON.stringify(obj["rules"][i]["states"]).replace("[", "").replace("]", "");
-        //    rule_onoff_cb.checked = obj["rules"][i]["on"];
+            //    rule_onoff_cb.checked = obj["rules"][i]["on"];
             if (obj["rules"][i]["on"])
                 rule_onoff_rb_1.checked = true;
             else
                 rule_onoff_rb_0.checked = true;
-                
+
             if (obj["rules"][i]["target"]) {
                 rule_target_e.value = obj["rules"][i]["target"];
             }
@@ -923,7 +954,7 @@ function processRulesetImport(evt) {
         }
         else {
             rule_states_e.value = '';
-           // rule_onoff_cb.checked = false;
+            // rule_onoff_cb.checked = false;
             rule_onoff_rb_0.checked = true;
             rule_target_e.value = 0;
 

@@ -141,6 +141,11 @@ h3 {
     width: 70%;
     margin-right: 2%;
 }
+.smallbtn {
+    min-width: fit-content;
+    padding: 8px;
+    margin: 5px;
+}
 
 .rsimp {
     font-size:small;
