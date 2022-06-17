@@ -1,43 +1,62 @@
 /*
 (C) Netgalleria Oy, Olli Rinne, 2021-2022
 
-
 Resource files (see data subfolder):
 - arska.js - web UI Javascript routines
 - style.css - web UI styles
 - admin_template.html - html template file for admin web UI
-- view_template.html - html template file for dashboard UI
+- channels_template.html - template file for channel configuration
+- dashboard_template.html - html template file for dashboard UI
+- inputs_template.htm - htmll template for services configuration UI
+- js/arska_tmpl-js - main javascript code template //TODO:separate variable(constant) and code
+- js/jquery-3.6.0.min.js - jquery library
+- data/fsinfo - file system version info
+- data/template-list.json - list of rule templates
+- data/templates.json - rule template definitions
+- data/variable-info.json
 
+
+ build options defined in platform.ini
+#define ESP32 //if ESP32 platform
+#define CHANNEL_COUNT 5 //number of channels, GPIO+virtual
+#define CHANNEL_CONDITIONS_MAX 4 //max conditions/rules per channel
+#define ONEWIRE_DATA_GPIO 13
+#define INFLUX_REPORT_ENABLED
+#define SENSOR_DS18B20_ENABLED // DS18B20 funtionality
+#define RTC_DS3231_ENABLED //real time clock functionality
+#define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
 */
 
-#include <Arduino.h>
-#include <math.h> //round
-
-#include <EEPROM.h>
 #define EEPROM_CHECK_VALUE 12349
 #define DEBUG_MODE
-
-#include <LittleFS.h>
 
 // #include <improv.h> // testing improv for wifi settings
 
 const char compile_date[] = __DATE__ " " __TIME__;
 
+#include <Arduino.h>
+#include <math.h> //round
+#include <EEPROM.h>
+#include <LittleFS.h>
 #include "WebAuthentication.h"
 
 #ifdef ESP32 // not fully implemented with ESP32
-//#pragma message("ESP32 version")
-
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
-
 #elif defined(ESP8266) // tested only with ESP8266
 //#pragma message("ESP8266 version")
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESP8266HTTPClient.h>
 #endif
+
+#include <ESPAsyncWebServer.h>
+
+// https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+#include <time.h>
+#include <WiFiClient.h>
+#include <ArduinoJson.h>
 
 // features enabled
 // #define SENSOR_DS18B20_ENABLED
@@ -62,10 +81,19 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #define eepromaddr 0
 #define WATT_EPSILON 50
 
-const char *config_file_name PROGMEM = "/config.json";
-const char *wifis_file_name PROGMEM = "/wifis.json";
 const char *default_http_password PROGMEM = "arska";
 const char *required_fs_version PROGMEM = "2022-06-02-001";
+const char *price_data_filename PROGMEM = "/data/price-data.json";
+const char *variables_filename PROGMEM = "/data/variables.json";
+const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
+const char *wifis_file_name PROGMEM = "/wifis.json";
+
+#define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
+
+#define MSG_TYPE_INFO 0
+#define MSG_TYPE_WARN 1
+#define MSG_TYPE_ERROR 2
+#define MSG_TYPE_FATAL 3
 
 struct variable_st
 {
@@ -75,11 +103,6 @@ struct variable_st
   long val_l;
 };
 
-#include <ESPAsyncWebServer.h>
-
-// https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-#include <time.h>
-
 time_t now; // this is the epoch
 tm tm_struct;
 
@@ -87,13 +110,6 @@ tm tm_struct;
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
 bool backup_wifi_config_mode = false;
-
-#define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
-
-#define MSG_TYPE_INFO 0
-#define MSG_TYPE_WARN 1
-#define MSG_TYPE_ERROR 2
-#define MSG_TYPE_FATAL 3
 
 struct msg_st
 {
@@ -113,7 +129,7 @@ void log_msg(byte type, const char *msg)
 }
 
 /**
- * @brief System goes to  AP mode (config mode creates) if it cannot connect to existing wifi.
+ * @brief System goes to  AP mode  if it cannot connect to existing wifi, but restart automatically.
  * @details Call to check_forced_restart checks if it is time to restart or resets delay if reset_counter == true)
  * For example if the wifi has been down and we have been disconnected, forced restart will retry connection after a while.
  *
@@ -126,13 +142,12 @@ void check_forced_restart(bool reset_counter = false)
   if (!backup_wifi_config_mode) // only valid if backup ap mode (no normal wifi)
     return;
 
-  time_t now;
-  time(&now);
+  time_t now_local = time(nullptr);
   if (reset_counter)
   {
-    forced_restart_ts = now + FORCED_RESTART_DELAY;
+    forced_restart_ts = now_local + FORCED_RESTART_DELAY;
   }
-  else if ((forced_restart_ts < now) && ((now - forced_restart_ts) < 7200)) // check that both values are same way synched
+  else if ((forced_restart_ts < now_local) && ((now_local - forced_restart_ts) < 7200)) // check that both values are same way synched
   {
     Serial.println(F("check_forced_restart restarting"));
     delay(2000);
@@ -143,11 +158,7 @@ void check_forced_restart(bool reset_counter = false)
 AsyncWebServer server_web(80);
 
 // client
-#include <WiFiClient.h>
-#include <ArduinoJson.h>
-
 WiFiClient client;
-// HTTPClient httpRelay;
 
 // Clock functions, supports optional DS3231 RTC
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
@@ -167,13 +178,9 @@ void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
   tv.tv_usec = us;
   settimeofday(&tv, NULL);
 }
-const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24};
 
-const char *price_data_filename PROGMEM = "/data/price-data.json";
-const char *variables_filename PROGMEM = "/data/variables.json";
-const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
-
-const int price_variable_blocks[] = {9, 24}; //!< price ranks are calculated in 9 and 24 period windows
+const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
+const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
 #define NETTING_PERIOD_MIN 60 //!< Netting time in minutes, (in Finland) 60 -> 15 minutes 2023
 #define NETTING_PERIOD_SEC (NETTING_PERIOD_MIN * 60)
@@ -267,10 +274,10 @@ void printRTC()
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
-  time_t now;          // this are the seconds since Epoch (1970) - seconds GMT
-  tm tm;               // the structure tm holds time information in a more convient way
-  time(&now);          // read the current time and store to now
-  gmtime_r(&now, &tm); // update the structure tm with the current GMT
+  time_t now_local;          // this are the seconds since Epoch (1970) - seconds GMT
+  tm tm;                     // the structure tm holds time information in a more convient way
+  time(&now_local);          // read the current time and store to now_local
+  gmtime_r(&now_local, &tm); // update the structure tm with the current GMT
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
 }
 
@@ -567,7 +574,7 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
     else if (var.type == CONSTANT_TYPE_BOOLEAN_NO_REVERSE || var.type == CONSTANT_TYPE_BOOLEAN_REVERSE_OK)
     {
       sprintf(strbuff, "%s", (var.val_l == 1) ? "true" : "false");
-      Serial.printf("Logical variable, internal value = %ld -> %s\n", var.val_l, strbuff);
+      //  Serial.printf("Logical variable, internal value = %ld -> %s\n", var.val_l, strbuff);
       return strlen(strbuff);
     }
   }
@@ -669,7 +676,7 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value)
   if (oper.reverse)
     result = !result;
 
-//  Serial.printf("Statement: %ld  %s  %ld  results %s\n", var.val_l, oper.code, statement->const_val, result ? "true" : "false");
+  //  Serial.printf("Statement: %ld  %s  %ld  results %s\n", var.val_l, oper.code, statement->const_val, result ? "true" : "false");
 
   return result;
 }
@@ -702,11 +709,12 @@ void add_variables_to_influx_buffer(time_t ts)
   if (vars.is_set(VARIABLE_PRICE))
     period_data.addField("price", vars.get_f(VARIABLE_PRICE));
   else
-    Serial.print("Price not set");
+    Serial.println(F("Price not set"));
 
 #ifdef DEBUG_MODE
-  period_data.addField("freeHeap", (long)ESP.getFreeHeap());
-  period_data.addField("uptime", (long)(millis() / 1000));
+  period_data.addField(F("freeHeap"), (long)ESP.getFreeHeap());
+  period_data.addField(F("uptime"), (long)(millis() / 1000));
+  Serial.printf(PSTR("Updating influx: sellingW %f, sellingWh %f\n"), vars.get_f(VARIABLE_SELLING_POWER), vars.get_f(VARIABLE_SELLING_ENERGY));
 #endif
 
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
@@ -718,6 +726,7 @@ void add_variables_to_influx_buffer(time_t ts)
   if (vars.is_set(VARIABLE_SELLING_ENERGY))
     period_data.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
 }
+
 /**
  * @brief Writes Influx buffer to specified server
  *
@@ -747,7 +756,7 @@ bool write_buffer_to_influx()
   if (!period_data.hasTags())
     period_data.addTag("device", "alpha");
 
-  ifclient.setInsecure(true); //TODO: check this
+  ifclient.setInsecure(true); // TODO: check this
 
   Serial.print("Writing: ");
   Serial.println(ifclient.pointToLineProtocol(period_data));
@@ -763,7 +772,83 @@ bool write_buffer_to_influx()
   period_data.clearFields();
   return write_ok;
 }
-#endif
+
+// under contruction
+/*TODO before production
+- check what we have in the db, write only new prices, max price, see https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/QueryAggregated/QueryAggregated.ino
+- batch processing could be faster, write only in the end, https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
+- start as "low priority" task in the loop
+*/
+bool update_prices_to_influx()
+{
+  time_t record_start = 0;
+  time_t current_ts;
+  long current_price;
+  int resolution_secs;
+  bool write_ok;
+
+  Point price_data("arska_period"); //!< Influx buffer
+
+  // Missing or invalid parameters
+  if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
+  {
+    Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
+    return false;
+  }
+
+  File price_file = LittleFS.open(price_data_filename, "r");
+  if (!price_file)
+  {
+    Serial.println(F("Failed to open price file. "));
+    return false;
+  }
+
+  // see also update_price_rank_variables
+  StaticJsonDocument<2024> doc;
+  DeserializationError error = deserializeJson(doc, price_file);
+
+  if (error)
+  {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.c_str());
+    return false;
+  }
+
+  record_start = doc["record_start"];
+  resolution_secs = ((int)doc["resolution_m"]) * 60;
+  JsonArray prices_array = doc["prices"];
+
+  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
+  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S));
+  ifclient.setInsecure(true); // TODO: check this
+
+  if (!price_data.hasTags())
+    price_data.addTag("device", "alpha");
+
+  for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
+  {
+    current_ts = record_start + resolution_secs * i;
+    current_price = (long)prices_array[i];
+    Serial.println(current_price);
+    price_data.addField("price", (float)round(current_price / 100) / 10);
+    price_data.setTime(current_ts); // set the time
+    Serial.print("Writing: ");
+    Serial.println(ifclient.pointToLineProtocol(price_data));
+    // Write point
+    write_ok = ifclient.writePoint(price_data);
+
+    price_data.clearFields();
+    if (!write_ok)
+    {
+      Serial.print("InfluxDB write failed: ");
+      Serial.println(ifclient.getLastErrorMessage());
+      return false;
+    }
+  }
+
+  return true;
+}
+#endif // inlflux
 
 // Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
 #ifdef INVERTER_SMA_MODBUS_ENABLED
@@ -786,10 +871,6 @@ bool sensor_ds18b20_enabled = true;
 #include <OneWire.h>
 #include <DallasTemperature.h> // tätä ei ehkä välttämättä tarvita, jos käyttäisi onewire.h:n rutineeja
 
-// moved to platform.ini
-//#define ONEWIRE_DATA_GPIO 13
-//#define ONEWIRE_VOLTAGE_GPIO 14
-
 time_t temperature_updated = 0;
 
 // Setup a oneWire instance to communicate with any OneWire devices
@@ -805,8 +886,8 @@ bool sensor_ds18b20_enabled = false;
 
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
-unsigned process_interval_s = 60;                               // process interval
-//unsigned long last_process_ts = -process_interval_s * 1000; // start reading as soon as you get to first loop
+#define PROCESS_INTERVAL_SECS 60 // process interval
+// unsigned long last_process_ts = -PROCESS_INTERVAL_SECS * 1000; // start reading as soon as you get to first loop
 time_t next_process_ts = 0; // start reading as soon as you get to first loop
 
 time_t recording_period_start = 0; // first period: boot time, later period starts
@@ -1003,9 +1084,8 @@ bool is_cache_file_valid(const char *cache_file_name)
     return false;
   }
 
-  time(&now);
   unsigned long expires = doc_ts["expires"];
-  return expires > now;
+  return expires > time(nullptr);
 }
 
 // Serial command interface
@@ -1020,7 +1100,7 @@ int network_count = 0;
 void scan_and_store_wifis(bool print_out)
 {
   network_count = WiFi.scanNetworks();
- 
+
   LittleFS.remove(wifis_file_name);                      // Delete existing file, otherwise the configuration is appended to the file
   File wifis_file = LittleFS.open(wifis_file_name, "w"); // Open file for writing
   wifis_file.printf("wifis = '[");
@@ -1044,9 +1124,10 @@ void scan_and_store_wifis(bool print_out)
   }
   wifis_file.printf("{}]';");
   wifis_file.close();
-  if (print_out) {
-  Serial.println("-");
-  Serial.flush();
+  if (print_out)
+  {
+    Serial.println("-");
+    Serial.flush();
   }
 }
 
@@ -1104,88 +1185,6 @@ long get_doc_long(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, const char *key
   }
   return default_val;
 }
-/*
-// read config variables from config.json file
-bool read_config_file_old(bool read_all_settings)
-{
-  Serial.println(F("Reading config file"));
-  if (!LittleFS.exists(config_file_name))
-  {
-    Serial.println(F("No config file. "));
-    return false;
-  }
-
-  File file = LittleFS.open(config_file_name, "r");
-  if (!file)
-  { // failed to open the file, retrn empty result
-    Serial.println(F("Failed to open config file. "));
-    return false;
-  }
-  Serial.println(F("Got config file"));
-  StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc;
-  DeserializationError error = deserializeJson(doc, file);
-  file.close();
-
-  if (error)
-  {
-    Serial.print(F("deserializeJson() config file failed: "));
-    return false;
-  }
-
-  // first read global settings (not stored to settings structure s)
-
-  if (!read_all_settings)
-  { // read only basic config
-    Serial.println(F("Got basic config. Returning."));
-    return true;
-  }
-
-  strcpy(s.http_username, "admin"); // use fixed name
-
-  copy_doc_str(doc, (char *)"http_password", s.http_password);
-
-  Serial.println(F("Testing wifi settings"));
-  // do not copy non-working wifi settings
-  if (doc.containsKey("wifi_ssid") && doc.containsKey("wifi_password"))
-  {
-    char wifi_ssid[MAX_ID_STR_LENGTH];
-    char wifi_password[MAX_ID_STR_LENGTH];
-    copy_doc_str(doc, (char *)"wifi_ssid", wifi_ssid);
-    copy_doc_str(doc, (char *)"wifi_password", wifi_password);
-
-    //    if (true)
-    if (test_wifi_settings(wifi_ssid, wifi_password))
-    {
-      strcpy(s.wifi_ssid, wifi_ssid);
-      strcpy(s.wifi_password, wifi_password);
-      Serial.println("Getting wifi settings from config file.");
-    }
-    else
-      Serial.println("Skipping invalid wifi settings from config file.");
-  }
-
-  copy_doc_str(doc, (char *)"timezone", s.timezone);
-  copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code);
-
-  copy_doc_str(doc, (char *)"ntp_server", s.ntp_server);
-
-  s.variable_mode = 0;
-
-  if (doc.containsKey("baseload"))
-    s.baseload = doc["baseload"];
-
-  if (doc.containsKey("energy_meter_type"))
-    s.energy_meter_type = doc["energy_meter_type"];
-  copy_doc_str(doc, (char *)"energy_meter_host", s.energy_meter_host);
-  if (doc.containsKey("energy_meter_port"))
-    s.energy_meter_port = doc["energy_meter_port"];
-  if (doc.containsKey("energy_meter_id"))
-    s.energy_meter_id = doc["energy_meter_id"];
-  copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc);
-  return true;
-}
-
-*/
 
 /**
  * @brief Reads settings from eeprom to s and s_influx data structures
@@ -1293,7 +1292,6 @@ String httpGETRequest(const char *url, const char *cache_file_name)
 
 #ifdef SENSOR_DS18B20_ENABLED
 
-
 void print_onewire_address(DeviceAddress deviceAddress)
 {
   for (uint8_t i = 0; i < 8; i++)
@@ -1317,6 +1315,9 @@ bool scan_sensors()
   delay(1000);     // let the sensors settle
 
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
+  if (sensor_count == 0)
+    return true;
+
   Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
 
   sensors.requestTemperatures();
@@ -1393,14 +1394,13 @@ bool scan_sensors()
   return true;
 }
 
-
 // new using stored addresses
 bool read_ds18b20_sensors()
 {
- // time(&now);
- // temperature_updated process_interval_s
-
-  Serial.println(F("Starting read_ds18b20_sensors"));
+  // temperature_updated PROCESS_INTERVAL_SECS
+  if (sensor_count == 0)
+    return false;
+  Serial.printf(PSTR("Starting read_ds18b20_sensors, sensor_count: %d\n"), sensor_count);
   DeviceAddress device_address;
   sensors.requestTemperatures();
   delay(50);
@@ -1408,7 +1408,7 @@ bool read_ds18b20_sensors()
   float temp_c;
 
   // Loop through each device, print out temperature data
-  Serial.printf("sensor_count:%d\n", sensor_count);
+  // Serial.printf("sensor_count:%d\n", sensor_count);
   int j;
   for (j = 0; j < MAX_DS18B20_SENSORS; j++)
   {
@@ -1427,8 +1427,7 @@ bool read_ds18b20_sensors()
       }
       else
       { //
-        time(&now);
-        if ((now - temperature_updated) < SENSOR_VALUE_EXPIRE_TIME)
+        if ((time(nullptr) - temperature_updated) < SENSOR_VALUE_EXPIRE_TIME)
         {
           Serial.printf("DEBUG Sensor %d, DEVICE_DISCONNECTED_RAW\n", j);
           vars.set_NA(VARIABLE_SENSOR_1 + j);
@@ -1476,11 +1475,15 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
   else
   {
     netEnergyInPeriod = (shelly3em_e_in - shelly3em_e_out - shelly3em_e_in_prev + shelly3em_e_out_prev);
-    Serial.printf("get_values_shelly3m netEnergyInPeriod (%f) = (shelly3em_e_in (%f) - shelly3em_e_out (%f) - shelly3em_e_in_prev (%f) + shelly3em_e_out_prev (%f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
+#ifdef DEBUG_MODE
+    Serial.printf("get_values_shelly3m netEnergyInPeriod (%.1f) = (shelly3em_e_in (%.1f) - shelly3em_e_out (%.1f) - shelly3em_e_in_prev (%.1f) + shelly3em_e_out_prev (%.1f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
+#endif
     if ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts) != 0)
     {
       netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts)));
-      Serial.printf("get_values_shelly3m netPowerInPeriod (%f) = round(netEnergyInPeriod (%f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts, (shelly3em_meter_read_ts  - shelly3em_last_period_last_ts ));
+#ifdef DEBUG_MODE
+      Serial.printf("get_values_shelly3m netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts, (shelly3em_meter_read_ts - shelly3em_last_period_last_ts));
+#endif
     }
     else // Do we ever get here with counter check
     {
@@ -1499,10 +1502,11 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
  */
 bool read_meter_shelly3em()
 {
+  time_t now_local;
+  time(&now_local);
+
   if (strlen(s.energy_meter_host) == 0)
-  {
     return false;
-  }
 
   DynamicJsonDocument doc(2048);
 
@@ -1518,14 +1522,22 @@ bool read_meter_shelly3em()
   }
   shelly3em_read_count++;
 
-  shelly3em_meter_read_ts = doc["unixtime"]; //!< get time from Shelly response
-  unsigned now_period = int(shelly3em_meter_read_ts / (NETTING_PERIOD_SEC));
+  // unsigned now_period = int(shelly3em_meter_read_ts / (NETTING_PERIOD_SEC));
+  unsigned now_period = int(now_local / (NETTING_PERIOD_SEC));
+  shelly3em_meter_read_ts = now_local; // doc["unixtime"]; //!< get time from Shelly response
+
+  float netEnergyInPeriod;
+  float netPowerInPeriod;
+  get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
+  vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
+  vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
+  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
 
   if (shelly3em_last_period != now_period && (shelly3em_last_period > 0))
   { // new period
-    Serial.println(F("Shelly - new period"));
-    shelly3em_last_period = now_period; // riittäiskö ..._ts muutt
-    // from previous call
+    Serial.println(F("****Shelly - new period"));
+    shelly3em_last_period = now_period;
+    // from this call
     shelly3em_last_period_last_ts = shelly3em_meter_read_ts;
     shelly3em_e_in_prev = shelly3em_e_in;
     shelly3em_e_out_prev = shelly3em_e_out;
@@ -1554,9 +1566,9 @@ bool read_meter_shelly3em()
   // first query since boot
   if (shelly3em_last_period == 0)
   {
-    Serial.println(F("Shelly - first query since boot"));
+    Serial.println(F("Shelly - first query since startup"));
     shelly3em_last_period = now_period;
-    shelly3em_last_period_last_ts = shelly3em_meter_read_ts; 
+    shelly3em_last_period_last_ts = shelly3em_meter_read_ts;
     shelly3em_e_in_prev = shelly3em_e_in;
     shelly3em_e_out_prev = shelly3em_e_out;
   }
@@ -1578,8 +1590,8 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   //  globals updated: inverter_total_period_init
   if (strlen(s.energy_meter_host) == 0)
     return false;
-
-  time(&now);
+  time_t now_local;
+  time(&now_local);
   StaticJsonDocument<64> filter;
 
   JsonObject filter_Body_Data = filter["Body"].createNestedObject("Data");
@@ -1762,13 +1774,14 @@ bool read_inverter(bool period_changed)
   // 4 globals updated: inverter_total_period_init, inverter_total_period_init_ok, energy_produced_period, power_produced_period_avg
   long int total_energy = 0;
   long int current_power = 0;
+  time_t now_local = time(nullptr);
 
-  bool readOk = false;
+  bool read_ok = false;
   if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR)
   {
-    readOk = read_inverter_fronius_data(total_energy, current_power);
+    read_ok = read_inverter_fronius_data(total_energy, current_power);
 
-    if (((long)inverter_total_period_init > total_energy) && readOk)
+    if (((long)inverter_total_period_init > total_energy) && read_ok)
     {
       inverter_total_period_init = 0; // day have changed probably, reset counter, we get day totals from Fronius
       inverter_total_period_init_ok = true;
@@ -1776,10 +1789,10 @@ bool read_inverter(bool period_changed)
   }
   else if (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP)
   {
-    readOk = read_inverter_sma_data(total_energy, current_power);
+    read_ok = read_inverter_sma_data(total_energy, current_power);
   }
 
-  if (readOk)
+  if (read_ok)
   {
     time(&energym_read_last);
     if (period_changed || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
@@ -1801,7 +1814,7 @@ bool read_inverter(bool period_changed)
     }
   }
 
-  long int time_since_recording_period_start = now - recording_period_start;
+  long int time_since_recording_period_start = now_local - recording_period_start;
   if (time_since_recording_period_start > USE_POWER_TO_ESTIMATE_ENERGY_SECS) // in the beginning of period use current power to estimate energy generated
     power_produced_period_avg = energy_produced_period * 3600 / time_since_recording_period_start;
   else
@@ -1809,13 +1822,14 @@ bool read_inverter(bool period_changed)
 
   Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
 
-  return readOk;
+  return read_ok;
 } // read_inverter
 
 void update_time_based_variables()
 {
-  time(&now);
-  localtime_r(&now, &tm_struct);
+  time_t now_local;
+  time(&now_local);
+  localtime_r(&now_local, &tm_struct);
   vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
   vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
   vars.set(VARIABLE_WDAY, (long)(tm_struct.tm_wday + 6) % 7 + 1);
@@ -1833,39 +1847,11 @@ void update_time_based_variables()
 #endif
 }
 
-
 void update_meter_based_variables()
 {
-  time(&now);
-  localtime_r(&now, &tm_struct);
-
-  vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
-  vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
-  vars.set(VARIABLE_WDAY, (long)(tm_struct.tm_wday + 6) % 7 + 1);
-
-  vars.set(VARIABLE_HH, (long)(tm_struct.tm_hour));
-  vars.set(VARIABLE_HHMM, (long)(tm_struct.tm_hour) * 100 + tm_struct.tm_min);
-
-#ifdef TARIFF_VARIABLES_FI
-  // päiväsähkö/yösähkö (Finnish day/night tariff)
-  bool is_day = (6 < tm_struct.tm_hour && tm_struct.tm_hour < 22);
-  bool is_winterday = ((6 < tm_struct.tm_hour && tm_struct.tm_hour < 22) && (tm_struct.tm_mon > 9 || tm_struct.tm_mon < 3) && tm_struct.tm_wday != 0);
-
-  vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day ? 1L : 0L));
-  vars.set(VARIABLE_WINTERDAY_FI, (long)(is_winterday ? 1L : 0L));
-#endif
-
 #ifdef METER_SHELLY3EM_ENABLED
   // grid energy meter enabled
-  if (s.energy_meter_type == ENERGYM_SHELLY3EM)
-  {
-    float netEnergyInPeriod;
-    float netPowerInPeriod;
-    get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-    vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
-    vars.set(VARIABLE_SELLING_POWER, (long)(-netPowerInPeriod));
-    vars.set(VARIABLE_SELLING_ENERGY, (long)(-netEnergyInPeriod));
-  }
+  // functionality in read_meter_shelly3em
 #endif
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
@@ -1911,7 +1897,7 @@ void update_price_variables(time_t current_period_start)
   // TODO: what happens if cache is expired and no connection to the server
   if (is_cache_file_valid(variables_filename)) // /variables.json
   {
-    Serial.println(F("Using cached data"));
+    //   Serial.println(F("Using cached price data"));
     File cache_file = LittleFS.open(variables_filename, "r"); // /variables.json
     error = deserializeJson(doc, cache_file, DeserializationOption::Filter(filter));
     cache_file.close();
@@ -2093,12 +2079,10 @@ bool get_solar_forecast()
     pv_fcst_a.add(pv_fcst[i]);
   }
 
-  time_t now;
-  time(&now);
   doc["first_period"] = first_ts;
   doc["resolution_m"] = 3600;
-  doc["ts"] = now;
-  doc["expires"] = now + 3600; // time-to-live of the result, under construction, TODO: set to parameters
+  doc["ts"] = time(nullptr);
+  doc["expires"] = time(nullptr) + 3600; // time-to-live of the result, under construction, TODO: set to parameters
 
   // huom ajat 3 h väärin, eli annettu eet vaikka pitäisi olla utc-aika
   // ajat klo xx:30 eli yksittäinen arvo ei matchaa mutta summa jyllä
@@ -2114,7 +2098,6 @@ bool get_solar_forecast()
 
   // Free resources
   client_http.end();
-
   return true;
 }
 
@@ -2362,18 +2345,21 @@ bool get_price_data()
 
   if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
   {
-    time_t now;
-    time(&now);
     doc["record_start"] = record_start;
     doc["record_end"] = record_end;
     doc["resolution_m"] = NETTING_PERIOD_MIN;
-    doc["ts"] = now;
+    doc["ts"] = time(nullptr);
     doc["expires"] = record_end - (12 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
 
     File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
     serializeJson(doc, prices_file);
     prices_file.close();
     Serial.println(F("Finished succesfully get_price_data."));
+
+    // TEST INFLUX
+    // Serial.println(F("Testing influx update update_prices_to_influx"));
+    // update_prices_to_influx();
+
     return true;
   }
   else
@@ -2401,12 +2387,6 @@ bool query_external_variables()
   StaticJsonDocument<800> doc;
 
   char variable_url[100];
-  /*
-    WiFiClient client;
-    HTTPClient client_http;
-    client_http.setReuse(false);
-    client_http.useHTTP10(true); // for json input
-  */
 
   Serial.println("query_external_variables b");
 
@@ -2432,7 +2412,6 @@ bool query_external_variables()
   }
 
   JsonObject variables = doc["variables"];
-  // JsonArray variables = doc["variables"];
   Serial.println("variabsle- size:");
   Serial.println(doc["variables"].size());
 
@@ -2442,27 +2421,7 @@ bool query_external_variables()
     Serial.print(kv.key().c_str());
     Serial.print(" = ");
     Serial.println(kv.value().as<const char *>()); //  as<char*>() with as<const char*>() [
-
-    // TODO: tässä voidaan laitta varsiin
-    //  katso missä tätä funktiota kutsutaan
   }
-
-  //  Serial.println(doc["variables"].getMember();
-
-  /*
-    JsonArray arr = doc["variables"].as<JsonArray>();
-    for (JsonVariant value : arr) {
-      Serial.println(value.as<char*>());
-  }
-  */
-  /*
-    for (int i = 0; i < arr.size();i++) {
-      Serial.println(arr.getElement(i));
-    }
-    */
-
-  // const char* variables_0 = variables["0"]; // "23.0"
-
   return true;
 }
 
@@ -2489,17 +2448,15 @@ bool update_price_rank_variables()
 
   record_start = doc["first_period"];
   JsonArray prices_array = doc["prices"];
-
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
     prices[i] = (long)prices_array[i];
   }
 
-  time(&now);
   record_end = (time_t)doc["record_end"];
   record_start = (time_t)doc["record_start"];
 
-  int time_idx_now = int((now - record_start) / NETTING_PERIOD_SEC);
+  int time_idx_now = int((time(nullptr) - record_start) / NETTING_PERIOD_SEC);
   Serial.printf("time_idx_now: %d, price now: %f\n", time_idx_now, (float)prices[time_idx_now] / 100);
   Serial.printf("record_start: %ld, record_end: %ld\n", record_start, record_end);
 
@@ -2507,8 +2464,8 @@ bool update_price_rank_variables()
 
   doc["record_start"] = record_start;
   doc["resolution_m"] = NETTING_PERIOD_MIN;
-  doc["ts"] = now;
-  doc["expires"] = now + 3600; // time-to-live of the result, under construction, TODO: set to parameters
+  doc["ts"] = time(nullptr);
+  doc["expires"] = time(nullptr) + 3600; // time-to-live of the result, under construction, TODO: set to parameters
 
   File prices_file_out = LittleFS.open(variables_filename, "w"); // Open file for writing /variables.json
   serializeJson(doc, prices_file_out);
@@ -2570,12 +2527,11 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
   char suffix[10];
   snprintf(suffix, 10, "_%d_%d", channel_idx, condition_idx);
 
-
   // name attributes  will be added in javascript before submitting
   snprintf(out, buff_len, "<div class='secbr'><br><span>Rule %i: %s</span></div><div class='secbr'>The channel is <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label> when the rule matches</div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* MATCHING *" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
 
   // Serial.println(out);
-   Serial.println(buff_len);
+  Serial.println(buff_len);
 
   return;
 }
@@ -2684,7 +2640,8 @@ void get_status_fields(char *out)
 // returns channel basic info html for the forms
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
-  time(&now);
+  time_t now_local;
+  time(&now_local);
   char buff[220];
   char buff2[160];
   char buff4[20];
@@ -2692,10 +2649,10 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
   time_t from_now;
   snprintf(buff2, 160, "<svg viewBox='0 0 100 100' class='statusic'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='%s' id='status_%d'/></svg>", s.ch[channel_idx].is_up ? "#green" : "#red", channel_idx);
 
-  if (s.ch[channel_idx].force_up_until > now)
+  if (s.ch[channel_idx].force_up_until > now_local)
   {
     localtime_r(&s.ch[channel_idx].force_up_until, &tm_struct);
-    from_now = s.ch[channel_idx].force_up_until - now;
+    from_now = s.ch[channel_idx].force_up_until - now_local;
     gmtime_r(&from_now, &tm_struct2);
     snprintf(buff4, 20, "-> %02d:%02d (%02d:%02d)", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
   }
@@ -2717,11 +2674,11 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     for (int hour_idx = 0; hour_idx < hour_array_element_count; hour_idx++)
     {
 
-      snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
+      snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now_local) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
       strcat(out, buff);
 
       // current force_up_until, if set
-      if ((s.ch[channel_idx].force_up_until > now) && (s.ch[channel_idx].force_up_until - now > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now < force_up_hours[hour_idx + 1] * 3600))
+      if ((s.ch[channel_idx].force_up_until > now_local) && (s.ch[channel_idx].force_up_until - now_local > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now_local < force_up_hours[hour_idx + 1] * 3600))
       {
         snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
         strcat(out, buff);
@@ -2828,7 +2785,6 @@ String inputs_form_processor(const String &var)
     return String(s_influx.url);
   if (var == F("influx_token"))
   {
-    //    Serial.printf("returned %s\n", s_influx.token);
     return String(s_influx.token);
   }
   if (var == F("influx_org"))
@@ -2933,7 +2889,7 @@ String setup_form_processor(const String &var)
     snprintf(out, 2000, "<div id='chdiv_%d' class='hb'>", channel_idx); // close on "cht_"
     get_channel_status_header(out, channel_idx, false);
     get_channel_config_fields(out, channel_idx);
-   // Serial.printf("strlen(out):%d\n",strlen(out));
+    // Serial.printf("strlen(out):%d\n",strlen(out));
 
     return out;
   }
@@ -2977,9 +2933,8 @@ String setup_form_processor(const String &var)
       strcpy(buffstmt2, "");
 
       get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
-      
+
       strncat(out, buff, sizeof(out) - strlen(out) - 1);
-      
 
       int stmt_count = 0;
       char floatbuff[20];
@@ -3054,24 +3009,25 @@ String setup_form_processor(const String &var)
 // read grid or production info from energy meter/inverter
 void read_energy_meter()
 {
-  bool readOk;
+  bool read_ok;
+  time_t now_local;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
 #ifdef METER_SHELLY3EM_ENABLED
-    readOk = read_meter_shelly3em();
+    read_ok = read_meter_shelly3em();
 #endif
   }
   else if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR or (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP))
   {
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-    readOk = read_inverter(period_changed);
+    read_ok = read_inverter(period_changed);
 #endif
   }
 
-  time(&now);
-  if (readOk)
-    energym_read_last = now;
-  else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now) && (energym_read_last > 0))
+  time(&now_local);
+  if (read_ok)
+    energym_read_last = now_local;
+  else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_local) && (energym_read_last > 0)) // restart after too many errors
   {
     Serial.println(("Restarting after failed energy meter reads."));
     delay(2000);
@@ -3111,10 +3067,10 @@ bool set_channel_switch(int channel_idx, bool up)
 {
   if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
-  /*  Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
-    Serial.print(s.ch[channel_idx].gpio);
-    Serial.print("  ");
-    Serial.println(up);*/
+    /*  Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
+      Serial.print(s.ch[channel_idx].gpio);
+      Serial.print("  ");
+      Serial.println(up);*/
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
     return true;
   }
@@ -3153,21 +3109,21 @@ bool set_channel_switch(int channel_idx, bool up)
  */
 void update_relay_states()
 {
-  time(&now);
+  time_t now_local = time(nullptr);
   // loop channels and check whether channel should be up
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {                                                                                                        // reset condition_active variable
-    bool wait_minimum_uptime = ((now - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+  {                                                                                                              // reset condition_active variable
+    bool wait_minimum_uptime = ((now_local - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down
       s.ch[channel_idx].force_up_until = 0;
       wait_minimum_uptime = false;
     }
-    bool forced_up = (s.ch[channel_idx].force_up_until > now); // signal to keep it up
+    bool forced_up = (s.ch[channel_idx].force_up_until > now_local); // signal to keep it up
 
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
-      Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %ld .\n", channel_idx, (int)(now - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
+      Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %ld .\n", channel_idx, (int)(now_local - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
       s.ch[channel_idx].wanna_be_up = true;
       continue;
     }
@@ -3184,11 +3140,10 @@ void update_relay_states()
     }
 
     // now checking normal state based conditions
-    // target_state_match_found = false;
     s.ch[channel_idx].wanna_be_up = false;
     // loop channel targets until there is match (or no more targets)
     bool statement_true;
-    // if no statetements -> false (or defalt)
+    // if no statetements -> false (or default)
     int nof_valid_statements;
     bool one_or_more_failed;
 
@@ -3204,7 +3159,7 @@ void update_relay_states()
         {
           nof_valid_statements++;
 
-       //   Serial.printf("update_relay_states statement.variable_id: %d\n", statement->variable_id);
+          //   Serial.printf("update_relay_states statement.variable_id: %d\n", statement->variable_id);
           statement_true = vars.is_statement_true(statement);
           if (!statement_true)
           {
@@ -3216,9 +3171,13 @@ void update_relay_states()
 
       if (!(nof_valid_statements == 0) && !one_or_more_failed)
       {
+        if (!s.ch[channel_idx].conditions[condition_idx].condition_active)
+        {
+          // report debug change
+          Serial.printf("channel_idx %d, condition_idx %d matches, channnel wanna_be_up: %s\n", channel_idx, condition_idx, s.ch[channel_idx].wanna_be_up ? "true" : "false");
+        }
         s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].on;
         s.ch[channel_idx].conditions[condition_idx].condition_active = true;
-        Serial.printf("update_relay_states condition true, wanna_be_up: %s\n", s.ch[channel_idx].wanna_be_up ? "true" : "false");
         break;
       }
 
@@ -3245,7 +3204,8 @@ void set_relays()
     if (s.ch[channel_idx].is_up && !s.ch[channel_idx].wanna_be_up)
       drop_count++;
   }
-  Serial.printf("set_relays rise_count: %d, drop_count: %d\n", rise_count, drop_count);
+  if (rise_count > 0 || drop_count > 0)
+    Serial.printf("set_relays rise_count: %d, drop_count: %d\n", rise_count, drop_count);
 
   int switchings_to_todo;
   bool is_rise;
@@ -3285,9 +3245,6 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemp
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, template_name, "text/html", false, processor);
 }
-
-
-
 
 void reset_config(bool reset_password)
 {
@@ -3739,10 +3696,8 @@ void onWebInputsPost(AsyncWebServerRequest *request)
 
   // END OF INPUTS
   writeToEEPROM();
-  // Serial.printf("2...influx_url:%s\n", s_influx.url);
   todo_in_loop_restart = true;
   request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
-  // request->redirect("/channels");
 }
 void readStatements(const char *s)
 {
@@ -3847,7 +3802,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
                 // float val_f = atof(stmts_json[stmt_idx][2]);
                 float val_f = stmts_json[stmt_idx][2];
                 long long_val = vars.float_to_internal_l(variable_id, val_f);
-            //    Serial.printf("float_to_internal_l: %f  -> %ld\n", val_f, long_val);
+                //    Serial.printf("float_to_internal_l: %f  -> %ld\n", val_f, long_val);
                 Serial.printf(PSTR("Saving statement value of variable %d: %ld\n"), (int)stmts_json[stmt_idx][0], long_val);
                 s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = long_val;
               }
@@ -3856,10 +3811,9 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
                 Serial.printf(PSTR("Error, cannot find variable with index %d\n"), (int)stmts_json[stmt_idx][0]);
               }
             }
-          } 
+          }
         }
       }
-
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
       Serial.println(ctrb_fld);
@@ -3897,7 +3851,6 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     todo_in_loop_restart = true;
   }
 
-
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
     Serial.println(F("Password ...."));
@@ -3905,7 +3858,6 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     {
       strcpy(s.http_password, request->getParam("http_password", true)->value().c_str());
     }
-
   }
 
   strncpy(s.timezone, request->getParam("timezone", true)->value().c_str(), 4);
@@ -4049,18 +4001,12 @@ void setup()
   delay(2000); // wait for console settle - only needed when debugging
 
   randomSeed(analogRead(0)); // initiate random generator
-  Serial.printf(PSTR("Version: %s\n"),compile_date);
+  Serial.printf(PSTR("Version: %s\n"), compile_date);
 
 #ifdef SENSOR_DS18B20_ENABLED
-  // TODO: cahnge library
-  //  voltage to 1-wire bus
-  //  voltage from data pin so we can reset the bus (voltage low) if needed
-  // pinMode(ONEWIRE_VOLTAGE_GPIO, OUTPUT);
-  // Serial.printf(PSTR("Setting channel ONEWIRE_VOLTAGE_GPIO with gpio %d to OUTPUT mode\n"), ONEWIRE_VOLTAGE_GPIO);
-  // digitalWrite(ONEWIRE_VOLTAGE_GPIO, HIGH);
   sensors.begin();
   delay(1000); // let the sensors settle
-  // Grab a count of devices on the wire
+  // get a count of devices on the wire
   DeviceAddress tempDeviceAddress;
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
   Serial.printf(PSTR("sensor_count:%d\n"), sensor_count);
@@ -4119,7 +4065,7 @@ void setup()
   {
     Serial.println(F("WiFi Failed!"));
     WiFi.disconnect();
-   
+
     delay(3000);
 
     scan_and_store_wifis(true);
@@ -4154,12 +4100,12 @@ void setup()
       mac.remove(i, 1);
     }
     String APSSID = String("ARSKA-") + mac;
-   // Serial.print(F("Creating AP:"));
-   // Serial.println(APSSID);
+    // Serial.print(F("Creating AP:"));
+    // Serial.println(APSSID);
     int wifi_channel = (int)random(1, 14);
     if (WiFi.softAP(APSSID.c_str(), (const char *)__null, wifi_channel, 0, 3) == true)
     {
-      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Give WiFi number (see the list above) <enter> and give WiFi password <enter>.\n 2) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n"),APSSID.c_str(), WiFi.softAPIP().toString());
+      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Give WiFi number (see the list above) <enter> and give WiFi password <enter>.\n 2) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n"), APSSID.c_str(), WiFi.softAPIP().toString());
       Serial.println();
       Serial.flush();
     }
@@ -4169,10 +4115,7 @@ void setup()
       delay(2000); // cannot create AP, restart
       ESP.restart();
     }
-    
   }
-
-
 
 #ifdef RTC_DS3231_ENABLED
   Serial.println(F("Starting RTC!"));
@@ -4304,14 +4247,12 @@ void setup()
   server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/wifis.json", "text/json"); });
 
-
-
   server_web.onNotFound(notFound);
 
   server_web.begin();
 
   if (backup_wifi_config_mode)
-    return; //no more setting, just wait for new SSID/password and then restarts
+    return; // no more setting, just wait for new SSID/password and then restarts
 
   // init relays
   //  split comma separated gpio string to an array
@@ -4330,12 +4271,12 @@ void setup()
     if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
     { // gpio channel
       pinMode(s.ch[channel_idx].gpio, OUTPUT);
-  //    Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
+      //    Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
-  if  (!backup_wifi_config_mode)
-    Serial.printf("\nArska dashboard url: http://%s/\n",   WiFi.localIP().toString().c_str());
+  if (!backup_wifi_config_mode)
+    Serial.printf("\nArska dashboard url: http://%s/\n", WiFi.localIP().toString().c_str());
 
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
 
@@ -4362,34 +4303,35 @@ void loop()
   bool updated_ok;
   bool got_external_data_ok;
 
-  //  handle initial wifi setting from the serial console 
+  //  handle initial wifi setting from the serial console
   if (backup_wifi_config_mode && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
     if (command_state == 0)
     {
-      if (serial_command.c_str()[0] == 's') {
+      if (serial_command.c_str()[0] == 's')
+      {
         scan_and_store_wifis(true);
         return;
       }
-        if (isdigit(serial_command[0]))
+      if (isdigit(serial_command[0]))
+      {
+        int wifi_idx = serial_command.toInt();
+        if (wifi_idx < network_count)
         {
-          int wifi_idx = serial_command.toInt();
-          if (wifi_idx < network_count)
-          {
-            strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
-            Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
-            Serial.println();
-            Serial.flush();
-            command_state = 1;
-          }
+          strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
+          Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
+          Serial.println();
+          Serial.flush();
+          command_state = 1;
+        }
       }
     }
     else if (command_state == 1)
     {
       strncpy(s.wifi_password, serial_command.c_str(), 30);
-      for (int j = 0; j < strlen(s.wifi_password);j++)
-        if (s.wifi_password[j]<32) //cleanup, line feed
+      for (int j = 0; j < strlen(s.wifi_password); j++)
+        if (s.wifi_password[j] < 32) // cleanup, line feed
           s.wifi_password[j] = 0;
 
       Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
@@ -4451,12 +4393,12 @@ void loop()
 
   // no other operations allowed before the clock is set
   time(&now);
-  if (now < 1600000000) 
+  if (now < 1600000000)
     return;
 
   // set relays, if forced from dashboard
   if (todo_in_loop_set_relays)
-  { 
+  {
     todo_in_loop_set_relays = false;
     update_relay_states(); // new
     set_relays();
@@ -4467,21 +4409,6 @@ void loop()
   {
     started = now;
     log_msg(MSG_TYPE_INFO, PSTR("Started processing"));
-  }
-
-  current_period_start = get_period_start_time(now);
-  if (get_period_start_time(now) == get_period_start_time(started))
-    recording_period_start = started;
-  else
-    recording_period_start = current_period_start;
-
-  //new period
-  if (previous_period_start != current_period_start)
-  {
-    Serial.printf("Period changed %ld -> %ld\n",previous_period_start, current_period_start);
-    period_changed = true;
-    next_process_ts = now;
-    update_time_based_variables();
   }
 
   // just in case check the wifi and reconnect/restart if neede
@@ -4501,15 +4428,31 @@ void loop()
     }
   }
 
+  // update period info
+  time(&now);
+  current_period_start = get_period_start_time(now);
+  if (get_period_start_time(now) == get_period_start_time(started))
+    recording_period_start = started;
+  else
+    recording_period_start = current_period_start;
+
+  // new period
+  if (previous_period_start != current_period_start)
+  {
+    Serial.printf("\nPeriod changed %ld -> %ld\n", previous_period_start, current_period_start);
+    period_changed = true;
+    next_process_ts = now;
+    update_time_based_variables();
+  }
+
 #ifdef INFLUX_REPORT_ENABLED
-  if (todo_in_loop_influx_write) //TODO: maybe we could combine this with buffer update
+  if (todo_in_loop_influx_write) // TODO: maybe we could combine this with buffer update
   {
     todo_in_loop_influx_write = false;
     write_buffer_to_influx();
   }
 #endif
 
-  time(&now);
   if (next_query_price_data < now)
   {
     Serial.printf("next_query_price_data now: %ld \n", now);
@@ -4533,31 +4476,35 @@ void loop()
   }
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
-//  if (((millis() - last_process_ts) > process_interval_s * 1000) || period_changed)
-  if ( next_process_ts <= now ) 
+  //  if (((millis() - last_process_ts) > PROCESS_INTERVAL_SECS * 1000) || period_changed)
+  if (next_process_ts <= now) // time to process
   {
-    Serial.print(F("Reading sensor and meter data..."));
+    localtime_r(&now, &tm_struct);
+    // Serial.printf("\nPeriods prev %ld ---- current %ld  (now %ld)\n", previous_period_start, current_period_start,now);
+    Serial.printf(PSTR("\n%02d:%02d:%02d (%ld) Reading sensor and meter data \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, now);
     read_energy_meter();
 
 #ifdef SENSOR_DS18B20_ENABLED
     read_ds18b20_sensors();
 #endif
     update_time_based_variables();
-    update_meter_based_variables(); //TODO: if period change we could set write influx buffer after this?
+    update_meter_based_variables(); // TODO: if period change we could set write influx buffer after this?
     update_price_variables(current_period_start);
 
-   // last_process_ts = millis();
-    time(&now);
-    next_process_ts = max((time_t)(next_process_ts + process_interval_s),now); //max is just in case to allow skipping processing, if processing takes too long
+    // last_process_ts = millis();
+    next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), time(nullptr) + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_relay_states();
     set_relays();
   }
 
   if (period_changed)
   {
-  #ifdef INFLUX_REPORT_ENABLED
-    add_variables_to_influx_buffer(previous_period_start);
-    todo_in_loop_influx_write = true;
+#ifdef INFLUX_REPORT_ENABLED
+    if (previous_period_start != 0)
+    {
+      add_variables_to_influx_buffer(previous_period_start);
+      todo_in_loop_influx_write = true;
+    }
 #endif
     previous_period_start = current_period_start;
     period_changed = false;
@@ -4566,5 +4513,4 @@ void loop()
 #ifdef INVERTER_SMA_MODBUS_ENABLED
   mb.task(); // process modbuss event queue
 #endif
-
 }
