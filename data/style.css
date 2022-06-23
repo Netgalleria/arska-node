@@ -163,17 +163,21 @@ h2 {
 *#headdiv {
     color: #f7f7e6;
     text-decoration: none;
-    border-bottom: 2px solid;
+    border-bottom: 0px solid;
   }
   
   #headdiv { margin-top: 0px;
-    padding-top: 10px;
-    padding-bottom: 8px;}
+   /* padding-top: 10px;
+    padding-bottom: 8px;*/
+    padding:15px;}
+    
   
   a {
     color: #f7f7e6;
     text-decoration:none;
   }
+  .actUrl {color: yellow;}
+ 
   #headdiv span {
     color: #f7f7e6;
     text-decoration: none;
@@ -213,7 +217,7 @@ color:yellow }
   }
   
   .radio-toolbar input[type="radio"]:checked + label {
-      background-color: #f2ef99;
+      background-color: #f3f300;
       border-color: #f7f7e6;
   }
 
@@ -253,10 +257,12 @@ color:yellow }
     #272a2b -13px 0px 0px;
   }
   .cht{   
-    font-size: 2.5em;
+    font-size: 2em;
+    font-weight: bold;
     margin-top: 10px;
     margin-bottom: 30px;
     clear:right;
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 .statusic {height: 1.1em;margin-right:20px}
 td {padding: 5px;}
@@ -265,3 +271,4 @@ tr:nth-child(odd) {background: #181817}
 input[type="text"]:disabled {
     color: #dddddd;
   }
+.headlogo {height: 80px;margin-right:20px}

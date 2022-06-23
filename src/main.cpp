@@ -156,9 +156,7 @@ void check_forced_restart(bool reset_counter = false)
 }
 
 AsyncWebServer server_web(80);
-
-// client
-WiFiClient client;
+WiFiClient wifi_client;
 
 // Clock functions, supports optional DS3231 RTC
 // RTC based on https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
@@ -211,6 +209,7 @@ time_t next_query_fcst_data = 0;
 // https://transparency.entsoe.eu/api?securityToken=41c76142-eaab-4bc2-9dc4-5215017e4f6b&documentType=A44&In_Domain=10YFI-1--------U&Out_Domain=10YFI-1--------U&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202104200000&periodEnd=202104200100
 const int httpsPort = 443;
 
+// https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
 int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
 {
   const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                /* Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag */
@@ -772,10 +771,17 @@ bool write_buffer_to_influx()
   period_data.clearFields();
   return write_ok;
 }
+void ts_to_date_str(time_t *tsp, char *out_str)
+{
+  tm tm_local;
+  gmtime_r(tsp, &tm_local);
+  sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
+}
 
 // under contruction
 /*TODO before production
 - check what we have in the db, write only new prices, max price, see https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/QueryAggregated/QueryAggregated.ino
+    - done...
 - batch processing could be faster, write only in the end, https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
 - start as "low priority" task in the loop
 */
@@ -786,13 +792,40 @@ bool update_prices_to_influx()
   long current_price;
   int resolution_secs;
   bool write_ok;
+  time_t last_price_in_file_ts;
+  String last_price_in_db;
+  char datebuff[30];
+  tm tm2;
 
-  Point price_data("arska_period"); //!< Influx buffer
+  // Point price_data("arska_period"); //!< Influx buffer
 
   // Missing or invalid parameters
   if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
   {
     Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
+    return false;
+  }
+
+  String query = "from(bucket: \"" + String(s_influx.bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"arska_period\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
+  query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
+
+  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
+  ifclient.setInsecure(true); // TODO: check this
+
+  Serial.println(query);
+  // Send query to the server and get result
+  FluxQueryResult result = ifclient.query(query);
+  if (result.next())
+  {
+    FluxDateTime max_price_time = result.getValueByName("_time").getDateTime();
+
+    Serial.print("max_price_time:");
+    Serial.println(max_price_time.getRawValue());
+    last_price_in_db = max_price_time.getRawValue();
+  }
+  else
+  {
+    Serial.println("no result.next()");
     return false;
   }
 
@@ -818,34 +851,77 @@ bool update_prices_to_influx()
   resolution_secs = ((int)doc["resolution_m"]) * 60;
   JsonArray prices_array = doc["prices"];
 
-  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
-  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S));
-  ifclient.setInsecure(true); // TODO: check this
+  last_price_in_file_ts = record_start + (resolution_secs * (prices_array.size() - 1));
+  ts_to_date_str(&last_price_in_file_ts, datebuff);
 
-  if (!price_data.hasTags())
-    price_data.addTag("device", "alpha");
+  // last_price_in_db =String("2022-06-17T19:00:00Z");
+
+  Serial.print("Last ts in the file");
+  Serial.println(datebuff);
+
+  if (last_price_in_db.equals(datebuff))
+  {
+    Serial.print("Last ts in the file equal one in the influxdb");
+    return false;
+  }
+  if (last_price_in_db > String(datebuff))
+  {
+    Serial.print("Newer price in the influxDb - SHOULD NOT END UP HERE");
+    return false;
+  }
+  else
+  {
+    Serial.print("We have new prices to write to influx db. ");
+  }
+
+  // return false; // just testing  the first part
+
+  // price_data.addTag("device", "alpha");
+
+  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(12).bufferSize(24));
+  ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
+
+  if (ifclient.isBufferEmpty())
+    Serial.print("isBufferEmpty yes ");
+  else
+    Serial.print("isBufferEmpty no ");
+
+   Point price_data("arska_period");
+  price_data.addTag("device", "alpha");
 
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
     current_ts = record_start + resolution_secs * i;
+    ts_to_date_str(&current_ts, datebuff);
+    if (!(last_price_in_db < String(datebuff))) // already in the influxDb
+      continue;
+
     current_price = (long)prices_array[i];
     Serial.println(current_price);
-    price_data.addField("price", (float)round(current_price / 100) / 10);
+    price_data.addField("price", (float)(current_price / 1000.0));
     price_data.setTime(current_ts); // set the time
     Serial.print("Writing: ");
     Serial.println(ifclient.pointToLineProtocol(price_data));
     // Write point
+    
     write_ok = ifclient.writePoint(price_data);
+    Serial.println(write_ok ? "write_ok" : "write not ok");
 
     price_data.clearFields();
-    if (!write_ok)
-    {
-      Serial.print("InfluxDB write failed: ");
-      Serial.println(ifclient.getLastErrorMessage());
-      return false;
-    }
   }
+  ifclient.flushBuffer();
+  delay(100);
 
+  struct tm timeinfo;
+  getLocalTime(&timeinfo); // update from NTP?
+  if (!ifclient.flushBuffer())
+  {
+    Serial.print("InfluxDB flush failed: ");
+    Serial.println(ifclient.getLastErrorMessage());
+    Serial.print("Full buffer: ");
+    Serial.println(ifclient.isBufferFull() ? "Yes" : "No");
+    return false;
+  }
   return true;
 }
 #endif // inlflux
@@ -1235,14 +1311,14 @@ void notFound(AsyncWebServerRequest *request)
  */
 String httpGETRequest(const char *url, const char *cache_file_name)
 {
-  WiFiClient client;
+  WiFiClient wifi_client;
 
   HTTPClient http;
   http.setReuse(false);
   // http.useHTTP10(true); // for json input
 
   // Serial.println(url);
-  http.begin(client, url); //  IP address with path or Domain name with URL path
+  http.begin(wifi_client, url); //  IP address with path or Domain name with URL path
   delay(100);
   int httpResponseCode = http.GET(); //  Send HTTP GET request
 
@@ -1976,7 +2052,7 @@ bool get_solar_forecast()
   }
 
   String query_data_raw = String("action=getChartData&loc=") + String(s.forecast_loc);
-  WiFiClient client;
+  WiFiClient wifi_client;
 
   HTTPClient client_http;
   client_http.setReuse(false);
@@ -1990,7 +2066,7 @@ bool get_solar_forecast()
 
   // snprintf(fcst_url, sizeof(fcst_url), "%s&loc=%s", fcst_url_base, s.forecast_loc);
   strcpy(fcst_url, fcst_url_base);
-  client_http.begin(client, fcst_url);
+  client_http.begin(wifi_client, fcst_url);
   Serial.printf("fcst_url: %s\n", fcst_url);
 
   if (WiFi.status() == WL_CONNECTED)
@@ -2357,8 +2433,8 @@ bool get_price_data()
     Serial.println(F("Finished succesfully get_price_data."));
 
     // TEST INFLUX
-    // Serial.println(F("Testing influx update update_prices_to_influx"));
-    // update_prices_to_influx();
+    Serial.println(F("Testing influx update update_prices_to_influx"));
+    update_prices_to_influx();
 
     return true;
   }
@@ -3996,7 +4072,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
 void setup()
 {
-
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
@@ -4061,7 +4136,7 @@ void setup()
   }
   WiFi.begin(s.wifi_ssid, s.wifi_password);
 
-  if (WiFi.waitForConnectResult(30000L) != WL_CONNECTED)
+  if (WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
   {
     Serial.println(F("WiFi Failed!"));
     WiFi.disconnect();
@@ -4170,20 +4245,24 @@ void setup()
 
 // configTime ESP32 and ESP8266 libraries differ
 #ifdef ESP32
-  configTime(0, 0, s.ntp_server); // First connect to NTP server, with 0 TZ offset
-  struct tm timeinfo;
-  /*
-  if (!getLocalTime(&timeinfo))
+  if (!backup_wifi_config_mode)
   {
-    Serial.println("  Failed to obtain time");
-    return;
-  } */
-  setenv("TZ", timezone_info, 1);
-  tzset();
+    configTime(0, 0, s.ntp_server); // First connect to NTP server, with 0 TZ offset
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo))
+    {
+      Serial.println("  Failed to obtain time");
+    }
+    else
+    {
+      setenv("TZ", timezone_info, 1);
+      tzset();
+    }
+  }
 #elif defined(ESP8266)
   // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
   // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  configTime(timezone_info, s.ntp_server); // --> Here is the IMPORTANT ONE LINER needed in your sketch!
+  configTime(timezone_info, s.ntp_server);
 #endif
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);

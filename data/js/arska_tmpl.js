@@ -667,27 +667,32 @@ function initUrlBar(url) {
     /*  var h1 = document.createElement('h1');
       h1.innerHTML = "Arska Node";
       headdiv.appendChild(h1);*/
-    var hdspan = document.createElement('span');
-    hdspan.innerHTML = "Arska<br>";
+    var hdspan = document.createElement('div');
+  //  hdspan.innerHTML = "Arska<br>";
+    hdspan.innerHTML = "<svg viewBox='0 0 70 30' class='headlogo'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='#arskalogo' id='logo' /></svg><br>";
     hdspan.classList.add("cht");
     headdiv.appendChild(hdspan);
 
     sections.forEach((sect, idx) => {
-        if (url == sect.url) {
+       /* if (url == sect.url) {
             var span = document.createElement('span');
             var b = document.createElement('b');
+            b.className = 
             b.innerHTML = sect.en;
             span.appendChild(b);
             headdiv.appendChild(span);
-        }
-        else {
+        } 
+        else { */
             var a = document.createElement('a');
             var link = document.createTextNode(sect.en);
             a.appendChild(link);
             a.title = sect.en;
+            if(url == sect.url) {
+                a.className = "actUrl";
+            }
             a.href = sect.url;
             headdiv.appendChild(a);
-        }
+        //}
 
         if (idx < sections.length - 1) {
             var sepa = document.createTextNode(" | ");
