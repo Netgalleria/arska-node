@@ -2585,9 +2585,9 @@ void get_channel_config_fields(char *out, int channel_idx)
   strcat(out, "</select></div>\n");
 
   //  radio-toolbar
-  snprintf(buff, sizeof(buff), "<div class='secbr'>\n<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template mode</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
+  snprintf(buff, sizeof(buff), "<div class='secbr'>\nRule mode:<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
   strcat(out, buff);
-  snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced mode</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
+  snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
   strcat(out, buff);
 
   snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
@@ -2604,42 +2604,13 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
   snprintf(suffix, 10, "_%d_%d", channel_idx, condition_idx);
 
   // name attributes  will be added in javascript before submitting
-  snprintf(out, buff_len, "<div class='secbr'><br><span>Rule %i: %s</span></div><div class='secbr'>The channel is <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label> when the rule matches</div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* MATCHING *" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
+  snprintf(out, buff_len, "<div class='secbr'><br><span class='big'>Rule %i: %s</span></div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* MATCHING *" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
 
-  // Serial.println(out);
-  Serial.println(buff_len);
+  //Serial.println(buff_len);
 
   return;
 }
-/*
-// energy meter fields for admin form
-void get_meter_config_fields(char *out)
-{
-  char buff[200];
-  Serial.println("get_meter_config_fields A");
-  strcpy(out, "<div class='secbr'><h3>Energy meter</h3></div>\n<div class='fld'><select name='emt' id='emt' onchange='setEnergyMeterFields(this.value)'>");
 
-  for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
-  {
-    snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
-    strcat(out, buff);
-  }
-    Serial.println("get_meter_config_fields B");
-
-  strcat(out, "</select></div>\n");
-  snprintf(buff, sizeof(buff), "<div id='emhd' class='fld'><div class='fldlong'>host:<input name='emh' id='emh' type='text' value='%s'></div>\n", s.energy_meter_host);
-  strcat(out, buff);
-    Serial.println("get_meter_config_fields c");
-
-  snprintf(buff, sizeof(buff), "<div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text' value='%d'></div>\n", s.energy_meter_port);
-  strcat(out, buff);
-  snprintf(buff, sizeof(buff), "<div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text' value='%d'></div>\n</div>\n", s.energy_meter_id);
-  strcat(out, buff);
-  Serial.println("get_meter_config_fields O");
-  Serial.println(strlen(out));
-  return;
-}
-*/
 // get status info for admin / view forms
 void get_status_fields(char *out)
 {
@@ -3037,7 +3008,6 @@ String setup_form_processor(const String &var)
       strcat(out, buff);
       strcat(out, "</div>"); // close ru_X
     }
-    // snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' name'rts_%d'></select><input type='checkbox' id='rtl_%d' value='1' %s></div>\n", channel_idx, channel_idx, channel_idx, channel_idx,"checked" );
 
     strcat(out, "</div>\n"); // rd_X div
 
@@ -3141,12 +3111,11 @@ int get_channel_to_switch(bool is_rise, int switch_count)
 // switch channel up/down
 bool set_channel_switch(int channel_idx, bool up)
 {
+  if (s.ch[channel_idx].type ==  CH_TYPE_UNDEFINED)
+      return false;
+
   if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
-    /*  Serial.print(F("CH_TYPE_GPIO_ONOFF:"));
-      Serial.print(s.ch[channel_idx].gpio);
-      Serial.print("  ");
-      Serial.println(up);*/
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
     return true;
   }
@@ -3188,7 +3157,14 @@ void update_relay_states()
   time_t now_local = time(nullptr);
   // loop channels and check whether channel should be up
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {                                                                                                              // reset condition_active variable
+  {                                                               
+      if (s.ch[channel_idx].type ==  CH_TYPE_UNDEFINED) {
+              s.ch[channel_idx].wanna_be_up = false;
+
+        continue;
+      }
+
+    // reset condition_active variable
     bool wait_minimum_uptime = ((now_local - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down

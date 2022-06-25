@@ -272,3 +272,4 @@ input[type="text"]:disabled {
     color: #dddddd;
   }
 .headlogo {height: 80px;margin-right:20px}
+.helpUrl {font-size: 30px;}

@@ -34,11 +34,11 @@
                 value="%baseload%"></div>
 
         <div class="secbr">
-            <h3>Arska variable mode</h3>
+            <h3>Data sources</h3>
         </div>
         <input type="hidden" id="VARIABLE_SOURCE_ENABLED" value="%VARIABLE_SOURCE_ENABLED%">
         <input type="hidden" id="variable_mode_db" value="%variable_mode%">
-        <div class="secbr"><input type="radio" id="variable_mode_0" name="variable_mode" value="0"
+        <div class="secbr" style="display:none;"><input type="radio" id="variable_mode_0" name="variable_mode" value="0"
                 onchange="setVariableMode(this.value)"><label for='vm0'>Source - calculate variables based on
                 market
                 and forecast info</label></div>
@@ -224,12 +224,12 @@
                 </select>
             </div>
         </div>
-        <div class="secbr">
+        <div class="secbr"  style="display:none;">
             <input type="radio" id="variable_mode_1" name="variable_mode" value="1"
                 onchange="setVariableMode(this.value)"><label for='vm1'>Replica - get variables from another Arska
                 device</label>
         </div>
-        <div class="indent">
+        <div class="indent"  style="display:none;">
             <div class="secbr">Variable source:<br><input class="fldlong" id="variable_server" name="variable_server"
                     type="text" value="%variable_server%" maxlength='29'></div>
         </div>

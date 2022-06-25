@@ -1,8 +1,8 @@
 /*
 Copyright, Netgalleria Oy, Olli Rinne 2021-2022
 */
-const sections = [{ "url": "/", "en": "Dashboard" }, { "url": "/inputs", "en": "Services" }
-    , { "url": "/channels", "en": "Channels" }, { "url": "/admin", "en": "Admin" }];
+const sections = [{ "url": "/", "en": "Dashboard", "wiki" : "Dashboard" }, { "url": "/inputs", "en": "Services" , "wiki" : "Edit-Services"}
+    , { "url": "/channels", "en": "Channels", "wiki" : "Edit-Channels" }, { "url": "/admin", "en": "Admin", "wiki" : "Edit-Admin" }];
 
 const opers = JSON.parse('%OPERS%');
 const variables = JSON.parse('%VARIABLES%');
@@ -41,13 +41,16 @@ function statusCBClicked(elCb) {
     document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 }
 
+function link_to_wiki(article_name) {
+    return '<a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/' + article_name + '">ℹ</a>';
+}
 // update variables and channels statuses to channels form
 function updateStatus(show_variables = true) {
     $.getJSON('/status', function (data) {
         msgdiv = document.getElementById("msgdiv");
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
-            
+
             console.log("cookie msg_read", getCookie("msg_read"));
             if (data.last_msg_ts > getCookie("msg_read")) {
                 msgDate = new Date(data.last_msg_ts * 1000);
@@ -77,11 +80,12 @@ function updateStatus(show_variables = true) {
                 else
                     variable_desc = "";
 
-                if (variable[2] == 50 || variable[2] == 51) {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable ? "ON" : "OFF" + '</td><td>' + variable_desc + '</td></tr>';
+                if (var_this[2] == 50 || var_this[2] == 51) {
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' +variable.replace('"', '').replace('"', '')  + '</td><td>' + variable_desc + ' (logical)</td></tr>';
+                    //newRow = '<tr><td>X' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
                 }
                 else {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + '</td></tr>';
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
                 }
                 $(newRow).appendTo($("#tblVariables_tb"));
             });
@@ -216,11 +220,12 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
 
     advanced_mode = document.getElementById("mo_" + channel_idx + "_0").checked;
 
-    addOption(varFld, -2, "remove");
+    addOption(varFld, -2, "delete condition");
     addOption(varFld, -1, "select", (stmt[0] == -1));
 
     for (var i = 0; i < variables.length; i++) {
-        addOption(varFld, variables[i][0], variables[i][1], (stmt[0] == variables[i][0]));
+        var type_indi = (variables[i][2] >= 50 && variables[i][2] <= 51) ? "*" : " "; 
+        addOption(varFld, variables[i][0], variables[i][1]+type_indi, (stmt[0] == variables[i][0]));
     }
 }
 
@@ -310,7 +315,7 @@ function populateTemplateSel(selEl, template_id = -1) {
     if (selEl.options && selEl.options.length > 0) {
         return; //already populated
     }
-    addOption(selEl, -1, "select", false);
+    addOption(selEl, -1, "Select template", false);
     $.getJSON('/data/template-list.json', function (data) {
         $.each(data, function (i, row) {
             addOption(selEl, row["id"], _ltext(row, "name"), (template_id == row["id"]));
@@ -449,15 +454,14 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
 
     if (var_this) {
         for (let i = 0; i < opers.length; i++) {
-            if (var_this[2] >= 50 && !opers[i][5]) //2-type
+            if (var_this[2] >= 50 && !opers[i][5]) //2-type, logical
                 continue;
-            if (var_this[2] < 50 && opers[i][5])
+            if (var_this[2] < 50 && opers[i][5]) // numeric
                 continue;
             const_id = el.id.replace("op", "const");
             //  console.log(const_id);
             el.style.display = "block";
             document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
-            // if (advanced_mode || (opers[i][0] == stmt[1]))
             addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
         }
     }
@@ -493,7 +497,7 @@ function setVar(evt) {
     }
     else if (el.value == -2) {
         // if (!document.getElementById("var_" + channel_idx + "_" + cond_idx + "_" + stmt_idx + 2) && stmt_idx>0) { //is last
-        if (confirm("Confirm")) {
+        if (confirm("Delete condition")) {
             //viimeinen olisi hyvä jättää, jos poistaa välistä niin numerot frakmentoituu
             var elem = document.getElementById(el.id.replace("var", "std"));
             elem.parentNode.removeChild(elem);
@@ -664,34 +668,37 @@ function setChannelFieldsByType(ch, chtype) {
 function initUrlBar(url) {
     var headdiv = document.getElementById("headdiv");
 
-    /*  var h1 = document.createElement('h1');
-      h1.innerHTML = "Arska Node";
-      headdiv.appendChild(h1);*/
+
     var hdspan = document.createElement('div');
-  //  hdspan.innerHTML = "Arska<br>";
+    //  hdspan.innerHTML = "Arska<br>";
     hdspan.innerHTML = "<svg viewBox='0 0 70 30' class='headlogo'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='#arskalogo' id='logo' /></svg><br>";
     hdspan.classList.add("cht");
     headdiv.appendChild(hdspan);
 
     sections.forEach((sect, idx) => {
-       /* if (url == sect.url) {
+        /* if (url == sect.url) {
+             var span = document.createElement('span');
+             var b = document.createElement('b');
+             b.className = 
+             b.innerHTML = sect.en;
+             span.appendChild(b);
+             headdiv.appendChild(span);
+         } 
+         else { */
+        var a = document.createElement('a');
+        var link = document.createTextNode(sect.en);
+        a.appendChild(link);
+        a.title = sect.en;
+        if (url == sect.url) {
+            a.className = "actUrl";
+        }
+        a.href = sect.url;
+        headdiv.appendChild(a);
+        if (url == sect.url && sect.wiki) {
             var span = document.createElement('span');
-            var b = document.createElement('b');
-            b.className = 
-            b.innerHTML = sect.en;
-            span.appendChild(b);
+            span.innerHTML = link_to_wiki(sect.wiki);
             headdiv.appendChild(span);
-        } 
-        else { */
-            var a = document.createElement('a');
-            var link = document.createTextNode(sect.en);
-            a.appendChild(link);
-            a.title = sect.en;
-            if(url == sect.url) {
-                a.className = "actUrl";
-            }
-            a.href = sect.url;
-            headdiv.appendChild(a);
+        }
         //}
 
         if (idx < sections.length - 1) {
@@ -712,7 +719,6 @@ function initForm(url) {
         if (using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
-
 
         //set timezone select element
         var timezone = document.getElementById("timezone_db").value;
@@ -756,6 +762,8 @@ function initForm(url) {
 
         //set forecast location select element
         var area_code = document.getElementById("entsoe_area_code_db").value;
+        if (!(area_code))
+            area_code = "#";
         $('#entsoe_area_code option').filter(function () {
             return this.value.indexOf(area_code) > -1;
         }).prop('selected', true);
@@ -811,13 +819,19 @@ function initWifiForm() {
     var wifisp = JSON.parse(wifis);
     wifisp.sort(compare_wifis);
     var wifi_sel = document.getElementById("wifi_ssid");
+    var wifi_ssid_db = document.getElementById("wifi_ssid_db");
 
     wifisp.forEach(function (wifi, i) {
         if (wifi.id) {
             var opt = document.createElement("option");
+            opt.value = wifi.id;
+
             if (backup_wifi_config_mode && i == 0)
                 opt.selected = true;
-            opt.value = wifi.id;
+            else if (wifi_ssid_db.value == wifi.id) {
+                opt.selected = true;
+                opt.value = "NA";
+            }
             opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
             wifi_sel.appendChild(opt);
         }
