@@ -31,14 +31,18 @@ Resource files (see data subfolder):
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
-
+#include "version.h"
 const char compile_date[] = __DATE__ " " __TIME__;
+char version_fs[35];
 
 #include <Arduino.h>
 #include <math.h> //round
 #include <EEPROM.h>
 #include <LittleFS.h>
 #include "WebAuthentication.h"
+
+
+
 
 #ifdef ESP32 // not fully implemented with ESP32
 #include <WiFi.h>
@@ -49,7 +53,7 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESP8266HTTPClient.h>
-#endif
+#endif 
 
 #include <ESPAsyncWebServer.h>
 
@@ -77,23 +81,34 @@ const char compile_date[] = __DATE__ " " __TIME__;
 #define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to active states
 
 #define OTA_UPDATE_ENABLED
+#define OTA_UPDATE_ENABLED2
 
 #define eepromaddr 0
 #define WATT_EPSILON 50
 
+
 const char *default_http_password PROGMEM = "arska";
-const char *required_fs_version PROGMEM = "2022-06-02-001";
+//const char *required_fs_version PROGMEM = "2022-06-02-001";
+const char *required_fs_version PROGMEM = "0.90.0";
 const char *price_data_filename PROGMEM = "/data/price-data.json";
 const char *variables_filename PROGMEM = "/data/variables.json";
 const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
 const char *wifis_file_name PROGMEM = "/wifis.json";
 
+const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
+const char *ntp_server_2 PROGMEM = "time.google.com";
+const char *ntp_server_3 PROGMEM = "time.windows.com";
+
+
+  
 #define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
 
 #define MSG_TYPE_INFO 0
 #define MSG_TYPE_WARN 1
 #define MSG_TYPE_ERROR 2
 #define MSG_TYPE_FATAL 3
+
+#define ACCEPTED_TIMESTAMP_MINIMUM 1656200000 
 
 struct variable_st
 {
@@ -109,7 +124,7 @@ tm tm_struct;
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
-bool backup_wifi_config_mode = false;
+bool wifi_in_setup_mode = false;
 
 struct msg_st
 {
@@ -139,7 +154,7 @@ void log_msg(byte type, const char *msg)
 void check_forced_restart(bool reset_counter = false)
 {
   // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
-  if (!backup_wifi_config_mode) // only valid if backup ap mode (no normal wifi)
+  if (!wifi_in_setup_mode) // only valid if backup ap mode (no normal wifi)
     return;
 
   time_t now_local = time(nullptr);
@@ -261,7 +276,7 @@ void printRTC()
     time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
     Serial.print(F("RTC:"));
     Serial.print(newTime);
-    Serial.print(F(", temperature:"));
+    Serial.print(F(", Temperature:"));
     Serial.println(rtc.getTemperature());
   }
 }
@@ -322,22 +337,24 @@ void getRTC()
 #endif // rtc
 
 // const char *required_fs_version PROGMEM = "2022-06-02-001";
-bool is_filesystem_up_to_date()
+bool check_filesystem_version()
 {
   bool is_ok;
   String current_version;
-  File info_file = LittleFS.open("/data/fsinfo.txt", "r");
+ // File info_file = LittleFS.open("/data/fsinfo.txt", "r");
+ File info_file = LittleFS.open("/data/version.txt", "r");
 
   if (info_file.available())
   {
-    String current_version = info_file.readStringUntil('\n');
-    is_ok = (current_version.compareTo(required_fs_version) <= 0);
+    String current_fs_version = info_file.readStringUntil('\n');
+    strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
+    is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
 
 #ifdef DEBUG_MODE
     if (is_ok)
-      Serial.printf("Current fs version %s is ok.\n", current_version.c_str());
+      Serial.printf("Current fs version %s is ok.\n", current_fs_version.c_str());
     else
-      Serial.printf("Current fs version %s is too old.\n", current_version.c_str());
+      Serial.printf("Current fs version %s is too old.\n", current_fs_version.c_str());
 #endif
   }
   else
@@ -1074,7 +1091,7 @@ typedef struct
   char variable_server[MAX_ID_STR_LENGTH]; // used in replica mode
   char entsoe_api_key[37];
   char entsoe_area_code[17];
-  char ntp_server[35];
+  char custom_ntp_server[35]; //TODO:UI to set up
   char timezone[4];  //!< EET,CET supported
   uint32_t baseload; // production above baseload is "free" to use/store
 #ifdef OTA_UPDATE_ENABLED
@@ -2310,10 +2327,9 @@ bool get_price_data()
 
   Serial.println(F("Connecting"));
 
-  Serial.printf("before connect millis(): %lu\n", millis());
   if (!client_https.connect(host_prices, httpsPort))
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Not connected to EntsoE server. Quitting price query."));
+    log_msg(MSG_TYPE_ERROR, PSTR("Not connected to Entso-E server. Quitting price query."));
 
     return false;
   }
@@ -2625,7 +2641,7 @@ void get_status_fields(char *out)
   char time2[9];
   char eupdate[20];
 /*
-  if (current_time < 1600000000)
+  if (current_time < ACCEPTED_TIMESTAMP_MINIMUM)
   {
     strcat(out, "<div class='fld'>CLOCK UNSYNCHRONIZED!</div>\n");
   }
@@ -2850,6 +2866,15 @@ String jscode_form_processor(const String &var)
   char buff[50];
   if (var == F("compile_date"))
     return String(compile_date);
+  
+  if (var == F("VERSION"))
+    return String(VERSION);
+  if (var == F("VERSION_SHORT"))
+    return String(VERSION_SHORT);
+
+  if (var == F("version_fs"))
+    return String(version_fs);
+
 
   if (var == F("RULE_STATEMENTS_MAX"))
     return String(RULE_STATEMENTS_MAX);
@@ -2911,8 +2936,8 @@ String jscode_form_processor(const String &var)
 #ifdef DEBUG_MODE
     return "true";
 #endif
-  if (var == "backup_wifi_config_mode")
-    return String(backup_wifi_config_mode ? "true" : "false");
+  if (var == "wifi_in_setup_mode")
+    return String(wifi_in_setup_mode ? "true" : "false");
 
   return String();
 }
@@ -2923,8 +2948,8 @@ String setup_form_processor(const String &var)
   // Javascript replacements
   if (var == "CHANNEL_CONDITIONS_MAX")
     return String(CHANNEL_CONDITIONS_MAX);
-  if (var == "backup_wifi_config_mode")
-    return String(backup_wifi_config_mode ? 1 : 0);
+  if (var == "wifi_in_setup_mode")
+    return String(wifi_in_setup_mode ? 1 : 0);
 
   if (var.startsWith("chi_"))
   {
@@ -3283,7 +3308,7 @@ void set_relays()
 
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
 {
-  Serial.printf("sendForm1: %s\n", template_name);
+ // Serial.printf("sendForm1: %s\n", template_name);
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
@@ -3297,6 +3322,79 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemp
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, template_name, "text/html", false, processor);
 }
+
+#ifdef OTA_UPDATE_ENABLED2
+//https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
+
+#include <Update.h>
+size_t content_len;
+#define U_PART U_SPIFFS
+void handleRoot(AsyncWebServerRequest *request)
+{
+  request->redirect("/update");
+}
+
+void handleUpdate(AsyncWebServerRequest *request) {
+    if (!request->authenticate(s.http_username, s.http_password))
+      return request->requestAuthentication();
+    Serial.println("/update.html");
+    sendForm(request, "/update.html");
+
+    // request->send(200, "text/html", PSTR("<form method='POST' action='/doUpdate2' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>"));
+}
+
+void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+ 
+    if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  if (!index){
+    Serial.println("Update");
+    content_len = request->contentLength();
+    // if filename includes spiffs, update the spiffs partition
+  //  int cmd = (filename.indexOf("spiffs") > -1) ? U_PART : U_FLASH;
+    int cmd = (filename.indexOf("littlefs") > -1) ? U_PART : U_FLASH;
+#ifdef ESP8266
+    Update.runAsync(true);
+    if (!Update.begin(content_len, cmd)) {
+#else
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+#endif
+      Update.printError(Serial);
+    }
+  }
+
+  if (Update.write(data, len) != len) {
+    Update.printError(Serial);
+#ifdef ESP8266
+  } else {
+    Serial.printf("Progress: %d%%\n", (Update.progress()*100)/Update.size());
+#endif
+  }
+
+  if (final) {
+    AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+    //response->addHeader("Refresh", "20");  
+    //response->addHeader("Location", "/");
+
+     response->addHeader("REFRESH","15;URL=/admin");
+    request->send(response);
+    if (!Update.end(true)){
+      Update.printError(Serial);
+    } else {
+      Serial.println("Update complete");
+      Serial.flush();
+      ESP.restart();
+    }
+  }
+}
+
+void printProgress(size_t prg, size_t sz) {
+  Serial.printf("Progress: %d%%\n", (prg*100)/content_len);
+}
+
+#endif
+
+
 
 void reset_config(bool reset_password)
 {
@@ -3321,7 +3419,7 @@ void reset_config(bool reset_password)
   strcpy(s.http_password, default_http_password);
   s.variable_mode == VARIABLE_MODE_SOURCE;
 
-  strcpy(s.ntp_server, "europe.pool.ntp.org");
+  strcpy(s.custom_ntp_server, "");
   strcpy(s.timezone, "EET");
 
   s.baseload = 0;
@@ -3393,7 +3491,7 @@ void export_config(AsyncWebServerRequest *request)
   }
   if (s.variable_mode == VARIABLE_MODE_REPLICA)
     doc["variable_server"] = s.variable_server;
-  doc["ntp_server"] = s.ntp_server;
+  doc["custom_ntp_server"] = s.custom_ntp_server;
   doc["timezone"] = s.timezone;
   doc["baseload"] = s.baseload;
   doc["energy_meter_type"] = s.energy_meter_type;
@@ -3490,7 +3588,7 @@ bool read_config_file(const char *config_file_name)
   copy_doc_str(doc, (char *)"entsoe_api_key", s.entsoe_api_key);
   copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code);
   copy_doc_str(doc, (char *)"variable_server", s.variable_server);
-  copy_doc_str(doc, (char *)"ntp_server", s.ntp_server);
+  copy_doc_str(doc, (char *)"custom_ntp_server", s.custom_ntp_server);
   copy_doc_str(doc, (char *)"timezone", s.timezone);
   copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc);
   copy_doc_str(doc, (char *)"lang", s.lang);
@@ -3580,10 +3678,10 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
 
 void onWebDashboardGet(AsyncWebServerRequest *request)
 {
-  /* if (backup_wifi_config_mode)
+  /* if (wifi_in_setup_mode)
      request->redirect("/admin");
    else*/
-  if ((strcmp(s.http_password, default_http_password) == 0) || backup_wifi_config_mode)
+  if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
   {
     Serial.println("DEBUG: onWebDashboardGet redirect /admin");
     request->redirect("/admin");
@@ -3787,11 +3885,10 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       s.ch[channel_idx].config_mode = request->getParam(ch_fld, true)->value().toInt();
 
     snprintf(ch_fld, 20, "rts_%i", channel_idx); // channe rule template
-    Serial.println(ch_fld);
+   // Serial.println(ch_fld);
     if (request->hasParam(ch_fld, true))
     {
-      //  Serial.println("found");
-      //  Serial.println(request->getParam(ch_fld, true)->value().toInt());
+ 
       s.ch[channel_idx].template_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
@@ -3802,12 +3899,13 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       Serial.println(stmts_fld);
       Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
 
+/*
       if (request->hasParam(stmts_fld, true))
       {
         Serial.println(request->getParam(stmts_fld, true)->value().isEmpty() ? "isEmpty" : "not empty");
         Serial.println(request->getParam(stmts_fld, true)->value());
       }
-
+*/
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
         // empty all statements if there are somein the form post
@@ -3830,13 +3928,13 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         }
         else
         {
-          Serial.printf("stmts_json.size() %d \n", (int)stmts_json.size());
-          Serial.println(request->getParam(stmts_fld, true)->value());
+      //    Serial.printf("stmts_json.size() %d \n", (int)stmts_json.size());
+      //    Serial.println(request->getParam(stmts_fld, true)->value());
           if (stmts_json.size() > 0)
           {
-            Serial.print(stmts_fld);
-            Serial.print(": ");
-            Serial.println(request->getParam(stmts_fld, true)->value());
+           // Serial.print(stmts_fld);
+           // Serial.print(": ");
+           // Serial.println(request->getParam(stmts_fld, true)->value());
             variable_st var_this;
             int var_index;
             for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), RULE_STATEMENTS_MAX); stmt_idx++)
@@ -3868,7 +3966,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
-      Serial.println(ctrb_fld);
+     // Serial.println(ctrb_fld);
 
       if (request->hasParam(ctrb_fld, true))
       {
@@ -3876,7 +3974,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
       else
         Serial.println("field not found in the form");
-      Serial.println("+++");
     }
   }
 
@@ -4074,7 +4171,7 @@ void setup()
   Serial.println(F("LittleFS initialized"));
 
   // TODO: notify, ota-update
-  if (is_filesystem_up_to_date())
+  if (check_filesystem_version())
     Serial.println(F("Filesystem is up-to-date."));
   else
     Serial.println(F("Filesystem is too old."));
@@ -4121,7 +4218,7 @@ void setup()
 
     scan_and_store_wifis(true);
 
-    backup_wifi_config_mode = true;
+    wifi_in_setup_mode = true;
     check_forced_restart(true); // schedule restart
   }
   else
@@ -4138,7 +4235,7 @@ void setup()
     }
   }
 
-  if (backup_wifi_config_mode) // Softap should be created if  cannot connect to wifi
+  if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
   {                            // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
     delay(200);
     WiFi.mode(WIFI_OFF);
@@ -4182,7 +4279,7 @@ void setup()
     Serial.println(F("RTC found"));
     Serial.flush();
     settimeofday_cb(time_is_set); // register callback if time was sent
-    if (time(nullptr) < 1600000000)
+    if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
       getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
   }
 #endif
@@ -4211,6 +4308,15 @@ void setup()
     }
   }
 #endif
+#ifdef OTA_UPDATE_ENABLED2
+  server_web.on("/update2", HTTP_GET, [](AsyncWebServerRequest *request){handleUpdate(request);});
+  
+  server_web.on("/doUpdate2", HTTP_POST,
+    [](AsyncWebServerRequest *request) {},
+    [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data,
+                  size_t len, bool final) {handleDoUpdate(request, filename, index, data, len, final);}
+  );
+#endif
 
   // Set timezone info
   char timezone_info[35];
@@ -4219,27 +4325,6 @@ void setup()
   else // CET default
     strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
 
-// configTime ESP32 and ESP8266 libraries differ
-#ifdef ESP32
-  if (!backup_wifi_config_mode)
-  {
-    configTime(0, 0, s.ntp_server); // First connect to NTP server, with 0 TZ offset
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo))
-    {
-      Serial.println("  Failed to obtain time");
-    }
-    else
-    {
-      setenv("TZ", timezone_info, 1);
-      tzset();
-    }
-  }
-#elif defined(ESP8266)
-  // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
-  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  configTime(timezone_info, s.ntp_server);
-#endif
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
   server_web.on("/export-config", HTTP_GET, export_config);
@@ -4290,7 +4375,7 @@ void setup()
   // no authenticatipn
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
-  // nämä voisi mennä yhdellä
+  //TODO: nämä voisi mennä yhdellä
   server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, variables_filename, F("application/json")); });
   server_web.on(fcst_filename, HTTP_GET, [](AsyncWebServerRequest *request)
@@ -4303,11 +4388,46 @@ void setup()
                 { request->send(LittleFS, "/wifis.json", "text/json"); });
 
   server_web.onNotFound(notFound);
-
   server_web.begin();
 
-  if (backup_wifi_config_mode)
+  if (wifi_in_setup_mode) 
     return; // no more setting, just wait for new SSID/password and then restarts
+
+// configTime ESP32 and ESP8266 libraries differ
+#ifdef ESP32
+  if (!wifi_in_setup_mode)
+  {
+    // First connect to NTP server, with 0 TZ offset
+    if (strlen(s.custom_ntp_server)>0)
+      configTime(0, 0, s.custom_ntp_server);
+    else
+      configTime(0, 0, ntp_server_1,ntp_server_2,ntp_server_3); 
+
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo,10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM)) 
+    {
+    //  Serial.println("Failed to obtain time, retrying");
+      log_msg(MSG_TYPE_ERROR,PSTR("Failed to obtain time"));
+      for (int k = 0; k < 100; k++)
+      {
+        delay(5000);
+        if (getLocalTime(&timeinfo,10000))
+          break;
+        Serial.println(time(nullptr));
+      }
+    }
+    else
+    {
+      setenv("TZ", timezone_info, 1);
+      tzset();
+    }
+  }
+#elif defined(ESP8266)
+  // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
+  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+  configTime(timezone_info, s.custom_ntp_server);
+#endif
+
 
   // init relays
   //  split comma separated gpio string to an array
@@ -4320,7 +4440,7 @@ void setup()
   {
     s.ch[channel_idx].gpio = channel_gpios[channel_idx];
     s.ch[channel_idx].toggle_last = now;
-    // reset values fro eeprom
+    // reset values from eeprom
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
     if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
@@ -4330,7 +4450,7 @@ void setup()
     }
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
-  if (!backup_wifi_config_mode)
+  if (!wifi_in_setup_mode)
     Serial.printf("\nArska dashboard url: http://%s/\n", WiFi.localIP().toString().c_str());
 
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
@@ -4359,7 +4479,7 @@ void loop()
   bool got_external_data_ok;
 
   //  handle initial wifi setting from the serial console
-  if (backup_wifi_config_mode && Serial.available())
+  if (wifi_in_setup_mode && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
     if (command_state == 0)
@@ -4440,16 +4560,15 @@ void loop()
 
   // if in Wifi AP Mode (192.168.4.1), no other operations allowed
   check_forced_restart(); //!< if in config mode restart when time out
-  if (backup_wifi_config_mode)
-  { //!< do nothing else if in  forced ap-mode
+  if (wifi_in_setup_mode)
+  { //!< do nothing else if in forced ap-mode
     delay(500);
     return;
   }
 
   // no other operations allowed before the clock is set
   time(&now);
-  if (now < 1600000000)
-    return;
+
 
   // set relays, if forced from dashboard
   if (todo_in_loop_set_relays)
@@ -4460,7 +4579,7 @@ void loop()
   }
 
   // initial message
-  if (started < 1600000000)
+  if (started < ACCEPTED_TIMESTAMP_MINIMUM)
   {
     started = now;
     log_msg(MSG_TYPE_INFO, PSTR("Started processing"));
@@ -4510,12 +4629,13 @@ void loop()
 
   if (next_query_price_data < now)
   {
-    Serial.printf("next_query_price_data now: %ld \n", now);
+ //   Serial.printf("next_query_price_data now: %ld \n", now);
     got_external_data_ok = get_price_data();
     todo_in_loop_update_price_rank_variables = got_external_data_ok;
     next_query_price_data = now + (got_external_data_ok ? 1200 : 120);
     Serial.printf("next_query_price_data: %ld \n", next_query_price_data);
   }
+
   if (todo_in_loop_update_price_rank_variables)
   {
     todo_in_loop_update_price_rank_variables = false;

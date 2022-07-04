@@ -14,7 +14,10 @@ const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
 const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
 const DEBUG_MODE = ('%DEBUG_MODE%' === 'true');
-const compile_date = '%compile_date%';
+const VERSION = '%VERSION%';
+const VERSION_SHORT = '%VERSION_SHORT%';
+const version_fs = '%version_fs%';
+;
 
 let variable_list = {}; // populate later
 
@@ -62,11 +65,22 @@ function updateStatus(show_variables = true) {
         if (keyfd) {
             selling = data.variables["102"];
             price = data.variables["0"];
+            sensor_text = '';
 
             emDate = new Date(data.energym_read_last * 1000);
 
+            for (i = 0; i < 3; i++) {
+                if (data.variables[(i + 201).toString()] != "null") {
+                    if (sensor_text)
+                        sensor_text += ", ";
+                    sensor_text += 'Sensor ' + (i+1) + ': <span  class="big">' + data.variables[(i+201).toString()] + ' &deg;C</span>';  
+                }
+            }
+            if (sensor_text)
+                sensor_text = "<br>" + sensor_text;
+
             selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
-            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>';
+            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>'+sensor_text;
         }
         if (show_variables) {
             document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
@@ -778,7 +792,7 @@ function initForm(url) {
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
         // footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
-        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + compile_date + "</i></div>";
+        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + VERSION + ",   Filesystem version: " + version_fs + "</i></div>";
     }
 }
 
@@ -876,6 +890,7 @@ function checkAdminForm() {
     }
     return true;
 }
+
 function doAction(action) {
     actiond_fld = document.getElementById("action");
     actiond_fld.value = action;
