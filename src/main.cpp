@@ -80,7 +80,7 @@ char version_fs[35];
 
 #define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to active states
 
-#define OTA_UPDATE_ENABLED
+// #define OTA_UPDATE_ENABLED
 #define OTA_UPDATE_ENABLED2
 
 #define eepromaddr 0
@@ -93,7 +93,8 @@ const char *required_fs_version PROGMEM = "0.90.0";
 const char *price_data_filename PROGMEM = "/data/price-data.json";
 const char *variables_filename PROGMEM = "/data/variables.json";
 const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
-const char *wifis_file_name PROGMEM = "/wifis.json";
+const char *wifis_filename PROGMEM = "/wifis.json";
+const char *template_filename PROGMEM = "/data/templates.json";
 
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
@@ -157,14 +158,16 @@ void check_forced_restart(bool reset_counter = false)
   if (!wifi_in_setup_mode) // only valid if backup ap mode (no normal wifi)
     return;
 
-  time_t now_local = time(nullptr);
+  time_t now_in_func;
+  time(&now_in_func);
   if (reset_counter)
   {
-    forced_restart_ts = now_local + FORCED_RESTART_DELAY;
+    forced_restart_ts = now_in_func + FORCED_RESTART_DELAY;
   }
-  else if ((forced_restart_ts < now_local) && ((now_local - forced_restart_ts) < 7200)) // check that both values are same way synched
+  else if ((forced_restart_ts < now_in_func) && ((now_in_func - forced_restart_ts) < 7200)) // check that both values are same way synched
   {
     Serial.println(F("check_forced_restart restarting"));
+    WiFi.disconnect(); 
     delay(2000);
     ESP.restart();
   }
@@ -288,10 +291,10 @@ void printRTC()
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
-  time_t now_local;          // this are the seconds since Epoch (1970) - seconds GMT
+  time_t now_in_func;          // this are the seconds since Epoch (1970) - seconds GMT
   tm tm;                     // the structure tm holds time information in a more convient way
-  time(&now_local);          // read the current time and store to now_local
-  gmtime_r(&now_local, &tm); // update the structure tm with the current GMT
+  time(&now_in_func);          // read the current time and store to now_in_func
+  gmtime_r(&now_in_func, &tm); // update the structure tm with the current GMT
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
 }
 
@@ -859,7 +862,7 @@ bool update_prices_to_influx()
 
   if (error)
   {
-    Serial.print("deserializeJson() failed: ");
+    Serial.print(F("update_prices_to_influx deserializeJson() failed: "));
     Serial.println(error.c_str());
     return false;
   }
@@ -951,12 +954,13 @@ bool update_prices_to_influx()
 #define SMA_TOTALENERGY_OFFSET 30529
 #define SMA_POWER_OFFSET 30775
 #endif
-
+/*
 #ifdef OTA_UPDATE_ENABLED
 unsigned long server_ota_started;
 #include <AsyncElegantOTA.h>
 AsyncWebServer server_OTA(80);
 #endif
+*/
 
 #ifdef SENSOR_DS18B20_ENABLED
 bool sensor_ds18b20_enabled = true;
@@ -1094,9 +1098,7 @@ typedef struct
   char custom_ntp_server[35]; //TODO:UI to set up
   char timezone[4];  //!< EET,CET supported
   uint32_t baseload; // production above baseload is "free" to use/store
-#ifdef OTA_UPDATE_ENABLED
-  bool next_boot_ota_update;
-#endif
+  bool next_boot_ota_update; //RFU
   byte energy_meter_type;
   char energy_meter_host[MAX_URL_STR_LENGTH];
   unsigned int energy_meter_port;
@@ -1150,6 +1152,7 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SI
  */
 bool is_cache_file_valid(const char *cache_file_name)
 {
+  time_t now_in_func;
   if (!LittleFS.exists(cache_file_name))
   {
     Serial.println(F("No cache file."));
@@ -1178,7 +1181,8 @@ bool is_cache_file_valid(const char *cache_file_name)
   }
 
   unsigned long expires = doc_ts["expires"];
-  return expires > time(nullptr);
+  time(&now_in_func);
+  return expires > now_in_func;
 }
 
 // Serial command interface
@@ -1194,8 +1198,8 @@ void scan_and_store_wifis(bool print_out)
 {
   network_count = WiFi.scanNetworks();
 
-  LittleFS.remove(wifis_file_name);                      // Delete existing file, otherwise the configuration is appended to the file
-  File wifis_file = LittleFS.open(wifis_file_name, "w"); // Open file for writing
+  LittleFS.remove(wifis_filename);                      // Delete existing file, otherwise the configuration is appended to the file
+  File wifis_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
   wifis_file.printf("wifis = '[");
 
   int good_wifi_count = 0;
@@ -1499,6 +1503,7 @@ bool read_ds18b20_sensors()
   delay(50);
   int32_t temp_raw;
   float temp_c;
+  time_t now_in_func;
 
   // Loop through each device, print out temperature data
   // Serial.printf("sensor_count:%d\n", sensor_count);
@@ -1520,7 +1525,8 @@ bool read_ds18b20_sensors()
       }
       else
       { //
-        if ((time(nullptr) - temperature_updated) < SENSOR_VALUE_EXPIRE_TIME)
+        time(&now_in_func);
+        if ((now_in_func - temperature_updated) < SENSOR_VALUE_EXPIRE_TIME)
         {
           Serial.printf("DEBUG Sensor %d, DEVICE_DISCONNECTED_RAW\n", j);
           vars.set_NA(VARIABLE_SENSOR_1 + j);
@@ -1595,8 +1601,8 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
  */
 bool read_meter_shelly3em()
 {
-  time_t now_local;
-  time(&now_local);
+  time_t now_in_func;
+  time(&now_in_func);
 
   if (strlen(s.energy_meter_host) == 0)
     return false;
@@ -1616,8 +1622,8 @@ bool read_meter_shelly3em()
   shelly3em_read_count++;
 
   // unsigned now_period = int(shelly3em_meter_read_ts / (NETTING_PERIOD_SEC));
-  unsigned now_period = int(now_local / (NETTING_PERIOD_SEC));
-  shelly3em_meter_read_ts = now_local; // doc["unixtime"]; //!< get time from Shelly response
+  unsigned now_period = int(now_in_func / (NETTING_PERIOD_SEC));
+  shelly3em_meter_read_ts = now_in_func; // doc["unixtime"]; //!< get time from Shelly response
 
   float netEnergyInPeriod;
   float netPowerInPeriod;
@@ -1683,8 +1689,8 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   //  globals updated: inverter_total_period_init
   if (strlen(s.energy_meter_host) == 0)
     return false;
-  time_t now_local;
-  time(&now_local);
+  time_t now_in_func;
+  time(&now_in_func);
   StaticJsonDocument<64> filter;
 
   JsonObject filter_Body_Data = filter["Body"].createNestedObject("Data");
@@ -1867,7 +1873,8 @@ bool read_inverter(bool period_changed)
   // 4 globals updated: inverter_total_period_init, inverter_total_period_init_ok, energy_produced_period, power_produced_period_avg
   long int total_energy = 0;
   long int current_power = 0;
-  time_t now_local = time(nullptr);
+  time_t now_in_func;
+  time(&now_in_func);
 
   bool read_ok = false;
   if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR)
@@ -1907,7 +1914,7 @@ bool read_inverter(bool period_changed)
     }
   }
 
-  long int time_since_recording_period_start = now_local - recording_period_start;
+  long int time_since_recording_period_start = now_in_func - recording_period_start;
   if (time_since_recording_period_start > USE_POWER_TO_ESTIMATE_ENERGY_SECS) // in the beginning of period use current power to estimate energy generated
     power_produced_period_avg = energy_produced_period * 3600 / time_since_recording_period_start;
   else
@@ -1920,9 +1927,9 @@ bool read_inverter(bool period_changed)
 
 void update_time_based_variables()
 {
-  time_t now_local;
-  time(&now_local);
-  localtime_r(&now_local, &tm_struct);
+  time_t now_in_func;
+  time(&now_in_func);
+  localtime_r(&now_in_func, &tm_struct);
   vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
   vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
   vars.set(VARIABLE_WDAY, (long)(tm_struct.tm_wday + 6) % 7 + 1);
@@ -2099,7 +2106,7 @@ bool get_solar_forecast()
   DeserializationError error = deserializeJson(doc, client_http.getStream());
   if (error)
   {
-    Serial.print(F("deserializeJson() failed: "));
+    Serial.print(F("get_solar_forecast deserializeJson() failed: "));
     Serial.println(error.c_str());
     log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy forecast data"));
     return false;
@@ -2117,6 +2124,7 @@ bool get_solar_forecast()
   long long pvenergy_item_time;
   time_t pvenergy_time;
   bool got_future_prices = false;
+  time_t now_in_func;
 
   for (JsonObject pvenergy_item : doc["pvenergy"].as<JsonArray>())
   {
@@ -2172,10 +2180,12 @@ bool get_solar_forecast()
     pv_fcst_a.add(pv_fcst[i]);
   }
 
+  
+  time(&now_in_func);
   doc["first_period"] = first_ts;
   doc["resolution_m"] = 3600;
-  doc["ts"] = time(nullptr);
-  doc["expires"] = time(nullptr) + 3600; // time-to-live of the result, under construction, TODO: set to parameters
+  doc["ts"] = now_in_func;
+  doc["expires"] = now_in_func + 3600; // time-to-live of the result, under construction, TODO: set to parameters
 
   // huom ajat 3 h väärin, eli annettu eet vaikka pitäisi olla utc-aika
   // ajat klo xx:30 eli yksittäinen arvo ei matchaa mutta summa jyllä
@@ -2228,19 +2238,19 @@ if rank is 1 then the price is best within the windows (e.g. from current period
 windows/blocks are defined in variable price_variable_blocks, e.g. next 9 hours and 24 hours.
  *
  * @param record_start
- * @param record_end
+ * @param record_end_excl
  * @param time_idx_now
  * @param prices
  * @param doc
  */
-void calculate_price_ranks(time_t record_start, time_t record_end, int time_idx_now, long prices[MAX_PRICE_PERIODS], JsonDocument &doc)
+void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time_idx_now, long prices[MAX_PRICE_PERIODS], JsonDocument &doc)
 {
-  Serial.printf("calculate_price_ranks start: %ld, end: %ld, time_idx_now: %d\n", record_start, record_end, time_idx_now);
+  Serial.printf("calculate_price_ranks start: %ld, end: %ld, time_idx_now: %d\n", record_start, record_end_excl, time_idx_now);
 
   int time_idx = time_idx_now;
   char var_code[25];
 
-  for (time_t time = record_start + time_idx_now * NETTING_PERIOD_SEC; time < record_end; time += NETTING_PERIOD_SEC)
+  for (time_t time = record_start + time_idx_now * NETTING_PERIOD_SEC; time < record_end_excl; time += NETTING_PERIOD_SEC)
   {
     delay(5);
 
@@ -2252,7 +2262,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end, int time_idx_
 
     localtime_r(&time, &tm_struct_g);
 
-    Serial.printf("time_idx: %d , %04d%02d%02dT%02d00, ", time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
+    Serial.printf("time: %ld, time_idx: %d , %04d%02d%02dT%02d00, ",time, time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
     Serial.printf("energyPriceSpot: %f \n", energyPriceSpot);
 
     int price_block_count = (int)(sizeof(price_variable_blocks) / sizeof(*price_variable_blocks));
@@ -2291,7 +2301,7 @@ bool get_price_data()
   prices_initiated = true; // TODO:we could read prices from a non-expired cache file, so requery would not be needed
 
   time_t period_start = 0, period_end = 0;
-  time_t record_start = 0, record_end = 0;
+  time_t record_start = 0, record_end_excl = 0;
   char date_str_start[13];
   char date_str_end[13];
   WiFiClientSecure client_https;
@@ -2301,6 +2311,8 @@ bool get_price_data()
 
   time_t start_ts, end_ts; // this is the epoch
   tm tm_struct;
+  time_t now_infunc;
+
   time(&start_ts);
   start_ts -= SECONDS_IN_DAY;
   end_ts = start_ts + SECONDS_IN_DAY * 2;
@@ -2379,8 +2391,8 @@ bool get_price_data()
 
     if (line.endsWith(F("</period.timeInterval>")))
     { // header dates
-      record_end = period_end;
-      record_start = record_end - (NETTING_PERIOD_SEC * MAX_PRICE_PERIODS);
+      record_end_excl = period_end;
+      record_start = record_end_excl - (NETTING_PERIOD_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
       Serial.printf("period_start: %ld record_start: %ld - period_end: %ld\n", period_start, record_start, period_end);
     }
@@ -2437,11 +2449,12 @@ bool get_price_data()
 
   if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
   {
+    time(&now_infunc);
     doc["record_start"] = record_start;
-    doc["record_end"] = record_end;
+    doc["record_end_excl"] = record_end_excl;
     doc["resolution_m"] = NETTING_PERIOD_MIN;
-    doc["ts"] = time(nullptr);
-    doc["expires"] = record_end - (12 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+    doc["ts"] = now_infunc;
+    doc["expires"] = record_end_excl - (12 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
 
     File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
     serializeJson(doc, prices_file);
@@ -2492,11 +2505,10 @@ bool query_external_variables()
   Serial.println(variable_url);
   DeserializationError error = deserializeJson(doc, httpGETRequest(variable_url, ""), DeserializationOption::Filter(filter));
 
-  Serial.println("query_external_variables a");
 
   if (error)
   {
-    Serial.print("deserializeJson() failed: ");
+    Serial.print(F("query_external_variables deserializeJson() failed: "));
     Serial.println(error.c_str());
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot process variable data."));
 
@@ -2519,8 +2531,9 @@ bool query_external_variables()
 
 bool update_price_rank_variables()
 {
-  time_t record_start = 0, record_end = 0;
+  time_t record_start = 0, record_end_excl = 0;
   time_t start_ts, end_ts; // this is the epoch
+  time_t now_infunc;
 
   time(&start_ts);
   start_ts -= SECONDS_IN_DAY;
@@ -2533,7 +2546,7 @@ bool update_price_rank_variables()
   prices_file_in.close();
   if (error)
   {
-    Serial.print(F("deserializeJson() failed: "));
+    Serial.print(F("update_price_rank_variables deserializeJson() failed: "));
     Serial.println(error.f_str());
     return false;
   }
@@ -2545,19 +2558,20 @@ bool update_price_rank_variables()
     prices[i] = (long)prices_array[i];
   }
 
-  record_end = (time_t)doc["record_end"];
+  record_end_excl = (time_t)doc["record_end_excl"];
   record_start = (time_t)doc["record_start"];
 
-  int time_idx_now = int((time(nullptr) - record_start) / NETTING_PERIOD_SEC);
+  time(&now_infunc);
+  int time_idx_now = int((now_infunc - record_start) / NETTING_PERIOD_SEC);
   Serial.printf("time_idx_now: %d, price now: %f\n", time_idx_now, (float)prices[time_idx_now] / 100);
-  Serial.printf("record_start: %ld, record_end: %ld\n", record_start, record_end);
+  Serial.printf("record_start: %ld, record_end_excl: %ld\n", record_start, record_end_excl);
 
-  calculate_price_ranks(record_start, record_end, time_idx_now, prices, doc);
+  calculate_price_ranks(record_start, record_end_excl, time_idx_now, prices, doc);
 
   doc["record_start"] = record_start;
   doc["resolution_m"] = NETTING_PERIOD_MIN;
-  doc["ts"] = time(nullptr);
-  doc["expires"] = time(nullptr) + 3600; // time-to-live of the result, under construction, TODO: set to parameters
+  doc["ts"] = now_infunc;
+  doc["expires"] = now_infunc + 3600; // time-to-live of the result, under construction, TODO: set to parameters
 
   File prices_file_out = LittleFS.open(variables_filename, "w"); // Open file for writing /variables.json
   serializeJson(doc, prices_file_out);
@@ -2703,8 +2717,8 @@ void get_status_fields(char *out)
 // returns channel basic info html for the forms
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
-  time_t now_local;
-  time(&now_local);
+  time_t now_in_func;
+  time(&now_in_func);
   char buff[220];
   char buff2[160];
   char buff4[20];
@@ -2712,10 +2726,10 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
   time_t from_now;
   snprintf(buff2, 160, "<svg viewBox='0 0 100 100' class='statusic'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='%s' id='status_%d'/></svg>", s.ch[channel_idx].is_up ? "#green" : "#red", channel_idx);
 
-  if (s.ch[channel_idx].force_up_until > now_local)
+  if (s.ch[channel_idx].force_up_until > now_in_func)
   {
     localtime_r(&s.ch[channel_idx].force_up_until, &tm_struct);
-    from_now = s.ch[channel_idx].force_up_until - now_local;
+    from_now = s.ch[channel_idx].force_up_until - now_in_func;
     gmtime_r(&from_now, &tm_struct2);
     snprintf(buff4, 20, "-> %02d:%02d (%02d:%02d)", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
   }
@@ -2737,11 +2751,11 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
     for (int hour_idx = 0; hour_idx < hour_array_element_count; hour_idx++)
     {
 
-      snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now_local) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
+      snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now_in_func) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
       strcat(out, buff);
 
       // current force_up_until, if set
-      if ((s.ch[channel_idx].force_up_until > now_local) && (s.ch[channel_idx].force_up_until - now_local > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now_local < force_up_hours[hour_idx + 1] * 3600))
+      if ((s.ch[channel_idx].force_up_until > now_in_func) && (s.ch[channel_idx].force_up_until - now_in_func > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now_in_func < force_up_hours[hour_idx + 1] * 3600))
       {
         snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
         strcat(out, buff);
@@ -2866,7 +2880,9 @@ String jscode_form_processor(const String &var)
   char buff[50];
   if (var == F("compile_date"))
     return String(compile_date);
-  
+  if (var == F("HWID"))
+    return String(HWID);
+
   if (var == F("VERSION"))
     return String(VERSION);
   if (var == F("VERSION_SHORT"))
@@ -3081,7 +3097,7 @@ String setup_form_processor(const String &var)
 void read_energy_meter()
 {
   bool read_ok;
-  time_t now_local;
+  time_t now_in_func;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
 #ifdef METER_SHELLY3EM_ENABLED
@@ -3095,12 +3111,13 @@ void read_energy_meter()
 #endif
   }
 
-  time(&now_local);
+  time(&now_in_func);
   if (read_ok)
-    energym_read_last = now_local;
-  else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_local) && (energym_read_last > 0)) // restart after too many errors
+    energym_read_last = now_in_func;
+  else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_in_func) && (energym_read_last > 0)) // restart after too many errors
   {
     Serial.println(("Restarting after failed energy meter reads."));
+    WiFi.disconnect(); 
     delay(2000);
     ESP.restart();
   }
@@ -3179,7 +3196,9 @@ bool set_channel_switch(int channel_idx, bool up)
  */
 void update_relay_states()
 {
-  time_t now_local = time(nullptr);
+  time_t now_in_func;
+  time(&now_in_func);
+ 
   // loop channels and check whether channel should be up
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {                                                               
@@ -3190,17 +3209,17 @@ void update_relay_states()
       }
 
     // reset condition_active variable
-    bool wait_minimum_uptime = ((now_local - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+    bool wait_minimum_uptime = ((now_in_func - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down
       s.ch[channel_idx].force_up_until = 0;
       wait_minimum_uptime = false;
     }
-    bool forced_up = (s.ch[channel_idx].force_up_until > now_local); // signal to keep it up
+    bool forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
 
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
-      Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %ld .\n", channel_idx, (int)(now_local - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
+      Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %ld .\n", channel_idx, (int)(now_in_func - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
       s.ch[channel_idx].wanna_be_up = true;
       continue;
     }
@@ -3324,23 +3343,56 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemp
 }
 
 #ifdef OTA_UPDATE_ENABLED2
-//https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
+// The Other templates come from littlefs filesystem, but on update we do not want to be dependant on that
+
+const char update_page_html[] PROGMEM = "<html><head></head>\
+<!-- https://codewithmark.com/easily-create-file-upload-progress-bar-using-only-javascript -->\
+<body style='background-color: #1a1e15;margin: 1.8em; font-size: 20px;font-family:  Helvetica, Arial, sans-serif;color: #f7f7e6;'>\
+<script type = 'text/javascript'>\
+ function _(el){return document.getElementById(el);}\
+    function upload() {\
+        var file = _('firmware').files[0];\
+        var formdata = new FormData();\
+        formdata.append('firmware', file);\
+        var ajax = new XMLHttpRequest();\
+        ajax.upload.addEventListener('progress', progressHandler, false);\
+        ajax.addEventListener('load', completeHandler, false);\
+        ajax.addEventListener('error', errorHandler, false);\
+        ajax.addEventListener('abort', abortHandler, false);\
+        ajax.open('POST', 'doUpdate');\
+        ajax.send(formdata);\
+    }\
+    function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total;  var percent = (event.loaded / event.total) * 100;  _('progressBar').value = Math.round(percent);_('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; }\
+    function reloadAdmin() { window.location.href = '/admin';}\
+    function completeHandler(event) {_('status').innerHTML = event.target.responseText; _('progressBar').value = 0;setTimeout(reloadAdmin, 20000);}\
+    function errorHandler(event) { _('status').innerHTML = 'Upload Failed';}\
+    function abortHandler(event) {   _('status').innerHTML = 'Upload Aborted';}\
+    </script>\
+    <h1>Firmware and filesystem update</h1>\
+    <p>Update firmware first and filesystem (littlefs.bin) after that (if required).</p>\
+        <form method='post' enctype='multipart/form-data'>\
+        <input type='file' name ='firmware' id='firmware' onchange='upload()'><br>\
+        <progress id='progressBar' value='0' max='100' style='width:250px;'></progress>\
+        <h2 id='status'></h2>\
+        <p id='loadedtotal'></p>\
+        </form>\
+        <br>Current versions: Program %VERSION% (%HWID%), Filesystem %version_fs%  </i>\
+        </ body></ html> \
+        ";
+
+    // https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
 
 #include <Update.h>
-size_t content_len;
+        size_t content_len;
 #define U_PART U_SPIFFS
-void handleRoot(AsyncWebServerRequest *request)
-{
-  request->redirect("/update");
-}
+
 
 void handleUpdate(AsyncWebServerRequest *request) {
     if (!request->authenticate(s.http_username, s.http_password))
       return request->requestAuthentication();
-    Serial.println("/update.html");
-    sendForm(request, "/update.html");
+    Serial.println("update-form");
+    request->send_P(200, "text/html", update_page_html, jscode_form_processor);
 
-    // request->send(200, "text/html", PSTR("<form method='POST' action='/doUpdate2' enctype='multipart/form-data'><input type='file' name='update'><input type='submit' value='Update'></form>"));
 }
 
 void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
@@ -3376,13 +3428,15 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size
     //response->addHeader("Refresh", "20");  
     //response->addHeader("Location", "/");
 
-     response->addHeader("REFRESH","15;URL=/admin");
+    response->addHeader("REFRESH","15;URL=/admin");
     request->send(response);
     if (!Update.end(true)){
       Update.printError(Serial);
     } else {
       Serial.println("Update complete");
       Serial.flush();
+      WiFi.disconnect();
+      delay(2000);
       ESP.restart();
     }
   }
@@ -3420,7 +3474,6 @@ void reset_config(bool reset_password)
   s.variable_mode == VARIABLE_MODE_SOURCE;
 
   strcpy(s.custom_ntp_server, "");
-  strcpy(s.timezone, "EET");
 
   s.baseload = 0;
   s.energy_meter_type = ENERGYM_NONE;
@@ -3703,12 +3756,13 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
 }
 
 // Web admin form
-
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
   sendForm(request, "/admin_template.html", admin_form_processor);
 }
 
+
+// Get individual rule template by id
 void onWebTemplateGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -3719,19 +3773,16 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
 
   StaticJsonDocument<16> filter;
   AsyncWebParameter *p = request->getParam("id");
-
-  Serial.printf("id: %s\n", p->value().c_str());
-
+  //Serial.printf(PSTR("Template id: %s\n"), p->value().c_str());
   filter[p->value().c_str()] = true;
+  StaticJsonDocument<4096> doc;
 
-  StaticJsonDocument<1024> doc;
-
-  File template_file = LittleFS.open("/data/templates.json", "r");
+  File template_file = LittleFS.open(template_filename, "r");
   DeserializationError error = deserializeJson(doc, template_file, DeserializationOption::Filter(filter));
   String output;
   if (error)
   {
-    Serial.print("deserializeJson() failed: ");
+    Serial.print(F("Template deserializeJson() failed: "));
     Serial.println(error.c_str());
     return;
   }
@@ -3786,6 +3837,7 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
 }
 
 // restarts controller in update mode
+/*
 void bootInUpdateMode(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -3796,7 +3848,7 @@ void bootInUpdateMode(AsyncWebServerRequest *request)
   request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./update' /></head><body>Wait for update mode...</body></html>");
   return;
 }
-
+*/
 // INPUTS
 void onWebInputsPost(AsyncWebServerRequest *request)
 {
@@ -3923,7 +3975,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
         {
-          Serial.print(F("deserializeJson() failed: "));
+          Serial.print(F("onWebChannelsPost deserializeJson() failed: "));
           Serial.println(error.f_str());
         }
         else
@@ -4023,13 +4075,14 @@ void onWebAdminPost(AsyncWebServerRequest *request)
       setRTC();
 #endif
   }
-
+/*
 #ifdef OTA_UPDATE_ENABLED
   if (request->getParam("action", true)->value().equals("ota"))
   {
     bootInUpdateMode(request);
   }
 #endif
+*/
 
   if (request->getParam("action", true)->value().equals("reboot"))
   {
@@ -4145,6 +4198,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
 void setup()
 {
+  time_t now_infunc;
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
@@ -4205,8 +4259,8 @@ void setup()
   if (strlen(s.wifi_ssid) == 0)
   {
     strcpy(s.wifi_ssid, "NA");
-    //   strcpy(s.wifi_password, "x");
   }
+  //TODO: WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
   WiFi.begin(s.wifi_ssid, s.wifi_password);
 
   if (WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
@@ -4228,7 +4282,7 @@ void setup()
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
 
-    if (!LittleFS.exists(wifis_file_name))
+    if (!LittleFS.exists(wifis_filename))
     { // no wifi list found
       Serial.println("No wifi list found - rescanning...");
       scan_and_store_wifis(false);
@@ -4248,8 +4302,6 @@ void setup()
       mac.remove(i, 1);
     }
     String APSSID = String("ARSKA-") + mac;
-    // Serial.print(F("Creating AP:"));
-    // Serial.println(APSSID);
     int wifi_channel = (int)random(1, 14);
     if (WiFi.softAP(APSSID.c_str(), (const char *)__null, wifi_channel, 0, 3) == true)
     {
@@ -4283,7 +4335,7 @@ void setup()
       getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
   }
 #endif
-
+/*
 #ifdef OTA_UPDATE_ENABLED
   // wait for update
   if (s.next_boot_ota_update)
@@ -4308,10 +4360,11 @@ void setup()
     }
   }
 #endif
+*/
 #ifdef OTA_UPDATE_ENABLED2
-  server_web.on("/update2", HTTP_GET, [](AsyncWebServerRequest *request){handleUpdate(request);});
+  server_web.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){handleUpdate(request);});
   
-  server_web.on("/doUpdate2", HTTP_POST,
+  server_web.on("/doUpdate", HTTP_POST,
     [](AsyncWebServerRequest *request) {},
     [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data,
                   size_t len, bool final) {handleDoUpdate(request, filename, index, data, len, final);}
@@ -4346,7 +4399,7 @@ void setup()
   server_web.on("/admin", HTTP_GET, onWebAdminGet);
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-  server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
+  //server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
   server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->redirect("/"); }); // redirect url, if called from OTA
@@ -4372,6 +4425,7 @@ void setup()
   /* server_web.on("/data/config_in.json", HTTP_GET, [](AsyncWebServerRequest *request)
                  { request->send(LittleFS, F("/data/config_in.json"), F("application/json")); });
                  */
+
   // no authenticatipn
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
@@ -4398,9 +4452,12 @@ void setup()
   if (!wifi_in_setup_mode)
   {
     // First connect to NTP server, with 0 TZ offset
-    if (strlen(s.custom_ntp_server)>0)
+    // TODO: custom ntp server ui admin 
+    /*if (strlen(s.custom_ntp_server)>0){
       configTime(0, 0, s.custom_ntp_server);
-    else
+      Serial.printf(PSTR("custom_ntp_server:%s\n"),s.custom_ntp_server);
+    }
+    else */
       configTime(0, 0, ntp_server_1,ntp_server_2,ntp_server_3); 
 
     struct tm timeinfo;
@@ -4413,12 +4470,14 @@ void setup()
         delay(5000);
         if (getLocalTime(&timeinfo,10000))
           break;
-        Serial.println(time(nullptr));
+        time(&now_infunc);
+        Serial.println(now_infunc);
       }
     }
     else
     {
       setenv("TZ", timezone_info, 1);
+      Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info,s.timezone);
       tzset();
     }
   }
@@ -4535,7 +4594,7 @@ void loop()
     Serial.println(F("GPIO Testing ready"));
   }
 #endif
-
+/*
 #ifdef OTA_UPDATE_ENABLED
   // resetting and rebooting in update more
   if (s.next_boot_ota_update || todo_in_loop_restart)
@@ -4544,6 +4603,13 @@ void loop()
     ESP.restart();
   }
 #endif
+*/
+  if (todo_in_loop_restart)
+  {
+    WiFi.disconnect(); 
+    delay(1000);
+    ESP.restart();
+  }
   if (todo_in_loop_scan_wifis)
   {
     todo_in_loop_scan_wifis = false;
@@ -4667,7 +4733,9 @@ void loop()
     update_price_variables(current_period_start);
 
     // last_process_ts = millis();
-    next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), time(nullptr) + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
+
+    time(&now);
+    next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_relay_states();
     set_relays();
   }

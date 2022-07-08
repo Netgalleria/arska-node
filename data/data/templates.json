@@ -23,16 +23,13 @@
                             4,
                             6
                         ],
-                        "const_prompt": "Montako tuntia päällä yön aikana (1-9), ensisijaisesti halvimpina tunteina."
+                        "const_prompt": "How many hours up during night (1-9), cheapest hours.",
+                        "const_prompt_fi": "Montako tuntia päällä yön aikana (1-9), ensisijaisesti halvimpina tunteina."
                     }
                 ]
             }
         ]
     },
-
-
-
-
     "2": {
         "id": 2,
         "name": "On when cheap own solar production",
@@ -41,7 +38,8 @@
         "desc_fi": "Päällä ainoastaan kun oman tuotannon ylijäämää, mutta kalliin sähkön aikana myydään oma tuotanto.",
         "uptime_minimum": 300,
         "conditions": [
-            {"on": false,
+            {
+                "on": false,
                 "statements": [
                     {
                         "values": [
@@ -49,7 +47,8 @@
                             1,
                             13
                         ],
-                        "const_prompt": "Vähimmäishinta (esim. 13c/kWh), jolla myydään oma tuotanto."
+                        "const_prompt": "Min price to sell own production (e.g. 13c/kWh)?",
+                        "const_prompt_fi": "Vähimmäishinta (esim. 13c/kWh), jolla myydään oma tuotanto?"
                     }
                 ]
             },
@@ -62,6 +61,102 @@
                             6,
                             0
                         ]
+                    }
+                ]
+            }
+        ]
+    },
+    "3": {
+        "id": 3,
+        "name": "Charge storage, optimize solar and price",
+        "name_fi": "Varaa optimoiden paneelituotto ja hinta",
+        "desc": "Use solar if cheap, othwerwise cheapest night hours",
+        "desc_fi": "Päällä yöllä kun hinta ja jos ei tulossa halpaa aurinkosähköä",
+        "uptime_minimum": 300,
+        "conditions": [
+            {
+                "on": false,
+                "statements": [
+                    {
+                        "values": [
+                            0,
+                            1,
+                            15
+                        ],
+                        "const_prompt": "Max price to use the device at daytime(e.g. 15c/kWh)?",
+                        "const_prompt_fi": "Enimmäishinta jolla laite päällä päivällä(esim. 15c/kWh)?"
+                    }
+                ]
+            },
+            {
+                "on": true,
+                "statements": [
+                    {
+                        "values": [
+                            130,
+                            7,
+                            null
+                        ]
+                    },
+                    {
+                        "values": [
+                            22,
+                            1,
+                            15
+                        ],
+                        "const_prompt": "Charge nighttime, if future solat price is over, e.g. 15 kWh ",
+                        "const_prompt_fi": "Lataa yöllä, jos tuleva aurinkohinta ylittää, esim. 15kWh."
+                    },
+                    {
+                        "values": [
+                            1,
+                            4,
+                            5
+                        ],
+                        "const_prompt": "How many hours up during night (1-9), cheapest hours.",
+                        "const_prompt_fi": "Montako tuntia päällä yön aikana (1-9),  halvimpina tunteina."
+                    }
+                ]
+            },
+            {
+                "on": false,
+                "statements": [
+                    {
+                        "values": [
+                            130,
+                            7,
+                            null
+                        ]
+                    },
+                    {
+                        "values": [
+                            20,
+                            1,
+                            10
+                        ],
+                        "const_prompt": "Minimum future solar to take into consideration, reference value, e.g. 10 (max ca. 25 kWh)",
+                        "const_prompt_fi": "Minimi huomioitu aurinkoennusteen määrä,  viitearvo esim. 10, (enintään n. 25 kWh)"
+                    }
+                ]
+            },
+            {
+                "on": true,
+                "statements": [
+                    {
+                        "values": [
+                            130,
+                            7,
+                            null
+                        ]
+                    },
+                    {
+                        "values": [
+                            1,
+                            4,
+                            5
+                        ],
+                        "const_prompt": "How many hours up during night (1-9), cheapest hours.",
+                        "const_prompt_fi": "Montako tuntia päällä yön aikana (1-9),  halvimpina tunteina."
                     }
                 ]
             }

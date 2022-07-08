@@ -15,8 +15,10 @@ const using_default_password = ('%using_default_password%' === 'true');
 const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
 const DEBUG_MODE = ('%DEBUG_MODE%' === 'true');
 const VERSION = '%VERSION%';
+const HWID = '%HWID%';
 const VERSION_SHORT = '%VERSION_SHORT%';
 const version_fs = '%version_fs%';
+
 ;
 
 let variable_list = {}; // populate later
@@ -53,8 +55,6 @@ function updateStatus(show_variables = true) {
         msgdiv = document.getElementById("msgdiv");
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
-
-            console.log("cookie msg_read", getCookie("msg_read"));
             if (data.last_msg_ts > getCookie("msg_read")) {
                 msgDate = new Date(data.last_msg_ts * 1000);
                 msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
@@ -88,7 +88,6 @@ function updateStatus(show_variables = true) {
             $("#tblVariables_tb").empty();
             $.each(data.variables, function (i, variable) {
                 var_this = getVariable(i);
-                //console.log(JSON.stringify(var_this));
                 if (var_this[0] in variable_list)
                     variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
                 else
@@ -118,7 +117,6 @@ function updateStatus(show_variables = true) {
 function show_channel_status(channel_idx, is_up) {
     status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
     href = is_up ? "#green" : "#red";
-    //console.log(status_el.id + ", " + href);
     if (status_el)
         status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
 
@@ -135,13 +133,12 @@ var submitInputsForm = function (e) {
 
 // Before submitting channels config form
 var submitChannelForm = function (e) {
-    // e.preventDefault();
+    //e.preventDefault();
     if (!confirm("Save channel settings?"))
         return false;
 
     // set name attributes to inputs to post (not coming from server to save space)
     let inputs = document.querySelectorAll("input[id^='t_'], input[id^='chty_']");
-    console.log("inputs.length:" + inputs.length);
     for (let i = 0; i < inputs.length; i++) {
         if (inputs[i].id != inputs[i].name) {
             inputs[i].name = inputs[i].id;
@@ -159,23 +156,22 @@ var submitChannelForm = function (e) {
 
     // then save new values to be saved on the server
     let stmtDivs = document.querySelectorAll("div[id^='std_']");
+
     if (stmtDivs && stmtDivs.length > 0) {
         for (let i = 0; i < stmtDivs.length; i++) {
-            console.log("stmp element ", i);
+           // console.log("stmp element ", i);
             const divEl = stmtDivs[i];
             const fldA = divEl.id.split("_");
             const var_val = parseInt(document.getElementById(divEl.id.replace("std", "var")).value);
             const op_val = parseInt(document.getElementById(divEl.id.replace("std", "op")).value);
 
-            if (var_val < 0 || op_val < 0)
-                continue;
+            if (var_val < 0 || op_val < 0) 
+                continue; // no complete rule
 
             //todo decimal, test  that number valid
             const const_val = parseFloat(document.getElementById(divEl.id.replace("std", "const")).value);
-
             saveStoreId = "stmts_" + fldA[1] + "_" + fldA[2];
 
-            // console.log(saveStoreId + " " + JSON.stringify([var_val, op_val, const_val]));
             saveStoreEl = document.getElementById(saveStoreId);
             let stmt_list = [];
             if (saveStoreEl.value) {
@@ -185,9 +181,42 @@ var submitChannelForm = function (e) {
             saveStoreEl.value = JSON.stringify(stmt_list);
 
             saveStoreEl.name = saveStoreEl.id; // only fields with a name are posted 
-            console.log(saveStoreEl.id, saveStoreEl.name, saveStoreEl.value);
+
         }
     }
+
+    if (window.location.search.includes("devel=1")) {
+        let stmts_s = document.querySelectorAll("input[id^='stmts_']");
+        let prev_channel_idx = 0;
+        channel_rules = [];
+        for (let i = 0; i < stmts_s.length; i++) {
+            fldA = stmts_s[i].id.split("_");
+            channel_idx = parseInt(fldA[1]);
+            cond_idx = parseInt(fldA[2]);
+
+            target_up = document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked;
+            channel_rules.push({"on" : target_up, "statements":  [stmts_s[i].value]});
+
+            if (prev_channel_idx != channel_idx) {
+                if (channel_rules.length > 0) {
+                    console.log("channel_idx:" + prev_channel_idx);
+                   // console.table(channel_rules);      
+                    console.log(JSON.stringify(channel_rules));
+                }
+                prev_channel_idx = channel_idx; 
+                channel_rules = [];
+            }
+        }
+
+        if (channel_rules.length > 0) {
+            console.log("channel_idx:" + prev_channel_idx);
+           // console.table(channel_rules);      
+            console.log(JSON.stringify(channel_rules));
+        }
+  
+        alert("Check rules from the javascript console");
+    }
+    
     // console.log("form valid: ",$("#chFrm").valid());
     //enable before submit for posting
     let disSels = document.querySelectorAll('select[disabled="disabled"], input[disabled="disabled"]');
@@ -195,6 +224,8 @@ var submitChannelForm = function (e) {
         disSels[i].disabled = false;
     }
     formSubmitting = true;
+
+
     return true;
 };
 
@@ -293,13 +324,12 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
         }
 
         stmt_idx++;
-        console.log("New stmt_idx:" + stmt_idx);
+       // console.log("New stmt_idx:" + stmt_idx);
     }
 
     suffix = "_" + channel_idx + "_" + cond_idx + "_" + (stmt_idx);
-    console.log(suffix);
+  //  console.log(suffix);
 
-    //  lastEl = document.getElementById("std_" + channel_idx + "_" + cond_idx + "_" + stmt_idx);
     const sel_var = createElem("select", "var" + suffix, null, "fldstmt indent", null);
     sel_var.addEventListener("change", setVar);
     const sel_op = createElem("select", "op" + suffix, null, "fldstmt", null);
@@ -332,7 +362,7 @@ function populateTemplateSel(selEl, template_id = -1) {
     addOption(selEl, -1, "Select template", false);
     $.getJSON('/data/template-list.json', function (data) {
         $.each(data, function (i, row) {
-            addOption(selEl, row["id"], _ltext(row, "name"), (template_id == row["id"]));
+            addOption(selEl, row["id"], row["id"] + " - " + _ltext(row, "name"), (template_id == row["id"]));
         });
     });
 }
@@ -355,10 +385,10 @@ function _ltext(obj, prop) {
 function templateChanged(selEl) {
     const fldA = selEl.id.split("_");
     channel_idx = parseInt(fldA[1]);
-    console.log(selEl.value, channel_idx);
+  //  console.log(selEl.value, channel_idx);
     template_idx = selEl.value;
     url = '/data/templates?id=' + template_idx;
-    console.log(url, selEl.id);
+  //  console.log(url, selEl.id);
     $.getJSON(url, function (data) {
         if (template_idx == -1 && confirm('Remove template definitions')) {
             deleteStmtsUI(channel_idx);
@@ -371,22 +401,14 @@ function templateChanged(selEl) {
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx, rule) {
-            //  console.log("ctcb_" + channel_idx + "_" + cond_idx);
-            //  document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = rule["on"];
-            /*   if (rule["on"])
-                   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = true;
-               else
-                   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
-               */
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = !rule["on"];
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = rule["on"];
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").disabled = rule["on"];
             document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").disabled = !rule["on"];
 
-
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
-                console.log("stmt.values:" + JSON.stringify(stmt.values));
+             //   console.log("stmt.values:" + JSON.stringify(stmt.values));
                 stmt_obj = stmt.values;
                 if (stmt.hasOwnProperty('const_prompt')) {
                     stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
@@ -397,13 +419,7 @@ function templateChanged(selEl) {
                 populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
             });
 
-            /*
-            if (rule.statements.length == 0) { // empty statement to start with
-                addStmt(elBtn, channel_idx, cond_idx, 0);
-                console.log("add empty stmt");
-            }
-            else
-                console.log("rule.statements.length:",rule.statements.length);*/
+
         });
 
     });
@@ -413,14 +429,13 @@ function templateChanged(selEl) {
 
     return true;
 }
-function deleteStmtsUI(channel_idx) {
 
+function deleteStmtsUI(channel_idx) {
     selector_str = "div[id^='std_" + channel_idx + "']";
     document.querySelectorAll(selector_str).forEach(e => e.remove());
 
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
-        // document.getElementById("ctcb_" + channel_idx + "_" + cond_idx).checked = false;
         document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
         document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
     }
@@ -432,7 +447,7 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
         populateTemplateSel(templateSelEl, template_id);
     }
 
-    console.log("New rule mode:", rule_mode);
+  //  console.log("New rule mode:", rule_mode);
     $('#rd_' + channel_idx + ' select').attr('disabled', (rule_mode != 0));
     $('#rd_' + channel_idx + " input[type='text']").attr('disabled', (rule_mode != 0)); //jos ei iteroi?
     $('#rd_' + channel_idx + " input[type='text']").prop('readonly', (rule_mode != 0));
@@ -443,10 +458,6 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
     fillStmtRules(channel_idx, rule_mode);
     if (rule_mode == 0) //enable all
         $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false);
-
-    // $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', (rule_mode != 0)); 
-    //   $("#rd_" + channel_idx + " input[type='radio']:checked").attr("disabled", false);
-    //   $('#rd_' + channel_idx + " input[type='radio']").prop('readonly', (rule_mode != 0));
 
 }
 
@@ -590,18 +601,11 @@ function fillStmtRules(channel_idx, rule_mode) {
         prev_rule_var_defined = first_var_defined;
 
 
-        //just debug
-        if (first_var_defined)
-            console.log(firstStmtVar.id, "firstStmtVarId.value", firstStmtVar.value, "show_rule", show_rule);
-        else
-            console.log(firstStmtVarId, "undefined or 0");
-
-
         document.getElementById("ru_" + channel_idx + "_" + cond_idx).style.display = (show_rule ? "block" : "none");
 
         if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-            console.log("addStmt", channel_idx, cond_idx, 0);
+        //    console.log("addStmt", channel_idx, cond_idx, 0);
             addStmt(elBtn, channel_idx, cond_idx, 0);
         }
     }
@@ -627,7 +631,7 @@ function initChannelForm() {
             fldA = stmts_s[i].id.split("_");
             channel_idx = parseInt(fldA[1]);
             cond_idx = parseInt(fldA[2]);
-            console.log(stmts_s[i].value);
+          //  console.log(stmts_s[i].value);
             stmts = JSON.parse(stmts_s[i].value);
             if (stmts && stmts.length > 0) {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
@@ -641,10 +645,6 @@ function initChannelForm() {
         }
     }
 
-    //siirretty tähän populoinnin jälkeen
-
-
-
     for (let channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
         rule_mode = channels[channel_idx]["cm"];
         template_id = channels[channel_idx]["tid"];
@@ -653,11 +653,9 @@ function initChannelForm() {
         if (rule_mode == 1) {
             templateSelEl = document.getElementById("rts_" + channel_idx);
             templateSelEl.value = template_id;
-            console.log("templateSelEl.value:" + templateSelEl.value);
+        //    console.log("templateSelEl.value:" + templateSelEl.value);
         }
         setRuleMode(channel_idx, rule_mode, false, template_id);
-        //  rule_mode = channels[channel_idx]["cm"];
-        // fillStmtRules(channel_idx, rule_mode);
     }
 
 
@@ -792,7 +790,7 @@ function initForm(url) {
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
         // footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
-        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + VERSION + ",   Filesystem version: " + version_fs + "</i></div>";
+        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + VERSION + " (" + HWID +"),   Filesystem version: " + version_fs + "</i></div>";
     }
 }
 
@@ -902,8 +900,9 @@ function doAction(action) {
         }
     }
     else if (action == 'ota') {
-        if (confirm('Backup configuration always before update! \nRestart in firmware update mode? ')) {
-            save_form.submit();
+        if (confirm('Backup configuration always before update! \nMove to firmware update? ')) {
+            //save_form.submit();
+            window.location.href = '/update';
         }
     }
     else if (action == 'reboot') {
@@ -940,7 +939,8 @@ function clearText(elem) {
     elem.value = '';
 }
 
-// Ruleset processing
+// Ruleset processing, old stuff
+/*
 function processRulesetImport(evt) {
     if (!evt.target.id.startsWith("rules_"))
         return
@@ -997,7 +997,7 @@ function processRulesetImport(evt) {
 }
 
 let rs1 = document.getElementById('rs1')
-/*
+
 document.addEventListener('paste', e => {
     processRulesetImport(e);
 })

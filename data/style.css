@@ -167,6 +167,7 @@ h2 {
     color: #f7f7e6;
     text-decoration: none;
     border-bottom: 0px solid;
+    margin-bottom: -15px;
   }
   
   #headdiv { margin-top: 0px;
@@ -263,7 +264,7 @@ color:yellow }
     font-size: 2em;
     font-weight: bold;
     margin-top: 10px;
-    margin-bottom: 30px;
+    margin-bottom: 14px;
     clear:right;
     font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }

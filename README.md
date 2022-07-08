@@ -22,6 +22,5 @@ The software is licenced under GPL v.3 license. For other licencing options cont
 
 # Thanks
     - https://github.com/me-no-dev/ESPAsyncWebServer  - Control UI web server
-    - https://github.com/ayushsharma82/ElegantOTA  - OTA update
     - https://arduinojson.org/ - Processing web API results 
     to be updated...
