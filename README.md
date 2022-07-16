@@ -2,12 +2,11 @@
 Arska makes your energy purchases greener and saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest and lower carbon intensive hours.
 
 Arska is a ESP32 microcontroller based application for managing energy consumption. It can switch on and of loads based on measured consumption and production information as well as price and solar energy forecast. 
-
+ 
+## Intro Video 
 https://www.youtube.com/watch?v=MvDFJclwr6A
-<<<<<<< HEAD
 
-=======
->>>>>>> 3af95d815393848804943d21fe35a157ed1b1c62
+
 
 ![Arska Diagram](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska%20Node%20ESP32%20diagram.png)
 
