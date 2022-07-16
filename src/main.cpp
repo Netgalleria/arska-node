@@ -40,9 +40,6 @@ char version_fs[35];
 #include <LittleFS.h>
 #include "WebAuthentication.h"
 
-
-
-
 #ifdef ESP32 // not fully implemented with ESP32
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -52,7 +49,7 @@ char version_fs[35];
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESP8266HTTPClient.h>
-#endif 
+#endif
 
 #include <ESPAsyncWebServer.h>
 
@@ -61,25 +58,24 @@ char version_fs[35];
 #include <ArduinoJson.h>
 
 // features enabled
-//moved to platformio.ini build parameters
+// moved to platformio.ini build parameters
 #define MAX_DS18B20_SENSORS 3
 #define SENSOR_VALUE_EXPIRE_TIME 600
 #define METER_SHELLY3EM_ENABLED
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
 
-//TODO: replica mode will be probably removed later
+// TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
 #define VARIABLE_MODE_SOURCE 0
 #define VARIABLE_MODE_REPLICA 1
 
-#define TARIFF_VARIABLES_FI // add Finnish tarifs (yösähkö,kausisähkö) to variables 
+#define TARIFF_VARIABLES_FI // add Finnish tarifs (yösähkö,kausisähkö) to variables
 
 #define OTA_UPDATE_ENABLED
 
 #define eepromaddr 0
 #define WATT_EPSILON 50
-
 
 const char *default_http_password PROGMEM = "arska";
 const char *required_fs_version PROGMEM = "0.91.0";
@@ -93,8 +89,6 @@ const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
 const char *ntp_server_3 PROGMEM = "time.windows.com";
 
-
-  
 #define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
 
 #define MSG_TYPE_INFO 0
@@ -102,7 +96,7 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define MSG_TYPE_ERROR 2
 #define MSG_TYPE_FATAL 3
 
-#define ACCEPTED_TIMESTAMP_MINIMUM 1656200000 
+#define ACCEPTED_TIMESTAMP_MINIMUM 1656200000
 
 struct variable_st
 {
@@ -120,19 +114,20 @@ tm tm_struct;
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
 bool wifi_in_setup_mode = false;
 
+#define ERROR_MSG_LEN 100
 struct msg_st
 {
   byte type; // 0 info, 1-warn, 2 - error, 3-fatal
   time_t ts;
-  char msg[70];
+  char msg[ERROR_MSG_LEN];
 };
 
 msg_st last_msg;
 // message structure, currently only one/the last message is stored
 void log_msg(byte type, const char *msg)
 {
-  strncpy(last_msg.msg, msg, 69);
-  last_msg.msg[70] = '\0';
+  memset(last_msg.msg, 0, ERROR_MSG_LEN);
+  strncpy(last_msg.msg, msg, (ERROR_MSG_LEN - 1));
   last_msg.type = type;
   time(&last_msg.ts);
 }
@@ -160,7 +155,7 @@ void check_forced_restart(bool reset_counter = false)
   else if ((forced_restart_ts < now_in_func) && ((now_in_func - forced_restart_ts) < 7200)) // check that both values are same way synched
   {
     Serial.println(F("check_forced_restart Restarting after passive period in config mode."));
-    WiFi.disconnect(); 
+    WiFi.disconnect();
     delay(2000);
     ESP.restart();
   }
@@ -203,9 +198,10 @@ bool prices_initiated = false;
 time_t prices_first_period = 0;
 
 // API
-const char *host_prices PROGMEM = "transparency.entsoe.eu";                                                  //!< EntsoE reporting server for day-ahead prices
-const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
+const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
+const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pempem";
 
+const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
 
 String url_base = "/api?documentType=A44&processType=A16";
 // API documents: https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_areas
@@ -282,7 +278,7 @@ void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
   time_t now_in_func;          // this are the seconds since Epoch (1970) - seconds GMT
-  tm tm;                     // the structure tm holds time information in a more convient way
+  tm tm;                       // the structure tm holds time information in a more convient way
   time(&now_in_func);          // read the current time and store to now_in_func
   gmtime_r(&now_in_func, &tm); // update the structure tm with the current GMT
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
@@ -329,12 +325,11 @@ void getRTC()
 
 #endif // rtc
 
-
 /**
  * @brief Check whether file system is up-to-date
- * 
- * @return true 
- * @return false 
+ *
+ * @return true
+ * @return false
  */
 bool check_filesystem_version()
 {
@@ -492,7 +487,7 @@ bool Variables::is_set(int id)
 }
 /**
  * @brief Set unconverted internal variable value
- * 
+ *
  * @param id variable id
  * @param val_l variable unconverted internal value
  */
@@ -506,7 +501,7 @@ void Variables::set(int id, long val_l)
 }
 /**
  * @brief Set variable unknown/not available
- * 
+ *
  * @param id variable id
  */
 void Variables::set_NA(int id)
@@ -515,7 +510,7 @@ void Variables::set_NA(int id)
 }
 /**
  * @brief Set variable value (float to be converted to internal value)
- * 
+ *
  * @param id variable id
  * @param val_f variable float value
  */
@@ -523,7 +518,6 @@ void Variables::set(int id, float val_f)
 {
   this->set(id, this->float_to_internal_l(id, val_f));
 }
-
 
 long Variables::get_l(int id)
 {
@@ -638,8 +632,8 @@ int Variables::get_variable_by_id(int id, variable_st *variable)
 }
 /**
  * @brief Copies variable (given by idx/location index) content to given  memory address
- * 
- * @param idx variable idx 
+ *
+ * @param idx variable idx
  * @param variable memory pointer
  */
 void Variables::get_variable_by_idx(int idx, variable_st *variable)
@@ -649,11 +643,11 @@ void Variables::get_variable_by_idx(int idx, variable_st *variable)
 /**
  * @brief Check if statement is true
  * @details  Checks current variable value with statement operatoe and constant value
- * 
- * @param statement 
- * @param default_value 
- * @return true 
- * @return false 
+ *
+ * @param statement
+ * @param default_value
+ * @return true
+ * @return false
  */
 bool Variables::is_statement_true(statement_st *statement, bool default_value)
 {
@@ -772,9 +766,9 @@ bool write_buffer_to_influx()
   ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S));
 
   if (!period_data.hasTags())
-    period_data.addTag("device", "alpha");
+    period_data.addTag("device", "arska1");
 
-  ifclient.setInsecure(true); // TODO: check this
+  ifclient.setInsecure(true); // TODO: cert handling
 
   Serial.print("Writing: ");
   Serial.println(ifclient.pointToLineProtocol(period_data));
@@ -792,9 +786,9 @@ bool write_buffer_to_influx()
 }
 /**
  * @brief Utility, writes date string generated from a time stamp to memory buffer
- * 
- * @param tsp 
- * @param out_str 
+ *
+ * @param tsp
+ * @param out_str
  */
 void ts_to_date_str(time_t *tsp, char *out_str)
 {
@@ -835,7 +829,7 @@ bool update_prices_to_influx()
   query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
 
   InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
-  ifclient.setInsecure(true); // TODO: check this
+  ifclient.setInsecure(true); // TODO: cert handling
 
   Serial.println(query);
   // Send query to the server and get result
@@ -878,7 +872,6 @@ bool update_prices_to_influx()
 
   last_price_in_file_ts = record_start + (resolution_secs * (prices_array.size() - 1));
   ts_to_date_str(&last_price_in_file_ts, datebuff);
-
 
   Serial.print("Last ts in the file");
   Serial.println(datebuff);
@@ -927,7 +920,7 @@ bool update_prices_to_influx()
     Serial.print("Writing: ");
     Serial.println(ifclient.pointToLineProtocol(price_data));
     // Write point
-    
+
     write_ok = ifclient.writePoint(price_data);
     Serial.println(write_ok ? "write_ok" : "write not ok");
 
@@ -958,7 +951,6 @@ bool update_prices_to_influx()
 #define SMA_TOTALENERGY_OFFSET 30529
 #define SMA_POWER_OFFSET 30775
 #endif
-
 
 #ifdef SENSOR_DS18B20_ENABLED
 bool sensor_ds18b20_enabled = true;
@@ -1092,10 +1084,10 @@ typedef struct
   char variable_server[MAX_ID_STR_LENGTH]; // used in replica mode
   char entsoe_api_key[37];
   char entsoe_area_code[17];
-  char custom_ntp_server[35]; //TODO:UI to set up
-  char timezone[4];  //!< EET,CET supported
-  uint32_t baseload; // production above baseload is "free" to use/store
-  bool next_boot_ota_update; //RFU
+  char custom_ntp_server[35]; // TODO:UI to set up
+  char timezone[4];           //!< EET,CET supported
+  uint32_t baseload;          // production above baseload is "free" to use/store
+  bool next_boot_ota_update;  // RFU
   byte energy_meter_type;
   char energy_meter_host[MAX_URL_STR_LENGTH];
   unsigned int energy_meter_port;
@@ -1111,17 +1103,14 @@ typedef struct
 // this stores settings also to eeprom
 settings_struct s;
 
-
-
-
 #define MAX_SPLIT_ARRAY_SIZE 10 // TODO: check if we do still need fixed array here
 
 /**
  * @brief  Parse char array to uint16_t array (e.g. states, ip address)
  * @details description note: current version alter str_in, so use copy in calls if original still needed
- * @param str_in 
- * @param array_out 
- * @param separator 
+ * @param str_in
+ * @param array_out
+ * @param separator
  */
 void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SIZE], const char *separator)
 {
@@ -1194,7 +1183,7 @@ byte command_state = 0;
 int network_count = 0;
 
 /**
- * @brief Scans wireless networks on the area and stores list to a file. 
+ * @brief Scans wireless networks on the area and stores list to a file.
  * @details description Started from loop-function. Do not run interactively (from a http call).
  *
  */
@@ -1232,8 +1221,6 @@ void scan_and_store_wifis(bool print_out)
   }
 }
 
-
-
 #define CONFIG_JSON_SIZE_MAX 2600
 /**
  * @brief Utility for reading a config file - to be tuned
@@ -1260,11 +1247,11 @@ bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char
 }
 /**
  * @brief Get long value from Arduino json object
- * 
- * @param doc 
- * @param key 
- * @param default_val 
- * @return long 
+ *
+ * @param doc
+ * @param key
+ * @param default_val
+ * @return long
  */
 long get_doc_long(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, const char *key, long default_val = VARIABLE_LONG_UNKNOWN)
 {
@@ -1393,9 +1380,9 @@ void print_onewire_address(DeviceAddress deviceAddress)
 
 /**
  * @brief Scan onewire sensors
- * 
+ *
  * @return true if any sensors found
- * @return false 
+ * @return false
  */
 bool scan_sensors()
 {
@@ -1489,10 +1476,10 @@ bool scan_sensors()
 }
 
 /**
- * @brief Read DS18B20 sensor values. 
- * 
- * @return true 
- * @return false 
+ * @brief Read DS18B20 sensor values.
+ *
+ * @return true
+ * @return false
  */
 bool read_ds18b20_sensors()
 {
@@ -1868,13 +1855,12 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 } // read_inverter_sma_data
 #endif
 
-
 /**
  * @brief Read production data from inverters, calls inverter specific functions
- * 
+ *
  * @param period_changed is this first time to read in this period
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 bool read_inverter(bool period_changed)
 {
@@ -1936,7 +1922,7 @@ bool read_inverter(bool period_changed)
 
 /**
  * @brief Updates global variables based on date, time or time based tariffs
- * 
+ *
  */
 void update_time_based_variables()
 {
@@ -1961,7 +1947,7 @@ void update_time_based_variables()
 }
 /**
  * @brief Updates global variables based inverter readings.
- * 
+ *
  */
 void update_meter_based_variables()
 {
@@ -1982,8 +1968,8 @@ void update_meter_based_variables()
 
 /**
  * @brief Get the price for given time
- * 
- * @param ts 
+ *
+ * @param ts
  * @return long current price (long), VARIABLE_LONG_UNKNOWN if unavailable
  */
 
@@ -2003,8 +1989,8 @@ long get_price_for_time(time_t ts)
 
 /**
  * @brief Update current variable values from cache file
- * 
- * @param current_period_start 
+ *
+ * @param current_period_start
  */
 void update_price_variables(time_t current_period_start)
 {
@@ -2071,10 +2057,10 @@ void update_price_variables(time_t current_period_start)
     vars.set_NA(VARIABLE_PRICERANK_24);
 }
 /**
- * @brief Get the Element Value from piece of xml 
- * 
- * @param outerXML 
- * @return String 
+ * @brief Get the Element Value from piece of xml
+ *
+ * @param outerXML
+ * @return String
  */
 String getElementValue(String outerXML)
 {
@@ -2084,9 +2070,9 @@ String getElementValue(String outerXML)
 }
 /**
  * @brief Convert date time string to UTC time stamp
- * 
- * @param elem 
- * @return time_t 
+ *
+ * @param elem
+ * @return time_t
  */
 time_t ElementToUTCts(String elem)
 {
@@ -2217,7 +2203,6 @@ bool get_solar_forecast()
     pv_fcst_a.add(pv_fcst[i]);
   }
 
-  
   time(&now_in_func);
   doc["first_period"] = first_ts;
   doc["resolution_m"] = 3600;
@@ -2299,7 +2284,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
 
     localtime_r(&time, &tm_struct_g);
 
-    Serial.printf("time: %ld, time_idx: %d , %04d%02d%02dT%02d00, ",time, time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
+    Serial.printf("time: %ld, time_idx: %d , %04d%02d%02dT%02d00, ", time, time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
     Serial.printf("energyPriceSpot: %f \n", energyPriceSpot);
 
     int price_block_count = (int)(sizeof(price_variable_blocks) / sizeof(*price_variable_blocks));
@@ -2370,15 +2355,27 @@ bool get_price_data()
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
-  client_https.setInsecure();
+   if (!LittleFS.exists(entsoe_ca_filename)) {
+     log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
+     return false;
+   }
+  String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
+  client_https.setCACert(ca_cert.c_str());
   client_https.setTimeout(15000); // 15 Seconds
   delay(1000);
 
-  Serial.println(F("Connecting"));
+  Serial.println(F("Connecting with CA check."));
 
   if (!client_https.connect(host_prices, httpsPort))
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Not connected to Entso-E server. Quitting price query."));
+    // client_https.verify("g", "h");
+    int err;
+    char error_buf[70];
+    err = client_https.lastError(error_buf, sizeof(error_buf));
+    if (err != 0)
+      log_msg(MSG_TYPE_ERROR, error_buf);
+    else
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Quitting price query."));
 
     return false;
   }
@@ -2566,9 +2563,9 @@ bool query_external_variables()
 }
 /**
  * @brief Update price rank variables to a cache file
- * 
- * @return true 
- * @return false 
+ *
+ * @return true
+ * @return false
  */
 bool update_price_rank_variables()
 {
@@ -2622,14 +2619,12 @@ bool update_price_rank_variables()
   return true;
 }
 
-
-
-// 
+//
 /**
  * @brief Get the channel config fields channel config fields for the admin form
- * 
+ *
  * @param out out buffer
- * @param channel_idx 
+ * @param channel_idx
  */
 
 void get_channel_config_fields(char *out, int channel_idx)
@@ -2672,14 +2667,13 @@ void get_channel_config_fields(char *out, int channel_idx)
   Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
 }
 
- 
 /**
  * @brief Get a condition row fields for the admin form
- * 
- * @param out 
- * @param channel_idx 
- * @param condition_idx 
- * @param buff_len 
+ *
+ * @param out
+ * @param channel_idx
+ * @param condition_idx
+ * @param buff_len
  */
 void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int buff_len)
 {
@@ -2689,16 +2683,15 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
   // name attributes  will be added in javascript before submitting
   snprintf(out, buff_len, "<div class='secbr'><br><span class='big'>Rule %i: %s</span></div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* MATCHING *" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
 
-  //Serial.println(buff_len);
+  // Serial.println(buff_len);
 
   return;
 }
 
-
 /**
  * @brief Get  status info for admin / view forms
- * 
- * @param out 
+ *
+ * @param out
  */
 void get_status_fields(char *out)
 {
@@ -2764,12 +2757,12 @@ void get_status_fields(char *out)
   return;
 }
 
-// 
+//
 /**
  * @brief Returns channel basic info html for the forms
- * 
+ *
  * @param out out buffer
- * @param channel_idx 0-indexed 
+ * @param channel_idx 0-indexed
  * @param show_force_up show dashboard fields
  */
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
@@ -2826,9 +2819,9 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 }
 /**
  * @brief Template processor for the admin form
- * 
- * @param var 
- * @return String 
+ *
+ * @param var
+ * @return String
  */
 String admin_form_processor(const String &var)
 {
@@ -2853,9 +2846,9 @@ String admin_form_processor(const String &var)
 
 /**
  * @brief Template processor for the service (inputs) form
- * 
- * @param var 
- * @return String 
+ *
+ * @param var
+ * @return String
  */
 String inputs_form_processor(const String &var)
 {
@@ -2932,9 +2925,9 @@ String inputs_form_processor(const String &var)
 
 /**
  * @brief Template processor for the javascript code.
- * 
- * @param var 
- * @return String 
+ *
+ * @param var
+ * @return String
  */
 String jscode_form_processor(const String &var)
 {
@@ -3023,9 +3016,9 @@ String jscode_form_processor(const String &var)
 // variables for the admin form
 /**
  * @brief Template processor for the admin form
- * 
- * @param var 
- * @return String 
+ *
+ * @param var
+ * @return String
  */
 String setup_form_processor(const String &var)
 {
@@ -3160,10 +3153,9 @@ String setup_form_processor(const String &var)
   return String();
 }
 
-
 /**
  * @brief Read grid or production info from energy meter/inverter
- * 
+ *
  */
 void read_energy_meter()
 {
@@ -3188,7 +3180,7 @@ void read_energy_meter()
   else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_in_func) && (energym_read_last > 0)) // restart after too many errors
   {
     Serial.println(("Restarting after failed energy meter reads."));
-    WiFi.disconnect(); 
+    WiFi.disconnect();
     delay(2000);
     ESP.restart();
   }
@@ -3200,10 +3192,10 @@ void read_energy_meter()
 /**
  * @brief Get a channel to switch next
  * @details There can be multiple channels which could be switched but not all are switched at the same round
- * 
- * @param is_rise 
- * @param switch_count 
- * @return int 
+ *
+ * @param is_rise
+ * @param switch_count
+ * @return int
  */
 int get_channel_to_switch(bool is_rise, int switch_count)
 {
@@ -3227,19 +3219,19 @@ int get_channel_to_switch(bool is_rise, int switch_count)
   return -1; // we should not end up here
 }
 
-// 
+//
 /**
  * @brief Switch a channel up/down
- * 
- * @param channel_idx 
- * @param up 
- * @return true 
- * @return false 
+ *
+ * @param channel_idx
+ * @param up
+ * @return true
+ * @return false
  */
 bool set_channel_switch(int channel_idx, bool up)
 {
-  if (s.ch[channel_idx].type ==  CH_TYPE_UNDEFINED)
-      return false;
+  if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
+    return false;
 
   if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
@@ -3283,15 +3275,16 @@ void update_relay_states()
 {
   time_t now_in_func;
   time(&now_in_func);
- 
+
   // loop channels and check whether channel should be up
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {                                                               
-      if (s.ch[channel_idx].type ==  CH_TYPE_UNDEFINED) {
-              s.ch[channel_idx].wanna_be_up = false;
+  {
+    if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
+    {
+      s.ch[channel_idx].wanna_be_up = false;
 
-        continue;
-      }
+      continue;
+    }
 
     // reset condition_active variable
     bool wait_minimum_uptime = ((now_in_func - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
@@ -3410,11 +3403,29 @@ void set_relays()
   }
 }
 /*
+#define WRONG_PW_CHECK_DELAY 10
+void wrong_pw_delay() {
+  // globals: last_wrong_pw_ts, wrong_pw_count
+  time_t current_time;
+  time(&current_time);
+  if (current_time-last_wrong_pw_ts<WRONG_PW_CHECK_DELAY) {
+    wrong_pw_count++;
+    last_wrong_pw_ts = current_time;
+    delay(wrong_pw_count*1000);
+  }
+  else {
+    wrong_pw_count = 0;
+  }
+}
+*/
+/*
 TO BE REMOVED
 void sendForm(AsyncWebServerRequest *request, const char *template_name)
 {
-  if (!request->authenticate(s.http_username, s.http_password))
+  if (!request->authenticate(s.http_username, s.http_password)) {
+    wrong_pw_delay();
     return request->requestAuthentication();
+    }
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, template_name, "text/html", false, setup_form_processor);
 }
@@ -3422,10 +3433,10 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name)
 
 /**
  * @brief Authenticate and send given template processed by given template processor
- * 
- * @param request 
- * @param template_name 
- * @param processor 
+ *
+ * @param request
+ * @param template_name
+ * @param processor
  */
 void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemplateProcessor processor)
 {
@@ -3474,68 +3485,80 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
         </ body></ html> \
         ";
 
-    // https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
+// https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
 
 #include <Update.h>
-        size_t content_len;
+size_t content_len;
 #define U_PART U_SPIFFS
 
 /**
  * @brief Returns update form from memory variable.
- * 
- * @param request 
+ *
+ * @param request
  */
-void onWebUpdateGet(AsyncWebServerRequest *request) {
-    if (!request->authenticate(s.http_username, s.http_password))
-      return request->requestAuthentication();
-    Serial.println("update-form");
-    request->send_P(200, "text/html", update_page_html, jscode_form_processor);
+void onWebUpdateGet(AsyncWebServerRequest *request)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  Serial.println("update-form");
+  request->send_P(200, "text/html", update_page_html, jscode_form_processor);
 }
 
 /**
  * @brief Process update chunks
- * 
- * @param request 
- * @param filename 
- * @param index 
- * @param data 
- * @param len 
+ *
+ * @param request
+ * @param filename
+ * @param index
+ * @param data
+ * @param len
  */
-void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
-    if (!request->authenticate(s.http_username, s.http_password))
+void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
-  if (!index){
+  if (!index)
+  {
     Serial.println("Update");
     content_len = request->contentLength();
     int cmd = (filename.indexOf("littlefs") > -1) ? U_PART : U_FLASH;
 #ifdef ESP8266
     Update.runAsync(true);
-    if (!Update.begin(content_len, cmd)) {
+    if (!Update.begin(content_len, cmd))
+    {
 #else
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) {
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
+    {
 #endif
       Update.printError(Serial);
     }
   }
 
-  if (Update.write(data, len) != len) {
+  if (Update.write(data, len) != len)
+  {
     Update.printError(Serial);
 #ifdef ESP8266
-  } else {
-    Serial.printf("Progress: %d%%\n", (Update.progress()*100)/Update.size());
+  }
+  else
+  {
+    Serial.printf("Progress: %d%%\n", (Update.progress() * 100) / Update.size());
 #endif
   }
 
-  if (final) {
+  if (final)
+  {
     AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
-    //response->addHeader("Refresh", "20");  
-    //response->addHeader("Location", "/");
+    // response->addHeader("Refresh", "20");
+    // response->addHeader("Location", "/");
 
-    response->addHeader("REFRESH","15;URL=/admin");
+    response->addHeader("REFRESH", "15;URL=/admin");
     request->send(response);
-    if (!Update.end(true)){
+    if (!Update.end(true))
+    {
       Update.printError(Serial);
-    } else {
+    }
+    else
+    {
       Serial.println("Update complete");
       Serial.flush();
       WiFi.disconnect();
@@ -3545,15 +3568,16 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size
   }
 }
 
-void printProgress(size_t prg, size_t sz) {
-  Serial.printf("Progress: %d%%\n", (prg*100)/content_len);
+void printProgress(size_t prg, size_t sz)
+{
+  Serial.printf("Progress: %d%%\n", (prg * 100) / content_len);
 }
 
 #endif
 
 /**
  * @brief Reset config variables to defaults
- * 
+ *
  * @param reset_password Is admin password also resetted
  */
 void reset_config(bool reset_password)
@@ -3701,22 +3725,38 @@ void export_config(AsyncWebServerRequest *request)
   }
   serializeJson(doc, output);
 
-  char Content_Disposition[70];
-  snprintf(Content_Disposition, 70, "attachment; name=arska-config-%s.json", export_time);
-  AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
-  response->addHeader("Content-Disposition", Content_Disposition);
-  Serial.println(Content_Disposition);
+  // TODO: format parameter, file or ajax response
+  byte format = 1;
+  // TODO: format option
+  /*
+   byte format = 0;
+  if (request->hasParam("format"))
+  {
+    if (request->getParam("format")->value() == "file")
+      format = 1;
+  }
+  */
+  if (format == 0)
+    request->send(200, "application/json", output);
+  else
+  {
+    char Content_Disposition[70];
+    snprintf(Content_Disposition, 70, "attachment; name=arska-config-%s.json", export_time);
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
+    response->addHeader("Content-Disposition", Content_Disposition);
+    request->send(response);
+  }
 
-  request->send(response);
+  // Serial.println(Content_Disposition);
+  // request->send(404, "text/plain", "Not found");
 }
-
 
 /**
  * @brief Read config variables from config.json file
- * 
- * @param config_file_name 
- * @return true 
- * @return false 
+ *
+ * @param config_file_name
+ * @return true
+ * @return false
  */
 bool read_config_file(const char *config_file_name)
 {
@@ -3804,15 +3844,15 @@ bool read_config_file(const char *config_file_name)
   return true;
 }
 
-// 
+//
 /**
  * @brief Handle config upload
- * 
- * @param request 
- * @param filename 
- * @param index 
- * @param data 
- * @param len 
+ *
+ * @param request
+ * @param filename
+ * @param index
+ * @param data
+ * @param len
  */
 void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
@@ -3848,11 +3888,11 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
     request->redirect("/");
   }
 }
- /**
-  * @brief Return dashboard form
-  * 
-  * @param request 
-  */
+/**
+ * @brief Return dashboard form
+ *
+ * @param request
+ */
 void onWebDashboardGet(AsyncWebServerRequest *request)
 {
   /* if (wifi_in_setup_mode)
@@ -3866,12 +3906,12 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
   }
 
   Serial.println("DEBUG: onWebDashboardGet sendForm /dashboard_template.html");
-  sendForm(request, "/dashboard_template.html",setup_form_processor);
+  sendForm(request, "/dashboard_template.html", setup_form_processor);
 }
 /**
  * @brief Returns services (inputs) form
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebInputsGet(AsyncWebServerRequest *request)
 {
@@ -3880,31 +3920,28 @@ void onWebInputsGet(AsyncWebServerRequest *request)
 
 /**
  * @brief Returns channel config form
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebChannelsGet(AsyncWebServerRequest *request)
 {
-  sendForm(request, "/channels_template.html",setup_form_processor);
+  sendForm(request, "/channels_template.html", setup_form_processor);
 }
-
 
 /**
  * @brief Returns admin form
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
   sendForm(request, "/admin_template.html", admin_form_processor);
 }
 
-
-
 /**
  * @brief Get individual rule template by id
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebTemplateGet(AsyncWebServerRequest *request)
 {
@@ -3915,9 +3952,9 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
     request->send(404, "text/plain", "Not found");
 
   StaticJsonDocument<16> filter;
-  AsyncWebParameter *p = request->getParam("id");
-  //Serial.printf(PSTR("Template id: %s\n"), p->value().c_str());
-  filter[p->value().c_str()] = true;
+  AsyncWebParameter *id = request->getParam("id");
+  // Serial.printf(PSTR("Template id: %s\n"), p->value().c_str());
+  filter[id->value().c_str()] = true;
   StaticJsonDocument<4096> doc;
 
   File template_file = LittleFS.open(template_filename, "r");
@@ -3930,16 +3967,15 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
     return;
   }
   template_file.close();
-  JsonObject root = doc[p->value().c_str()];
+  JsonObject root = doc[id->value().c_str()];
   serializeJson(root, output);
   request->send(200, "application/json", output);
 }
 
-
 /**
  * @brief Process dashboard form, forcing channels up
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebDashboardPost(AsyncWebServerRequest *request)
 {
@@ -3984,11 +4020,10 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   request->redirect("/");
 }
 
-
 /**
  * @brief Process service (input) form
- * 
- * @param request 
+ *
+ * @param request
  */
 
 void onWebInputsPost(AsyncWebServerRequest *request)
@@ -4045,8 +4080,8 @@ void onWebInputsPost(AsyncWebServerRequest *request)
 
 /**
  * @brief Process channel config  edits
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebChannelsPost(AsyncWebServerRequest *request)
 {
@@ -4080,10 +4115,10 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       s.ch[channel_idx].config_mode = request->getParam(ch_fld, true)->value().toInt();
 
     snprintf(ch_fld, 20, "rts_%i", channel_idx); // channe rule template
-   // Serial.println(ch_fld);
+                                                 // Serial.println(ch_fld);
     if (request->hasParam(ch_fld, true))
     {
- 
+
       s.ch[channel_idx].template_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
@@ -4093,7 +4128,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
       Serial.println(stmts_fld);
       Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
-
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
@@ -4117,13 +4151,13 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         }
         else
         {
-      //    Serial.printf("stmts_json.size() %d \n", (int)stmts_json.size());
-      //    Serial.println(request->getParam(stmts_fld, true)->value());
+          //    Serial.printf("stmts_json.size() %d \n", (int)stmts_json.size());
+          //    Serial.println(request->getParam(stmts_fld, true)->value());
           if (stmts_json.size() > 0)
           {
-           // Serial.print(stmts_fld);
-           // Serial.print(": ");
-           // Serial.println(request->getParam(stmts_fld, true)->value());
+            // Serial.print(stmts_fld);
+            // Serial.print(": ");
+            // Serial.println(request->getParam(stmts_fld, true)->value());
             variable_st var_this;
             int var_index;
             for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), RULE_STATEMENTS_MAX); stmt_idx++)
@@ -4155,7 +4189,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
-     // Serial.println(ctrb_fld);
+      // Serial.println(ctrb_fld);
 
       if (request->hasParam(ctrb_fld, true))
       {
@@ -4172,8 +4206,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
 /**
  * @brief Process admin form edits
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebAdminPost(AsyncWebServerRequest *request)
 {
@@ -4214,7 +4248,6 @@ void onWebAdminPost(AsyncWebServerRequest *request)
       setRTC();
 #endif
   }
-
 
   if (request->getParam("action", true)->value().equals("reboot"))
   {
@@ -4260,11 +4293,10 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   request->redirect("/admin");
 }
 
-
 /**
  * @brief Returns status in json
- * 
- * @param request 
+ *
+ * @param request
  */
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
@@ -4397,7 +4429,7 @@ void setup()
   {
     strcpy(s.wifi_ssid, "NA");
   }
-  //TODO: WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+  // TODO: WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
   WiFi.begin(s.wifi_ssid, s.wifi_password);
 
   if (WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
@@ -4427,7 +4459,7 @@ void setup()
   }
 
   if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
-  {                            // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+  {                       // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
     delay(200);
     WiFi.mode(WIFI_OFF);
     delay(1000);
@@ -4474,13 +4506,15 @@ void setup()
 #endif
 
 #ifdef OTA_UPDATE_ENABLED
-  server_web.on("/update", HTTP_GET, [](AsyncWebServerRequest *request){onWebUpdateGet(request);});
-  
-  server_web.on("/doUpdate", HTTP_POST,
-    [](AsyncWebServerRequest *request) {},
-    [](AsyncWebServerRequest *request, const String& filename, size_t index, uint8_t *data,
-                  size_t len, bool final) {handleDoUpdate(request, filename, index, data, len, final);}
-  );
+  server_web.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
+                { onWebUpdateGet(request); });
+
+  server_web.on(
+      "/doUpdate", HTTP_POST,
+      [](AsyncWebServerRequest *request) {},
+      [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
+         size_t len, bool final)
+      { handleDoUpdate(request, filename, index, data, len, final); });
 #endif
 
   // Set timezone info
@@ -4489,7 +4523,6 @@ void setup()
     strcpy(timezone_info, "EET-2EEST,M3.5.0/3,M10.5.0/4");
   else // CET default
     strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
-
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
   server_web.on("/export-config", HTTP_GET, export_config);
@@ -4511,7 +4544,7 @@ void setup()
   server_web.on("/admin", HTTP_GET, onWebAdminGet);
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-  //server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
+  // server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
   server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->redirect("/"); }); // redirect url, if called from OTA
@@ -4541,7 +4574,7 @@ void setup()
   // no authenticatipn
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
-  //TODO: nämä voisi mennä yhdellä
+  // TODO: nämä voisi mennä yhdellä
   server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, variables_filename, F("application/json")); });
   server_web.on(fcst_filename, HTTP_GET, [](AsyncWebServerRequest *request)
@@ -4556,7 +4589,7 @@ void setup()
   server_web.onNotFound(notFound);
   server_web.begin();
 
-  if (wifi_in_setup_mode) 
+  if (wifi_in_setup_mode)
     return; // no more setting, just wait for new SSID/password and then restarts
 
 // configTime ESP32 and ESP8266 libraries differ
@@ -4564,23 +4597,23 @@ void setup()
   if (!wifi_in_setup_mode)
   {
     // First connect to NTP server, with 0 TZ offset
-    // TODO: custom ntp server ui admin 
+    // TODO: custom ntp server ui admin
     /*if (strlen(s.custom_ntp_server)>0){
       configTime(0, 0, s.custom_ntp_server);
       Serial.printf(PSTR("custom_ntp_server:%s\n"),s.custom_ntp_server);
     }
     else */
-      configTime(0, 0, ntp_server_1,ntp_server_2,ntp_server_3); 
+    configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
 
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo,10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM)) 
+    if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
     {
-    //  Serial.println("Failed to obtain time, retrying");
-      log_msg(MSG_TYPE_ERROR,PSTR("Failed to obtain time"));
+      //  Serial.println("Failed to obtain time, retrying");
+      log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
       for (int k = 0; k < 100; k++)
       {
         delay(5000);
-        if (getLocalTime(&timeinfo,10000))
+        if (getLocalTime(&timeinfo, 10000))
           break;
         time(&now_infunc);
         Serial.println(now_infunc);
@@ -4589,7 +4622,7 @@ void setup()
     else
     {
       setenv("TZ", timezone_info, 1);
-      Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info,s.timezone);
+      Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
       tzset();
     }
   }
@@ -4598,7 +4631,6 @@ void setup()
   // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
   configTime(timezone_info, s.custom_ntp_server);
 #endif
-
 
   // init relays
   //  split comma separated gpio string to an array
@@ -4707,10 +4739,9 @@ void loop()
   }
 #endif
 
-
   if (todo_in_loop_restart)
   {
-    WiFi.disconnect(); 
+    WiFi.disconnect();
     delay(1000);
     ESP.restart();
   }
@@ -4738,7 +4769,6 @@ void loop()
 
   // no other operations allowed before the clock is set
   time(&now);
-
 
   // set relays, if forced from dashboard
   if (todo_in_loop_set_relays)
@@ -4799,7 +4829,7 @@ void loop()
 
   if (next_query_price_data < now)
   {
- //   Serial.printf("next_query_price_data now: %ld \n", now);
+    //   Serial.printf("next_query_price_data now: %ld \n", now);
     got_external_data_ok = get_price_data();
     todo_in_loop_update_price_rank_variables = got_external_data_ok;
     next_query_price_data = now + (got_external_data_ok ? 1200 : 120);
