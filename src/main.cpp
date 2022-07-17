@@ -115,6 +115,11 @@ time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically
 bool wifi_in_setup_mode = false;
 
 #define ERROR_MSG_LEN 100
+#define DEBUG_FILE_ENABLED
+#ifdef DEBUG_FILE_ENABLED
+const char *debug_filename PROGMEM = "/data/log.txt";
+#endif
+
 struct msg_st
 {
   byte type; // 0 info, 1-warn, 2 - error, 3-fatal
@@ -123,13 +128,48 @@ struct msg_st
 };
 
 msg_st last_msg;
+
+/**
+ * @brief Utility, writes date string generated from a time stamp to memory buffer
+ *
+ * @param tsp
+ * @param out_str
+ */
+void ts_to_date_str(time_t *tsp, char *out_str)
+{
+  tm tm_local;
+  gmtime_r(tsp, &tm_local);
+  sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
+}
+
+
 // message structure, currently only one/the last message is stored
-void log_msg(byte type, const char *msg)
+void log_msg(byte type, const char *msg, bool write_to_file = false)
 {
   memset(last_msg.msg, 0, ERROR_MSG_LEN);
   strncpy(last_msg.msg, msg, (ERROR_MSG_LEN - 1));
   last_msg.type = type;
   time(&last_msg.ts);
+
+#ifdef DEBUG_FILE_ENABLED
+  char datebuff[30];
+  char text_message[(ERROR_MSG_LEN + 30)];
+  if (write_to_file)
+  {
+    File log_file = LittleFS.open(debug_filename, "a");
+    if (!log_file)
+    {
+      Serial.println(F("Cannot open the log file."));
+      return;
+    }
+    ts_to_date_str(&last_msg.ts, datebuff);
+    log_file.printf("%s %d %s\n",datebuff,(int)type, msg);
+    // debug debug
+    Serial.println("Writing to log file:");
+    Serial.printf("%s %d %s\n",datebuff,(int)type, msg);
+
+  }
+#endif
 }
 
 /**
@@ -156,6 +196,7 @@ void check_forced_restart(bool reset_counter = false)
   {
     Serial.println(F("check_forced_restart Restarting after passive period in config mode."));
     WiFi.disconnect();
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after passive period in config mode."),true);
     delay(2000);
     ESP.restart();
   }
@@ -199,7 +240,7 @@ time_t prices_first_period = 0;
 
 // API
 const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
-const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pempem";
+const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 
 const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
 
@@ -784,18 +825,6 @@ bool write_buffer_to_influx()
   period_data.clearFields();
   return write_ok;
 }
-/**
- * @brief Utility, writes date string generated from a time stamp to memory buffer
- *
- * @param tsp
- * @param out_str
- */
-void ts_to_date_str(time_t *tsp, char *out_str)
-{
-  tm tm_local;
-  gmtime_r(tsp, &tm_local);
-  sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
-}
 
 // under contruction
 /*TODO before production
@@ -1179,7 +1208,7 @@ bool is_cache_file_valid(const char *cache_file_name)
 
 // Serial command interface
 String serial_command;
-byte command_state = 0;
+byte serial_command_state = 0;
 int network_count = 0;
 
 /**
@@ -2355,10 +2384,11 @@ bool get_price_data()
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
-   if (!LittleFS.exists(entsoe_ca_filename)) {
-     log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
-     return false;
-   }
+  if (!LittleFS.exists(entsoe_ca_filename))
+  {
+    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
+    return false;
+  }
   String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
   client_https.setTimeout(15000); // 15 Seconds
@@ -3180,7 +3210,9 @@ void read_energy_meter()
   else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_in_func) && (energym_read_last > 0)) // restart after too many errors
   {
     Serial.println(("Restarting after failed energy meter reads."));
+
     WiFi.disconnect();
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter reads."),true);
     delay(2000);
     ESP.restart();
   }
@@ -3562,6 +3594,7 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
       Serial.println("Update complete");
       Serial.flush();
       WiFi.disconnect();
+      log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."),true);
       delay(2000);
       ESP.restart();
     }
@@ -4564,6 +4597,8 @@ void setup()
 
   // server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
+  
+  //TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
 
   // just for debugging
@@ -4685,7 +4720,7 @@ void loop()
   if (wifi_in_setup_mode && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
-    if (command_state == 0)
+    if (serial_command_state == 0)
     {
       if (serial_command.c_str()[0] == 's')
       {
@@ -4701,11 +4736,11 @@ void loop()
           Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
           Serial.println();
           Serial.flush();
-          command_state = 1;
+          serial_command_state = 1;
         }
       }
     }
-    else if (command_state == 1)
+    else if (serial_command_state == 1)
     {
       strncpy(s.wifi_password, serial_command.c_str(), 30);
       for (int j = 0; j < strlen(s.wifi_password); j++)
@@ -4742,7 +4777,8 @@ void loop()
   if (todo_in_loop_restart)
   {
     WiFi.disconnect();
-    delay(1000);
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to user activity (settings/cmd)."),true);
+    delay(2000);
     ESP.restart();
   }
   if (todo_in_loop_scan_wifis)
@@ -4782,7 +4818,7 @@ void loop()
   if (started < ACCEPTED_TIMESTAMP_MINIMUM)
   {
     started = now;
-    log_msg(MSG_TYPE_INFO, PSTR("Started processing"));
+    log_msg(MSG_TYPE_INFO, PSTR("Started processing"),true);
   }
 
   // just in case check the wifi and reconnect/restart if neede
@@ -4798,6 +4834,8 @@ void loop()
     if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
     {
       Serial.println(F("Restarting."));
+      log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."),true);
+      delay(1000);
       ESP.restart(); // boot if cannot recover wifi in time
     }
   }
