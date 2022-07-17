@@ -99,9 +99,7 @@
             <button id="act_reset" class="actBtn" onclick="return doAction('reset')">Reset settings</button>
             <h4>Backup and restore</h4>
             <form id="file_form" method="POST" action="/upload-config" enctype="multipart/form-data"></form>
-            <a id="act_backup_config" class="actBtn" href="/export-config">Backup configuration</a>
-
-
+            <a id="act_backup_config" class="actBtn" href="/export-config?format=file">Backup configuration</a>
             <input type="button" class="actBtn" id="loadfile" value="Restore configuration"
                 onclick="document.getElementById('file_upload').click();" />
             <input type="file" style="display:none;" id="file_upload" name="file"
