@@ -736,8 +736,31 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value)
 
 Variables vars;
 
+#ifdef SENSOR_DS18B20_ENABLED
+bool sensor_ds18b20_enabled = true;
+// see: https://randomnerdtutorials.com/esp8266-ds18b20-temperature-sensor-web-server-with-arduino-ide/
+#include <OneWire.h>
+#include <DallasTemperature.h> // tätä ei ehkä välttämättä tarvita, jos käyttäisi onewire.h:n rutineeja
+
+time_t temperature_updated = 0;
+
+// Setup a oneWire instance to communicate with any OneWire devices
+OneWire oneWire(ONEWIRE_DATA_GPIO);
+
+// Pass our oneWire reference to Dallas Temperature sensor
+DallasTemperature sensors(&oneWire);
+float ds18B20_temp_c;
+int sensor_count = 0;
+#else
+bool sensor_ds18b20_enabled = false;
+#endif
+
+
 #ifdef INFLUX_REPORT_ENABLED
 #include <InfluxDbClient.h>
+//TODO: should we use macid?
+const char *influx_device_id PROGMEM = "arska";
+
 
 typedef struct
 {
@@ -750,25 +773,25 @@ typedef struct
 influx_settings_struct s_influx;
 
 Point period_data("arska_period"); //!< Influx buffer
+//Point now_data("arska_now"); //!< Influx buffer
+
+
 
 /**
  * @brief Add time-series point values to buffer for later database insert
  *
  * @param ts timestamp written to buffer point
  */
-void add_variables_to_influx_buffer(time_t ts)
+//TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
+void add_period_variables_to_influx_buffer(time_t ts)
 {
   period_data.setTime(ts);
+  
+
   if (vars.is_set(VARIABLE_PRICE))
     period_data.addField("price", vars.get_f(VARIABLE_PRICE));
   else
     Serial.println(F("Price not set"));
-
-#ifdef DEBUG_MODE
-  period_data.addField(F("freeHeap"), (long)ESP.getFreeHeap());
-  period_data.addField(F("uptime"), (long)(millis() / 1000));
-  Serial.printf(PSTR("Updating influx: sellingW %f, sellingWh %f\n"), vars.get_f(VARIABLE_SELLING_POWER), vars.get_f(VARIABLE_SELLING_ENERGY));
-#endif
 
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
     period_data.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
@@ -778,20 +801,6 @@ void add_variables_to_influx_buffer(time_t ts)
 
   if (vars.is_set(VARIABLE_SELLING_ENERGY))
     period_data.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
-
-/* test before use    
-#ifdef SENSOR_DS18B20_ENABLED
-  char field_name[10];
-  for (int j = 0; j < sensor_count; j++)
-  {
-    if (vars.is_set(VARIABLE_SENSOR_1 + j)) {
-      snprintf(field_name,sizeof(field_name),"sensor%i",j+1);
-      period_data.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
-    }
-  }
-#endif
-*/
-
 
 
 }
@@ -823,7 +832,7 @@ bool write_buffer_to_influx()
   ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S));
 
   if (!period_data.hasTags())
-    period_data.addTag("device", "arska1");
+    period_data.addTag("device", influx_device_id);
 
   ifclient.setInsecure(true); // TODO: cert handling
 
@@ -832,13 +841,32 @@ bool write_buffer_to_influx()
 
   // Write point
   bool write_ok = ifclient.writePoint(period_data);
-
   if (!write_ok)
   {
     Serial.print("InfluxDB write failed: ");
     Serial.println(ifclient.getLastErrorMessage());
   }
   period_data.clearFields();
+
+// add current debug and sensor values to the buffer, write later
+#ifdef DEBUG_MODE
+  period_data.addField(F("freeHeap"), (long)ESP.getFreeHeap());
+  period_data.addField(F("uptime"), (long)(millis() / 1000));
+  Serial.printf(PSTR("Updating influx: sellingW %f, sellingWh %f\n"), vars.get_f(VARIABLE_SELLING_POWER), vars.get_f(VARIABLE_SELLING_ENERGY));
+#endif
+
+// add sensor values to influx update 
+#ifdef SENSOR_DS18B20_ENABLED
+  char field_name[10];
+  for (int j = 0; j < sensor_count; j++)
+  {
+    if (vars.is_set(VARIABLE_SENSOR_1 + j)) {
+      snprintf(field_name,sizeof(field_name),"sensor%i",j+1);
+      period_data.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
+    }
+  }
+#endif
+
   return write_ok;
 }
 
@@ -938,7 +966,6 @@ bool update_prices_to_influx()
 
   // return false; // just testing  the first part
 
-  // price_data.addTag("device", "alpha");
 
   ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(12).bufferSize(24));
   ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
@@ -949,7 +976,7 @@ bool update_prices_to_influx()
     Serial.print("isBufferEmpty no ");
 
   Point price_data("arska_period");
-  price_data.addTag("device", "alpha");
+  price_data.addTag("device", influx_device_id);
 
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
@@ -997,24 +1024,7 @@ bool update_prices_to_influx()
 #define SMA_POWER_OFFSET 30775
 #endif
 
-#ifdef SENSOR_DS18B20_ENABLED
-bool sensor_ds18b20_enabled = true;
-// see: https://randomnerdtutorials.com/esp8266-ds18b20-temperature-sensor-web-server-with-arduino-ide/
-#include <OneWire.h>
-#include <DallasTemperature.h> // tätä ei ehkä välttämättä tarvita, jos käyttäisi onewire.h:n rutineeja
 
-time_t temperature_updated = 0;
-
-// Setup a oneWire instance to communicate with any OneWire devices
-OneWire oneWire(ONEWIRE_DATA_GPIO);
-
-// Pass our oneWire reference to Dallas Temperature sensor
-DallasTemperature sensors(&oneWire);
-float ds18B20_temp_c;
-int sensor_count = 0;
-#else
-bool sensor_ds18b20_enabled = false;
-#endif
 
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
@@ -1103,7 +1113,7 @@ typedef struct
   byte type;
   time_t uptime_minimum;
   time_t toggle_last;
-  time_t force_up_until;
+  time_t force_up_until; //TODO: we could have also force_up_from to enable scheduled start
   byte config_mode; // CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
   int template_id;
 } channel_struct;
@@ -1438,13 +1448,14 @@ bool scan_sensors()
   int first_free_slot;
 
   sensors.begin(); // initiate bus
-  delay(1000);     // let the sensors settle
+  delay(2000);     // let the sensors settle
 
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
+  Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
   if (sensor_count == 0)
     return true;
 
-  Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
+  
 
   sensors.requestTemperatures();
   delay(50);
@@ -1553,7 +1564,7 @@ bool read_ds18b20_sensors()
       {
         temp_c = sensors.rawToCelsius(temp_raw);
 
-        Serial.printf("Device %d, temp C: %f\n", j, temp_c);
+        Serial.printf("Sensor %d, temp C: %f\n", j, temp_c);
         vars.set(VARIABLE_SENSOR_1 + j, temp_c);
         time(&temperature_updated); // TODO: per sensor?
       }
@@ -4930,7 +4941,7 @@ void loop()
 #ifdef INFLUX_REPORT_ENABLED
     if (previous_period_start != 0)
     {
-      add_variables_to_influx_buffer(previous_period_start);
+      add_period_variables_to_influx_buffer(previous_period_start);
       todo_in_loop_influx_write = true;
     }
 #endif
