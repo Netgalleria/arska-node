@@ -142,7 +142,6 @@ void ts_to_date_str(time_t *tsp, char *out_str)
   sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
 }
 
-
 // message structure, currently only one/the last message is stored
 void log_msg(byte type, const char *msg, bool write_to_file = false)
 {
@@ -163,11 +162,10 @@ void log_msg(byte type, const char *msg, bool write_to_file = false)
       return;
     }
     ts_to_date_str(&last_msg.ts, datebuff);
-    log_file.printf("%s %d %s\n",datebuff,(int)type, msg);
+    log_file.printf("%s %d %s\n", datebuff, (int)type, msg);
     // debug debug
     Serial.println("Writing to log file:");
-    Serial.printf("%s %d %s\n",datebuff,(int)type, msg);
-
+    Serial.printf("%s %d %s\n", datebuff, (int)type, msg);
   }
 #endif
 }
@@ -196,7 +194,7 @@ void check_forced_restart(bool reset_counter = false)
   {
     Serial.println(F("check_forced_restart Restarting after passive period in config mode."));
     WiFi.disconnect();
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after passive period in config mode."),true);
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after passive period in config mode."), true);
     delay(2000);
     ESP.restart();
   }
@@ -755,12 +753,10 @@ int sensor_count = 0;
 bool sensor_ds18b20_enabled = false;
 #endif
 
-
 #ifdef INFLUX_REPORT_ENABLED
 #include <InfluxDbClient.h>
-//TODO: should we use macid?
+// TODO: should we use macid?
 const char *influx_device_id PROGMEM = "arska";
-
 
 typedef struct
 {
@@ -773,16 +769,14 @@ typedef struct
 influx_settings_struct s_influx;
 
 Point period_data("arska_period"); //!< Influx buffer
-//Point now_data("arska_now"); //!< Influx buffer
-
-
+// Point now_data("arska_now"); //!< Influx buffer
 
 /**
  * @brief Add time-series point values to buffer for later database insert
  *
  * @param ts timestamp written to buffer point
  */
-//TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
+// TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
 void add_period_variables_to_influx_buffer(time_t ts)
 {
   period_data.setTime(ts);
@@ -852,13 +846,14 @@ bool write_buffer_to_influx()
   Serial.printf(PSTR("Updating influx: sellingW %f, sellingWh %f\n"), vars.get_f(VARIABLE_SELLING_POWER), vars.get_f(VARIABLE_SELLING_ENERGY));
 #endif
 
-// add sensor values to influx update 
+// add sensor values to influx update
 #ifdef SENSOR_DS18B20_ENABLED
   char field_name[10];
   for (int j = 0; j < sensor_count; j++)
   {
-    if (vars.is_set(VARIABLE_SENSOR_1 + j)) {
-      snprintf(field_name,sizeof(field_name),"sensor%i",j+1);
+    if (vars.is_set(VARIABLE_SENSOR_1 + j))
+    {
+      snprintf(field_name, sizeof(field_name), "sensor%i", j + 1);
       period_data.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
     }
   }
@@ -963,7 +958,6 @@ bool update_prices_to_influx()
 
   // return false; // just testing  the first part
 
-
   ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(12).bufferSize(24));
   ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
 
@@ -1020,8 +1014,6 @@ bool update_prices_to_influx()
 #define SMA_TOTALENERGY_OFFSET 30529
 #define SMA_POWER_OFFSET 30775
 #endif
-
-
 
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
@@ -1110,8 +1102,8 @@ typedef struct
   byte type;
   time_t uptime_minimum;
   time_t toggle_last;
-  time_t force_up_until; //TODO: we could have also force_up_from to enable scheduled start
-  byte config_mode; // CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
+  time_t force_up_until; // TODO: we could have also force_up_from to enable scheduled start
+  byte config_mode;      // CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
   int template_id;
 } channel_struct;
 
@@ -1451,8 +1443,6 @@ bool scan_sensors()
   Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
   if (sensor_count == 0)
     return true;
-
-  
 
   sensors.requestTemperatures();
   delay(50);
@@ -2680,7 +2670,7 @@ bool update_price_rank_variables()
  * @param out out buffer
  * @param channel_idx
  */
-//TODO: Move  element creation logic to javascript in next UI restructuring
+// TODO: Move  element creation logic to javascript in next UI restructuring
 void get_channel_config_fields(char *out, int channel_idx)
 {
   char buff[200];
@@ -2725,13 +2715,13 @@ void get_channel_config_fields(char *out, int channel_idx)
  * @param condition_idx
  * @param buff_len
  */
-//TODO: Move  element creation logic to javascript in next UI restructuring
+// TODO: Move  element creation logic to javascript in next UI restructuring
 void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int buff_len)
 {
   char suffix[10];
   snprintf(suffix, 10, "_%d_%d", channel_idx, condition_idx);
   // name attributes  will be added in javascript before submitting
-  snprintf(out, buff_len, "<div class='secbr'><br><span class='big'>Rule %i: %s</span></div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "* MATCHING *" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
+  snprintf(out, buff_len, "<div class='secbr'><br><span class='big'>Rule %i: %s</span></div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
   return;
 }
 
@@ -2740,7 +2730,7 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
  *
  * @param out
  */
-//TODO: check if debrecated
+// TODO: check if deprecated
 void get_status_fields(char *out)
 {
   char buff[150];
@@ -2813,7 +2803,7 @@ void get_status_fields(char *out)
  * @param channel_idx 0-indexed
  * @param show_force_up show dashboard fields
  */
-//TODO: Move  element creation logic to javascript in next UI restructuring
+// TODO: Move  element creation logic to javascript in next UI restructuring
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
   time_t now_in_func;
@@ -3030,6 +3020,21 @@ String jscode_form_processor(const String &var)
     strcat(out, "]");
     return out;
   }
+
+  if (var == F("channel_type_strings"))
+  { // used by Javascript
+    strcpy(out, "[");
+    for (int i = 0; i < CHANNEL_TYPES; i++)
+    {
+      snprintf(buff, 50, "\"%s\"",channel_type_strings[i]);
+      strcat(out, buff);
+      if (i < CHANNEL_TYPES - 1)
+        strcat(out, ", ");
+    }
+    strcat(out, "]");
+    return out;
+  }
+
   if (var == F("VARIABLES")) // used by Javascript
   {
     strcpy(out, "[");
@@ -3161,7 +3166,7 @@ String setup_form_processor(const String &var)
     }
 
     strcat(out, "</div>\n"); // rd_X div
-    strcat(out, "</div>"); // chdiv_
+    strcat(out, "</div>");   // chdiv_
     return out;
   }
 
@@ -3230,7 +3235,7 @@ void read_energy_meter()
     Serial.println(("Restarting after failed energy meter reads."));
 
     WiFi.disconnect();
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter reads."),true);
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter reads."), true);
     delay(2000);
     ESP.restart();
   }
@@ -3612,7 +3617,7 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
       Serial.println("Update complete");
       Serial.flush();
       WiFi.disconnect();
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."),true);
+      log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."), true);
       delay(2000);
       ESP.restart();
     }
@@ -3758,6 +3763,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
+    doc["ch"][channel_idx]["gpio"] = s.ch[channel_idx].gpio;
 
     for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
     {
@@ -3781,7 +3787,7 @@ void export_config(AsyncWebServerRequest *request)
   serializeJson(doc, output);
 
   // TODO: format parameter, file or ajax response
-  //byte format = 1;
+  // byte format = 1;
   // TODO: format option
   byte format = 0;
   if (request->hasParam("format"))
@@ -3789,7 +3795,7 @@ void export_config(AsyncWebServerRequest *request)
     if (request->getParam("format")->value() == "file")
       format = 1;
   }
-  
+
   if (format == 0)
     request->send(200, "application/json", output);
   else
@@ -3959,7 +3965,6 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
     return;
   }
   sendForm(request, "/dashboard_template.html", setup_form_processor);
-
 }
 /**
  * @brief Returns services (inputs) form
@@ -3979,6 +3984,11 @@ void onWebInputsGet(AsyncWebServerRequest *request)
 void onWebChannelsGet(AsyncWebServerRequest *request)
 {
   sendForm(request, "/channels_template.html", setup_form_processor);
+}
+// devel
+void onWebChannelsGet_new(AsyncWebServerRequest *request)
+{
+  sendForm(request, "/channels_template_new.html", setup_form_processor);
 }
 
 /**
@@ -4595,6 +4605,8 @@ void setup()
   server_web.on("/channels", HTTP_GET, onWebChannelsGet);
   server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
+  server_web.on("/channels_new", HTTP_GET, onWebChannelsGet_new);
+
   server_web.on("/admin", HTTP_GET, onWebAdminGet);
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
@@ -4619,9 +4631,7 @@ void setup()
   // server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
 
- 
-  
-  //TODO: check authentication or relocate potentially sensitive files
+  // TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
 
   // just for debugging
@@ -4800,7 +4810,7 @@ void loop()
   if (todo_in_loop_restart)
   {
     WiFi.disconnect();
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to user activity (settings/cmd)."),true);
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to user activity (settings/cmd)."), true);
     delay(2000);
     ESP.restart();
   }
@@ -4841,7 +4851,7 @@ void loop()
   if (started < ACCEPTED_TIMESTAMP_MINIMUM)
   {
     started = now;
-    log_msg(MSG_TYPE_INFO, PSTR("Started processing"),true);
+    log_msg(MSG_TYPE_INFO, PSTR("Started processing"), true);
   }
 
   // just in case check the wifi and reconnect/restart if neede
@@ -4857,7 +4867,7 @@ void loop()
     if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
     {
       Serial.println(F("Restarting."));
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."),true);
+      log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
       delay(1000);
       ESP.restart(); // boot if cannot recover wifi in time
     }

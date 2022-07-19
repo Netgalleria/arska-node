@@ -10,6 +10,7 @@ const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent au
 const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
 const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
+const channel_type_strings =  JSON.parse('%channel_type_strings%');
 const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
 const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
@@ -18,6 +19,7 @@ const VERSION = '%VERSION%';
 const HWID = '%HWID%';
 const VERSION_SHORT = '%VERSION_SHORT%';
 const version_fs = '%version_fs%';
+
 
 ;
 
@@ -743,6 +745,84 @@ function create_force_up_elements(i, hours, fu_div,checked, label = null) {
 function padTo2Digits(num) {
     return num.toString().padStart(2, '0');
 }
+
+function create_channel_config_elements(ce_div, channel_idx,ch_cur ) {
+    conf_div = createElem("div", null, null, null);
+    
+    //id
+    id_div = createElem("div", null, null, "fldshort");
+    id_div.insertAdjacentText('beforeend', 'id: ');
+    inp_id = createElem("input", "id_ch_" + channel_idx, ch_cur.id_str, null, "text");
+    inp_id.setAttribute("maxlength", 9);
+    id_div.appendChild(inp_id);
+    conf_div.appendChild(id_div);
+
+    //uptime
+    ut_div = createElem("div", null, null, "fldtiny");
+    ut_div.insertAdjacentText('beforeend', 'mininum up (s):');
+    inp_ut = createElem("input", "d_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
+    inp_ut.name = "ch_uptimem_" + channel_idx;
+    ut_div.appendChild(inp_ut);
+    conf_div.appendChild(ut_div);
+
+    //type
+    ct_div = createElem("div", null, null, "flda");
+    ct_div.insertAdjacentHTML('beforeend', 'type:<br>');
+    ct_sel = createElem("select", "chty_" + channel_idx, null, null);
+    ct_sel.name = "chty_" + channel_idx;
+    ct_sel.addEventListener("change", setChannelFieldsEVT);
+    //TODO: mikä seteclted
+    for (var i = 0; i < channel_type_strings.length; i++) {
+        is_gpio_channel = (ch_cur.gpio != 255);
+        if ((i == 1 && is_gpio_channel) || !(i == 1 || is_gpio_channel))
+            addOption(ct_sel,i, channel_type_strings[i], (ch_cur.type==i));
+    }
+
+    ct_div.appendChild(ct_sel);
+    conf_div.appendChild(ct_div);
+
+
+    ce_div.appendChild(conf_div);
+    
+}
+/*
+void get_channel_config_fields(char *out, int channel_idx)
+{
+  char buff[200];
+  snprintf(buff, sizeof(buff), "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>", channel_idx, s.ch[channel_idx].id_str);
+  strcat(out, buff);
+
+  snprintf(buff, sizeof(buff), "<div class='fldtiny' id='d_uptimem_%d'></span>mininum up (s):</span><input name='ch_uptimem_%d'  type='text' value='%d'></div></div>", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
+  strcat(out, buff);
+
+  snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select id='chty_%d' name='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
+  strcat(out, buff);
+
+  bool is_gpio_channel;
+  for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPES; channel_type_idx++)
+  {
+    is_gpio_channel = (s.ch[channel_idx].gpio != 255);
+    if ((channel_type_idx == 1 && is_gpio_channel) || !(channel_type_idx == 1 || is_gpio_channel))
+    {
+      snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
+      strcat(out, buff);
+    }
+  }
+  strcat(out, "</select></div>\n");
+
+  //  radio-toolbar
+  snprintf(buff, sizeof(buff), "<div class='secbr'>\nRule mode:<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
+  strcat(out, buff);
+  snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
+  strcat(out, buff);
+
+  snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
+  strcat(out, buff);
+
+  Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
+}
+*/
+
 // dashboard or channel config (edit_mode)
 function init_channel_elements(edit_mode = false) {
     var svgns = "http://www.w3.org/2000/svg";
@@ -811,6 +891,8 @@ function init_channel_elements(edit_mode = false) {
                 chdiv.appendChild(fu_div);
             }
             if (edit_mode) {
+                create_channel_config_elements(chdiv, i, ch_cur);
+
                 //TODO: add functionality from: get_channel_config_fields,  processor: if (var.startsWith("cht_"))
 
             }
@@ -839,6 +921,11 @@ function initForm(url) {
         }).prop('selected', true);
     }
     else if (url == '/channels') {
+        getVariableList();
+        initChannelForm();
+    }
+    else if (url == '/channels_new') {
+        init_channel_elements(true);
         getVariableList();
         initChannelForm();
     }
@@ -957,6 +1044,12 @@ function initWifiForm() {
         }); */
 }
 
+
+function setChannelFieldsEVT(evt) {
+    setChannelFields(evt.target);
+}
+
+//combine to evt version
 function setChannelFields(obj) {
     if (obj == null)
         return;
