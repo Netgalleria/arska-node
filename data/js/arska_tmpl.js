@@ -1,8 +1,8 @@
 /*
 Copyright, Netgalleria Oy, Olli Rinne 2021-2022
 */
-const sections = [{ "url": "/", "en": "Dashboard", "wiki" : "Dashboard" }, { "url": "/inputs", "en": "Services" , "wiki" : "Edit-Services"}
-    , { "url": "/channels", "en": "Channels", "wiki" : "Edit-Channels" }, { "url": "/admin", "en": "Admin", "wiki" : "Edit-Admin" }];
+const sections = [{ "url": "/", "en": "Dashboard", "wiki": "Dashboard" }, { "url": "/inputs", "en": "Services", "wiki": "Edit-Services" }
+    , { "url": "/channels", "en": "Channels", "wiki": "Edit-Channels" }, { "url": "/admin", "en": "Admin", "wiki": "Edit-Admin" }];
 
 const opers = JSON.parse('%OPERS%');
 const variables = JSON.parse('%VARIABLES%');
@@ -49,6 +49,8 @@ function statusCBClicked(elCb) {
 function link_to_wiki(article_name) {
     return '<a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/' + article_name + '">ℹ</a>';
 }
+
+
 // update variables and channels statuses to channels form
 function updateStatus(show_variables = true) {
     $.getJSON('/status', function (data) {
@@ -73,14 +75,14 @@ function updateStatus(show_variables = true) {
                 if (data.variables[(i + 201).toString()] != "null") {
                     if (sensor_text)
                         sensor_text += ", ";
-                    sensor_text += 'Sensor ' + (i+1) + ': <span  class="big">' + data.variables[(i+201).toString()] + ' &deg;C</span>';  
+                    sensor_text += 'Sensor ' + (i + 1) + ': <span  class="big">' + data.variables[(i + 201).toString()] + ' &deg;C</span>';
                 }
             }
             if (sensor_text)
                 sensor_text = "<br>" + sensor_text;
 
             selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
-            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>'+sensor_text;
+            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>' + sensor_text;
         }
         if (show_variables) {
             document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
@@ -94,7 +96,7 @@ function updateStatus(show_variables = true) {
                     variable_desc = "";
 
                 if (var_this[2] == 50 || var_this[2] == 51) {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' +variable.replace('"', '').replace('"', '')  + '</td><td>' + variable_desc + ' (logical)</td></tr>';
+                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
                     //newRow = '<tr><td>X' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
                 }
                 else {
@@ -159,13 +161,13 @@ var submitChannelForm = function (e) {
 
     if (stmtDivs && stmtDivs.length > 0) {
         for (let i = 0; i < stmtDivs.length; i++) {
-           // console.log("stmp element ", i);
+            // console.log("stmp element ", i);
             const divEl = stmtDivs[i];
             const fldA = divEl.id.split("_");
             const var_val = parseInt(document.getElementById(divEl.id.replace("std", "var")).value);
             const op_val = parseInt(document.getElementById(divEl.id.replace("std", "op")).value);
 
-            if (var_val < 0 || op_val < 0) 
+            if (var_val < 0 || op_val < 0)
                 continue; // no complete rule
 
             //todo decimal, test  that number valid
@@ -195,28 +197,28 @@ var submitChannelForm = function (e) {
             cond_idx = parseInt(fldA[2]);
 
             target_up = document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked;
-            channel_rules.push({"on" : target_up, "statements":  [stmts_s[i].value]});
+            channel_rules.push({ "on": target_up, "statements": [stmts_s[i].value] });
 
             if (prev_channel_idx != channel_idx) {
                 if (channel_rules.length > 0) {
                     console.log("channel_idx:" + prev_channel_idx);
-                   // console.table(channel_rules);      
+                    // console.table(channel_rules);      
                     console.log(JSON.stringify(channel_rules));
                 }
-                prev_channel_idx = channel_idx; 
+                prev_channel_idx = channel_idx;
                 channel_rules = [];
             }
         }
 
         if (channel_rules.length > 0) {
             console.log("channel_idx:" + prev_channel_idx);
-           // console.table(channel_rules);      
+            // console.table(channel_rules);      
             console.log(JSON.stringify(channel_rules));
         }
-  
+
         alert("Check rules from the javascript console");
     }
-    
+
     // console.log("form valid: ",$("#chFrm").valid());
     //enable before submit for posting
     let disSels = document.querySelectorAll('select[disabled="disabled"], input[disabled="disabled"]');
@@ -269,8 +271,8 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     addOption(varFld, -1, "select", (stmt[0] == -1));
 
     for (var i = 0; i < variables.length; i++) {
-        var type_indi = (variables[i][2] >= 50 && variables[i][2] <= 51) ? "*" : " "; 
-        addOption(varFld, variables[i][0], variables[i][1]+type_indi, (stmt[0] == variables[i][0]));
+        var type_indi = (variables[i][2] >= 50 && variables[i][2] <= 51) ? "*" : " ";
+        addOption(varFld, variables[i][0], variables[i][1] + type_indi, (stmt[0] == variables[i][0]));
     }
 }
 
@@ -324,11 +326,11 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
         }
 
         stmt_idx++;
-       // console.log("New stmt_idx:" + stmt_idx);
+        // console.log("New stmt_idx:" + stmt_idx);
     }
 
     suffix = "_" + channel_idx + "_" + cond_idx + "_" + (stmt_idx);
-  //  console.log(suffix);
+    //  console.log(suffix);
 
     const sel_var = createElem("select", "var" + suffix, null, "fldstmt indent", null);
     sel_var.addEventListener("change", setVar);
@@ -385,10 +387,10 @@ function _ltext(obj, prop) {
 function templateChanged(selEl) {
     const fldA = selEl.id.split("_");
     channel_idx = parseInt(fldA[1]);
-  //  console.log(selEl.value, channel_idx);
+    //  console.log(selEl.value, channel_idx);
     template_idx = selEl.value;
     url = '/data/templates?id=' + template_idx;
-  //  console.log(url, selEl.id);
+    //  console.log(url, selEl.id);
     $.getJSON(url, function (data) {
         if (template_idx == -1 && confirm('Remove template definitions')) {
             deleteStmtsUI(channel_idx);
@@ -408,7 +410,7 @@ function templateChanged(selEl) {
 
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
-             //   console.log("stmt.values:" + JSON.stringify(stmt.values));
+                //   console.log("stmt.values:" + JSON.stringify(stmt.values));
                 stmt_obj = stmt.values;
                 if (stmt.hasOwnProperty('const_prompt')) {
                     stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
@@ -447,7 +449,7 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
         populateTemplateSel(templateSelEl, template_id);
     }
 
-  //  console.log("New rule mode:", rule_mode);
+    //  console.log("New rule mode:", rule_mode);
     $('#rd_' + channel_idx + ' select').attr('disabled', (rule_mode != 0));
     $('#rd_' + channel_idx + " input[type='text']").attr('disabled', (rule_mode != 0)); //jos ei iteroi?
     $('#rd_' + channel_idx + " input[type='text']").prop('readonly', (rule_mode != 0));
@@ -605,7 +607,7 @@ function fillStmtRules(channel_idx, rule_mode) {
 
         if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-        //    console.log("addStmt", channel_idx, cond_idx, 0);
+            //    console.log("addStmt", channel_idx, cond_idx, 0);
             addStmt(elBtn, channel_idx, cond_idx, 0);
         }
     }
@@ -631,7 +633,7 @@ function initChannelForm() {
             fldA = stmts_s[i].id.split("_");
             channel_idx = parseInt(fldA[1]);
             cond_idx = parseInt(fldA[2]);
-          //  console.log(stmts_s[i].value);
+            //  console.log(stmts_s[i].value);
             stmts = JSON.parse(stmts_s[i].value);
             if (stmts && stmts.length > 0) {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
@@ -653,7 +655,7 @@ function initChannelForm() {
         if (rule_mode == 1) {
             templateSelEl = document.getElementById("rts_" + channel_idx);
             templateSelEl.value = template_id;
-        //    console.log("templateSelEl.value:" + templateSelEl.value);
+            //    console.log("templateSelEl.value:" + templateSelEl.value);
         }
         setRuleMode(channel_idx, rule_mode, false, template_id);
     }
@@ -712,26 +714,118 @@ function initUrlBar(url) {
             headdiv.appendChild(span);
         }
         //}
-
         if (idx < sections.length - 1) {
             var sepa = document.createTextNode(" | ");
             headdiv.appendChild(sepa);
         }
     });
     // <a href="/">Dashboard</a> | <span> <b>Admin</b> </span>
+}
 
+//TODO: get from main.cpp
+const force_up_hours = [0, 1, 2, 4, 8, 12, 24];
+
+function create_force_up_elements(i, hours, fu_div,checked, label = null) {
+    fu_rb = createElem("input", "fup_" + i + '_' + hours, hours, null, "radio");
+    fu_rb.name = "fup_" + i;
+    fu_rb.value = hours;
+    fu_rb.checked = checked;
+    fu_lb = createElem("label", null, hours, null, "radio");
+    if (label)
+        fu_lb.innerHTML = label;
+    else
+        fu_lb.innerHTML = hours + ' h';
+    fu_lb.setAttribute("for", "fup_" + i + '_' + hours);
+    fu_div.appendChild(fu_rb);
+    fu_div.appendChild(fu_lb);
+}
+
+function padTo2Digits(num) {
+    return num.toString().padStart(2, '0');
+}
+// dashboard or channel config (edit_mode)
+function init_channel_elements(edit_mode = false) {
+    var svgns = "http://www.w3.org/2000/svg";
+    var xlinkns = "http://www.w3.org/1999/xlink";
+
+    chlist = document.getElementById("chlist");
+
+    $.getJSON('/export-config', function (data) {
+        console.log('/export-config');
+        $.each(data.ch, function (i, ch_cur) {
+            console.log(i, ch_cur);
+            if ((ch_cur.type == 0) && !edit_mode) //undefined type
+                return;
+            
+            chdiv = createElem("div", "chdiv_" + i, null, "hb");
+            chdiv_head = createElem("div", null, null, "secbr cht");
+
+            var svg = document.createElementNS(svgns, "svg");
+
+            // svg.viewBox = '0 0 100 100';
+            svg.setAttribute('viewBox', '0 0 100 100');
+            svg.classList.add("statusic");
+            svg.className = "statusic";
+
+            var use = document.createElementNS(svgns, "use");
+            use.id = 'status_' + i;
+            use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
+
+            svg.appendChild(use);
+            chdiv_head.appendChild(svg);
+
+            var span = document.createElement('span');
+            span.id = 'chid_' + i;
+            span.innerHTML = ch_cur["id_str"];
+            $('#chid_' + i).html(ch_cur["id_str"]);
+
+            chdiv_head.appendChild(span);
+            chdiv.appendChild(chdiv_head);
+            chlist.appendChild(chdiv);
+
+            //var date = new Date(UNIX_Timestamp * 1000);
+            //Date.now()
+            now_ts = Date.now()/1000;
+
+            if (!edit_mode) { // is dashboard
+                fu_div = createElem("div", null, null, "secbr radio-toolbar");
+                //Set channel up for next:<br>
+                for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
+                    hour_cur = force_up_hours[hour_idx];
+                    has_forced_setting = false;
+                    if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600)) 
+                        has_forced_setting = true;
+
+                    create_force_up_elements(i, force_up_hours[hour_idx], fu_div,(!has_forced_setting && hour_idx==0));
+
+              //      console.log(ch_cur.force_up_until, now_ts, hour_cur, force_up_hours[hour_idx + 1]);
+                   
+                    if (has_forced_setting) {
+                        var force_up_until = new Date(ch_cur.force_up_until * 1000);
+                        var duration = parseInt((ch_cur.force_up_until -(Date.now()/1000))/60);
+                        label = " -> " + padTo2Digits(force_up_until.getHours()) + ":" + padTo2Digits(force_up_until.getMinutes());
+                        label += " (" + padTo2Digits(parseInt(duration/60)) + ":" + padTo2Digits(duration % 60) + ") ";
+                        create_force_up_elements(i, -1, fu_div,true, label);      
+                    }
+                }
+                chdiv.appendChild(fu_div);
+            }
+            if (edit_mode) {
+                //TODO: add functionality from: get_channel_config_fields,  processor: if (var.startsWith("cht_"))
+
+            }
+
+        });
+    });
 }
 //
-
 function initForm(url) {
     initUrlBar(url);
     if (url == '/admin') {
         initWifiForm();
-
         if (using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
-
         //set timezone select element
         var timezone = document.getElementById("timezone_db").value;
         $('#timezone option').filter(function () {
@@ -748,8 +842,12 @@ function initForm(url) {
         getVariableList();
         initChannelForm();
     }
-    else if (url == '/') {
-        setTimeout(function () { updateStatus(false); }, 3000);
+   // else if (url == '/') {
+   //     setTimeout(function () { updateStatus(false); }, 2000);
+   // }
+    else if (url == '/') { //under construction
+        init_channel_elements(false);
+        setTimeout(function () { updateStatus(false); }, 2000);
     }
 
     else if (url == '/inputs') {
@@ -790,7 +888,7 @@ function initForm(url) {
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
         // footerdiv.innerHTML = "<a href='http://netgalleria.fi/rd/?arska-wiki' target='arskaw'>Arska Wiki</a> ";
-        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + VERSION + " (" + HWID +"),   Filesystem version: " + version_fs + "</i></div>";
+        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + VERSION + " (" + HWID + "),   Filesystem version: " + version_fs + "</i></div>";
     }
 }
 
@@ -939,66 +1037,3 @@ function clearText(elem) {
     elem.value = '';
 }
 
-// Ruleset processing, old stuff
-/*
-function processRulesetImport(evt) {
-    if (!evt.target.id.startsWith("rules_"))
-        return
-    const fldA = evt.target.id.split("_");
-    channel_idx = parseInt(fldA[1]);
-
-    let data = evt.clipboardData.getData('text/plain');
-    try {
-        obj = JSON.parse(data);
-        evt.target.value = 'x';
-        document.getElementById(evt.target.id).value = '';
-        if ((!'rulesetId' in obj) || !('rules' in obj)) {
-            alert("Invalid ruleset data.");
-            return;
-        }
-        let import_it = confirm("Do you want to import rule set over existing rules?");
-
-    } catch (e) {
-        alert('Invalid ruleset (' + e + ')'); // error in the above string (in this case, yes)!
-        evt.target.value = '';
-        return false;
-    }
-
-    for (let i = 0; i < CHANNEL_COUNT; i++) {
-        let rule_states_e = document.getElementById("st_" + channel_idx + "_" + i);
-        //  let rule_onoff_cb = document.getElementById("ctcb_" + channel_idx + "_" + i);
-        let rule_onoff_rb_0 = document.getElementById("ctrb_" + channel_idx + "_" + i + "_0");
-        let rule_onoff_rb_1 = document.getElementById("ctrb_" + channel_idx + "_" + i + "_1");
-        let rule_target_e = document.getElementById("t_" + channel_idx + "_" + i);
-
-        if (obj["rules"].length >= i + 1) {
-            rule_states_e.value = JSON.stringify(obj["rules"][i]["states"]).replace("[", "").replace("]", "");
-            //    rule_onoff_cb.checked = obj["rules"][i]["on"];
-            if (obj["rules"][i]["on"])
-                rule_onoff_rb_1.checked = true;
-            else
-                rule_onoff_rb_0.checked = true;
-
-            if (obj["rules"][i]["target"]) {
-                rule_target_e.value = obj["rules"][i]["target"];
-            }
-            else {
-                rule_target_e.value = 0;
-            }
-        }
-        else {
-            rule_states_e.value = '';
-            // rule_onoff_cb.checked = false;
-            rule_onoff_rb_0.checked = true;
-            rule_target_e.value = 0;
-
-        }
-    }
-}
-
-let rs1 = document.getElementById('rs1')
-
-document.addEventListener('paste', e => {
-    processRulesetImport(e);
-})
-*/

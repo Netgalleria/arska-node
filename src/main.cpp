@@ -786,7 +786,6 @@ Point period_data("arska_period"); //!< Influx buffer
 void add_period_variables_to_influx_buffer(time_t ts)
 {
   period_data.setTime(ts);
-  
 
   if (vars.is_set(VARIABLE_PRICE))
     period_data.addField("price", vars.get_f(VARIABLE_PRICE));
@@ -801,8 +800,6 @@ void add_period_variables_to_influx_buffer(time_t ts)
 
   if (vars.is_set(VARIABLE_SELLING_ENERGY))
     period_data.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
-
-
 }
 
 /**
@@ -2747,6 +2744,7 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
  *
  * @param out
  */
+//TODO: check if debrecated
 void get_status_fields(char *out)
 {
   char buff[150];
@@ -3405,7 +3403,7 @@ void update_relay_states()
         if (!s.ch[channel_idx].conditions[condition_idx].condition_active)
         {
           // report debug change
-          Serial.printf("channel_idx %d, condition_idx %d matches, channnel wanna_be_up: %s\n", channel_idx, condition_idx, s.ch[channel_idx].wanna_be_up ? "true" : "false");
+          Serial.printf("channel_idx %d, condition_idx %d matches, channel wanna_be_up: %s\n", channel_idx, condition_idx, s.ch[channel_idx].wanna_be_up ? "true" : "false");
         }
         s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].on;
         s.ch[channel_idx].conditions[condition_idx].condition_active = true;
@@ -3761,6 +3759,10 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
     doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
     doc["ch"][channel_idx]["uptime_minimum"] = s.ch[channel_idx].uptime_minimum;
+    doc["ch"][channel_idx]["toggle_last"] = s.ch[channel_idx].toggle_last;
+    doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
+    doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
+    doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
 
     for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
     {
@@ -3961,9 +3963,8 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
     request->redirect("/admin");
     return;
   }
-
-  Serial.println("DEBUG: onWebDashboardGet sendForm /dashboard_template.html");
   sendForm(request, "/dashboard_template.html", setup_form_processor);
+
 }
 /**
  * @brief Returns services (inputs) form
@@ -4487,6 +4488,7 @@ void setup()
     strcpy(s.wifi_ssid, "NA");
   }
   // TODO: WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+  WiFi.setHostname("arska");
   WiFi.begin(s.wifi_ssid, s.wifi_password);
 
   if (WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
@@ -4621,6 +4623,8 @@ void setup()
 
   // server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
+
+ 
   
   //TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
@@ -4740,7 +4744,7 @@ void loop()
   bool updated_ok;
   bool got_external_data_ok;
 
-  //  handle initial wifi setting from the serial console
+  //  handle initial wifi setting from the serial console command line
   if (wifi_in_setup_mode && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
