@@ -2696,11 +2696,7 @@ void get_channel_config_fields(char *out, int channel_idx)
   bool is_gpio_channel;
   for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPES; channel_type_idx++)
   {
-    // if gpio channels and non-gpio channels can not be mixed
-    //  tässä kai pitäisi toinen ottaa channelista, toinen loopista
     is_gpio_channel = (s.ch[channel_idx].gpio != 255);
-    // Serial.printf("is_gpio_channel %d %d %d\n", channel_idx, is_gpio_channel, s.ch[channel_idx].gpio);
-
     if ((channel_type_idx == 1 && is_gpio_channel) || !(channel_type_idx == 1 || is_gpio_channel))
     {
       snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
@@ -3095,6 +3091,7 @@ String setup_form_processor(const String &var)
 
     return out;
   }
+  /* Old dashboard template, can be removed
   if (var.startsWith("vch_"))
   {
     char out[1000];
@@ -3111,7 +3108,7 @@ String setup_form_processor(const String &var)
     strcat(out, "</div>"); // chdiv_
     return out;
   }
-
+*/
   if (var.startsWith("cht_"))
   {
     char out[2400];
@@ -3152,7 +3149,6 @@ String setup_form_processor(const String &var)
         if (variable_id == -1 || oper_id == -1)
           continue;
 
-        // snprintf(buffstmt, 30, "%s[%d, %d, %ld]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, const_val);
         snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
         stmt_count++;
         strcat(buffstmt2, buffstmt);
@@ -3165,7 +3161,6 @@ String setup_form_processor(const String &var)
     }
 
     strcat(out, "</div>\n"); // rd_X div
-
     strcat(out, "</div>"); // chdiv_
     return out;
   }
