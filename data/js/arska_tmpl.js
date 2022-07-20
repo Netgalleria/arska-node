@@ -10,7 +10,7 @@ const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent au
 const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
 const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
-const channel_type_strings =  JSON.parse('%channel_type_strings%');
+const channel_type_strings = JSON.parse('%channel_type_strings%');
 const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
 const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
@@ -36,7 +36,6 @@ function setVariableMode(variable_mode) {
     document.getElementById("entsoe_api_key").disabled = (variable_mode != 0);
     document.getElementById("entsoe_area_code").disabled = (variable_mode != 0);
     document.getElementById("forecast_loc").disabled = (variable_mode != 0);
-
     document.getElementById("variable_server").disabled = (variable_mode != 1);
 }
 
@@ -357,8 +356,6 @@ function getVariableList() {
     });
 }
 
-
-
 function populateTemplateSel(selEl, template_id = -1) {
     if (selEl.options && selEl.options.length > 0) {
         return; //already populated
@@ -552,7 +549,6 @@ function setOper(evt) {
 
 
 function setEnergyMeterFields(emt) { //
-
     idx = parseInt(emt);
 
     var emhd = document.querySelector('#emhd');
@@ -619,10 +615,9 @@ function initChannelForm() {
     console.log("initChannelForm");
     var chtype;
 
-    //oli tässä
     for (var channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
         //ch_t_%d_1
-        console.log("channel_idx:" + channel_idx);
+        console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
         //TODO: fix if more types coming
         chtype = document.getElementById('chty_' + channel_idx).value;
         setChannelFieldsByType(channel_idx, chtype);
@@ -727,10 +722,10 @@ function initUrlBar(url) {
 //TODO: get from main.cpp
 const force_up_hours = [0, 1, 2, 4, 8, 12, 24];
 
-function create_force_up_elements(i, hours, fu_div,checked, label = null) {
+function create_force_up_elements(i, hours, fu_div, checked, label = null) {
     fu_rb = createElem("input", "fup_" + i + '_' + hours, hours, null, "radio");
     fu_rb.name = "fup_" + i;
-    fu_rb.value = hours;
+    fu_rb.value = hours;//not needed?
     fu_rb.checked = checked;
     fu_lb = createElem("label", null, hours, null, "radio");
     if (label)
@@ -745,10 +740,22 @@ function create_force_up_elements(i, hours, fu_div,checked, label = null) {
 function padTo2Digits(num) {
     return num.toString().padStart(2, '0');
 }
+function add_radiob_with_label(parent, name, value, label, checked) {
+    rb_id = name + "_" + value;
+    rb = createElem("input", rb_id, 0, null, "radio");
+    rb.name = name;
+    rb.checked = checked;
+    lb = createElem("label", null, null, null, null);
+    lb.setAttribute("for", rb_id);
+    lb.insertAdjacentText('beforeend', label);
+    parent.appendChild(rb);
+    parent.appendChild(lb);
+}
 
-function create_channel_config_elements(ce_div, channel_idx,ch_cur ) {
+
+function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     conf_div = createElem("div", null, null, null);
-    
+
     //id
     id_div = createElem("div", null, null, "fldshort");
     id_div.insertAdjacentText('beforeend', 'id: ');
@@ -770,21 +777,162 @@ function create_channel_config_elements(ce_div, channel_idx,ch_cur ) {
     ct_div.insertAdjacentHTML('beforeend', 'type:<br>');
     ct_sel = createElem("select", "chty_" + channel_idx, null, null);
     ct_sel.name = "chty_" + channel_idx;
+    //TODO: check this
     ct_sel.addEventListener("change", setChannelFieldsEVT);
-    //TODO: mikä seteclted
+
     for (var i = 0; i < channel_type_strings.length; i++) {
         is_gpio_channel = (ch_cur.gpio != 255);
         if ((i == 1 && is_gpio_channel) || !(i == 1 || is_gpio_channel))
-            addOption(ct_sel,i, channel_type_strings[i], (ch_cur.type==i));
+            addOption(ct_sel, i, channel_type_strings[i], (ch_cur.type == i));
     }
+
+    //Mode and template selection
+    rm_div = createElem("div", null, null, "secbr");
+    rm_div.insertAdjacentText('beforeend', 'Rule mode:');
+
+    add_radiob_with_label(rm_div, "mo_" + channel_idx, 1, "Template", (ch_cur.config_mode == 1));
+    add_radiob_with_label(rm_div, "mo_" + channel_idx, 0, "Advanced", (ch_cur.config_mode == 0));
+
+    tmpl_div = createElem("div", "rt_" + channel_idx, null, null);
+    tmpl_sel = createElem("select", "rts_" + channel_idx, null, null, null);
+    tmpl_sel.name = "rts_" + channel_idx;
+    tmpl_div.appendChild(tmpl_sel);
+
+    rm_div.appendChild(tmpl_div);
+   // tmpl_sel.addEventListener("change", templateChangedEVT); //TODO: fiksaa evt jne
+
+
+
+    /*    snprintf(buff, sizeof(buff), "<div class='secbr'>\nRule mode:<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
+        snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
+        snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
+    */
+
 
     ct_div.appendChild(ct_sel);
     conf_div.appendChild(ct_div);
 
+    conf_div.appendChild(rm_div); //paikka arvottu
 
     ce_div.appendChild(conf_div);
-    
+
 }
+
+function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
+    // div envelope for all channel rules
+    rules_div = createElem("div", "rd_" + channel_idx, null, null);
+    for (condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++) {
+        suffix = "_" + channel_idx + '_' + condition_idx;
+        rule_div = createElem("div", "ru" + suffix, null, null);
+        ruleh_div = createElem("div", null, null, "secbr");
+        ruleh_div.insertAdjacentHTML('beforeend', '<br>');
+        ruleh_span = createElem("span", null, null, "big");
+        //TODO: match_text, get values from  config, own span/div for that so it could change whene match changes
+        // match_text = s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : "";
+        match_text = "";
+        ruleh_span.insertAdjacentText('beforeend', "Rule " + (condition_idx + 1) + ":" + match_text);
+        ruleh_div.appendChild(ruleh_span);
+
+        rulel_div = createElem("div", null, null, "secbr indent");
+    
+        ruled_div = createElem("div", 'stmtd' + suffix, null, "secbr indent");
+        add_btn = createElem("input", 'addstmt' + suffix, "+", "addstmtb", "button");
+        //TODO:change from hidden from based to javascript/object based
+        statements_str = "[]";
+        stmt_hidden = createElem("input", 'stmts' + suffix, statements_str, "addstmtb", "hidden");
+        //TODO: muuta evt-pohjaiseksi
+        //add_btn.addEventListener("click", addStmtEVT);
+        ruled_div.appendChild(add_btn);
+        ruled_div.appendChild(stmt_hidden);
+        ruled_div.appendChild(createElem("div", null, null, "secbr"));
+
+        //combine rulel_div
+        rulel_div.insertAdjacentText('beforeend', "Target state:");
+
+        add_radiob_with_label(rulel_div, "ctrb" + suffix, 0, "DOWN", false); //TODO:checked
+        add_radiob_with_label(rulel_div, "ctrb" + suffix, 1, "UP", false); //TODO:checked
+
+        rule_div.appendChild(ruleh_div);
+        rule_div.appendChild(ruled_div); //meniköhän oikeaan kohtaan
+
+        rules_div.appendChild(rule_div);
+    }
+
+
+    envelope_div.appendChild(rules_div);
+}
+
+/*
+  snprintf(out, buff_len, "
+  <div class='secbr'> ruleh_div
+    <br><span class='big'>Rule %i: %s</span>
+  </div>
+  <div class='secbr indent'>
+    Target state: 
+    <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s>
+    <label for='ctrb%s_0'>DOWN</label>
+    <input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s>
+    <label for='ctrb%s_1'>UP</label>
+  </div>
+  ", condition_idx + 1
+  , s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : ""
+  , suffix
+  , suffix
+   !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : ""
+  , suffix
+  , suffix
+  , suffix
+  , s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
+
+
+
+
+    snprintf(out, 1800, "<div id='rd_%d'>", channel_idx); // div envelope for all channel rules
+    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
+    {
+
+      // strcpy(buff, "");
+      sprintf(buff, "<div id='ru_%d_%d'>", channel_idx, condition_idx); // open ru_X
+      strncat(out, buff, sizeof(out) - strlen(out) - 1);
+
+      strcpy(buffstmt2, "");
+
+      get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
+
+      strncat(out, buff, sizeof(out) - strlen(out) - 1);
+
+      int stmt_count = 0;
+      char floatbuff[20];
+      for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+      {
+        int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
+        int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
+        long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
+
+        vars.to_str(variable_id, floatbuff, true, const_val);
+
+        // TODO: alusta tai jotain
+        if (variable_id == -1 || oper_id == -1)
+          continue;
+
+        snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
+        stmt_count++;
+        strcat(buffstmt2, buffstmt);
+      }
+      // no name in stmts_ , copy later in js
+      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
+
+      strcat(out, buff);
+      strcat(out, "</div>"); // close ru_X
+    }
+
+    strcat(out, "</div>\n"); // rd_X div
+    strcat(out, "</div>");   // chdiv_
+    return out;
+  }
+*/
+
+
 /*
 void get_channel_config_fields(char *out, int channel_idx)
 {
@@ -824,81 +972,93 @@ void get_channel_config_fields(char *out, int channel_idx)
 */
 
 // dashboard or channel config (edit_mode)
+/* TODO 20.7.2022
+- tsekkaa erityisesti eventlistenerit ja evt versiot, niitä ei tehty loppuun
+- tsekaa tuleeko stmt formiin saakka
+- katso jos stmt-voisi tulla suoraan ettei tarvitse viedä formin kautta
+    - pitäisikö element creation ja populate olla selkeästi erilleen, niin vasta populatessa tehdään kysely
+    */
 function init_channel_elements(edit_mode = false) {
     var svgns = "http://www.w3.org/2000/svg";
     var xlinkns = "http://www.w3.org/1999/xlink";
 
     chlist = document.getElementById("chlist");
+    //async: false, because this initates elements used later, everything must be initiated, could be later split to init+populate
+    $.ajax({
+        url: '/export-config',
+        dataType: 'json',
+        async: false,
+        success: function (data) {
+            console.log('/export-config');
+            $.each(data.ch, function (i, ch_cur) {
+                console.log(i, ch_cur);
+                if ((ch_cur.type == 0) && !edit_mode) //undefined type
+                    return;
 
-    $.getJSON('/export-config', function (data) {
-        console.log('/export-config');
-        $.each(data.ch, function (i, ch_cur) {
-            console.log(i, ch_cur);
-            if ((ch_cur.type == 0) && !edit_mode) //undefined type
-                return;
-            
-            chdiv = createElem("div", "chdiv_" + i, null, "hb");
-            chdiv_head = createElem("div", null, null, "secbr cht");
+                chdiv = createElem("div", "chdiv_" + i, null, "hb");
+                chdiv_head = createElem("div", null, null, "secbr cht");
 
-            var svg = document.createElementNS(svgns, "svg");
+                var svg = document.createElementNS(svgns, "svg");
 
-            // svg.viewBox = '0 0 100 100';
-            svg.setAttribute('viewBox', '0 0 100 100');
-            svg.classList.add("statusic");
-            svg.className = "statusic";
+                // svg.viewBox = '0 0 100 100';
+                svg.setAttribute('viewBox', '0 0 100 100');
+                svg.classList.add("statusic");
+                svg.className = "statusic";
 
-            var use = document.createElementNS(svgns, "use");
-            use.id = 'status_' + i;
-            use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
+                var use = document.createElementNS(svgns, "use");
+                use.id = 'status_' + i;
+                use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
 
-            svg.appendChild(use);
-            chdiv_head.appendChild(svg);
+                svg.appendChild(use);
+                chdiv_head.appendChild(svg);
 
-            var span = document.createElement('span');
-            span.id = 'chid_' + i;
-            span.innerHTML = ch_cur["id_str"];
-            $('#chid_' + i).html(ch_cur["id_str"]);
+                var span = document.createElement('span');
+                span.id = 'chid_' + i;
+                span.innerHTML = ch_cur["id_str"];
+                $('#chid_' + i).html(ch_cur["id_str"]);
 
-            chdiv_head.appendChild(span);
-            chdiv.appendChild(chdiv_head);
-            chlist.appendChild(chdiv);
+                chdiv_head.appendChild(span);
+                chdiv.appendChild(chdiv_head);
+                chlist.appendChild(chdiv);
 
-            //var date = new Date(UNIX_Timestamp * 1000);
-            //Date.now()
-            now_ts = Date.now()/1000;
+                //var date = new Date(UNIX_Timestamp * 1000);
+                //Date.now()
+                now_ts = Date.now() / 1000;
 
-            if (!edit_mode) { // is dashboard
-                fu_div = createElem("div", null, null, "secbr radio-toolbar");
-                //Set channel up for next:<br>
-                for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
-                    hour_cur = force_up_hours[hour_idx];
-                    has_forced_setting = false;
-                    if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600)) 
-                        has_forced_setting = true;
+                if (!edit_mode) { // is dashboard
+                    fu_div = createElem("div", null, null, "secbr radio-toolbar");
+                    //Set channel up for next:<br>
+                    for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
+                        hour_cur = force_up_hours[hour_idx];
+                        has_forced_setting = false;
+                        if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600))
+                            has_forced_setting = true;
 
-                    create_force_up_elements(i, force_up_hours[hour_idx], fu_div,(!has_forced_setting && hour_idx==0));
+                        create_force_up_elements(i, force_up_hours[hour_idx], fu_div, (!has_forced_setting && hour_idx == 0));
 
-              //      console.log(ch_cur.force_up_until, now_ts, hour_cur, force_up_hours[hour_idx + 1]);
-                   
-                    if (has_forced_setting) {
-                        var force_up_until = new Date(ch_cur.force_up_until * 1000);
-                        var duration = parseInt((ch_cur.force_up_until -(Date.now()/1000))/60);
-                        label = " -> " + padTo2Digits(force_up_until.getHours()) + ":" + padTo2Digits(force_up_until.getMinutes());
-                        label += " (" + padTo2Digits(parseInt(duration/60)) + ":" + padTo2Digits(duration % 60) + ") ";
-                        create_force_up_elements(i, -1, fu_div,true, label);      
+                        //      console.log(ch_cur.force_up_until, now_ts, hour_cur, force_up_hours[hour_idx + 1]);
+
+                        if (has_forced_setting) {
+                            var force_up_until = new Date(ch_cur.force_up_until * 1000);
+                            var duration = parseInt((ch_cur.force_up_until - (Date.now() / 1000)) / 60);
+                            label = " -> " + padTo2Digits(force_up_until.getHours()) + ":" + padTo2Digits(force_up_until.getMinutes());
+                            label += " (" + padTo2Digits(parseInt(duration / 60)) + ":" + padTo2Digits(duration % 60) + ") ";
+                            create_force_up_elements(i, -1, fu_div, true, label);
+                        }
                     }
+                    chdiv.appendChild(fu_div);
                 }
-                chdiv.appendChild(fu_div);
-            }
-            if (edit_mode) {
-                create_channel_config_elements(chdiv, i, ch_cur);
+                if (edit_mode) {
+                    create_channel_config_elements(chdiv, i, ch_cur);
+                    create_channel_rule_elements(chdiv, i, ch_cur);
+                    //TODO: add functionality from: get_channel_config_fields,  processor: if (var.startsWith("cht_"))
 
-                //TODO: add functionality from: get_channel_config_fields,  processor: if (var.startsWith("cht_"))
+                }
 
-            }
-
-        });
+            });
+        }
     });
+
 }
 //
 function initForm(url) {
@@ -929,9 +1089,9 @@ function initForm(url) {
         getVariableList();
         initChannelForm();
     }
-   // else if (url == '/') {
-   //     setTimeout(function () { updateStatus(false); }, 2000);
-   // }
+    // else if (url == '/') {
+    //     setTimeout(function () { updateStatus(false); }, 2000);
+    // }
     else if (url == '/') { //under construction
         init_channel_elements(false);
         setTimeout(function () { updateStatus(false); }, 2000);
