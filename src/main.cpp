@@ -3706,7 +3706,7 @@ void export_config(AsyncWebServerRequest *request)
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
 
-  DynamicJsonDocument doc(2048);
+  DynamicJsonDocument doc(6144);
 
   String output;
   char export_time[20];
@@ -3754,6 +3754,8 @@ void export_config(AsyncWebServerRequest *request)
   // JsonArray channel_array = doc.createNestedArray("channels");
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
+    Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
+
     doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
     doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;

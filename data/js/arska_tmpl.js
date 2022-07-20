@@ -304,6 +304,11 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
     return elem;
 }
 
+//called from button, 
+function addStmtEVT(evt) {
+    addStmt(evt.target);
+}
+
 function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0]) {
     if (channel_idx == -1) { //from button click, no other parameters
         fldA = elBtn.id.split("_");
@@ -382,6 +387,11 @@ function _ltext(obj, prop) {
     else
         return '[' + prop + ']';
 }
+//called from element, set by addEventlistener
+function templateChangedEVT(evt) {
+    console.log("templateChangedEVT");
+    templateChanged(evt.target);
+}
 
 function templateChanged(selEl) {
     const fldA = selEl.id.split("_");
@@ -440,6 +450,12 @@ function deleteStmtsUI(channel_idx) {
         document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
         document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
     }
+}
+
+
+function setRuleModeEVT(evt) {
+    fldA = evt.target.id.split("_");
+    setRuleMode(fldA[1], fldA[2], true);
 }
 
 function setRuleMode(channel_idx, rule_mode, reset, template_id) {
@@ -600,7 +616,7 @@ function fillStmtRules(channel_idx, rule_mode) {
         }
         prev_rule_var_defined = first_var_defined;
 
-
+        console.log("ru_" + channel_idx + "_" + cond_idx);
         document.getElementById("ru_" + channel_idx + "_" + cond_idx).style.display = (show_rule ? "block" : "none");
 
         if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
@@ -750,6 +766,7 @@ function add_radiob_with_label(parent, name, value, label, checked) {
     lb.insertAdjacentText('beforeend', label);
     parent.appendChild(rb);
     parent.appendChild(lb);
+    return rb;
 }
 
 
@@ -785,13 +802,18 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
         if ((i == 1 && is_gpio_channel) || !(i == 1 || is_gpio_channel))
             addOption(ct_sel, i, channel_type_strings[i], (ch_cur.type == i));
     }
+    ct_div.appendChild(ct_sel);//*** 
+
+    conf_div.appendChild(ct_div);
 
     //Mode and template selection
     rm_div = createElem("div", null, null, "secbr");
     rm_div.insertAdjacentText('beforeend', 'Rule mode:');
 
-    add_radiob_with_label(rm_div, "mo_" + channel_idx, 1, "Template", (ch_cur.config_mode == 1));
-    add_radiob_with_label(rm_div, "mo_" + channel_idx, 0, "Advanced", (ch_cur.config_mode == 0));
+    rb1 = add_radiob_with_label(rm_div, "mo_" + channel_idx, 1, "Template", (ch_cur.config_mode == 1));
+    rb1.addEventListener("change", setRuleModeEVT);
+    rb0 = add_radiob_with_label(rm_div, "mo_" + channel_idx, 0, "Advanced", (ch_cur.config_mode == 0));
+    rb0.addEventListener("change", setRuleModeEVT);
 
     tmpl_div = createElem("div", "rt_" + channel_idx, null, null);
     tmpl_sel = createElem("select", "rts_" + channel_idx, null, null, null);
@@ -799,15 +821,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     tmpl_div.appendChild(tmpl_sel);
 
     rm_div.appendChild(tmpl_div);
-   // tmpl_sel.addEventListener("change", templateChangedEVT); //TODO: fiksaa evt jne
-
-
-
-    /*    snprintf(buff, sizeof(buff), "<div class='secbr'>\nRule mode:<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
-        snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
-        snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
-    */
-
+    tmpl_sel.addEventListener("change", templateChangedEVT);
 
     ct_div.appendChild(ct_sel);
     conf_div.appendChild(ct_div);
@@ -818,12 +832,16 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
 
 }
 
+
+
+
 function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
     // div envelope for all channel rules
     rules_div = createElem("div", "rd_" + channel_idx, null, null);
     for (condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++) {
         suffix = "_" + channel_idx + '_' + condition_idx;
         rule_div = createElem("div", "ru" + suffix, null, null);
+
         ruleh_div = createElem("div", null, null, "secbr");
         ruleh_div.insertAdjacentHTML('beforeend', '<br>');
         ruleh_span = createElem("span", null, null, "big");
@@ -834,14 +852,25 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         ruleh_div.appendChild(ruleh_span);
 
         rulel_div = createElem("div", null, null, "secbr indent");
-    
+
         ruled_div = createElem("div", 'stmtd' + suffix, null, "secbr indent");
         add_btn = createElem("input", 'addstmt' + suffix, "+", "addstmtb", "button");
         //TODO:change from hidden from based to javascript/object based
-        statements_str = "[]";
-        stmt_hidden = createElem("input", 'stmts' + suffix, statements_str, "addstmtb", "hidden");
+        statements = [];
+        //stmts":[{"var":130,"op":7,"const":-1}
+        if (ch_cur.rules && ch_cur.rules[condition_idx] && ch_cur.rules[condition_idx].stmts) {
+            for (j = 0; j < ch_cur.rules[condition_idx].stmts.length; j++) {
+                //  stmt_this = "[" + ch_cur.stmts[j]["var"] + ", " +  ch_cur.stmts[j]["var"]+ ", " + ch_cur.stmts[j]["const"] + ", ]";
+                stmt_cur = ch_cur.rules[condition_idx].stmts[j];
+                stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["const"]];
+                statements.push(stmt_this);
+            }
+        }
+        //  alert(JSON.stringify(statements));
+
+        stmt_hidden = createElem("input", 'stmts' + suffix, JSON.stringify(statements), "addstmtb", "hidden");
         //TODO: muuta evt-pohjaiseksi
-        //add_btn.addEventListener("click", addStmtEVT);
+        add_btn.addEventListener("click", addStmtEVT);
         ruled_div.appendChild(add_btn);
         ruled_div.appendChild(stmt_hidden);
         ruled_div.appendChild(createElem("div", null, null, "secbr"));
@@ -849,127 +878,23 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         //combine rulel_div
         rulel_div.insertAdjacentText('beforeend', "Target state:");
 
-        add_radiob_with_label(rulel_div, "ctrb" + suffix, 0, "DOWN", false); //TODO:checked
-        add_radiob_with_label(rulel_div, "ctrb" + suffix, 1, "UP", false); //TODO:checked
+        if (ch_cur.rules && ch_cur.rules[condition_idx] && ch_cur.rules[condition_idx].on)
+            rule_on = true;
+        else
+            rule_on = false;
+        add_radiob_with_label(rulel_div, "ctrb" + suffix, 0, "DOWN", !rule_on); //TODO:checked 
+        add_radiob_with_label(rulel_div, "ctrb" + suffix, 1, "UP", rule_on); //TODO:checked
 
+        //  snprintf(out, buff_len, "<div class='secbr'</div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
+
+        ruleh_div.appendChild(rulel_div);
         rule_div.appendChild(ruleh_div);
         rule_div.appendChild(ruled_div); //meniköhän oikeaan kohtaan
 
         rules_div.appendChild(rule_div);
     }
-
-
     envelope_div.appendChild(rules_div);
 }
-
-/*
-  snprintf(out, buff_len, "
-  <div class='secbr'> ruleh_div
-    <br><span class='big'>Rule %i: %s</span>
-  </div>
-  <div class='secbr indent'>
-    Target state: 
-    <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s>
-    <label for='ctrb%s_0'>DOWN</label>
-    <input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s>
-    <label for='ctrb%s_1'>UP</label>
-  </div>
-  ", condition_idx + 1
-  , s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : ""
-  , suffix
-  , suffix
-   !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : ""
-  , suffix
-  , suffix
-  , suffix
-  , s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
-
-
-
-
-    snprintf(out, 1800, "<div id='rd_%d'>", channel_idx); // div envelope for all channel rules
-    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
-    {
-
-      // strcpy(buff, "");
-      sprintf(buff, "<div id='ru_%d_%d'>", channel_idx, condition_idx); // open ru_X
-      strncat(out, buff, sizeof(out) - strlen(out) - 1);
-
-      strcpy(buffstmt2, "");
-
-      get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
-
-      strncat(out, buff, sizeof(out) - strlen(out) - 1);
-
-      int stmt_count = 0;
-      char floatbuff[20];
-      for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-      {
-        int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
-        int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
-        long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
-
-        vars.to_str(variable_id, floatbuff, true, const_val);
-
-        // TODO: alusta tai jotain
-        if (variable_id == -1 || oper_id == -1)
-          continue;
-
-        snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
-        stmt_count++;
-        strcat(buffstmt2, buffstmt);
-      }
-      // no name in stmts_ , copy later in js
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
-
-      strcat(out, buff);
-      strcat(out, "</div>"); // close ru_X
-    }
-
-    strcat(out, "</div>\n"); // rd_X div
-    strcat(out, "</div>");   // chdiv_
-    return out;
-  }
-*/
-
-
-/*
-void get_channel_config_fields(char *out, int channel_idx)
-{
-  char buff[200];
-  snprintf(buff, sizeof(buff), "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>", channel_idx, s.ch[channel_idx].id_str);
-  strcat(out, buff);
-
-  snprintf(buff, sizeof(buff), "<div class='fldtiny' id='d_uptimem_%d'></span>mininum up (s):</span><input name='ch_uptimem_%d'  type='text' value='%d'></div></div>", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
-  strcat(out, buff);
-
-  snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select id='chty_%d' name='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
-  strcat(out, buff);
-
-  bool is_gpio_channel;
-  for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPES; channel_type_idx++)
-  {
-    is_gpio_channel = (s.ch[channel_idx].gpio != 255);
-    if ((channel_type_idx == 1 && is_gpio_channel) || !(channel_type_idx == 1 || is_gpio_channel))
-    {
-      snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
-      strcat(out, buff);
-    }
-  }
-  strcat(out, "</select></div>\n");
-
-  //  radio-toolbar
-  snprintf(buff, sizeof(buff), "<div class='secbr'>\nRule mode:<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
-  strcat(out, buff);
-  snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
-  strcat(out, buff);
-
-  snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
-  strcat(out, buff);
-
-  Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
-}
-*/
 
 // dashboard or channel config (edit_mode)
 /* TODO 20.7.2022
@@ -991,9 +916,11 @@ function init_channel_elements(edit_mode = false) {
         success: function (data) {
             console.log('/export-config');
             $.each(data.ch, function (i, ch_cur) {
-                console.log(i, ch_cur);
-                if ((ch_cur.type == 0) && !edit_mode) //undefined type
+                console.log("init_channel_elements, loop:", i, ch_cur);
+                if ((ch_cur.type == 0) && !edit_mode) {//undefined type 
+                    console.log("Skipping channel " + i);
                     return;
+                }
 
                 chdiv = createElem("div", "chdiv_" + i, null, "hb");
                 chdiv_head = createElem("div", null, null, "secbr cht");
@@ -1193,6 +1120,7 @@ function initWifiForm() {
             wifi_sel.appendChild(opt);
         }
     });
+
     /*
         wifisp.forEach(wifi => {
             if (wifi.id) {
@@ -1202,6 +1130,7 @@ function initWifiForm() {
                 wifi_sel.appendChild(opt);
             }
         }); */
+
 }
 
 
