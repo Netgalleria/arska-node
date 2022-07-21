@@ -507,6 +507,7 @@ public:
   int get_variable_by_id(int id, variable_st *variable);
   void get_variable_by_idx(int idx, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
+  float const_to_float(int id, long const_in);
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0);
   int get_variable_count() { return VARIABLE_COUNT; };
 
@@ -585,7 +586,17 @@ long Variables::float_to_internal_l(int id, float val_float)
   }
   return -1;
 }
-
+// convert given value to float based on variables definition
+float Variables::const_to_float(int id, long const_in)
+{
+  variable_st var;
+  int idx = get_variable_by_id(id, &var);
+  if (var.type < 10)
+  {
+    return const_in / pow(10, var.type);
+  }
+  return -1;
+}
 int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val)
 {
   variable_st var;
@@ -3026,7 +3037,7 @@ String jscode_form_processor(const String &var)
     strcpy(out, "[");
     for (int i = 0; i < CHANNEL_TYPES; i++)
     {
-      snprintf(buff, 50, "\"%s\"",channel_type_strings[i]);
+      snprintf(buff, 50, "\"%s\"", channel_type_strings[i]);
       strcat(out, buff);
       if (i < CHANNEL_TYPES - 1)
         strcat(out, ", ");
@@ -3711,6 +3722,7 @@ void export_config(AsyncWebServerRequest *request)
   String output;
   char export_time[20];
   char floatbuff[20];
+  char stmt_buff[50];
   time_t current_time;
   time(&current_time);
   int active_condition_idx;
@@ -3769,7 +3781,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
     doc["ch"][channel_idx]["gpio"] = s.ch[channel_idx].gpio;
 
-   // conditions[condition_idx].condition_active
+    // conditions[condition_idx].condition_active
     active_condition_idx = -1;
     for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
     {
@@ -3783,13 +3795,21 @@ void export_config(AsyncWebServerRequest *request)
         //      if (s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id != -1)
         if (stmt->variable_id != -1 && stmt->oper_id != -1)
         {
-          stmt_count++;
-          //TODO maybe position based list to save space
+          vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
+          // TODO maybe position based list to save space
+          /*
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["var"] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["op"] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["const"] = stmt->const_val;
-          vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["cfloat"] = floatbuff;
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["cfloat"] = floatbuff; */
+
+          //snprintf(stmt_buff, sizeof(stmt_buff), "[%d, %d, %ld, %s]", stmt->variable_id, (int)stmt->oper_id, stmt->const_val, floatbuff);
+          // doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx] = stmt_buff;
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][0] = stmt->variable_id;
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][1] = stmt->oper_id;
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][2] = stmt->const_val;
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][3] = vars.const_to_float(stmt->variable_id, stmt->const_val);
+          stmt_count++;
         }
       }
       if (stmt_count > 0)
@@ -3797,7 +3817,6 @@ void export_config(AsyncWebServerRequest *request)
     }
     doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
   }
-  
 
   serializeJson(doc, output);
 
@@ -4646,7 +4665,7 @@ void setup()
   // server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
 
-   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
+  server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
   // TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");

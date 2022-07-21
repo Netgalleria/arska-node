@@ -864,7 +864,8 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         if (ch_cur.rules && ch_cur.rules[condition_idx] && ch_cur.rules[condition_idx].stmts) {
             for (j = 0; j < ch_cur.rules[condition_idx].stmts.length; j++) {
                 stmt_cur = ch_cur.rules[condition_idx].stmts[j];
-                stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["cfloat"]];
+               // stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["cfloat"]];
+                stmt_this = [stmt_cur[0], stmt_cur[1], stmt_cur[3]];
                 statements.push(stmt_this);
             }
         }
