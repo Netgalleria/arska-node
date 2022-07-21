@@ -3710,8 +3710,11 @@ void export_config(AsyncWebServerRequest *request)
 
   String output;
   char export_time[20];
+  char floatbuff[20];
   time_t current_time;
   time(&current_time);
+  int active_condition_idx;
+
   localtime_r(&current_time, &tm_struct);
   snprintf(export_time, 20, "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
   doc["export_time"] = export_time;
@@ -3750,7 +3753,6 @@ void export_config(AsyncWebServerRequest *request)
   doc["influx_org"] = s_influx.org;
   doc["influx_bucket"] = s_influx.bucket;
 #endif
-
   // JsonArray channel_array = doc.createNestedArray("channels");
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -3767,8 +3769,13 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
     doc["ch"][channel_idx]["gpio"] = s.ch[channel_idx].gpio;
 
+   // conditions[condition_idx].condition_active
+    active_condition_idx = -1;
     for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
     {
+      if (s.ch[channel_idx].conditions[rule_idx].condition_active)
+        active_condition_idx = rule_idx;
+
       int stmt_count = 0;
       for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
       {
@@ -3777,15 +3784,21 @@ void export_config(AsyncWebServerRequest *request)
         if (stmt->variable_id != -1 && stmt->oper_id != -1)
         {
           stmt_count++;
+          //TODO maybe position based list to save space
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["var"] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["op"] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["const"] = stmt->const_val;
+          vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["cfloat"] = floatbuff;
         }
       }
       if (stmt_count > 0)
         doc["ch"][channel_idx]["rules"][rule_idx]["on"] = s.ch[channel_idx].conditions[rule_idx].on;
     }
+    doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
   }
+  
+
   serializeJson(doc, output);
 
   // TODO: format parameter, file or ajax response
@@ -4633,6 +4646,8 @@ void setup()
   // server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
 
+   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
   // TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
 

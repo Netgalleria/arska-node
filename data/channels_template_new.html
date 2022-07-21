@@ -36,7 +36,7 @@
     </div>  
     %status_fields%
  
-    <form method="post" id="chFrm" onsubmit="return submitChannelForm(event)">
+    <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)">
         <input name="source" type="hidden" value="channels">
         <div id="chlist"></div>
         <br><input type="submit" value="Save">

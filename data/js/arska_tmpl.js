@@ -141,6 +141,7 @@ var submitChannelForm = function (e) {
         return false;
 
     // set name attributes to inputs to post (not coming from server to save space)
+    //TODO: in new UI model we could have names set by js element creation 
     let inputs = document.querySelectorAll("input[id^='t_'], input[id^='chty_']");
     for (let i = 0; i < inputs.length; i++) {
         if (inputs[i].id != inputs[i].name) {
@@ -165,14 +166,15 @@ var submitChannelForm = function (e) {
             // console.log("stmp element ", i);
             const divEl = stmtDivs[i];
             const fldA = divEl.id.split("_");
-            const var_val = parseInt(document.getElementById(divEl.id.replace("std", "var")).value);
-            const op_val = parseInt(document.getElementById(divEl.id.replace("std", "op")).value);
+            suffix = divEl.id.replace("std_", "_"); 
+            const var_val = parseInt(document.getElementById("var"+suffix).value);
+            const op_val = parseInt(document.getElementById("op"+suffix).value);
 
             if (var_val < 0 || op_val < 0)
                 continue; // no complete rule
 
             //todo decimal, test  that number valid
-            const const_val = parseFloat(document.getElementById(divEl.id.replace("std", "const")).value);
+            const const_val = parseFloat(document.getElementById("const"+suffix).value);
             saveStoreId = "stmts_" + fldA[1] + "_" + fldA[2];
 
             saveStoreEl = document.getElementById(saveStoreId);
@@ -184,7 +186,6 @@ var submitChannelForm = function (e) {
             saveStoreEl.value = JSON.stringify(stmt_list);
 
             saveStoreEl.name = saveStoreEl.id; // only fields with a name are posted 
-
         }
     }
 
@@ -276,8 +277,6 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
         addOption(varFld, variables[i][0], variables[i][1] + type_indi, (stmt[0] == variables[i][0]));
     }
 }
-
-
 
 
 //unused?
@@ -486,6 +485,7 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
     rule_mode = document.getElementById("mo_" + channel_idx + "_0").checked ? 0 : 1;
 
     document.getElementById(el.id.replace("op", "const")).value = stmt[2];
+    console.log("stmt[2]", stmt[2]);
 
     if (el.options.length == 0)
         addOption(el, -1, "select", (stmt[1] == -1));
@@ -528,6 +528,7 @@ function get_var_by_id(id) {
 // set variable in dropdown select
 function setVar(evt) {
     const el = evt.target;
+    suffix = el.id.replace("var_","_");
     const fldA = el.id.split("_");
     channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
@@ -535,18 +536,17 @@ function setVar(evt) {
     if (el.value > -1) { //variable selected
         // let var_this = variables[el.value];
         var_this = get_var_by_id(el.value);
-        populateOper(document.getElementById(el.id.replace("var", "op")), var_this);
+        populateOper(document.getElementById( "op"+suffix), var_this);
     }
     else if (el.value == -2) {
         // if (!document.getElementById("var_" + channel_idx + "_" + cond_idx + "_" + stmt_idx + 2) && stmt_idx>0) { //is last
         if (confirm("Delete condition")) {
             //viimeinen olisi hyvä jättää, jos poistaa välistä niin numerot frakmentoituu
-            var elem = document.getElementById(el.id.replace("var", "std"));
+            var elem = document.getElementById("var", "std"+suffix);
             elem.parentNode.removeChild(elem);
         }
         // }
     }
-
 }
 
 // operator select changed, show next statement fields if hidden
@@ -616,7 +616,6 @@ function fillStmtRules(channel_idx, rule_mode) {
         }
         prev_rule_var_defined = first_var_defined;
 
-        console.log("ru_" + channel_idx + "_" + cond_idx);
         document.getElementById("ru_" + channel_idx + "_" + cond_idx).style.display = (show_rule ? "block" : "none");
 
         if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
@@ -639,6 +638,7 @@ function initChannelForm() {
         setChannelFieldsByType(channel_idx, chtype);
     }
 
+    // set rule statements
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     console.log("stmts_s.length:" + stmts_s.length);
     for (let i = 0; i < stmts_s.length; i++) {
@@ -782,9 +782,9 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     conf_div.appendChild(id_div);
 
     //uptime
-    ut_div = createElem("div", null, null, "fldtiny");
+    ut_div = createElem("div", "d_uptimem_" + channel_idx, null, "fldtiny");
     ut_div.insertAdjacentText('beforeend', 'mininum up (s):');
-    inp_ut = createElem("input", "d_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
+    inp_ut = createElem("input", "ch_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
     inp_ut.name = "ch_uptimem_" + channel_idx;
     ut_div.appendChild(inp_ut);
     conf_div.appendChild(ut_div);
@@ -829,10 +829,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     conf_div.appendChild(rm_div); //paikka arvottu
 
     ce_div.appendChild(conf_div);
-
 }
-
-
 
 
 function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
@@ -848,8 +845,15 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         //TODO: match_text, get values from  config, own span/div for that so it could change whene match changes
         // match_text = s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : "";
         match_text = "";
-        ruleh_span.insertAdjacentText('beforeend', "Rule " + (condition_idx + 1) + ":" + match_text);
+        ruleh_span.insertAdjacentText('beforeend', "Rule " + (condition_idx + 1) + ":");
+        rule_status_span = createElem("span", "rss" + suffix, null, null);
+        if (ch_cur.active_condition_idx ==condition_idx) {
+            rule_status_span.style = 'color:green';
+            rule_status_span.insertAdjacentText('beforeend',"* NOW MATCHING *");
+        }
+        
         ruleh_div.appendChild(ruleh_span);
+        ruleh_div.appendChild(rule_status_span);
 
         rulel_div = createElem("div", null, null, "secbr indent");
 
@@ -857,19 +861,15 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         add_btn = createElem("input", 'addstmt' + suffix, "+", "addstmtb", "button");
         //TODO:change from hidden from based to javascript/object based
         statements = [];
-        //stmts":[{"var":130,"op":7,"const":-1}
         if (ch_cur.rules && ch_cur.rules[condition_idx] && ch_cur.rules[condition_idx].stmts) {
             for (j = 0; j < ch_cur.rules[condition_idx].stmts.length; j++) {
-                //  stmt_this = "[" + ch_cur.stmts[j]["var"] + ", " +  ch_cur.stmts[j]["var"]+ ", " + ch_cur.stmts[j]["const"] + ", ]";
                 stmt_cur = ch_cur.rules[condition_idx].stmts[j];
-                stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["const"]];
+                stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["cfloat"]];
                 statements.push(stmt_this);
             }
         }
-        //  alert(JSON.stringify(statements));
 
         stmt_hidden = createElem("input", 'stmts' + suffix, JSON.stringify(statements), "addstmtb", "hidden");
-        //TODO: muuta evt-pohjaiseksi
         add_btn.addEventListener("click", addStmtEVT);
         ruled_div.appendChild(add_btn);
         ruled_div.appendChild(stmt_hidden);
