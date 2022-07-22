@@ -65,6 +65,8 @@ char version_fs[35];
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
 
+#define DUAL_MODE_WIFI // experimental, if defined we have always AP_MODE enabled
+
 // TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
 #define VARIABLE_MODE_SOURCE 0
@@ -113,6 +115,10 @@ tm tm_struct;
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
 bool wifi_in_setup_mode = false;
+bool wifi_connection_succeeded = false;
+time_t last_wifi_connect_tried = 0;
+#define WIFI_RECONNECT_INTERVAL 300;
+bool clock_set = false; // true if we have get (more or less) correct time from net or rtc
 
 #define ERROR_MSG_LEN 100
 #define DEBUG_FILE_ENABLED
@@ -183,6 +189,10 @@ void check_forced_restart(bool reset_counter = false)
   // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
   if (!wifi_in_setup_mode) // only valid if backup ap mode (no normal wifi)
     return;
+
+#ifdef DUAL_MODE_WIFI // if wifi dual-mode active we do not restart, because sta-mode is retrying //TODO: validate
+  return;
+#endif
 
   time_t now_in_func;
   time(&now_in_func);
@@ -1113,6 +1123,7 @@ typedef struct
   byte type;
   time_t uptime_minimum;
   time_t toggle_last;
+  //time_t force_up_from
   time_t force_up_until; // TODO: we could have also force_up_from to enable scheduled start
   byte config_mode;      // CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
   int template_id;
@@ -2805,7 +2816,13 @@ void get_status_fields(char *out)
   */
   return;
 }
-
+/* new
+bool is_force_up_valid(int channel_idx) {
+  time_t now_in_func;
+  time(&now_in_func);
+  return ((s.ch[channel_idx].force_up_from > now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
+}
+*/
 //
 /**
  * @brief Returns channel basic info html for the forms
@@ -2815,6 +2832,7 @@ void get_status_fields(char *out)
  * @param show_force_up show dashboard fields
  */
 // TODO: Move  element creation logic to javascript in next UI restructuring
+//To be removed in the new UI model
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
   time_t now_in_func;
@@ -2861,12 +2879,11 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
         strcat(out, buff);
       }
     }
-
     strcat(out, "</div>\n");
   }
-
   return;
 }
+
 /**
  * @brief Template processor for the admin form
  *
@@ -3340,6 +3357,7 @@ bool set_channel_switch(int channel_idx, bool up)
 void update_relay_states()
 {
   time_t now_in_func;
+  bool forced_up;
   time(&now_in_func);
 
   // loop channels and check whether channel should be up
@@ -3348,18 +3366,19 @@ void update_relay_states()
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     {
       s.ch[channel_idx].wanna_be_up = false;
-
       continue;
     }
 
     // reset condition_active variable
     bool wait_minimum_uptime = ((now_in_func - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+    
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down
       s.ch[channel_idx].force_up_until = 0;
       wait_minimum_uptime = false;
     }
-    bool forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
+    forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
+   // forced_up = (is_force_up_valid(channel_idx));
 
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
@@ -3689,6 +3708,7 @@ void reset_config(bool reset_password)
     s.ch[channel_idx].gpio = channel_gpios[channel_idx];
     s.ch[channel_idx].type = (s.ch[channel_idx].gpio < 255) ? CH_TYPE_GPIO_ONOFF : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
+    //s.ch[channel_idx].force_up_from = 0;
     s.ch[channel_idx].force_up_until = 0;
     s.ch[channel_idx].config_mode = CHANNEL_CONFIG_MODE_RULE;
     s.ch[channel_idx].template_id = -1;
@@ -3776,6 +3796,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
     doc["ch"][channel_idx]["uptime_minimum"] = s.ch[channel_idx].uptime_minimum;
     doc["ch"][channel_idx]["toggle_last"] = s.ch[channel_idx].toggle_last;
+  //  doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
@@ -3803,8 +3824,8 @@ void export_config(AsyncWebServerRequest *request)
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["const"] = stmt->const_val;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["cfloat"] = floatbuff; */
 
-          //snprintf(stmt_buff, sizeof(stmt_buff), "[%d, %d, %ld, %s]", stmt->variable_id, (int)stmt->oper_id, stmt->const_val, floatbuff);
-          // doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx] = stmt_buff;
+          // snprintf(stmt_buff, sizeof(stmt_buff), "[%d, %d, %ld, %s]", stmt->variable_id, (int)stmt->oper_id, stmt->const_val, floatbuff);
+          //  doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx] = stmt_buff;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][0] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][1] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][2] = stmt->const_val;
@@ -3989,9 +4010,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
  */
 void onWebDashboardGet(AsyncWebServerRequest *request)
 {
-  /* if (wifi_in_setup_mode)
-     request->redirect("/admin");
-   else*/
+ 
   if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
   {
     Serial.println("DEBUG: onWebDashboardGet redirect /admin");
@@ -4083,12 +4102,25 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   bool forced_up_changes = false;
   bool channel_already_forced;
   long forced_up_hours;
+  time_t force_up_from;
+  char ch_fld[15];
   for (int i = 0; i < params; i++)
   {
     AsyncWebParameter *p = request->getParam(i);
     if (p->isPost() && p->name().startsWith("fup_"))
     {
       channel_idx = p->name().substring(4, 5).toInt();
+
+/*    new 
+      channel_already_forced = is_force_up_valid(channel_idx);
+      snprintf(ch_fld, sizeof(ch_fld), "fupfrom_%d", i);
+      if (request->hasParam(ch_fld, true)) {
+        force_up_from = max(now,request->getParam("ch_fld")->value().toInt()); //absolute unix ts is waited
+      }
+      else
+        force_up_from = now;
+*/
+
       channel_already_forced = (s.ch[channel_idx].force_up_until > now);
       forced_up_hours = p->value().toInt();
       Serial.printf("channel_idx: %d, forced_up_hours: %ld \n", channel_idx, forced_up_hours);
@@ -4098,11 +4130,18 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
       { // there are changes
         if (forced_up_hours > 0)
         {
+          /* new
+          s.ch[channel_idx].force_up_from = force_up_from;
+          s.ch[channel_idx].force_up_until = force_up_from + forced_up_hours * 3600 - 1;
+          if (is_force_up_valid(channel_idx))
+             s.ch[channel_idx].wanna_be_up = true;
+          */
           s.ch[channel_idx].force_up_until = now + forced_up_hours * 3600 - 1;
           s.ch[channel_idx].wanna_be_up = true;
         }
         else
         {
+        //  s.ch[channel_idx].force_up_from = -1; // forced down
           s.ch[channel_idx].force_up_until = -1; // forced down
           s.ch[channel_idx].wanna_be_up = false;
         }
@@ -4456,6 +4495,37 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   serializeJson(doc, output);
   request->send(200, "application/json", output);
 }
+/**
+ * @brief Reports (acts on) changing wifi states
+ *
+ * @param event
+ */
+void wifi_event_handler(WiFiEvent_t event)
+{
+ // Serial.printf("[WiFi-event] event: %d\n", event);
+  switch (event)
+  {
+  case SYSTEM_EVENT_STA_CONNECTED:
+    wifi_connection_succeeded = true;
+    Serial.println(F("Connected to WiFi Network"));
+    break;
+  case SYSTEM_EVENT_STA_DISCONNECTED:
+    wifi_connection_succeeded = false;
+    Serial.println(F("Disconnected from WiFi Network"));
+    break;
+  case SYSTEM_EVENT_AP_START:
+    Serial.println(F("ESP soft AP started"));
+    break;
+  case SYSTEM_EVENT_AP_STACONNECTED:
+    Serial.println(F("Station connected to ESP soft AP"));
+    break;
+  case SYSTEM_EVENT_AP_STADISCONNECTED:
+    Serial.println(F("Station disconnected from ESP soft AP"));
+    break;
+  default:
+    break;
+  }
+}
 
 /**
  * @brief Arduino framwork function.  Everything starts from here while starting the controller.
@@ -4465,6 +4535,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 void setup()
 {
   time_t now_infunc;
+  bool create_wifi_ap = false;
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
@@ -4519,8 +4590,14 @@ void setup()
       }
     }*/
   Serial.println("Starting wifi");
-
+#ifdef DUAL_MODE_WIFI
+  WiFi.onEvent(wifi_event_handler);
+  WiFi.mode(WIFI_AP_STA);
+  create_wifi_ap = true;
+#else // if DUAL_MODE_WIFI works ok, this branch could be removed
   WiFi.mode(WIFI_STA);
+#endif
+
   Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
   if (strlen(s.wifi_ssid) == 0)
   {
@@ -4533,18 +4610,19 @@ void setup()
   if (WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
   {
     Serial.println(F("WiFi Failed!"));
+#ifndef DUAL_MODE_WIFI
     WiFi.disconnect();
-
     delay(3000);
-
-    scan_and_store_wifis(true);
-
     wifi_in_setup_mode = true;
+    create_wifi_ap = true;
+#endif
+    scan_and_store_wifis(true);
     check_forced_restart(true); // schedule restart
   }
   else
   {
     Serial.printf(PSTR("Connected to wifi [%s] with IP Address:"), s.wifi_ssid);
+    wifi_connection_succeeded = true;
     Serial.println(WiFi.localIP());
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
@@ -4555,13 +4633,15 @@ void setup()
       scan_and_store_wifis(false);
     }
   }
-
-  if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
-  {                       // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-    delay(200);
-    WiFi.mode(WIFI_OFF);
-    delay(1000);
-    WiFi.mode(WIFI_AP);
+#ifndef DUAL_MODE_WIFI
+  delay(200);
+  WiFi.mode(WIFI_OFF);
+  delay(1000);
+  WiFi.mode(WIFI_AP);
+#endif
+  // if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
+  if (create_wifi_ap)
+  { // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
     // create ap-mode ssid for config wifi
     String mac = WiFi.macAddress();
     for (int i = 14; i > 0; i -= 3)
@@ -4728,8 +4808,11 @@ void setup()
       setenv("TZ", timezone_info, 1);
       Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
       tzset();
+      clock_set = true;
     }
   }
+  clock_set = (time(nullptr) > ACCEPTED_TIMESTAMP_MINIMUM);
+
 #elif defined(ESP8266)
   // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
   // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
@@ -4825,6 +4908,8 @@ void loop()
     }
   }
 
+
+
 #ifdef DEBUG_MODE
   // test gpio, started from admin UI
   if (todo_in_loop_test_gpio)
@@ -4890,6 +4975,15 @@ void loop()
     log_msg(MSG_TYPE_INFO, PSTR("Started processing"), true);
   }
 
+
+#ifdef WIFI_DUAL_MODE
+// update period info
+  time(&now);
+  if ((now-last_wifi_connect_tried) >last_wifi_connect_tried) { //actually if wifi-reconnect and persistent, this should not be needed if cfredential are ok?
+    wifi_connection_succeeded = (WiFi.waitForConnectResult(30000) == WL_CONNECTED);
+    last_wifi_connect_tried = now;
+  }
+#else //OLD way, could be removed if DUAL mode works
   // just in case check the wifi and reconnect/restart if neede
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
@@ -4908,6 +5002,7 @@ void loop()
       ESP.restart(); // boot if cannot recover wifi in time
     }
   }
+#endif
 
   // update period info
   time(&now);
