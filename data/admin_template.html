@@ -25,15 +25,15 @@
             <div class="indent">
                 <div class="fld">
                     <div>Wifi ssid</div>
-                    
+
                     <input id="wifi_ssid_db" type="hidden" value="%wifi_ssid%">
-                    <div  class="fldh"><select name='wifi_ssid' id='wifi_ssid'>
+                    <div class="fldh"><select name='wifi_ssid' id='wifi_ssid'>
                             <option value="NA">Select WiFi</option>
                         </select>
 
                     </div>
                     <div class="fld">
-                        <div >Wifi password</div>
+                        <div>Wifi password</div>
                         <div class="fldh"><input name="wifi_password" type="password" value="%wifi_password%"></div>
                     </div>
                 </div>
@@ -98,26 +98,28 @@
             <button id="act_reboot" class="actBtn" onclick="return doAction('reboot')">Restart</button>
             <button id="act_reset" class="actBtn" onclick="return doAction('reset')">Reset settings</button>
             <h4>Backup and restore</h4>
-            <form id="file_form" method="POST" action="/upload-config" enctype="multipart/form-data"></form>
-            <a id="act_backup_config" class="actBtn" href="/export-config?format=file">Backup configuration</a>
-            <input type="button" class="actBtn" id="loadfile" value="Restore configuration"
-                onclick="document.getElementById('file_upload').click();" />
-            <input type="file" style="display:none;" id="file_upload" name="file"
-                onchange="document.getElementById('file_form').submit();" />
+            <form id="file_form" method="POST" action="/upload-config" enctype="multipart/form-data">
+                <a id="act_backup_config" class="actBtn" href="/export-config?format=file">Backup configuration</a>
+                <input type="button" class="actBtn" id="loadfile" value="Restore configuration"
+                    onclick="document.getElementById('file_upload').click();" />
+                <input type="file" style="display:none;" id="file_upload" name="file"
+                    onchange="document.getElementById('file_form').submit();" />
             </form>
         </div>
     </div>
     <div class="secbr" id="footerdiv">
-    </div><svg> <symbol id="arskalogo"">
-        <text xml:space="preserve" id="text1904" fill="#f3f300"
+    </div><svg>
+        <symbol id="arskalogo"">
+        <text xml:space=" preserve" id="text1904" fill="#f3f300"
             style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:22.5778px;font-family:'Myriad Pro';stroke-width:0.264583"
             x="1" y="22.84">arska</text>
-        <path style="opacity:1;fill:#f3f300;fill-opacity:1;stroke:#f3f300;stroke-width:2.05828"
-            d="M 0,29.15 66.4,29.36" id="path68229" />
-        <circle
-            style="fill:#f3f300;fill-opacity:1;stroke:#000000;stroke-width:0.0;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0"
-            id="path69265" cx="60.4" cy="7.257835" r="3" />
-</symbol></svg>
+            <path style="opacity:1;fill:#f3f300;fill-opacity:1;stroke:#f3f300;stroke-width:2.05828"
+                d="M 0,29.15 66.4,29.36" id="path68229" />
+            <circle
+                style="fill:#f3f300;fill-opacity:1;stroke:#000000;stroke-width:0.0;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0"
+                id="path69265" cx="60.4" cy="7.257835" r="3" />
+        </symbol>
+    </svg>
 </body>
 
 </html>

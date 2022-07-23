@@ -51,6 +51,16 @@ function link_to_wiki(article_name) {
     return '<a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/' + article_name + '">ℹ</a>';
 }
 
+function get_date_string_from_ts(ts) {
+    tmpDate = new Date(ts * 1000);
+    return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
+}
+
+function get_time_string_from_ts(ts) {
+    tmpDate = new Date(ts * 1000);
+    tmpStr = tmpDate.toLocaleTimeString()
+    return tmpStr;
+}
 
 // update variables and channels statuses to channels form
 function updateStatus(show_variables = true) {
@@ -59,10 +69,10 @@ function updateStatus(show_variables = true) {
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
             if (data.last_msg_ts > getCookie("msg_read")) {
-                msgDate = new Date(data.last_msg_ts * 1000);
-                msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
-                //last_msg_type,msgDate.toLocaleDateString() 
-                msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + msgDate.toLocaleTimeString() + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
+                //msgDate = new Date(data.last_msg_ts * 1000);
+                //msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
+                msgDateStr = get_date_string_from_ts(data.last_msg_ts);
+                msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
             }
         }
         if (keyfd) {
@@ -166,15 +176,15 @@ var submitChannelForm = function (e) {
             // console.log("stmp element ", i);
             const divEl = stmtDivs[i];
             const fldA = divEl.id.split("_");
-            suffix = divEl.id.replace("std_", "_"); 
-            const var_val = parseInt(document.getElementById("var"+suffix).value);
-            const op_val = parseInt(document.getElementById("op"+suffix).value);
+            suffix = divEl.id.replace("std_", "_");
+            const var_val = parseInt(document.getElementById("var" + suffix).value);
+            const op_val = parseInt(document.getElementById("op" + suffix).value);
 
             if (var_val < 0 || op_val < 0)
                 continue; // no complete rule
 
             //todo decimal, test  that number valid
-            const const_val = parseFloat(document.getElementById("const"+suffix).value);
+            const const_val = parseFloat(document.getElementById("const" + suffix).value);
             saveStoreId = "stmts_" + fldA[1] + "_" + fldA[2];
 
             saveStoreEl = document.getElementById(saveStoreId);
@@ -446,8 +456,10 @@ function deleteStmtsUI(channel_idx) {
 
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
-        document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
-        document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
+        if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1"))
+            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
+        if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0"))
+            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;
     }
 }
 
@@ -460,7 +472,10 @@ function setRuleModeEVT(evt) {
 function setRuleMode(channel_idx, rule_mode, reset, template_id) {
     if (rule_mode == 1 || true) {
         templateSelEl = document.getElementById("rts_" + channel_idx);
-        populateTemplateSel(templateSelEl, template_id);
+        if (document.getElementById("rts_" + channel_idx))
+            populateTemplateSel(templateSelEl, template_id);
+        else
+            console.log("Cannot find element:", "rts_" + channel_idx);
     }
 
     //  console.log("New rule mode:", rule_mode);
@@ -528,7 +543,7 @@ function get_var_by_id(id) {
 // set variable in dropdown select
 function setVar(evt) {
     const el = evt.target;
-    suffix = el.id.replace("var_","_");
+    suffix = el.id.replace("var_", "_");
     const fldA = el.id.split("_");
     channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
@@ -536,13 +551,13 @@ function setVar(evt) {
     if (el.value > -1) { //variable selected
         // let var_this = variables[el.value];
         var_this = get_var_by_id(el.value);
-        populateOper(document.getElementById( "op"+suffix), var_this);
+        populateOper(document.getElementById("op" + suffix), var_this);
     }
     else if (el.value == -2) {
         // if (!document.getElementById("var_" + channel_idx + "_" + cond_idx + "_" + stmt_idx + 2) && stmt_idx>0) { //is last
         if (confirm("Delete condition")) {
             //viimeinen olisi hyvä jättää, jos poistaa välistä niin numerot frakmentoituu
-            var elem = document.getElementById("var", "std"+suffix);
+            var elem = document.getElementById("var", "std" + suffix);
             elem.parentNode.removeChild(elem);
         }
         // }
@@ -634,8 +649,11 @@ function initChannelForm() {
         //ch_t_%d_1
         console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
         //TODO: fix if more types coming
-        chtype = document.getElementById('chty_' + channel_idx).value;
-        setChannelFieldsByType(channel_idx, chtype);
+        if (document.getElementById('chty_' + channel_idx)) {
+            chtype = document.getElementById('chty_' + channel_idx).value;
+            setChannelFieldsByType(channel_idx, chtype);
+        }
+
     }
 
     // set rule statements
@@ -847,11 +865,11 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         match_text = "";
         ruleh_span.insertAdjacentText('beforeend', "Rule " + (condition_idx + 1) + ":");
         rule_status_span = createElem("span", "rss" + suffix, null, null);
-        if (ch_cur.active_condition_idx ==condition_idx) {
+        if (ch_cur.active_condition_idx == condition_idx) {
             rule_status_span.style = 'color:green';
-            rule_status_span.insertAdjacentText('beforeend',"* NOW MATCHING *");
+            rule_status_span.insertAdjacentText('beforeend', "* NOW MATCHING *");
         }
-        
+
         ruleh_div.appendChild(ruleh_span);
         ruleh_div.appendChild(rule_status_span);
 
@@ -864,7 +882,7 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         if (ch_cur.rules && ch_cur.rules[condition_idx] && ch_cur.rules[condition_idx].stmts) {
             for (j = 0; j < ch_cur.rules[condition_idx].stmts.length; j++) {
                 stmt_cur = ch_cur.rules[condition_idx].stmts[j];
-               // stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["cfloat"]];
+                // stmt_this = [stmt_cur["var"], stmt_cur["op"], stmt_cur["cfloat"]];
                 stmt_this = [stmt_cur[0], stmt_cur[1], stmt_cur[3]];
                 statements.push(stmt_this);
             }
@@ -974,6 +992,23 @@ function init_channel_elements(edit_mode = false) {
                             create_force_up_elements(i, -1, fu_div, true, label);
                         }
                     }
+                    
+                    //dropdown, TODO: recalculate when new hour 
+                    sel_fup_from = createElem("select", "fupfrom_" + i, null, null, null);
+                    sel_fup_from.name = "fupfrom_" + i;
+                    
+                    //TODO: price and so on
+                    first_next_hour = parseInt(((Date.now() / 1000) + 3599) / 3600) * 3600;
+                    start_ts = first_next_hour;
+                    addOption(sel_fup_from, 0, "now", true);
+                    for (k = 0; k < 24; k++) {
+                        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> ", false);
+                        console.log("option", get_time_string_from_ts(start_ts).substring(0, 5));
+                        start_ts += 3600;
+                    }
+                    chdiv.appendChild(sel_fup_from);
+
+                    fu_div.insertAdjacentHTML('beforeend',"<br><span>Scheduled:" + get_date_string_from_ts(ch_cur.force_up_from) +" " +get_date_string_from_ts(ch_cur.force_up_until)+"</span>");
                     chdiv.appendChild(fu_div);
                 }
                 if (edit_mode) {
@@ -988,6 +1023,7 @@ function init_channel_elements(edit_mode = false) {
     });
 
 }
+
 //
 function initForm(url) {
     initUrlBar(url);
