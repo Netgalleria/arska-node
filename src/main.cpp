@@ -2828,6 +2828,24 @@ bool is_force_up_valid(int channel_idx)
   Serial.println(is_valid);
   return is_valid;
 }
+int active_condition(int channel_idx)
+{
+  for (int i = 0; i < CHANNEL_CONDITIONS_MAX; i++)
+  {
+    if (s.ch[channel_idx].conditions[i].condition_active)
+      return i;
+  }
+  return -1;
+}
+/*
+typedef struct
+{
+  statement_st statements[RULE_STATEMENTS_MAX];
+  float target_val;
+  bool on;
+  bool condition_active; // for showing if the condition is currently active, for tracing
+}
+*/
 
 //
 /**
@@ -3822,19 +3840,10 @@ void export_config(AsyncWebServerRequest *request)
       for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
       {
         statement_st *stmt = &s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx];
-        //      if (s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id != -1)
         if (stmt->variable_id != -1 && stmt->oper_id != -1)
         {
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
-          // TODO maybe position based list to save space
-          /*
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["var"] = stmt->variable_id;
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["op"] = stmt->oper_id;
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["const"] = stmt->const_val;
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx]["cfloat"] = floatbuff; */
 
-          // snprintf(stmt_buff, sizeof(stmt_buff), "[%d, %d, %ld, %s]", stmt->variable_id, (int)stmt->oper_id, stmt->const_val, floatbuff);
-          //  doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_idx] = stmt_buff;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][0] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][1] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][2] = stmt->const_val;
@@ -4121,9 +4130,9 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   time(&now);
   int params = request->params();
   int channel_idx;
-  bool forced_up_changes = false;
+  bool force_up_changes = false;
   bool channel_already_forced;
-  long forced_up_minutes;
+  long force_up_minutes;
   time_t force_up_from;
   time_t force_up_until;
   char from_fld[15];
@@ -4143,32 +4152,31 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
       else
         force_up_from = max(now, request->getParam(from_fld, true)->value().toInt()); // absolute unix ts is waited
 
-      forced_up_minutes = request->getParam(duration_fld, true)->value().toInt();
+      force_up_minutes = request->getParam(duration_fld, true)->value().toInt();
 
-      Serial.printf("channel_idx: %d, forced_up_minutes: %ld , force_up_from %ld\n", channel_idx, forced_up_minutes, force_up_from);
+      Serial.printf("channel_idx: %d, force_up_minutes: %ld , force_up_from %ld\n", channel_idx, force_up_minutes, force_up_from);
 
-    // if ((forced_up_minutes != -1) && (channel_already_forced || forced_up_minutes > 0))
-       
-        if (forced_up_minutes > 0)
-        {
-          force_up_until = force_up_from + forced_up_minutes * 60; //-1;
-          s.ch[channel_idx].force_up_from = force_up_from;
-          s.ch[channel_idx].force_up_until = force_up_until;
-          if (is_force_up_valid(channel_idx))
-            s.ch[channel_idx].wanna_be_up = true;
-        }
-        else
-        {
-          s.ch[channel_idx].force_up_from = -1;  // forced down
-          s.ch[channel_idx].force_up_until = -1; // forced down
-          s.ch[channel_idx].wanna_be_up = false;
-        }
-        forced_up_changes = true;
-      
+      // if ((force_up_minutes != -1) && (channel_already_forced || force_up_minutes > 0))
+
+      if (force_up_minutes > 0)
+      {
+        force_up_until = force_up_from + force_up_minutes * 60; //-1;
+        s.ch[channel_idx].force_up_from = force_up_from;
+        s.ch[channel_idx].force_up_until = force_up_until;
+        if (is_force_up_valid(channel_idx))
+          s.ch[channel_idx].wanna_be_up = true;
+      }
+      else
+      {
+        s.ch[channel_idx].force_up_from = -1;  // forced down
+        s.ch[channel_idx].force_up_until = -1; // forced down
+        s.ch[channel_idx].wanna_be_up = false;
+      }
+      force_up_changes = true;
     }
   }
-  
-  if (forced_up_changes)
+
+  if (force_up_changes)
   {
     todo_in_loop_set_relays = true;
     writeToEEPROM();
@@ -4461,7 +4469,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   {
     return request->requestAuthentication();
   }
-  StaticJsonDocument<1000> doc; //
+  StaticJsonDocument<2048> doc; //
   String output;
 
   JsonObject var_obj = doc.createNestedObject("variables");
@@ -4495,11 +4503,20 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     vars.to_str(variable.id, buff_value, false);
     var_obj[id_str] = buff_value;
   }
+  /*
+    JsonArray channel_array = doc.createNestedArray("channels");
+    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+    {
+      channel_array.add(s.ch[channel_idx].is_up);
+    } */
 
-  JsonArray channel_array = doc.createNestedArray("channels");
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    channel_array.add(s.ch[channel_idx].is_up);
+    doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
+    doc["ch"][channel_idx]["active_condition"] = active_condition(channel_idx);
+    doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
+    doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
+    doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
   }
 
   time_t current_time;

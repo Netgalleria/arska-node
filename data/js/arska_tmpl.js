@@ -57,14 +57,17 @@ function get_date_string_from_ts(ts) {
 }
 
 function get_time_string_from_ts(ts, show_day_diff = false) {
+   // console.log("get_time_string_from_ts",ts)
     tmpDate = new Date(ts * 1000);
     tmpStr = tmpDate.toLocaleTimeString();
     if (show_day_diff) {
         tz_offset_minutes = tmpDate.getTimezoneOffset();
-        now_ts_loc = (Date.now() / 1000) + tz_offset_minutes;
-        ts_loc = ts + tz_offset_minutes;
+      //  console.log("tz_offset_minutes",tz_offset_minutes);
+        now_ts_loc = (Date.now() / 1000) - tz_offset_minutes*60;
+        ts_loc = ts - tz_offset_minutes*60;
         now_day = parseInt(now_ts_loc / 86400);
         ts_day = parseInt(ts_loc / 86400);
+        
         day_diff = ts_day - now_day;
         if (day_diff != 0)
             tmpStr += " (" + ((day_diff > 0) ? "+" : "") + (day_diff) + ")";
@@ -128,8 +131,8 @@ function updateStatus(show_variables = true) {
             });
             $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
         }
-        $.each(data.channels, function (i, channel_status) {
-            show_channel_status(i, channel_status)
+        $.each(data.ch, function (i, ch) {
+            show_channel_status(i, ch)
         });
     });
     //  if (document.getElementById('statusauto').checked) {
@@ -137,16 +140,43 @@ function updateStatus(show_variables = true) {
     //  }
 }
 
-
+/*
 function show_channel_status(channel_idx, is_up) {
     status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
     href = is_up ? "#green" : "#red";
     if (status_el)
         status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
-
-    // snprintf(buff2,90,  "<svg viewBox='0 0 100 100' style='height:3em;'><use href='%s' id='status_%d'/></svg>",s.ch[channel_idx].is_up ? "#green" : "#red",channel_idx);
 }
+*/
 
+function show_channel_status(channel_idx, ch) {
+    now_ts = Date.now() / 1000;
+   // console.log(channel_idx,ch);
+    status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
+    href = ch.is_up ? "#green" : "#red";
+    if (status_el)
+        status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
+
+    info_text = "";
+    if ((ch.active_condition > -1) && !ch.forced_up && ch.is_up)
+        info_text += "Up based on the rule " + (ch.active_condition + 1) + ". ";
+    else if (ch.forced_up && ch.is_up)
+        info_text += "Up based on the manual schedule: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true) + ". ";
+
+    if (ch.force_up_from > now_ts) {
+        if (info_text)
+            info_text += "<br>";
+        info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true);
+    }
+
+    chdiv_info = document.getElementById("chdinfo_" + channel_idx);
+   // chdiv_info.insertAdjacentHTML('beforeend', "<br><span>" + info_text + "</span>");
+    if (chdiv_info)
+        chdiv_info.innerHTML = "<br><span>" + info_text + "</span>";
+    else
+        console.log("no div with id "+"chdinfo_" + channel_idx);
+
+}
 // before submitting input admin form
 var submitInputsForm = function (e) {
     if (!confirm("Save and restart."))
@@ -224,7 +254,7 @@ var submitChannelForm = function (e) {
 
             if (prev_channel_idx != channel_idx) {
                 if (channel_rules.length > 0) {
-                    console.log("channel_idx:" + prev_channel_idx);
+                //    console.log("channel_idx:" + prev_channel_idx);
                     // console.table(channel_rules);      
                     console.log(JSON.stringify(channel_rules));
                 }
@@ -778,9 +808,13 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     //dropdown, TODO: recalculate when new hour 
     sel_fup_from = document.getElementById("fupfrom_" + channel_idx);
     if (!sel_fup_from) {
-        sel_fup_from = createElem("select", "fupfrom_" + channel_idx, null, "schedsel", null);
+        chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
+        sdiv = createElem("div", null, null, "schedsel", null);
+        sel_fup_from = createElem("select", "fupfrom_" + channel_idx, null, null, null);
         sel_fup_from.name = "fupfrom_" + channel_idx;
-        chdiv.appendChild(sel_fup_from);
+        sdiv.insertAdjacentHTML('beforeend', 'time:<br>');
+        sdiv.appendChild(sel_fup_from);
+        chdiv_sched.appendChild(sdiv);
     }
 
     //TODO: price and so on
@@ -795,12 +829,11 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     first_next_hour_ts = parseInt(((Date.now() / 1000)) / 3600) * 3600 + 3600;
     start_ts = first_next_hour_ts;
 
-    
-   //
-    addOption(sel_fup_from, 0, "now ->", (duration_selected>0));
+    //
+    addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
     for (k = 0; k < 24; k++) {
-      
-        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, true).substring(0, 5),   (current_start_ts == start_ts));
+
+        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, true).substring(0, 5), (current_start_ts == start_ts));
         start_ts += 3600;
     }
 }
@@ -811,24 +844,29 @@ function duration_changed(evt) {
 }
 
 function update_fup_duration_element(channel_idx, selected_duration_min = 60) {
-    ch_div = document.getElementById("chdiv_" + channel_idx);
+    chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
+
     fups_sel = document.getElementById("fups_" + channel_idx);
     fups_val_prev = -1;
     if (fups_sel) {
         fups_val_prev = fups_sel.value;
     }
     else {
-        fups_sel = createElem("select", "fups_" + channel_idx, null,"durationsel", null);
+        sdiv = createElem("div", null, null,"durationsel", null);
+        fups_sel = createElem("select", "fups_" + channel_idx, null, null, null);
         fups_sel.name = "fups_" + channel_idx;
         fups_sel.addEventListener("change", duration_changed);
 
-        addOption(fups_sel, 0, "no schedule",true); //check checked
+        addOption(fups_sel, 0, "no schedule", true); //check checked
         for (i = 0; i < force_up_mins.length; i++) {
             min_cur = force_up_mins[i];
             duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
             addOption(fups_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
         }
-        ch_div.appendChild(fups_sel);
+        sdiv.insertAdjacentHTML('beforeend', 'duration:<br>');
+        sdiv.appendChild(fups_sel);
+        chdiv_sched.appendChild(sdiv);
+
     }
     // now initiate value
 }
@@ -1021,6 +1059,8 @@ function init_channel_elements(edit_mode = false) {
 
                 chdiv = createElem("div", "chdiv_" + i, null, "hb");
                 chdiv_head = createElem("div", null, null, "secbr cht");
+                chdiv_sched = createElem("div", "chdsched_" + i,null, "secbr", null);
+                chdiv_info = createElem("div", "chdinfo_" + i, null,"secbr", null);
 
                 var svg = document.createElementNS(svgns, "svg");
 
@@ -1043,6 +1083,10 @@ function init_channel_elements(edit_mode = false) {
 
                 chdiv_head.appendChild(span);
                 chdiv.appendChild(chdiv_head);
+                chdiv.appendChild(chdiv_sched);
+                chdiv.appendChild(chdiv_info);
+
+
                 chlist.appendChild(chdiv);
 
                 //var date = new Date(UNIX_Timestamp * 1000);
@@ -1050,7 +1094,7 @@ function init_channel_elements(edit_mode = false) {
                 now_ts = Date.now() / 1000;
 
                 if (!edit_mode) { // is dashboard
-                    fu_div = createElem("div", null, null, "secbr radio-toolbar");
+                    // fu_div = createElem("div", null, null, "secbr radio-toolbar");
                     //Set channel up for next:<br>
                     current_duration_minute = 0;
                     current_start_ts = 0;
@@ -1067,7 +1111,7 @@ function init_channel_elements(edit_mode = false) {
                     for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
                         hour_cur = force_up_hours[hour_idx];
 
-                      //  create_force_up_elements(i, force_up_hours[hour_idx], fu_div,(!has_forced_setting && hour_idx == 0));
+                        //  create_force_up_elements(i, force_up_hours[hour_idx], fu_div,(!has_forced_setting && hour_idx == 0));
 
                         //      console.log(ch_cur.force_up_until, now_ts, hour_cur, force_up_hours[hour_idx + 1]);
 
@@ -1086,18 +1130,11 @@ function init_channel_elements(edit_mode = false) {
                     update_fup_duration_element(i, current_duration_minute);
                     update_fup_schedule_element(i, current_start_ts);
                     // schedule button
-                  //  sched_btn = createElem("input", 'sched_' + i, " + ", "addstmtb", "button");
-                  //  chdiv.appendChild(sched_btn);
+                    //  sched_btn = createElem("input", 'sched_' + i, " + ", "addstmtb", "button");
+                    //  chdiv.appendChild(sched_btn);
 
-
-                    if (ch_cur.force_up_until > now_ts)
-                        scheduled_text = "Scheduled: " + get_time_string_from_ts(ch_cur.force_up_from, true) + " --> " + get_time_string_from_ts(ch_cur.force_up_until, true);
-                    else
-                        scheduled_text = "Not scheduled";
-
-                    fu_div.insertAdjacentHTML('beforeend', "<br><span>" + scheduled_text + "</span>");
                     //TODO: schedule div: info span + button (style display
-                    chdiv.appendChild(fu_div);
+                    // chdiv.appendChild(chdiv_info);
                 }
                 if (edit_mode) {
                     create_channel_config_elements(chdiv, i, ch_cur);
@@ -1119,7 +1156,7 @@ function initWifiForm() {
     }
     wifisp = JSON.parse(wifis);
 
-    
+
     wifisp.sort(compare_wifis);
     var wifi_sel = document.getElementById("wifi_ssid");
     var wifi_ssid_db = document.getElementById("wifi_ssid_db");

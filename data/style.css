@@ -131,12 +131,19 @@ h3 {
     float: left;
     width:fit-content;
 }
-.indent,#addstmtb,.durationsel {
+.indent,#addstmtb {
     margin-left:2em;
     clear:left;
 }
+.durationsel {
+    margin-left:2em;
+    clear:left;
+    float:left;
+}
 .schedsel {
     margin-left:1em;
+    float:left;
+    clear:right;
 }
 .divstament {
     clear: both;
