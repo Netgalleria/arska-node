@@ -1629,13 +1629,13 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
   {
     netEnergyInPeriod = (shelly3em_e_in - shelly3em_e_out - shelly3em_e_in_prev + shelly3em_e_out_prev);
 #ifdef DEBUG_MODE
-  //  Serial.printf("get_values_shelly3m netEnergyInPeriod (%.1f) = (shelly3em_e_in (%.1f) - shelly3em_e_out (%.1f) - shelly3em_e_in_prev (%.1f) + shelly3em_e_out_prev (%.1f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
+    //  Serial.printf("get_values_shelly3m netEnergyInPeriod (%.1f) = (shelly3em_e_in (%.1f) - shelly3em_e_out (%.1f) - shelly3em_e_in_prev (%.1f) + shelly3em_e_out_prev (%.1f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
 #endif
     if ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts) != 0)
     {
       netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts)));
 #ifdef DEBUG_MODE
-    //  Serial.printf("get_values_shelly3m netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts, (shelly3em_meter_read_ts - shelly3em_last_period_last_ts));
+      //  Serial.printf("get_values_shelly3m netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts, (shelly3em_meter_read_ts - shelly3em_last_period_last_ts));
 #endif
     }
     else // Do we ever get here with counter check
@@ -2817,11 +2817,12 @@ void get_status_fields(char *out)
   return;
 }
 
-//new force_up_from   
-bool is_force_up_valid(int channel_idx) {
+// new force_up_from
+bool is_force_up_valid(int channel_idx)
+{
   time_t now_in_func;
   time(&now_in_func);
-  Serial.printf("force_up_from %ld < %ld < %ld , onko",s.ch[channel_idx].force_up_from,now_in_func,s.ch[channel_idx].force_up_until);
+  Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
 
   bool is_valid = ((s.ch[channel_idx].force_up_from < now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
   Serial.println(is_valid);
@@ -2837,7 +2838,7 @@ bool is_force_up_valid(int channel_idx) {
  * @param show_force_up show dashboard fields
  */
 // TODO: Move  element creation logic to javascript in next UI restructuring
-//To be removed in the new UI model
+// To be removed in the new UI model
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
   time_t now_in_func;
@@ -3376,13 +3377,13 @@ void update_relay_states()
 
     // reset condition_active variable
     bool wait_minimum_uptime = ((now_in_func - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
-    
+
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down
       s.ch[channel_idx].force_up_until = 0;
       wait_minimum_uptime = false;
     }
-    //forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
+    // forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
     forced_up = (is_force_up_valid(channel_idx));
     Serial.printf("update_relay_states: %d, forced_up", channel_idx);
     Serial.println(forced_up);
@@ -3392,7 +3393,7 @@ void update_relay_states()
       Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %ld .\n", channel_idx, (int)(now_in_func - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
       s.ch[channel_idx].wanna_be_up = true;
       continue;
-      }
+    }
 
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
@@ -3959,11 +3960,10 @@ bool read_config_file(const char *config_file_name)
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt["const"];
         */
 
-
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2];
-        Serial.printf("Tulos: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int) s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id ,s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
+        Serial.printf("Tulos: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
 
         stmt_idx++;
       }
@@ -4033,7 +4033,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
  */
 void onWebDashboardGet(AsyncWebServerRequest *request)
 {
- 
+
   if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
   {
     Serial.println("DEBUG: onWebDashboardGet redirect /admin");
@@ -4118,77 +4118,61 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
  */
 void onWebDashboardPost(AsyncWebServerRequest *request)
 {
-
   time(&now);
   int params = request->params();
   int channel_idx;
   bool forced_up_changes = false;
   bool channel_already_forced;
-  long forced_up_hours;
+  long forced_up_minutes;
   time_t force_up_from;
   time_t force_up_until;
-  char ch_fld[15];
-  for (int i = 0; i < params; i++)
-  {
-    AsyncWebParameter *p = request->getParam(i);
-    if (p->isPost() && p->name().startsWith("fup_"))
-    {
-      channel_idx = p->name().substring(4, 5).toInt();
+  char from_fld[15];
+  char duration_fld[15];
 
-      //channel_already_forced = (s.ch[channel_idx].force_up_until > now);
-      //new force_up_from   
+  for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    snprintf(from_fld, sizeof(from_fld), "fupfrom_%d", channel_idx);
+    snprintf(duration_fld, sizeof(duration_fld), "fups_%d", channel_idx);
+
+    if (request->hasParam(duration_fld, true) && request->hasParam(from_fld, true))
+    {
       channel_already_forced = is_force_up_valid(channel_idx);
-      snprintf(ch_fld, sizeof(ch_fld), "fupfrom_%d", channel_idx);
-      Serial.printf("Testing param: %s\n", ch_fld);
-      if (request->hasParam(ch_fld, true)) {
-        if (request->getParam(ch_fld,true)->value().toInt()==0)
-          force_up_from = now;
-        else
-          force_up_from = max(now,request->getParam(ch_fld,true)->value().toInt()); //absolute unix ts is waited
-      }
-      else {
-        Serial.println("b");
+
+      if (request->getParam(from_fld, true)->value().toInt() == 0)
         force_up_from = now;
-        Serial.printf("No param %s\n", ch_fld);
-      }
-  Serial.println("c");
-   //   Serial.printf("%s %ld , orig:%s\n",ch_fld,(long)force_up_from, request->getParam(ch_fld)->value().c_str());
-      forced_up_hours = p->value().toInt();
-  Serial.println("d");
-      Serial.printf("channel_idx: %d, forced_up_hours: %ld , force_up_from %ld\n", channel_idx, forced_up_hours, force_up_from);
-      // -1 - no change
-      if ((forced_up_hours != -1) && (channel_already_forced || forced_up_hours > 0))
-      { // there are changes
-        if (forced_up_hours > 0)
+      else
+        force_up_from = max(now, request->getParam(from_fld, true)->value().toInt()); // absolute unix ts is waited
+
+      forced_up_minutes = request->getParam(duration_fld, true)->value().toInt();
+
+      Serial.printf("channel_idx: %d, forced_up_minutes: %ld , force_up_from %ld\n", channel_idx, forced_up_minutes, force_up_from);
+
+    // if ((forced_up_minutes != -1) && (channel_already_forced || forced_up_minutes > 0))
+       
+        if (forced_up_minutes > 0)
         {
-          //s.ch[channel_idx].force_up_until = now + forced_up_hours * 3600 - 1;
-          //s.ch[channel_idx].wanna_be_up = true;
-          //new force_up_from  
-          force_up_until = force_up_from + forced_up_hours * 3600 - 1;      
+          force_up_until = force_up_from + forced_up_minutes * 60; //-1;
           s.ch[channel_idx].force_up_from = force_up_from;
-          s.ch[channel_idx].force_up_until = force_up_from + forced_up_hours * 3600 - 1;
+          s.ch[channel_idx].force_up_until = force_up_until;
           if (is_force_up_valid(channel_idx))
-             s.ch[channel_idx].wanna_be_up = true;     
+            s.ch[channel_idx].wanna_be_up = true;
         }
         else
         {
-          s.ch[channel_idx].force_up_from = -1; // forced down
+          s.ch[channel_idx].force_up_from = -1;  // forced down
           s.ch[channel_idx].force_up_until = -1; // forced down
           s.ch[channel_idx].wanna_be_up = false;
         }
-
-        // forced_up_changes = true;
-        // force_up_from - tästä voisi ottaa iffin kai pois
-        //if (s.ch[channel_idx].wanna_be_up != s.ch[channel_idx].is_up)
         forced_up_changes = true;
-      }
+      
     }
   }
-  if (forced_up_changes) {
+  
+  if (forced_up_changes)
+  {
     todo_in_loop_set_relays = true;
     writeToEEPROM();
   }
-
 
   request->redirect("/");
 }
@@ -4533,10 +4517,10 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   request->send(200, "application/json", output);
 }
 
-//TODO: check how it works with RTC
+// TODO: check how it works with RTC
 /**
- * @brief Set the timezone info etc after wifi connected 
- * 
+ * @brief Set the timezone info etc after wifi connected
+ *
  */
 void set_time_settings()
 {
@@ -4550,23 +4534,23 @@ void set_time_settings()
   else // CET default
     strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
   // assume working wifi
-    configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
+  configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
 
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
-    {
-      //  Serial.println("Failed to obtain time, retrying");
-      log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
-        time(&now_infunc);
-        Serial.printf(PSTR("Setup: %ld"),now_infunc);
-    }
-    else
-    {
-      setenv("TZ", timezone_info, 1);
-      Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
-      tzset();
-      clock_set = true;
-    }
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
+  {
+    //  Serial.println("Failed to obtain time, retrying");
+    log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
+    time(&now_infunc);
+    Serial.printf(PSTR("Setup: %ld"), now_infunc);
+  }
+  else
+  {
+    setenv("TZ", timezone_info, 1);
+    Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
+    tzset();
+    clock_set = true;
+  }
   clock_set = (time(nullptr) > ACCEPTED_TIMESTAMP_MINIMUM);
 }
 
@@ -4577,7 +4561,7 @@ void set_time_settings()
  */
 void wifi_event_handler(WiFiEvent_t event)
 {
- // Serial.printf("[WiFi-event] event: %d\n", event);
+  // Serial.printf("[WiFi-event] event: %d\n", event);
   switch (event)
   {
   case SYSTEM_EVENT_STA_CONNECTED:
@@ -4587,7 +4571,7 @@ void wifi_event_handler(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     wifi_connection_succeeded = false;
-   // Serial.println(F("Disconnected from WiFi Network"));
+    // Serial.println(F("Disconnected from WiFi Network"));
     break;
   case SYSTEM_EVENT_AP_START:
     Serial.println(F("ESP soft AP started"));
@@ -4602,7 +4586,6 @@ void wifi_event_handler(WiFiEvent_t event)
     break;
   }
 }
-
 
 /**
  * @brief Arduino framwork function.  Everything starts from here while starting the controller.
@@ -4667,8 +4650,8 @@ void setup()
       }
     }*/
   Serial.println("Starting wifi");
-  scan_and_store_wifis(true); //testing this in the beginning
-  //esp_err_t err = esp_wifi_set_country_code("FI", true);
+  scan_and_store_wifis(true); // testing this in the beginning
+  // esp_err_t err = esp_wifi_set_country_code("FI", true);
 #ifdef DUAL_MODE_WIFI
   WiFi.onEvent(wifi_event_handler);
   WiFi.mode(WIFI_AP_STA);
@@ -4691,13 +4674,13 @@ void setup()
     Serial.println(F("WiFi Failed!"));
 #ifdef DUAL_MODE_WIFI
     delay(1000);
-#else 
+#else
     WiFi.disconnect();
     delay(3000);
     wifi_in_setup_mode = true;
     create_wifi_ap = true;
 #endif
-  //  scan_and_store_wifis(true); we had this in the beginnig
+    //  scan_and_store_wifis(true); we had this in the beginnig
     check_forced_restart(true); // schedule restart
   }
   else
@@ -4776,13 +4759,12 @@ void setup()
       { handleDoUpdate(request, filename, index, data, len, final); });
 #endif
 
-
-
   server_web.on("/status", HTTP_GET, onWebStatusGet);
   server_web.on("/export-config", HTTP_GET, export_config);
   // run handleUpload function when any file is uploaded
 
-  server_web.on( "/upload-config", HTTP_POST, [](AsyncWebServerRequest *request)
+  server_web.on(
+      "/upload-config", HTTP_POST, [](AsyncWebServerRequest *request)
       { request->send(200); },
       onWebUploadConfig);
 
@@ -4852,48 +4834,48 @@ void setup()
   if (wifi_in_setup_mode)
     return; // no more setting, just wait for new SSID/password and then restarts
 
-// configTime ESP32 and ESP8266 libraries differ
-/* #ifdef ESP32
- // if (!wifi_in_setup_mode)
- 
-  if (wifi_connection_succeeded)
-  {
-    // First connect to NTP server, with 0 TZ offset
-    // TODO: custom ntp server ui admin
+  // configTime ESP32 and ESP8266 libraries differ
+  /* #ifdef ESP32
+   // if (!wifi_in_setup_mode)
 
-    configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
-
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
+    if (wifi_connection_succeeded)
     {
-      //  Serial.println("Failed to obtain time, retrying");
-      log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
-      for (int k = 0; k < 100; k++)
+      // First connect to NTP server, with 0 TZ offset
+      // TODO: custom ntp server ui admin
+
+      configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
+
+      struct tm timeinfo;
+      if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
       {
-        delay(5000);
-        if (getLocalTime(&timeinfo, 10000))
-          break;
-        time(&now_infunc);
-        Serial.printf(PSTR("Setup: %ld"),now_infunc);
+        //  Serial.println("Failed to obtain time, retrying");
+        log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
+        for (int k = 0; k < 100; k++)
+        {
+          delay(5000);
+          if (getLocalTime(&timeinfo, 10000))
+            break;
+          time(&now_infunc);
+          Serial.printf(PSTR("Setup: %ld"),now_infunc);
+        }
+      }
+      else
+      {
+        setenv("TZ", timezone_info, 1);
+        Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
+        tzset();
+        clock_set = true;
       }
     }
-    else
-    {
-      setenv("TZ", timezone_info, 1);
-      Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
-      tzset();
-      clock_set = true;
-    }
-  }
-  clock_set = (time(nullptr) > ACCEPTED_TIMESTAMP_MINIMUM);
-  
+    clock_set = (time(nullptr) > ACCEPTED_TIMESTAMP_MINIMUM);
 
-#elif defined(ESP8266)
-  // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
-  // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-  configTime(timezone_info, s.custom_ntp_server);
-#endif
-*/
+
+  #elif defined(ESP8266)
+    // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
+    // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
+    configTime(timezone_info, s.custom_ntp_server);
+  #endif
+  */
   // init relays
   //  split comma separated gpio string to an array
   // TODO: if set in reset, we do not set it here?
@@ -4984,8 +4966,6 @@ void loop()
     }
   }
 
-
-
 #ifdef DEBUG_MODE
   // test gpio, started from admin UI
   if (todo_in_loop_test_gpio)
@@ -5036,13 +5016,14 @@ void loop()
   // no other operations allowed before the clock is set
   time(&now);
 
-    // initial message
-  if (now <  ACCEPTED_TIMESTAMP_MINIMUM) {
+  // initial message
+  if (now < ACCEPTED_TIMESTAMP_MINIMUM)
+  {
     delay(10000);
     return;
   }
-  else if (started == 0 )
-    {
+  else if (started == 0)
+  {
     started = now;
     log_msg(MSG_TYPE_INFO, PSTR("Started processing"), true);
   }
@@ -5055,19 +5036,17 @@ void loop()
     set_relays();
   }
 
-
-
-
 #ifdef DUAL_MODE_WIFI
-// update period info
-//TODO: check if we need this
+  // update period info
+  // TODO: check if we need this
   time(&now);
-  if ((now-WIFI_RECONNECT_INTERVAL) >last_wifi_connect_tried) { //actually if wifi-reconnect and persistent, this should not be needed if cfredential are ok?
+  if ((now - WIFI_RECONNECT_INTERVAL) > last_wifi_connect_tried)
+  { // actually if wifi-reconnect and persistent, this should not be needed if cfredential are ok?
     wifi_connection_succeeded = (WiFi.waitForConnectResult(30000) == WL_CONNECTED);
     last_wifi_connect_tried = now;
   }
-  
-#else //OLD way, could be removed if DUAL mode works
+
+#else // OLD way, could be removed if DUAL mode works
   // just in case check the wifi and reconnect/restart if neede
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
@@ -5087,7 +5066,6 @@ void loop()
     }
   }
 #endif
- 
 
   // update period info
   time(&now);

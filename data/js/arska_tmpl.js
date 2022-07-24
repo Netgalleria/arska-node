@@ -56,9 +56,20 @@ function get_date_string_from_ts(ts) {
     return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
 }
 
-function get_time_string_from_ts(ts) {
+function get_time_string_from_ts(ts, show_day_diff = false) {
     tmpDate = new Date(ts * 1000);
-    tmpStr = tmpDate.toLocaleTimeString()
+    tmpStr = tmpDate.toLocaleTimeString();
+    if (show_day_diff) {
+        tz_offset_minutes = tmpDate.getTimezoneOffset();
+        now_ts_loc = (Date.now() / 1000) + tz_offset_minutes;
+        ts_loc = ts + tz_offset_minutes;
+        now_day = parseInt(now_ts_loc / 86400);
+        ts_day = parseInt(ts_loc / 86400);
+        day_diff = ts_day - now_day;
+        if (day_diff != 0)
+            tmpStr += " (" + ((day_diff > 0) ? "+" : "") + (day_diff) + ")";
+
+    }
     return tmpStr;
 }
 
@@ -71,7 +82,7 @@ function updateStatus(show_variables = true) {
             if (data.last_msg_ts > getCookie("msg_read")) {
                 //msgDate = new Date(data.last_msg_ts * 1000);
                 //msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
-                msgDateStr = get_date_string_from_ts(data.last_msg_ts);
+                msgDateStr = get_time_string_from_ts(data.last_msg_ts, true);
                 msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
             }
         }
@@ -665,14 +676,16 @@ function initChannelForm() {
             channel_idx = parseInt(fldA[1]);
             cond_idx = parseInt(fldA[2]);
             //  console.log(stmts_s[i].value);
-            stmts = JSON.parse(stmts_s[i].value);
-            if (stmts && stmts.length > 0) {
-                console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
-                for (let j = 0; j < stmts.length; j++) {
-                    elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-                    addStmt(elBtn, channel_idx, cond_idx, j, stmts[j]);
-                    var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
-                    populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
+            if (stmts_s[i].value) {
+                stmts = JSON.parse(stmts_s[i].value);
+                if (stmts && stmts.length > 0) {
+                    console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
+                    for (let j = 0; j < stmts.length; j++) {
+                        elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+                        addStmt(elBtn, channel_idx, cond_idx, j, stmts[j]);
+                        var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
+                        populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
+                    }
                 }
             }
         }
@@ -755,7 +768,72 @@ function initUrlBar(url) {
 
 //TODO: get from main.cpp
 const force_up_hours = [0, 1, 2, 4, 8, 12, 24];
+const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440];
 
+function pad_to_2digits(num) {
+    return num.toString().padStart(2, '0');
+}
+
+function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
+    //dropdown, TODO: recalculate when new hour 
+    sel_fup_from = document.getElementById("fupfrom_" + channel_idx);
+    if (!sel_fup_from) {
+        sel_fup_from = createElem("select", "fupfrom_" + channel_idx, null, "schedsel", null);
+        sel_fup_from.name = "fupfrom_" + channel_idx;
+        chdiv.appendChild(sel_fup_from);
+    }
+
+    //TODO: price and so on
+    $("#fupfrom_" + channel_idx).empty();
+    fups_sel = document.getElementById("fups_" + channel_idx);
+    duration_selected = fups_sel.value;
+    if (duration_selected == 0) {
+        addOption(sel_fup_from, -1, "*", true);
+        return;
+    }
+
+    first_next_hour_ts = parseInt(((Date.now() / 1000)) / 3600) * 3600 + 3600;
+    start_ts = first_next_hour_ts;
+
+    
+   //
+    addOption(sel_fup_from, 0, "now ->", (duration_selected>0));
+    for (k = 0; k < 24; k++) {
+      
+        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, true).substring(0, 5),   (current_start_ts == start_ts));
+        start_ts += 3600;
+    }
+}
+
+function duration_changed(evt) {
+    const fldA = evt.target.id.split("_");
+    update_fup_schedule_element(fldA[1]);
+}
+
+function update_fup_duration_element(channel_idx, selected_duration_min = 60) {
+    ch_div = document.getElementById("chdiv_" + channel_idx);
+    fups_sel = document.getElementById("fups_" + channel_idx);
+    fups_val_prev = -1;
+    if (fups_sel) {
+        fups_val_prev = fups_sel.value;
+    }
+    else {
+        fups_sel = createElem("select", "fups_" + channel_idx, null,"durationsel", null);
+        fups_sel.name = "fups_" + channel_idx;
+        fups_sel.addEventListener("change", duration_changed);
+
+        addOption(fups_sel, 0, "no schedule",true); //check checked
+        for (i = 0; i < force_up_mins.length; i++) {
+            min_cur = force_up_mins[i];
+            duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+            addOption(fups_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
+        }
+        ch_div.appendChild(fups_sel);
+    }
+    // now initiate value
+}
+
+/*
 function create_force_up_elements(i, hours, fu_div, checked, label = null) {
     fu_rb = createElem("input", "fup_" + i + '_' + hours, hours, null, "radio");
     fu_rb.name = "fup_" + i;
@@ -769,11 +847,11 @@ function create_force_up_elements(i, hours, fu_div, checked, label = null) {
     fu_lb.setAttribute("for", "fup_" + i + '_' + hours);
     fu_div.appendChild(fu_rb);
     fu_div.appendChild(fu_lb);
-}
 
-function padTo2Digits(num) {
-    return num.toString().padStart(2, '0');
 }
+*/
+
+
 function add_radiob_with_label(parent, name, value, label, checked) {
     rb_id = name + "_" + value;
     rb = createElem("input", rb_id, 0, null, "radio");
@@ -974,41 +1052,51 @@ function init_channel_elements(edit_mode = false) {
                 if (!edit_mode) { // is dashboard
                     fu_div = createElem("div", null, null, "secbr radio-toolbar");
                     //Set channel up for next:<br>
+                    current_duration_minute = 0;
+                    current_start_ts = 0;
+                    has_forced_setting = false;
+                    //    if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600)) {
+                    if ((ch_cur.force_up_until > now_ts)) {
+                        has_forced_setting = true;
+                        current_duration_minute = (ch_cur.force_up_until - ch_cur.force_up_from) / 60
+                    }
+                    if ((ch_cur.force_up_from > now_ts)) {
+                        current_start_ts = ch_cur.force_up_from;
+                    }
+
                     for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
                         hour_cur = force_up_hours[hour_idx];
-                        has_forced_setting = false;
-                        if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600))
-                            has_forced_setting = true;
 
-                        create_force_up_elements(i, force_up_hours[hour_idx], fu_div, (!has_forced_setting && hour_idx == 0));
+                      //  create_force_up_elements(i, force_up_hours[hour_idx], fu_div,(!has_forced_setting && hour_idx == 0));
 
                         //      console.log(ch_cur.force_up_until, now_ts, hour_cur, force_up_hours[hour_idx + 1]);
 
-                        if (has_forced_setting) {
-                            var force_up_until = new Date(ch_cur.force_up_until * 1000);
-                            var duration = parseInt((ch_cur.force_up_until - (Date.now() / 1000)) / 60);
-                            label = " -> " + padTo2Digits(force_up_until.getHours()) + ":" + padTo2Digits(force_up_until.getMinutes());
-                            label += " (" + padTo2Digits(parseInt(duration / 60)) + ":" + padTo2Digits(duration % 60) + ") ";
-                            create_force_up_elements(i, -1, fu_div, true, label);
-                        }
-                    }
-                    
-                    //dropdown, TODO: recalculate when new hour 
-                    sel_fup_from = createElem("select", "fupfrom_" + i, null, null, null);
-                    sel_fup_from.name = "fupfrom_" + i;
-                    
-                    //TODO: price and so on
-                    first_next_hour = parseInt(((Date.now() / 1000) + 3599) / 3600) * 3600;
-                    start_ts = first_next_hour;
-                    addOption(sel_fup_from, 0, "now", true);
-                    for (k = 0; k < 24; k++) {
-                        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> ", false);
-                        console.log("option", get_time_string_from_ts(start_ts).substring(0, 5));
-                        start_ts += 3600;
-                    }
-                    chdiv.appendChild(sel_fup_from);
+                        /*        if (has_forced_setting) {
+                                    var force_up_until = new Date(ch_cur.force_up_until * 1000);
+                                    var duration = parseInt((ch_cur.force_up_until - (Date.now() / 1000)) / 60);
+                                    label = " -> " + pad_to_2digits(force_up_until.getHours()) + ":" + pad_to_2digits(force_up_until.getMinutes());
+                                    label += " (" + pad_to_2digits(parseInt(duration / 60)) + ":" + pad_to_2digits(duration % 60) + ") ";
+                                    create_force_up_elements(i, -1, fu_div, true, label);
+                                }
+                                */
 
-                    fu_div.insertAdjacentHTML('beforeend',"<br><span>Scheduled:" + get_date_string_from_ts(ch_cur.force_up_from) +" " +get_date_string_from_ts(ch_cur.force_up_until)+"</span>");
+                    }
+
+                    // new test
+                    update_fup_duration_element(i, current_duration_minute);
+                    update_fup_schedule_element(i, current_start_ts);
+                    // schedule button
+                  //  sched_btn = createElem("input", 'sched_' + i, " + ", "addstmtb", "button");
+                  //  chdiv.appendChild(sched_btn);
+
+
+                    if (ch_cur.force_up_until > now_ts)
+                        scheduled_text = "Scheduled: " + get_time_string_from_ts(ch_cur.force_up_from, true) + " --> " + get_time_string_from_ts(ch_cur.force_up_until, true);
+                    else
+                        scheduled_text = "Not scheduled";
+
+                    fu_div.insertAdjacentHTML('beforeend', "<br><span>" + scheduled_text + "</span>");
+                    //TODO: schedule div: info span + button (style display
                     chdiv.appendChild(fu_div);
                 }
                 if (edit_mode) {
@@ -1021,6 +1109,46 @@ function init_channel_elements(edit_mode = false) {
             });
         }
     });
+
+}
+
+function initWifiForm() {
+    if (!wifis) {
+        console.log("initWifiForm: No wifis.");
+        return;
+    }
+    wifisp = JSON.parse(wifis);
+
+    
+    wifisp.sort(compare_wifis);
+    var wifi_sel = document.getElementById("wifi_ssid");
+    var wifi_ssid_db = document.getElementById("wifi_ssid_db");
+
+    wifisp.forEach(function (wifi, i) {
+        if (wifi.id) {
+            var opt = document.createElement("option");
+            opt.value = wifi.id;
+
+            if (backup_wifi_config_mode && i == 0)
+                opt.selected = true;
+            else if (wifi_ssid_db.value == wifi.id) {
+                opt.selected = true;
+                opt.value = "NA";
+            }
+            opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
+            wifi_sel.appendChild(opt);
+        }
+    });
+
+    /*
+        wifisp.forEach(wifi => {
+            if (wifi.id) {
+                var opt = document.createElement("option");
+                opt.value = wifi.id;
+                opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
+                wifi_sel.appendChild(opt);
+            }
+        }); */
 
 }
 
@@ -1136,39 +1264,6 @@ function set_msg_read(elBtn) {
     document.getElementById("msgdiv").innerHTML = "";
 }
 
-function initWifiForm() {
-    var wifisp = JSON.parse(wifis);
-    wifisp.sort(compare_wifis);
-    var wifi_sel = document.getElementById("wifi_ssid");
-    var wifi_ssid_db = document.getElementById("wifi_ssid_db");
-
-    wifisp.forEach(function (wifi, i) {
-        if (wifi.id) {
-            var opt = document.createElement("option");
-            opt.value = wifi.id;
-
-            if (backup_wifi_config_mode && i == 0)
-                opt.selected = true;
-            else if (wifi_ssid_db.value == wifi.id) {
-                opt.selected = true;
-                opt.value = "NA";
-            }
-            opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
-            wifi_sel.appendChild(opt);
-        }
-    });
-
-    /*
-        wifisp.forEach(wifi => {
-            if (wifi.id) {
-                var opt = document.createElement("option");
-                opt.value = wifi.id;
-                opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
-                wifi_sel.appendChild(opt);
-            }
-        }); */
-
-}
 
 
 function setChannelFieldsEVT(evt) {
