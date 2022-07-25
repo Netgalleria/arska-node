@@ -2822,7 +2822,7 @@ bool is_force_up_valid(int channel_idx)
 {
   time_t now_in_func;
   time(&now_in_func);
-  Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
+ // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
 
   bool is_valid = ((s.ch[channel_idx].force_up_from < now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
   Serial.println(is_valid);

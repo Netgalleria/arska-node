@@ -20,8 +20,8 @@ const HWID = '%HWID%';
 const VERSION_SHORT = '%VERSION_SHORT%';
 const version_fs = '%version_fs%';
 
+const VARIABLE_LONG_UNKNOWN = -2147483648
 
-;
 
 let variable_list = {}; // populate later
 
@@ -55,19 +55,88 @@ function get_date_string_from_ts(ts) {
     tmpDate = new Date(ts * 1000);
     return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
 }
+var prices = [];
+var prices_first_ts = 0;
+var prices_last_ts = 0;
+var prices_resolution_min = 60;
+var prices_expires = 0;
+
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function get_price_data() {
+    now_ts = Date.now() / 1000;
+    if (prices_expires > now_ts)
+        return;
+    console.log("get_price_data, wait first");
+    //await sleep(5000);
+    console.log("get_price_data, now requesting");
+
+    $.ajax({
+        url: '/data/price-data.json',
+        dataType: 'json',
+        async: true,
+        success: function (data) {
+            console.log('/data/price-data.json');
+            //   $.each(data.ch, function (i, ch_cur) {
+            //    }
+            prices = data.prices;
+            prices_first_ts = data.record_start;
+            prices_resolution_min = data.resolution_m;
+            prices_last_ts = prices_first_ts + (prices.length - 1) * (prices_resolution_min * 60);
+            prices_expires = data.expires;
+            setTimeout(function () { get_price_data(); }, 1800000);
+        },
+        fail: function () {
+            console.log("Cannot get prices");
+            setTimeout(function () { get_price_data(); }, 10000);
+        }
+    });
+  //  });
+    // next update (if expired)
+   // setTimeout(function () { get_price_data(); }, 1800000);
+}
+
+function get_price_for_block(start_ts, end_ts = 0) {
+    if (prices.length == 0) { //prices (not yet) populated
+        console.log("get_price_for_block, prices not populated              ");
+        return -VARIABLE_LONG_UNKNOWN;
+    }
+    if (end_ts == 0)
+        end_ts = start_ts;
+    if (start_ts < prices_first_ts || end_ts > prices_last_ts) {
+        console.log("no match", start_ts, prices_first_ts, end_ts, prices_last_ts);
+        return -VARIABLE_LONG_UNKNOWN;
+    }
+    var price_count = 0;
+    var price_sum = 0;
+
+    for (cur_ts = start_ts; cur_ts <= end_ts; cur_ts += (prices_resolution_min * 60)) {
+        price_idx = (cur_ts - prices_first_ts) / (prices_resolution_min * 60);
+        //     console.log("price",price_idx,prices[price_idx])
+        price_sum += prices[price_idx];
+        price_count++;
+    }
+    var block_price_avg = (price_sum / price_count) / 1000;
+    //  console.log("get_price_for_block result:", start_ts,end_ts,block_price_avg);
+
+    return block_price_avg;
+}
 
 function get_time_string_from_ts(ts, show_day_diff = false) {
-   // console.log("get_time_string_from_ts",ts)
+    // console.log("get_time_string_from_ts",ts)
     tmpDate = new Date(ts * 1000);
     tmpStr = tmpDate.toLocaleTimeString();
     if (show_day_diff) {
         tz_offset_minutes = tmpDate.getTimezoneOffset();
-      //  console.log("tz_offset_minutes",tz_offset_minutes);
-        now_ts_loc = (Date.now() / 1000) - tz_offset_minutes*60;
-        ts_loc = ts - tz_offset_minutes*60;
+        //  console.log("tz_offset_minutes",tz_offset_minutes);
+        now_ts_loc = (Date.now() / 1000) - tz_offset_minutes * 60;
+        ts_loc = ts - tz_offset_minutes * 60;
         now_day = parseInt(now_ts_loc / 86400);
         ts_day = parseInt(ts_loc / 86400);
-        
+
         day_diff = ts_day - now_day;
         if (day_diff != 0)
             tmpStr += " (" + ((day_diff > 0) ? "+" : "") + (day_diff) + ")";
@@ -78,6 +147,7 @@ function get_time_string_from_ts(ts, show_day_diff = false) {
 
 // update variables and channels statuses to channels form
 function updateStatus(show_variables = true) {
+
     $.getJSON('/status', function (data) {
         msgdiv = document.getElementById("msgdiv");
         keyfd = document.getElementById("keyfd");
@@ -138,20 +208,14 @@ function updateStatus(show_variables = true) {
     //  if (document.getElementById('statusauto').checked) {
     setTimeout(function () { updateStatus(show_variables); }, 60000);
     //  }
+    //  get_price_data(); // get prices, if expired or not fetched before
 }
 
-/*
-function show_channel_status(channel_idx, is_up) {
-    status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
-    href = is_up ? "#green" : "#red";
-    if (status_el)
-        status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
-}
-*/
+
 
 function show_channel_status(channel_idx, ch) {
     now_ts = Date.now() / 1000;
-   // console.log(channel_idx,ch);
+    // console.log(channel_idx,ch);
     status_el = document.getElementById("status_" + channel_idx); //.href = is_up ? "#green" : "#red";
     href = ch.is_up ? "#green" : "#red";
     if (status_el)
@@ -170,11 +234,11 @@ function show_channel_status(channel_idx, ch) {
     }
 
     chdiv_info = document.getElementById("chdinfo_" + channel_idx);
-   // chdiv_info.insertAdjacentHTML('beforeend', "<br><span>" + info_text + "</span>");
+    // chdiv_info.insertAdjacentHTML('beforeend', "<br><span>" + info_text + "</span>");
     if (chdiv_info)
         chdiv_info.innerHTML = "<br><span>" + info_text + "</span>";
     else
-        console.log("no div with id "+"chdinfo_" + channel_idx);
+        console.log("no div with id " + "chdinfo_" + channel_idx);
 
 }
 // before submitting input admin form
@@ -254,7 +318,7 @@ var submitChannelForm = function (e) {
 
             if (prev_channel_idx != channel_idx) {
                 if (channel_rules.length > 0) {
-                //    console.log("channel_idx:" + prev_channel_idx);
+                    //    console.log("channel_idx:" + prev_channel_idx);
                     // console.table(channel_rules);      
                     console.log(JSON.stringify(channel_rules));
                 }
@@ -812,7 +876,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         sdiv = createElem("div", null, null, "schedsel", null);
         sel_fup_from = createElem("select", "fupfrom_" + channel_idx, null, null, null);
         sel_fup_from.name = "fupfrom_" + channel_idx;
-        sdiv.insertAdjacentHTML('beforeend', 'time:<br>');
+        sdiv.insertAdjacentHTML('beforeend', '<br>time:<br>');
         sdiv.appendChild(sel_fup_from);
         chdiv_sched.appendChild(sdiv);
     }
@@ -821,20 +885,43 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     $("#fupfrom_" + channel_idx).empty();
     fups_sel = document.getElementById("fups_" + channel_idx);
     duration_selected = fups_sel.value;
+
     if (duration_selected == 0) {
-        addOption(sel_fup_from, -1, "*", true);
+        // addOption(sel_fup_from, -1, "select start", true);
+        sel_fup_from.style.display = "none";
         return;
     }
+    sel_fup_from.style.display = "block";
 
     first_next_hour_ts = parseInt(((Date.now() / 1000)) / 3600) * 3600 + 3600;
     start_ts = first_next_hour_ts;
 
     //
     addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
+    cheapest_price = -VARIABLE_LONG_UNKNOWN;
+    cheapest_ts = -1;
+    cheapest_index = -1;
     for (k = 0; k < 24; k++) {
+        end_ts = start_ts + duration_selected * 60;
+        block_price = get_price_for_block(start_ts, end_ts);
+        if (block_price < cheapest_price) {
+            cheapest_price = block_price;
+            cheapest_ts = start_ts;
+            cheapest_index = k;
+        }
 
-        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, true).substring(0, 5), (current_start_ts == start_ts));
+        if (block_price != -VARIABLE_LONG_UNKNOWN)
+            price_str = "   " + block_price.toFixed(1) + " c/kWh";
+        else
+            price_str = "";
+
+        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, true).substring(0, 5) + price_str, (current_start_ts == start_ts));
         start_ts += 3600;
+    }
+    if (cheapest_index > -1) {
+        console.log("cheapest_ts", cheapest_ts)
+        sel_fup_from.value = cheapest_ts;
+        sel_fup_from.options[cheapest_index+1].innerHTML = sel_fup_from.options[cheapest_index+1].innerHTML + " ***";
     }
 }
 
@@ -852,18 +939,18 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60) {
         fups_val_prev = fups_sel.value;
     }
     else {
-        sdiv = createElem("div", null, null,"durationsel", null);
+        sdiv = createElem("div", null, null, "durationsel", null);
         fups_sel = createElem("select", "fups_" + channel_idx, null, null, null);
         fups_sel.name = "fups_" + channel_idx;
         fups_sel.addEventListener("change", duration_changed);
 
-        addOption(fups_sel, 0, "no schedule", true); //check checked
+        addOption(fups_sel, 0, "duration", true); //check checked
         for (i = 0; i < force_up_mins.length; i++) {
             min_cur = force_up_mins[i];
             duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
             addOption(fups_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
         }
-        sdiv.insertAdjacentHTML('beforeend', 'duration:<br>');
+        sdiv.insertAdjacentHTML('beforeend', 'Manual scheduling<br>duration:<br>');
         sdiv.appendChild(fups_sel);
         chdiv_sched.appendChild(sdiv);
 
@@ -1059,8 +1146,8 @@ function init_channel_elements(edit_mode = false) {
 
                 chdiv = createElem("div", "chdiv_" + i, null, "hb");
                 chdiv_head = createElem("div", null, null, "secbr cht");
-                chdiv_sched = createElem("div", "chdsched_" + i,null, "secbr", null);
-                chdiv_info = createElem("div", "chdinfo_" + i, null,"secbr", null);
+                chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
+                chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
 
                 var svg = document.createElementNS(svgns, "svg");
 
@@ -1223,7 +1310,10 @@ function initForm(url) {
     // }
     else if (url == '/') { //under construction
         init_channel_elements(false);
+        setTimeout(function () { get_price_data(); }, 500);
         setTimeout(function () { updateStatus(false); }, 2000);
+       
+
     }
 
     else if (url == '/inputs') {
