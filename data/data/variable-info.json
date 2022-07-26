@@ -45,11 +45,11 @@
     },
     "110": {
         "id": "mm, month",
-        "en": "current month, 01-12"
+        "en": "current month, 1-12"
     },
     "111": {
         "id": "mmdd",
-        "en": "current month and day, e.g. 0501 fir first of May"
+        "en": "current month and day, e.g. 501 fir first of May"
     },
     "112": {
         "id": "weekday (1-7)",

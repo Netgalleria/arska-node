@@ -36,10 +36,9 @@
     </div>  
     %status_fields%
  
-    <form method="post" id="chFrm" onsubmit="return submitChannelForm(event)">
+    <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)">
         <input name="source" type="hidden" value="channels">
-        %node_fields% %chi_0% %cht_0% %chi_1% %cht_1% %chi_2% %cht_2% %chi_3% %cht_3% %chi_4% %cht_4% %chi_5% %cht_5%
-        %chi_6% %cht_6% %chi_7% %cht_7%
+        <div id="chlist"></div>
         <br><input type="submit" value="Save">
     </form>
 
@@ -80,5 +79,4 @@
     </symbol>
     </svg>
 </body>
-
 </html>

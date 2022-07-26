@@ -65,7 +65,7 @@ char version_fs[35];
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
 
-#define DUAL_MODE_WIFI // experimental, if defined we have always AP_MODE enabled
+#define DUAL_MODE_WIFI_ // experimental, if defined we have always AP_MODE enabled
 
 // TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
@@ -605,6 +605,10 @@ float Variables::const_to_float(int id, long const_in)
   {
     return const_in / pow(10, var.type);
   }
+  else if ((var.type == CONSTANT_TYPE_CHAR_2) || (var.type == CONSTANT_TYPE_CHAR_4))
+  {
+    return (float)const_in;
+  }
   return -1;
 }
 int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val)
@@ -631,15 +635,16 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
       return strlen(strbuff);
     }
     else if (var.type == CONSTANT_TYPE_CHAR_4)
-    { // 4 char number, 0 padding, e.g. hhmm
-      // sprintf(strbuff, "\"%04ld\"", val_l);
-      sprintf(strbuff, "%04ld", val_l);
+    {                                 // 4 char number, 0 padding, e.g. hhmm
+                                      //   sprintf(strbuff, "%04ld", val_l);
+      sprintf(strbuff, "%ld", val_l); // kokeiltu ilman paddingiä
       return strlen(strbuff);
     }
     else if (var.type == CONSTANT_TYPE_CHAR_2)
     { // 2 char number, 0 padding, e.g. hh
       // sprintf(strbuff, "\"%02ld\"", val_l);
-      sprintf(strbuff, "%02ld", val_l);
+      // sprintf(strbuff, "'%02ld'", val_l);
+      sprintf(strbuff, "%ld", val_l); // kokeiltu ilman paddingiä
       return strlen(strbuff);
     }
     else if (var.type == CONSTANT_TYPE_BOOLEAN_NO_REVERSE || var.type == CONSTANT_TYPE_BOOLEAN_REVERSE_OK)
@@ -2585,6 +2590,7 @@ bool get_price_data()
  * @return true
  * @return false
  */
+/*
 bool query_external_variables()
 {
   StaticJsonDocument<16> filter;
@@ -2627,6 +2633,8 @@ bool query_external_variables()
   }
   return true;
 }
+*/
+
 /**
  * @brief Update price rank variables to a cache file
  *
@@ -2822,7 +2830,7 @@ bool is_force_up_valid(int channel_idx)
 {
   time_t now_in_func;
   time(&now_in_func);
- // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
+  // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
 
   bool is_valid = ((s.ch[channel_idx].force_up_from < now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
   Serial.println(is_valid);
@@ -2978,7 +2986,7 @@ String inputs_form_processor(const String &var)
     return String(s.baseload);
 
   if (var == F("variable_mode"))
-    return String(s.variable_mode);
+    return String((VARIABLE_MODE_SOURCE)); // removed selection
 
   if (var == F("entsoe_api_key"))
     return String(s.entsoe_api_key);
@@ -3699,6 +3707,12 @@ void reset_config(bool reset_password)
   // TODO: handle influx somehow
   // reset memory
   char current_password[MAX_ID_STR_LENGTH];
+
+  char current_wifi_ssid[MAX_ID_STR_LENGTH];
+  char current_wifi_password[MAX_ID_STR_LENGTH];
+  strcpy(current_wifi_ssid, s.wifi_ssid);
+  strcpy(current_wifi_password, s.wifi_password);
+
   if (!reset_password)
     strcpy(current_password, s.http_password);
   memset(&s, 0, sizeof(s));
@@ -3707,13 +3721,16 @@ void reset_config(bool reset_password)
 
   strcpy(s.http_username, "admin");
   if (reset_password)
-
     strcpy(s.http_password, default_http_password);
   else
     strcpy(s.http_password, current_password);
 
+  // use previous wifi settings by default
+  strcpy(s.wifi_ssid, current_wifi_ssid);
+  strcpy(s.wifi_password, current_wifi_password);
+
   strcpy(s.http_password, default_http_password);
-  s.variable_mode == VARIABLE_MODE_SOURCE;
+  s.variable_mode = VARIABLE_MODE_SOURCE;
 
   strcpy(s.custom_ntp_server, "");
 
@@ -3783,14 +3800,14 @@ void export_config(AsyncWebServerRequest *request)
   doc["wifi_password"] = s.wifi_password; // TODO: maybe not here
   doc["http_username"] = s.http_username;
   // doc["http_password"] = s.http_password; // TODO: maybe not here
-  doc["variable_mode"] = s.variable_mode;
-  if (s.variable_mode == VARIABLE_MODE_SOURCE)
-  {
-    doc["entsoe_api_key"] = s.entsoe_api_key;
-    doc["entsoe_area_code"] = s.entsoe_area_code;
-  }
-  if (s.variable_mode == VARIABLE_MODE_REPLICA)
-    doc["variable_server"] = s.variable_server;
+  doc["variable_mode"] = VARIABLE_MODE_SOURCE; // no selection
+                                               // if (s.variable_mode == VARIABLE_MODE_SOURCE)
+                                               // {
+  doc["entsoe_api_key"] = s.entsoe_api_key;
+  doc["entsoe_area_code"] = s.entsoe_area_code;
+  // }
+  //  if (s.variable_mode == VARIABLE_MODE_REPLICA)
+  //   doc["variable_server"] = s.variable_server;
   doc["custom_ntp_server"] = s.custom_ntp_server;
   doc["timezone"] = s.timezone;
   doc["baseload"] = s.baseload;
@@ -3815,7 +3832,7 @@ void export_config(AsyncWebServerRequest *request)
   // JsonArray channel_array = doc.createNestedArray("channels");
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
+    //  Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
 
     doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
     doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
@@ -3923,7 +3940,7 @@ bool read_config_file(const char *config_file_name)
   copy_doc_str(doc, (char *)"wifi_ssid", s.wifi_password);
   copy_doc_str(doc, (char *)"wifi_password", s.wifi_password);
   // copy_doc_str(doc, (char *)"http_password", s.http_password);
-  s.variable_mode = get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
+  s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
   copy_doc_str(doc, (char *)"entsoe_api_key", s.entsoe_api_key);
   copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code);
   copy_doc_str(doc, (char *)"variable_server", s.variable_server);
@@ -4066,14 +4083,16 @@ void onWebInputsGet(AsyncWebServerRequest *request)
  *
  * @param request
  */
+/*
+void onWebChannelsGet_old(AsyncWebServerRequest *request)
+{
+  sendForm(request, "/channels_template_old.html", setup_form_processor);
+}
+// devel
+*/
 void onWebChannelsGet(AsyncWebServerRequest *request)
 {
   sendForm(request, "/channels_template.html", setup_form_processor);
-}
-// devel
-void onWebChannelsGet_new(AsyncWebServerRequest *request)
-{
-  sendForm(request, "/channels_template_new.html", setup_form_processor);
 }
 
 /**
@@ -4208,7 +4227,7 @@ void onWebInputsPost(AsyncWebServerRequest *request)
 
   s.baseload = request->getParam("baseload", true)->value().toInt();
 
-  s.variable_mode = (byte)request->getParam("variable_mode", true)->value().toInt();
+  s.variable_mode = VARIABLE_MODE_SOURCE; // (byte)request->getParam("variable_mode", true)->value().toInt();
   if (s.variable_mode == 0)
   {
     strcpy(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str());
@@ -4225,10 +4244,10 @@ void onWebInputsPost(AsyncWebServerRequest *request)
     else
       strcpy(s.forecast_loc, "#");
   }
-  if (s.variable_mode == 1)
-  {
-    strcpy(s.variable_server, request->getParam("variable_server", true)->value().c_str());
-  }
+  /* if (s.variable_mode == 1)
+   {
+     strcpy(s.variable_server, request->getParam("variable_server", true)->value().c_str());
+   }*/
 #ifdef INFLUX_REPORT_ENABLED
   strncpy(s_influx.url, request->getParam("influx_url", true)->value().c_str(), sizeof(s_influx.url));
   // Serial.printf("influx_url:%s\n", s_influx.url);
@@ -4613,6 +4632,7 @@ void setup()
 {
   time_t now_infunc;
   bool create_wifi_ap = false;
+  s.variable_mode = VARIABLE_MODE_SOURCE;
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
@@ -4668,12 +4688,14 @@ void setup()
     }*/
   Serial.println("Starting wifi");
   scan_and_store_wifis(true); // testing this in the beginning
-  // esp_err_t err = esp_wifi_set_country_code("FI", true);
-#ifdef DUAL_MODE_WIFI
+
   WiFi.onEvent(wifi_event_handler);
+#ifdef DUAL_MODE_WIFI
+
   WiFi.mode(WIFI_AP_STA);
   create_wifi_ap = true;
 #else // if DUAL_MODE_WIFI works ok, this branch could be removed
+
   WiFi.mode(WIFI_STA);
 #endif
 
@@ -4714,16 +4736,21 @@ void setup()
       scan_and_store_wifis(false);
     }
   }
-#ifndef DUAL_MODE_WIFI
-  delay(200);
-  WiFi.mode(WIFI_OFF);
-  delay(1000);
-  WiFi.mode(WIFI_AP);
-#endif
+
   // if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
+
   if (create_wifi_ap)
+
   { // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
     // create ap-mode ssid for config wifi
+#ifndef DUAL_MODE_WIFI
+    delay(200);
+    WiFi.mode(WIFI_OFF);
+    delay(1000);
+    WiFi.mode(WIFI_AP);
+#endif
+    Serial.print("Creating AP, wifi_in_setup_mode:");
+    Serial.print(wifi_in_setup_mode);
     String mac = WiFi.macAddress();
     for (int i = 14; i > 0; i -= 3)
     {
@@ -4791,10 +4818,9 @@ void setup()
   server_web.on("/inputs", HTTP_GET, onWebInputsGet);
   server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
+  // server_web.on("/channels", HTTP_GET, onWebChannelsGet_old);
   server_web.on("/channels", HTTP_GET, onWebChannelsGet);
   server_web.on("/channels", HTTP_POST, onWebChannelsPost);
-
-  server_web.on("/channels_new", HTTP_GET, onWebChannelsGet_new);
 
   server_web.on("/admin", HTTP_GET, onWebAdminGet);
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
