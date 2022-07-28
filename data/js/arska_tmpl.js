@@ -77,7 +77,7 @@ function get_price_data() {
     $.ajax({
         url: '/data/price-data.json',
         dataType: 'json',
-        async: true,
+        async: false,
         success: function (data) {
             console.log('/data/price-data.json');
             //   $.each(data.ch, function (i, ch_cur) {
@@ -966,7 +966,7 @@ function duration_changed(evt) {
     update_fup_schedule_element(fldA[1]);
 }
 
-function update_fup_duration_element(channel_idx, selected_duration_min = 60) {
+function update_fup_duration_element(channel_idx, selected_duration_min = 60,setting_exists) {
     chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
 
     fups_sel = document.getElementById("fups_" + channel_idx);
@@ -980,7 +980,8 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60) {
         fups_sel.name = "fups_" + channel_idx;
         fups_sel.addEventListener("change", duration_changed);
 
-        addOption(fups_sel, 0, "duration", true); //check checked
+        addOption(fups_sel, 0, setting_exists?"remove":"select", true); //check checked
+       // addOption(fups_sel, 0, "remove", false);
         for (i = 0; i < force_up_mins.length; i++) {
             min_cur = force_up_mins[i];
             duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
@@ -1045,7 +1046,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
             console.log("addOption2", i);
         }
     }
-    ct_div.appendChild(ct_sel);//*** 
+    ct_div.appendChild(ct_sel);
 
     conf_div.appendChild(ct_div);
 
@@ -1203,7 +1204,6 @@ function init_channel_elements(edit_mode = false) {
                 chdiv.appendChild(chdiv_info);
                 chdiv.appendChild(chdiv_sched);
                 chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
-               
                 
                 chlist.appendChild(chdiv);
 
@@ -1227,7 +1227,7 @@ function init_channel_elements(edit_mode = false) {
                     for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
                         hour_cur = force_up_hours[hour_idx];
                         // new test
-                        update_fup_duration_element(i, current_duration_minute);
+                        update_fup_duration_element(i, current_duration_minute,(current_start_ts>0));
                         update_fup_schedule_element(i, current_start_ts);
                         // schedule button
                         //  sched_btn = createElem("input", 'sched_' + i, " + ", "addstmtb", "button");
@@ -1319,9 +1319,6 @@ function initForm(url) {
             if (element)
                 element.scrollIntoView();
         }
-
-
-        //   alert(url_a[1]);
     }
     /*  else if (url == '/channels_old') {
           getVariableList();
@@ -1331,8 +1328,9 @@ function initForm(url) {
       //     setTimeout(function () { updateStatus(false); }, 2000);
       // } */
     else if (url == '/') {
+        get_price_data();
         init_channel_elements(false);
-        setTimeout(function () { get_price_data(); }, 500);
+      //  setTimeout(function () { get_price_data(); }, 500);
         setTimeout(function () { updateStatus(false); }, 2000);
     }
 
@@ -1381,6 +1379,7 @@ function initForm(url) {
 function compare_wifis(a, b) {
     return ((a.rssi > b.rssi) ? -1 : 1);
 }
+
 // cookie function, check messages read etc, https://www.w3schools.com/js/js_cookies.asp
 function setCookie(cname, cvalue, exdays) {
     const d = new Date();

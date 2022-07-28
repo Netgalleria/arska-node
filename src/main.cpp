@@ -1469,7 +1469,8 @@ bool scan_sensors()
 
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
   Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
-  if (sensor_count == 0){
+  if (sensor_count == 0)
+  {
     log_msg(MSG_TYPE_WARN, PSTR("No sensors found."), true);
   }
   snprintf(msgbuff, sizeof(msgbuff), "Found %d sensors", sensor_count);
@@ -2749,7 +2750,7 @@ void get_channel_config_fields(char *out, int channel_idx)
  * @param condition_idx
  * @param buff_len
  */
-// Moved  element creation logic to javascript 
+// Moved  element creation logic to javascript
 /*
 void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int buff_len)
 {
@@ -2841,6 +2842,7 @@ bool is_force_up_valid(int channel_idx)
   Serial.println(is_valid);
   return is_valid;
 }
+
 int active_condition(int channel_idx)
 {
   for (int i = 0; i < CHANNEL_CONDITIONS_MAX; i++)
@@ -3147,21 +3149,21 @@ String setup_form_processor(const String &var)
     return String(CHANNEL_CONDITIONS_MAX);
   if (var == "wifi_in_setup_mode")
     return String(wifi_in_setup_mode ? 1 : 0);
-/*
-  if (var.startsWith("chi_"))
-  {
-    char out[2000];
-    int channel_idx = var.substring(4, 5).toInt();
-    if (channel_idx >= CHANNEL_COUNT)
-      return String();
+  /*
+    if (var.startsWith("chi_"))
+    {
+      char out[2000];
+      int channel_idx = var.substring(4, 5).toInt();
+      if (channel_idx >= CHANNEL_COUNT)
+        return String();
 
-    snprintf(out, 2000, "<div id='chdiv_%d' class='hb'>", channel_idx); // close on "cht_"
-    get_channel_status_header(out, channel_idx, false);
-    get_channel_config_fields(out, channel_idx);
-    // Serial.printf("strlen(out):%d\n",strlen(out));
+      snprintf(out, 2000, "<div id='chdiv_%d' class='hb'>", channel_idx); // close on "cht_"
+      get_channel_status_header(out, channel_idx, false);
+      get_channel_config_fields(out, channel_idx);
+      // Serial.printf("strlen(out):%d\n",strlen(out));
 
-    return out;
-  } */
+      return out;
+    } */
   /* Old dashboard template, can be removed
   if (var.startsWith("vch_"))
   {
@@ -3180,62 +3182,62 @@ String setup_form_processor(const String &var)
     return out;
   }
 */
-/*
-  if (var.startsWith("cht_"))
-  {
-    char out[2400];
-    char buff[500];
-    char buffstmt[50];
-    char buffstmt2[200];
-    int channel_idx = var.substring(4, 5).toInt();
-    // if (channel_idx >= 1)
-    if (channel_idx >= CHANNEL_COUNT)
-      return String();
-
-    // Serial.printf("var: %s\n", var.c_str());
-    snprintf(out, 1800, "<div id='rd_%d'>", channel_idx); // div envelope for all channel rules
-    for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
+  /*
+    if (var.startsWith("cht_"))
     {
+      char out[2400];
+      char buff[500];
+      char buffstmt[50];
+      char buffstmt2[200];
+      int channel_idx = var.substring(4, 5).toInt();
+      // if (channel_idx >= 1)
+      if (channel_idx >= CHANNEL_COUNT)
+        return String();
 
-      // strcpy(buff, "");
-      sprintf(buff, "<div id='ru_%d_%d'>", channel_idx, condition_idx); // open ru_X
-      strncat(out, buff, sizeof(out) - strlen(out) - 1);
-
-      strcpy(buffstmt2, "");
-
-      get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
-
-      strncat(out, buff, sizeof(out) - strlen(out) - 1);
-
-      int stmt_count = 0;
-      char floatbuff[20];
-      for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+      // Serial.printf("var: %s\n", var.c_str());
+      snprintf(out, 1800, "<div id='rd_%d'>", channel_idx); // div envelope for all channel rules
+      for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
       {
-        int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
-        int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
-        long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
 
-        vars.to_str(variable_id, floatbuff, true, const_val);
+        // strcpy(buff, "");
+        sprintf(buff, "<div id='ru_%d_%d'>", channel_idx, condition_idx); // open ru_X
+        strncat(out, buff, sizeof(out) - strlen(out) - 1);
 
-        // TODO: alusta tai jotain
-        if (variable_id == -1 || oper_id == -1)
-          continue;
+        strcpy(buffstmt2, "");
 
-        snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
-        stmt_count++;
-        strcat(buffstmt2, buffstmt);
+        get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
+
+        strncat(out, buff, sizeof(out) - strlen(out) - 1);
+
+        int stmt_count = 0;
+        char floatbuff[20];
+        for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+        {
+          int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
+          int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
+          long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
+
+          vars.to_str(variable_id, floatbuff, true, const_val);
+
+          // TODO: alusta tai jotain
+          if (variable_id == -1 || oper_id == -1)
+            continue;
+
+          snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
+          stmt_count++;
+          strcat(buffstmt2, buffstmt);
+        }
+        // no name in stmts_ , copy later in js
+        snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
+
+        strcat(out, buff);
+        strcat(out, "</div>"); // close ru_X
       }
-      // no name in stmts_ , copy later in js
-      snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
-
-      strcat(out, buff);
-      strcat(out, "</div>"); // close ru_X
+      strcat(out, "</div>\n"); // rd_X div
+      strcat(out, "</div>");   // chdiv_
+      return out;
     }
-    strcat(out, "</div>\n"); // rd_X div
-    strcat(out, "</div>");   // chdiv_
-    return out;
-  }
-*/
+  */
   if (var == "status_fields")
   {
     char out[500];
@@ -4158,26 +4160,28 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   bool force_up_changes = false;
   bool channel_already_forced;
   long force_up_minutes;
-  time_t force_up_from;
+  time_t force_up_from = 0;
   time_t force_up_until;
-  char from_fld[15];
+  char force_up_from_fld[15];
   char duration_fld[15];
 
   for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    snprintf(from_fld, sizeof(from_fld), "fupfrom_%d", channel_idx);
+    snprintf(force_up_from_fld, sizeof(force_up_from_fld), "fupfrom_%d", channel_idx);
     snprintf(duration_fld, sizeof(duration_fld), "fups_%d", channel_idx);
 
-    if (request->hasParam(duration_fld, true) && request->hasParam(from_fld, true))
+    if (request->hasParam(duration_fld, true))
     {
       channel_already_forced = is_force_up_valid(channel_idx);
-
-      if (request->getParam(from_fld, true)->value().toInt() == 0)
-        force_up_from = now;
-      else
-        force_up_from = max(now, request->getParam(from_fld, true)->value().toInt()); // absolute unix ts is waited
-
       force_up_minutes = request->getParam(duration_fld, true)->value().toInt();
+
+      if (request->hasParam(force_up_from_fld, true))
+      {
+        if (request->getParam(force_up_from_fld, true)->value().toInt() == 0)
+          force_up_from = now;
+        else
+          force_up_from = max(now, request->getParam(force_up_from_fld, true)->value().toInt()); // absolute unix ts is waited
+      }
 
       Serial.printf("channel_idx: %d, force_up_minutes: %ld , force_up_from %ld\n", channel_idx, force_up_minutes, force_up_from);
 
@@ -4208,7 +4212,7 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   }
 
   request->redirect("/");
-}
+  }
 
 /**
  * @brief Process service (input) form
@@ -4316,8 +4320,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     {
       // statements
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
-    //  Serial.println(stmts_fld);
-    //  Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
+      //  Serial.println(stmts_fld);
+      //  Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
@@ -4345,9 +4349,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
           //    Serial.println(request->getParam(stmts_fld, true)->value());
           if (stmts_json.size() > 0)
           {
-            // Serial.print(stmts_fld);
-            // Serial.print(": ");
-            // Serial.println(request->getParam(stmts_fld, true)->value());
             variable_st var_this;
             int var_index;
             for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), RULE_STATEMENTS_MAX); stmt_idx++)
@@ -4359,10 +4360,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
                 int variable_id = (int)stmts_json[stmt_idx][0];
                 s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = variable_id;
                 s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = (byte)stmts_json[stmt_idx][1];
-                // TODO: conversion variables 10 exp
 
-                // Serial.printf("C [%s]\n",val_float_str);
-                // float val_f = atof(stmts_json[stmt_idx][2]);
                 float val_f = stmts_json[stmt_idx][2];
                 long long_val = vars.float_to_internal_l(variable_id, val_f);
                 //    Serial.printf("float_to_internal_l: %f  -> %ld\n", val_f, long_val);
@@ -4379,12 +4377,12 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
-    //  Serial.printf("Channel %d, rule %d, field %s",channel_idx, condition_idx, ctrb_fld);
+      //  Serial.printf("Channel %d, rule %d, field %s",channel_idx, condition_idx, ctrb_fld);
 
       if (request->hasParam(ctrb_fld, true))
       {
         s.ch[channel_idx].conditions[condition_idx].on = (request->getParam(ctrb_fld, true)->value().toInt() == (int)1);
-        Serial.print(request->getParam(ctrb_fld, true)->value().toInt() );
+        Serial.print(request->getParam(ctrb_fld, true)->value().toInt());
       }
       else
         Serial.println("field not found in the form");
