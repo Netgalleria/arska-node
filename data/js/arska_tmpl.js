@@ -226,15 +226,6 @@ function show_channel_status(channel_idx, ch) {
         status_el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', href);
 
     info_text = "";
-    /*   if ((ch.active_condition > -1) && !ch.forced_up && ch.is_up)
-           info_text += "UP based on the rule " + (ch.active_condition + 1) + ". ";
-       if ((ch.active_condition > -1) && !ch.forced_up && !ch.is_up)
-           info_text += "DOWN based on the rule " + (ch.active_condition + 1) + ". ";
-       if ((ch.active_condition == -1) && !ch.forced_up && !ch.is_up)
-           info_text += "DOWN, no matching rules. ";
-       else if (ch.forced_up && ch.is_up)
-           info_text += "UP based on the manual schedule: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true) + ". ";
-   */
 
     if (ch.is_up) {
         if (ch.forced_up)
@@ -258,7 +249,8 @@ function show_channel_status(channel_idx, ch) {
     chdiv_info = document.getElementById("chdinfo_" + channel_idx);
     // chdiv_info.insertAdjacentHTML('beforeend', "<br><span>" + info_text + "</span>");
     if (chdiv_info)
-        chdiv_info.innerHTML = "<br><span>" + info_text + "</span>";
+  //  chdiv_info.innerHTML = "<br><span>" + info_text + "</span>";
+        chdiv_info.innerHTML = info_text;
     else
         console.log("no div with id " + "chdinfo_" + channel_idx);
 
@@ -930,11 +922,12 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     duration_selected = fups_sel.value;
 
     if (duration_selected == 0) {
-        // addOption(sel_fup_from, -1, "select start", true);
-        sel_fup_from.style.display = "none";
+      //  addOption(sel_fup_from, -1, "select duration", true);
+        addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
+        sel_fup_from.disabled = true;
         return;
     }
-    sel_fup_from.style.display = "block";
+    sel_fup_from.disabled = false;
 
     first_next_hour_ts = parseInt(((Date.now() / 1000)) / 3600) * 3600 + 3600;
     start_ts = first_next_hour_ts;
@@ -1003,7 +996,7 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60) {
 
 function add_radiob_with_label(parent, name, value, label, checked) {
     rb_id = name + "_" + value;
-    rb = createElem("input", rb_id, 0, null, "radio");
+    rb = createElem("input", rb_id, value, null, "radio");
     rb.name = name;
     rb.checked = checked;
     lb = createElem("label", null, null, null, null);
@@ -1102,9 +1095,9 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         anchor.insertAdjacentText('beforeend', "Rule " + (condition_idx + 1) + ":");
 
         ruleh_span.appendChild(anchor);
-        rule_status_span = createElem("span", "rss" + suffix, null, null);
+        rule_status_span = createElem("span", "rss" + suffix, null, "notify");
         if (ch_cur.active_condition_idx == condition_idx) {
-            rule_status_span.style = 'color:green';
+           // rule_status_span.style = 'color:green';
             rule_status_span.insertAdjacentText('beforeend', "* NOW MATCHING *");
         }
 
@@ -1183,6 +1176,7 @@ function init_channel_elements(edit_mode = false) {
                 chdiv_head = createElem("div", null, null, "secbr cht");
                 chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
                 chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
+                
 
                 var svg = document.createElementNS(svgns, "svg");
 
@@ -1205,12 +1199,13 @@ function init_channel_elements(edit_mode = false) {
 
                 chdiv_head.appendChild(span);
                 chdiv.appendChild(chdiv_head);
-                chdiv.appendChild(chdiv_sched);
                 chdiv.appendChild(chdiv_info);
+                chdiv.appendChild(chdiv_sched);
+                chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
+               
+                
                 chlist.appendChild(chdiv);
 
-                //var date = new Date(UNIX_Timestamp * 1000);
-                //Date.now()
                 now_ts = Date.now() / 1000;
 
                 if (!edit_mode) { // is dashboard
@@ -1244,7 +1239,6 @@ function init_channel_elements(edit_mode = false) {
                 if (edit_mode) {
                     create_channel_config_elements(chdiv, i, ch_cur);
                     create_channel_rule_elements(chdiv, i, ch_cur);
-                    //TODO: add functionality from: get_channel_config_fields,  processor: if (var.startsWith("cht_"))
 
                 }
             });

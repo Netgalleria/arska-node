@@ -93,6 +93,10 @@ h3 {
     margin-left: 10px;
     clear: both;
 }
+[id^=chdsched_]{
+    margin-top: 20px;
+}
+
 
 .secbr {
     padding-top: 10px;
@@ -145,9 +149,15 @@ h3 {
     float:left;
     clear:right;
 }
-.chlink {
+a:any-link {
+    cursor:pointer; 
+    border-bottom: 4px solid #f3f300;
+}
+.notify {
     color:#f3f300;
 }
+.chlink {cursor:pointer;}
+
 .divstament {
     clear: both;
 }
@@ -193,7 +203,7 @@ h2 {
     color: #f7f7e6;
     text-decoration:none;
   }
-  .actUrl {color: yellow;}
+  .actUrl {color:#f3f300; font-weight: 400;}
  
   #headdiv span {
     color: #f7f7e6;
@@ -292,4 +302,6 @@ input[type="text"]:disabled {
     color: #dddddd;
   }
 .headlogo {height: 80px;margin-right:20px}
-.helpUrl {font-size: 30px;}
+.helpUrl {font-size: 30px;    top: -2px;
+    position: relative;
+    margin-left: 5;}

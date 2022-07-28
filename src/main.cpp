@@ -1462,14 +1462,18 @@ bool scan_sensors()
   int32_t temp_raw;
   bool sensor_already_listed;
   int first_free_slot;
+  char msgbuff[50];
 
   sensors.begin(); // initiate bus
   delay(2000);     // let the sensors settle
 
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
   Serial.printf(PSTR("Scanning sensors, sensor_count:%d\n"), sensor_count);
-  if (sensor_count == 0)
-    return true;
+  if (sensor_count == 0){
+    log_msg(MSG_TYPE_WARN, PSTR("No sensors found."), true);
+  }
+  snprintf(msgbuff, sizeof(msgbuff), "Found %d sensors", sensor_count);
+  log_msg(MSG_TYPE_INFO, msgbuff, true);
 
   sensors.requestTemperatures();
   delay(50);
@@ -2700,7 +2704,7 @@ bool update_price_rank_variables()
  * @param out out buffer
  * @param channel_idx
  */
-// TODO: Move  element creation logic to javascript in next UI restructuring
+/* old, to be removed
 void get_channel_config_fields(char *out, int channel_idx)
 {
   char buff[200];
@@ -2736,7 +2740,7 @@ void get_channel_config_fields(char *out, int channel_idx)
 
   Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
 }
-
+*/
 /**
  * @brief Get a condition row fields for the admin form
  *
@@ -2745,7 +2749,8 @@ void get_channel_config_fields(char *out, int channel_idx)
  * @param condition_idx
  * @param buff_len
  */
-// TODO: Move  element creation logic to javascript in next UI restructuring
+// Moved  element creation logic to javascript 
+/*
 void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int buff_len)
 {
   char suffix[10];
@@ -2754,7 +2759,7 @@ void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int 
   snprintf(out, buff_len, "<div class='secbr'><br><span class='big'>Rule %i: %s</span></div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
   return;
 }
-
+*/
 /**
  * @brief Get  status info for admin / view forms
  *
@@ -2865,6 +2870,7 @@ typedef struct
  */
 // TODO: Move  element creation logic to javascript in next UI restructuring
 // To be removed in the new UI model
+/*
 void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
 {
   time_t now_in_func;
@@ -2915,7 +2921,7 @@ void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
   }
   return;
 }
-
+*/
 /**
  * @brief Template processor for the admin form
  *
@@ -3141,7 +3147,7 @@ String setup_form_processor(const String &var)
     return String(CHANNEL_CONDITIONS_MAX);
   if (var == "wifi_in_setup_mode")
     return String(wifi_in_setup_mode ? 1 : 0);
-
+/*
   if (var.startsWith("chi_"))
   {
     char out[2000];
@@ -3155,7 +3161,7 @@ String setup_form_processor(const String &var)
     // Serial.printf("strlen(out):%d\n",strlen(out));
 
     return out;
-  }
+  } */
   /* Old dashboard template, can be removed
   if (var.startsWith("vch_"))
   {
@@ -3174,6 +3180,7 @@ String setup_form_processor(const String &var)
     return out;
   }
 */
+/*
   if (var.startsWith("cht_"))
   {
     char out[2400];
@@ -3224,12 +3231,11 @@ String setup_form_processor(const String &var)
       strcat(out, buff);
       strcat(out, "</div>"); // close ru_X
     }
-
     strcat(out, "</div>\n"); // rd_X div
     strcat(out, "</div>");   // chdiv_
     return out;
   }
-
+*/
   if (var == "status_fields")
   {
     char out[500];
@@ -4310,8 +4316,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     {
       // statements
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
-      Serial.println(stmts_fld);
-      Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
+    //  Serial.println(stmts_fld);
+    //  Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
@@ -4373,11 +4379,12 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
-      // Serial.println(ctrb_fld);
+    //  Serial.printf("Channel %d, rule %d, field %s",channel_idx, condition_idx, ctrb_fld);
 
       if (request->hasParam(ctrb_fld, true))
       {
         s.ch[channel_idx].conditions[condition_idx].on = (request->getParam(ctrb_fld, true)->value().toInt() == (int)1);
+        Serial.print(request->getParam(ctrb_fld, true)->value().toInt() );
       }
       else
         Serial.println("field not found in the form");
