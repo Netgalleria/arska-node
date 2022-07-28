@@ -1016,6 +1016,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     id_div = createElem("div", null, null, "fldshort");
     id_div.insertAdjacentText('beforeend', 'id: ');
     inp_id = createElem("input", "id_ch_" + channel_idx, ch_cur.id_str, null, "text");
+    inp_id.name = "id_ch_" + channel_idx;
     inp_id.setAttribute("maxlength", 9);
     id_div.appendChild(inp_id);
     conf_div.appendChild(id_div);

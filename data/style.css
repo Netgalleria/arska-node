@@ -40,17 +40,6 @@ input[type=checkbox] {
     border-color: #404040
 }
 
-input[type=submit],button,.actBtn{
-    background-color: #7b7979;
-    color: #f7f7e6;
-    border-color: #404040;
-    padding: 10px 20px;
-
-display: inline-block;
-border: 2px solid #444;
-border-radius: 4px;
-min-width: 15em;
-}
 
 
 h3 {
@@ -149,14 +138,31 @@ h3 {
     float:left;
     clear:right;
 }
+
+
 a:any-link {
     cursor:pointer; 
     border-bottom: 4px solid #f3f300;
 }
+a {
+    text-decoration:none;
+    color:white;
+}
 .notify {
     color:#f3f300;
 }
-.chlink {cursor:pointer;}
+
+input[type=submit],button,.actBtn{
+    background-color: #7b7979;
+    color: #f7f7e6;
+    border-color: #404040;
+    padding: 10px 20px;
+display: inline-block;
+border: 2px solid #444!important;
+border-radius: 4px;
+min-width: 16em;
+}
+
 
 .divstament {
     clear: both;
@@ -199,10 +205,7 @@ h2 {
     padding:15px;}
     
   
-  a {
-    color: #f7f7e6;
-    text-decoration:none;
-  }
+
   .actUrl {color:#f3f300; font-weight: 400;}
  
   #headdiv span {
