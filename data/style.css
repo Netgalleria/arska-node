@@ -85,6 +85,10 @@ h3 {
 [id^=chdsched_]{
     margin-top: 20px;
 }
+[id^=chdinfo_]{
+    line-height: 1.5em;
+}
+
 
 
 .secbr {

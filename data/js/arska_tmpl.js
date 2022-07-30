@@ -210,7 +210,7 @@ function updateStatus(show_variables = true) {
         });
     });
     //  if (document.getElementById('statusauto').checked) {
-    setTimeout(function () { updateStatus(show_variables); }, 60000);
+    setTimeout(function () { updateStatus(show_variables); }, 30000);
     //  }
     //  get_price_data(); // get prices, if expired or not fetched before
 }
@@ -228,7 +228,7 @@ function show_channel_status(channel_idx, ch) {
     info_text = "";
 
     if (ch.is_up) {
-        if (ch.forced_up)
+        if (ch.force_up)
             info_text += "Up based on manual schedule: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true) + ". ";
         else if (ch.active_condition > -1)
             info_text += "Up based on <a class='chlink'  href='/channels#c" + channel_idx + "r" + ch.active_condition + "'>rule " + (ch.active_condition + 1) + "</a>. ";
@@ -240,7 +240,7 @@ function show_channel_status(channel_idx, ch) {
             info_text += "Down, no matching rules. ";
     }
 
-    if (ch.force_up_from > now_ts) {
+    if (ch.force_up_from > now_ts-100) { //leave some margin
         if (info_text)
             info_text += "<br>";
         info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true);
@@ -249,11 +249,8 @@ function show_channel_status(channel_idx, ch) {
     chdiv_info = document.getElementById("chdinfo_" + channel_idx);
     // chdiv_info.insertAdjacentHTML('beforeend', "<br><span>" + info_text + "</span>");
     if (chdiv_info)
-  //  chdiv_info.innerHTML = "<br><span>" + info_text + "</span>";
         chdiv_info.innerHTML = info_text;
-    else
-        console.log("no div with id " + "chdinfo_" + channel_idx);
-
+   
 }
 // before submitting input admin form
 var submitInputsForm = function (e) {
@@ -921,7 +918,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     fups_sel = document.getElementById("fups_" + channel_idx);
     duration_selected = fups_sel.value;
 
-    if (duration_selected == 0) {
+    if (duration_selected <= 0) {
       //  addOption(sel_fup_from, -1, "select duration", true);
         addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
         sel_fup_from.disabled = true;
@@ -980,7 +977,9 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60,set
         fups_sel.name = "fups_" + channel_idx;
         fups_sel.addEventListener("change", duration_changed);
 
-        addOption(fups_sel, 0, setting_exists?"remove":"select", true); //check checked
+        addOption(fups_sel, -1, "select", true); //check checked
+        if (setting_exists)
+            addOption(fups_sel, 0, "remove", false); //check checked
        // addOption(fups_sel, 0, "remove", false);
         for (i = 0; i < force_up_mins.length; i++) {
             min_cur = force_up_mins[i];
@@ -1218,8 +1217,8 @@ function init_channel_elements(edit_mode = false) {
                     //    if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600)) {
                     if ((ch_cur.force_up_until > now_ts)) {
                         has_forced_setting = true;
-                        current_duration_minute = (ch_cur.force_up_until - ch_cur.force_up_from) / 60
                     }
+
                     if ((ch_cur.force_up_from > now_ts)) {
                         current_start_ts = ch_cur.force_up_from;
                     }
@@ -1227,7 +1226,7 @@ function init_channel_elements(edit_mode = false) {
                     for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
                         hour_cur = force_up_hours[hour_idx];
                         // new test
-                        update_fup_duration_element(i, current_duration_minute,(current_start_ts>0));
+                        update_fup_duration_element(i, current_duration_minute,has_forced_setting);
                         update_fup_schedule_element(i, current_start_ts);
                         // schedule button
                         //  sched_btn = createElem("input", 'sched_' + i, " + ", "addstmtb", "button");

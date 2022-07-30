@@ -60,7 +60,7 @@ char version_fs[35];
 // features enabled
 // moved to platformio.ini build parameters
 #define MAX_DS18B20_SENSORS 3
-#define SENSOR_VALUE_EXPIRE_TIME 600
+#define SENSOR_VALUE_EXPIRE_TIME 1200
 #define METER_SHELLY3EM_ENABLED
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
@@ -786,6 +786,99 @@ const char *influx_device_id PROGMEM = "arska";
 
 typedef struct
 {
+  bool state;
+  time_t this_state_started;
+  int on_time;
+  int off_time;
+} channel_log_struct;
+
+Point state_stats("state_stats");
+/**
+ * @brief Handling channel utilization (uptime/downtime) statistics
+ * 
+ */
+class ChannelCounters
+{
+public:
+  ChannelCounters()
+  {
+    init();
+  }
+  void init();
+  void new_log_period(time_t ts_report);
+  void set_state(int channel_idx, bool new_state);
+
+private:
+  channel_log_struct channel_logs[CHANNEL_COUNT];
+};
+void ChannelCounters::init()
+{
+  time_t now_l;
+  time(&now_l);
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    channel_logs[i].off_time = 0;
+    channel_logs[i].on_time = 0;
+    channel_logs[i].state = false;
+    channel_logs[i].this_state_started = now_l;
+  }
+}
+void ChannelCounters::new_log_period(time_t ts_report)
+{
+  time_t now_l;
+  float utilization;
+  time(&now_l);
+
+  // influx buffer
+  state_stats.setTime(ts_report);
+  char field_name[10];
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    set_state(i, channel_logs[i].state); // this will update counters without changing state
+    if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
+      utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
+    else
+      utilization = 0;
+    snprintf(field_name, sizeof(field_name), "ch%d", i);
+    state_stats.addField(field_name, utilization);
+  }
+  // then reset
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    channel_logs[i].off_time = 0;
+    channel_logs[i].on_time = 0;
+    channel_logs[i].this_state_started = now_l;
+  }
+  // write buffer
+}
+
+void ChannelCounters::set_state(int channel_idx, bool new_state)
+{
+  time_t now_l;
+  time(&now_l);
+  int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started);
+  if (channel_logs[channel_idx].state)
+    channel_logs[channel_idx].on_time += previous_state_duration;
+  else
+    channel_logs[channel_idx].off_time += previous_state_duration;
+
+  float utilization; // FOR DEBUG
+  if ((channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time) > 0) {
+    utilization = (float)channel_logs[channel_idx].on_time / (float)(channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time);
+  }
+  else {
+    utilization = 0;
+  }
+  Serial.printf("set_state, channel: %d, on: %d , off: %d, utilization: %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
+
+  channel_logs[channel_idx].state = new_state;
+  channel_logs[channel_idx].this_state_started = now_l;
+}
+
+ChannelCounters ch_counters;
+
+typedef struct
+{
   char url[70];
   char token[100];
   char org[30];
@@ -795,6 +888,7 @@ typedef struct
 influx_settings_struct s_influx;
 
 Point period_data("arska_period"); //!< Influx buffer
+
 // Point now_data("arska_now"); //!< Influx buffer
 
 /**
@@ -803,15 +897,17 @@ Point period_data("arska_period"); //!< Influx buffer
  * @param ts timestamp written to buffer point
  */
 // TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
-void add_period_variables_to_influx_buffer(time_t ts)
+void add_period_variables_to_influx_buffer(time_t ts_report)
 {
-  period_data.setTime(ts);
+  period_data.setTime(ts_report);
 
+  // prices are batch updated in function update_prices_to_influx
+/*
   if (vars.is_set(VARIABLE_PRICE))
     period_data.addField("price", vars.get_f(VARIABLE_PRICE));
   else
     Serial.println(F("Price not set"));
-
+*/
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
     period_data.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
 
@@ -831,9 +927,9 @@ void add_period_variables_to_influx_buffer(time_t ts)
 
 bool write_buffer_to_influx()
 {
-  if (!period_data.hasFields())
+  if (!period_data.hasFields() && !state_stats.hasFields())
   {
-    Serial.println(F("write_buffer_to_influx no fields in period_data."));
+    Serial.println(F("write_buffer_to_influx no fields in period_data or state_stats."));
     return true; // no fields in the buffer
   }
 
@@ -848,22 +944,43 @@ bool write_buffer_to_influx()
 
   ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S));
 
-  if (!period_data.hasTags())
-    period_data.addTag("device", influx_device_id);
-
-  ifclient.setInsecure(true); // TODO: cert handling
-
-  Serial.print("Writing: ");
-  Serial.println(ifclient.pointToLineProtocol(period_data));
-
-  // Write point
-  bool write_ok = ifclient.writePoint(period_data);
-  if (!write_ok)
+  if (period_data.hasFields())
   {
-    Serial.print("InfluxDB write failed: ");
-    Serial.println(ifclient.getLastErrorMessage());
+    if (!period_data.hasTags())
+      period_data.addTag("device", influx_device_id);
+    ifclient.setInsecure(true); // TODO: cert handling
+
+    Serial.print("Writing: ");
+    Serial.println(ifclient.pointToLineProtocol(period_data));
+
+    // Write point
+    bool write_ok = ifclient.writePoint(period_data);
+    if (!write_ok)
+    {
+      Serial.print("InfluxDB write failed: ");
+      Serial.println(ifclient.getLastErrorMessage());
+    }
+    period_data.clearFields();
   }
-  period_data.clearFields();
+
+  if (state_stats.hasFields()) // TODO:combine the two
+  {
+    if (!state_stats.hasTags())
+      state_stats.addTag("device", influx_device_id);
+    ifclient.setInsecure(true); // TODO: cert handling
+
+    Serial.print("Writing: ");
+    Serial.println(ifclient.pointToLineProtocol(state_stats));
+
+    // Write point
+    bool write_ok = ifclient.writePoint(state_stats);
+    if (!write_ok)
+    {
+      Serial.print("InfluxDB write failed: ");
+      Serial.println(ifclient.getLastErrorMessage());
+    }
+    state_stats.clearFields();
+  }
 
 // add current debug and sensor values to the buffer, write later
 #ifdef DEBUG_MODE
@@ -885,7 +1002,7 @@ bool write_buffer_to_influx()
   }
 #endif
 
-  return write_ok;
+  return true; // write_ok TODO: check what to return
 }
 
 // under contruction
@@ -907,7 +1024,6 @@ bool update_prices_to_influx()
   char datebuff[30];
   tm tm2;
 
-  // Point price_data("arska_period"); //!< Influx buffer
 
   // Missing or invalid parameters
   if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
@@ -1388,15 +1504,12 @@ String httpGETRequest(const char *url, const char *cache_file_name)
   http.setReuse(false);
   // http.useHTTP10(true); // for json input
 
-  // Serial.println(url);
   http.begin(wifi_client, url); //  IP address with path or Domain name with URL path
   delay(100);
   int httpResponseCode = http.GET(); //  Send HTTP GET request
 
   String payload = "{}";
 
-  /* Serial.print(F("httpResponseCode: "));
-   Serial.println(httpResponseCode);*/
 
   if (httpResponseCode > 0)
   {
@@ -1488,7 +1601,7 @@ bool scan_sensors()
       { // still online?
         Serial.println(sensors.getTemp(s.sensors[j].address));
         print_onewire_address(s.sensors[j].address);
-        Serial.printf(" still online in slot %d\n", j);
+        Serial.printf(PSTR(" still online in slot %d\n"), j);
         continue;
       }
     }
@@ -2839,7 +2952,6 @@ bool is_force_up_valid(int channel_idx)
   // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
 
   bool is_valid = ((s.ch[channel_idx].force_up_from < now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
-  Serial.println(is_valid);
   return is_valid;
 }
 
@@ -3356,11 +3468,13 @@ bool set_channel_switch(int channel_idx, bool up)
   if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     return false;
 
+  ch_counters.set_state(channel_idx, up); // counters
   if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
   {
     digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
     return true;
   }
+
   else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_ONOFF && s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
     String url_to_call = "http://" + String(s.energy_meter_host) + "/relay/0?turn=";
@@ -3419,8 +3533,7 @@ void update_relay_states()
     }
     // forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
     forced_up = (is_force_up_valid(channel_idx));
-    Serial.printf("update_relay_states: %d, forced_up", channel_idx);
-    Serial.println(forced_up);
+
 
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
@@ -4172,11 +4285,14 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
 
     if (request->hasParam(duration_fld, true))
     {
+      if (request->getParam(duration_fld, true)->value().toInt() == -1)
+        continue; // no selection
       channel_already_forced = is_force_up_valid(channel_idx);
       force_up_minutes = request->getParam(duration_fld, true)->value().toInt();
 
       if (request->hasParam(force_up_from_fld, true))
       {
+        Serial.printf("%s: %d\n", force_up_from_fld, (int)request->getParam(force_up_from_fld, true)->value().toInt());
         if (request->getParam(force_up_from_fld, true)->value().toInt() == 0)
           force_up_from = now;
         else
@@ -4212,7 +4328,7 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   }
 
   request->redirect("/");
-  }
+}
 
 /**
  * @brief Process service (input) form
@@ -4320,15 +4436,10 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     {
       // statements
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
-      //  Serial.println(stmts_fld);
-      //  Serial.println(request->hasParam(stmts_fld, true) ? "hasParam" : "no param");
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
-        // empty all statements if there are somein the form post
-        /*   if (!stmts_emptied)
-           {
-             stmts_emptied = true;*/
+
         for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
         {
           s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
@@ -4345,8 +4456,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         }
         else
         {
-          //    Serial.printf("stmts_json.size() %d \n", (int)stmts_json.size());
-          //    Serial.println(request->getParam(stmts_fld, true)->value());
           if (stmts_json.size() > 0)
           {
             variable_st var_this;
@@ -4580,7 +4689,6 @@ void set_time_settings()
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
   {
-    //  Serial.println("Failed to obtain time, retrying");
     log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
     time(&now_infunc);
     Serial.printf(PSTR("Setup: %ld"), now_infunc);
@@ -4942,7 +5050,6 @@ void setup()
     if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
     { // gpio channel
       pinMode(s.ch[channel_idx].gpio, OUTPUT);
-      //    Serial.printf("Setting channel %d with gpio %d to OUTPUT mode\n", channel_idx, s.ch[channel_idx].gpio);
     }
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
@@ -5070,10 +5177,12 @@ void loop()
     delay(10000);
     return;
   }
-  else if (started == 0)
+  else if (started == 0) //we have clock set
   {
     started = now;
     log_msg(MSG_TYPE_INFO, PSTR("Started processing"), true);
+    set_time_settings(); // set tz info
+    ch_counters.init();
   }
 
   // set relays, if forced from dashboard
@@ -5164,7 +5273,6 @@ void loop()
   }
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
-  //  if (((millis() - last_process_ts) > PROCESS_INTERVAL_SECS * 1000) || period_changed)
   if (next_process_ts <= now) // time to process
   {
     localtime_r(&now, &tm_struct);
@@ -5192,7 +5300,10 @@ void loop()
 #ifdef INFLUX_REPORT_ENABLED
     if (previous_period_start != 0)
     {
-      add_period_variables_to_influx_buffer(previous_period_start);
+     // add_period_variables_to_influx_buffer(previous_period_start);
+      add_period_variables_to_influx_buffer(previous_period_start+(NETTING_PERIOD_SEC/2)); 
+      ch_counters.new_log_period(previous_period_start+(NETTING_PERIOD_SEC/2));
+
       todo_in_loop_influx_write = true;
     }
 #endif
