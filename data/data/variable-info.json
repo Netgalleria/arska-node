@@ -42,6 +42,10 @@
     "103": {
         "id": "selling Wh",
         "en": "energy exported to the grid in current period, Wh"
+    }, 
+    "104": {
+        "id": "selling now W",
+        "en": "energy exported to the grid, momentary, W"
     },
     "110": {
         "id": "mm, month",

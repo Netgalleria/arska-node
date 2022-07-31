@@ -459,7 +459,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 21
+#define VARIABLE_COUNT 22
 
 #define VARIABLE_PRICE 0        //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1  //!< price rank within 9 hours window
@@ -472,6 +472,7 @@ struct statement_st
 #define VARIABLE_PRODUCTION_POWER 101
 #define VARIABLE_SELLING_POWER 102
 #define VARIABLE_SELLING_ENERGY 103
+#define VARIABLE_SELLING_POWER_NOW 104
 #define VARIABLE_MM 110
 #define VARIABLE_MMDD 111
 #define VARIABLE_WDAY 112
@@ -522,7 +523,7 @@ public:
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED},  {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
   int get_variable_index(int id);
 };
 
@@ -1735,7 +1736,7 @@ float shelly3em_e_out = 0;
 float shelly3em_power_in = 0;
 
 /**
- * @brief Get previous read energy values
+ * @brief Get earlier read energy values
  *
  * @param netEnergyInPeriod
  * @param netPowerInPeriod
@@ -1744,7 +1745,7 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
 {
   if (shelly3em_read_count < 2)
   {
-    netPowerInPeriod = shelly3em_power_in;
+    netPowerInPeriod = shelly3em_power_in; // short/no history, using momentary value
     netEnergyInPeriod = 0;
     //  Serial.printf("get_values_shelly3m  shelly3em_read_count: %ld, netPowerInPeriod: %f, netEnergyInPeriod: %f\n", shelly3em_read_count, netPowerInPeriod, netEnergyInPeriod);
   }
@@ -1764,8 +1765,6 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
     else // Do we ever get here with counter check
     {
       netPowerInPeriod = 0;
-      //  Serial.printf("get_values_shelly3m netPowerInPeriod = 0, shelly3em_meter_read_ts: %ld", shelly3em_meter_read_ts);
-      //  netPowerInPeriod = -shelly3em_power_in;
     }
   }
 }
@@ -1804,10 +1803,7 @@ bool read_meter_shelly3em()
 
   float netEnergyInPeriod;
   float netPowerInPeriod;
-  get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-  vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
-  vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
-  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
+
 
   if (shelly3em_last_period != now_period && (shelly3em_last_period > 0))
   { // new period
@@ -1839,6 +1835,7 @@ bool read_meter_shelly3em()
   }
   shelly3em_power_in = power_tot;
 
+ 
   // first query since boot
   if (shelly3em_last_period == 0)
   {
@@ -1848,6 +1845,15 @@ bool read_meter_shelly3em()
     shelly3em_e_in_prev = shelly3em_e_in;
     shelly3em_e_out_prev = shelly3em_e_out;
   }
+
+   //note:this was earlier before meter read
+  get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
+  vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
+  vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
+  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
+  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-shelly3em_power_in)); //momentary
+
+
   return true;
 }
 #endif
