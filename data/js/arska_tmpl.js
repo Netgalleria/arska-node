@@ -157,8 +157,6 @@ function updateStatus(show_variables = true) {
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
             if (data.last_msg_ts > getCookie("msg_read")) {
-                //msgDate = new Date(data.last_msg_ts * 1000);
-                //msgDateStr = msgDate.getFullYear() + '-' + ('0' + (msgDate.getMonth() + 1)).slice(-2) + '-' + ('0' + msgDate.getDate()).slice(-2);
                 msgDateStr = get_time_string_from_ts(data.last_msg_ts, true);
                 msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
             }
@@ -193,13 +191,13 @@ function updateStatus(show_variables = true) {
                     variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
                 else
                     variable_desc = "";
-
+                id_str =  ' (' + var_this[0] + ') '+  var_this[1];
                 if (var_this[2] == 50 || var_this[2] == 51) {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
+                    newRow = '<tr><td>' + id_str +'</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
                     //newRow = '<tr><td>X' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
                 }
                 else {
-                    newRow = '<tr><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
+                    newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
                 }
                 $(newRow).appendTo($("#tblVariables_tb"));
             });
@@ -400,7 +398,9 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
 
     for (var i = 0; i < variables.length; i++) {
         var type_indi = (variables[i][2] >= 50 && variables[i][2] <= 51) ? "*" : " ";
-        addOption(varFld, variables[i][0], variables[i][1] + type_indi, (stmt[0] == variables[i][0]));
+        var id_str = variables[i][1] + type_indi;
+        //var id_str = variables[i][0] + " " + variables[i][1] + type_indi;
+        addOption(varFld, variables[i][0], id_str, (stmt[0] == variables[i][0]));
     }
 }
 
@@ -476,7 +476,8 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
     div_std.appendChild(sel_op);
     div_std.appendChild(inp_const);
 
-    elBtn.parentNode.insertBefore(div_std, elBtn);
+    if (elBtn.parentNode)
+        elBtn.parentNode.insertBefore(div_std, elBtn);
     populateStmtField(document.getElementById("var" + suffix), stmt);
 }
 
@@ -549,8 +550,9 @@ function templateChanged(selEl) {
                 if (stmt.hasOwnProperty('const_prompt')) {
                     stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
                 }
-
-                addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
+                if (elBtn)
+                    addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
+                
                 var_this = get_var_by_id(stmt.values[0]);
                 populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
             });
@@ -747,12 +749,15 @@ function fillStmtRules(channel_idx, rule_mode) {
         }
         prev_rule_var_defined = first_var_defined;
 
-        document.getElementById("ru_" + channel_idx + "_" + cond_idx).style.display = (show_rule ? "block" : "none");
+        ru_div = document.getElementById("ru_" + channel_idx + "_" + cond_idx);
+        if (ru_div)
+            ru_div.style.display = (show_rule ? "block" : "none");
 
         if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             //    console.log("addStmt", channel_idx, cond_idx, 0);
-            addStmt(elBtn, channel_idx, cond_idx, 0);
+            if(elBtn)
+                addStmt(elBtn, channel_idx, cond_idx, 0);
         }
     }
 }
@@ -786,7 +791,8 @@ function initChannelForm() {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
                 for (let j = 0; j < stmts.length; j++) {
                     elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-                    addStmt(elBtn, channel_idx, cond_idx, j, stmts[j]);
+                    if (elBtn)
+                        addStmt(elBtn, channel_idx, cond_idx, j, stmts[j]);
                     var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
                     populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
                 }

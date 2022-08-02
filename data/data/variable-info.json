@@ -11,6 +11,22 @@
         "id": "price rank 24h",
         "en": "price rank in 24 hours, 1 if now lowest price, 24 if highest"
     },
+    "5": {
+        "id": "price average 9h",
+        "en": "average price in 9 hours sliding window"
+    },
+    "6": {
+        "id": "price average 24h",
+        "en": "average price in 24 hours sliding window"
+    },
+    "9": {
+        "id": "price diff to average 9h",
+        "en": "price difference to 9 hours average"
+    },
+    "10": {
+        "id": "price diff to average 24h",
+        "en": "price difference to 24 hours average"
+    },
     "20": {
         "id": "pv forecast 24 h",
         "en": "solar power forecast for next 24 hours, 0.. ca.25"
