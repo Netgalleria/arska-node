@@ -591,15 +591,16 @@ long Variables::float_to_internal_l(int id, float val_float)
 {
   variable_st var;
   int idx = get_variable_by_id(id, &var);
+  float add_in_round = val_float < 0 ? -0.5 : 0.5;
   if (idx != -1)
   {
     if (var.type < 10)
     {
-      return (long)int(val_float * pow(10, var.type) + 0.5);
+      return (long)int(val_float * pow(10, var.type) + add_in_round);
     }
     else if ((var.type == CONSTANT_TYPE_CHAR_2) || (var.type == CONSTANT_TYPE_CHAR_4))
     {
-      return (long)int(val_float + 0.5);
+      return (long)int(val_float + add_in_round);
     }
   }
   return -1;
@@ -4026,11 +4027,14 @@ void export_config(AsyncWebServerRequest *request)
         if (stmt->variable_id != -1 && stmt->oper_id != -1)
         {
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
+          Serial.printf("floatbuff:%s\n", floatbuff);
 
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][0] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][1] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][2] = stmt->const_val;
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][3] = vars.const_to_float(stmt->variable_id, stmt->const_val);
+
+          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][3] = floatbuff;
+          //vars.const_to_float(stmt->variable_id, stmt->const_val);
           stmt_count++;
         }
       }

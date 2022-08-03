@@ -299,6 +299,8 @@ var submitChannelForm = function (e) {
 
             //todo decimal, test  that number valid
             const const_val = parseFloat(document.getElementById("const" + suffix).value);
+           // console.log("const_val", const_val);
+           // alert(const_val);
             saveStoreId = "stmts_" + fldA[1] + "_" + fldA[2];
 
             saveStoreEl = document.getElementById(saveStoreId);
