@@ -533,7 +533,6 @@ private:
   int get_variable_index(int id);
 };
 
-
 bool Variables::is_set(int id)
 {
   int idx = get_variable_index(id);
@@ -2185,8 +2184,9 @@ long get_price_for_time(time_t ts)
     return prices[price_idx];
   }
 }
-void update_variable_from_json(JsonObject variable_list, String doc_key,int variable_id ) {
-    if (variable_list.containsKey(doc_key))
+void update_variable_from_json(JsonObject variable_list, String doc_key, int variable_id)
+{
+  if (variable_list.containsKey(doc_key))
     vars.set(variable_id, (long)variable_list[doc_key]);
   else
     vars.set_NA(variable_id);
@@ -2250,23 +2250,23 @@ void update_price_variables(time_t current_period_start)
   else
     vars.set_NA(VARIABLE_AVGPRICE24_EXCEEDS_CURRENT);
 
-/*
-  if (variable_list.containsKey("pr9"))                        
-    vars.set(VARIABLE_PRICERANK_9, (long)variable_list["pr9"]); // calculated in calculate_price_ranks
-  else
-    vars.set_NA(VARIABLE_PRICERANK_9);
+  /*
+    if (variable_list.containsKey("pr9"))
+      vars.set(VARIABLE_PRICERANK_9, (long)variable_list["pr9"]); // calculated in calculate_price_ranks
+    else
+      vars.set_NA(VARIABLE_PRICERANK_9);
 
-  if (variable_list.containsKey("pr24"))
-    vars.set(VARIABLE_PRICERANK_24, (long)variable_list["pr24"]);
-  else
-    vars.set_NA(VARIABLE_PRICERANK_24);*/
-  update_variable_from_json(variable_list,"pr9",VARIABLE_PRICERANK_9);
-  update_variable_from_json(variable_list,"pr24",VARIABLE_PRICERANK_24);
+    if (variable_list.containsKey("pr24"))
+      vars.set(VARIABLE_PRICERANK_24, (long)variable_list["pr24"]);
+    else
+      vars.set_NA(VARIABLE_PRICERANK_24);*/
+  update_variable_from_json(variable_list, "pr9", VARIABLE_PRICERANK_9);
+  update_variable_from_json(variable_list, "pr24", VARIABLE_PRICERANK_24);
 
-  update_variable_from_json(variable_list,"pa9",VARIABLE_PRICEAVG_9);
-  update_variable_from_json(variable_list,"pd9",VARIABLE_PRICEDIFF_9);
-  update_variable_from_json(variable_list,"pa24",VARIABLE_PRICEAVG_24);
-  update_variable_from_json(variable_list,"pd24",VARIABLE_PRICEDIFF_24);
+  update_variable_from_json(variable_list, "pa9", VARIABLE_PRICEAVG_9);
+  update_variable_from_json(variable_list, "pd9", VARIABLE_PRICEDIFF_9);
+  update_variable_from_json(variable_list, "pa24", VARIABLE_PRICEAVG_24);
+  update_variable_from_json(variable_list, "pd24", VARIABLE_PRICEDIFF_24);
 }
 /**
  * @brief Get the Element Value from piece of xml
@@ -2465,8 +2465,8 @@ int get_period_price_rank_in_window(time_t time, int window_duration_hours, int 
       // Serial.printf("(%d:%ld) ", price_idx, prices[price_idx]);
     }
   }
-    *window_price_avg = windows_price_sum / window_duration_hours;
-    *price_differs_avg = prices[time_price_idx] - *window_price_avg;
+  *window_price_avg = windows_price_sum / window_duration_hours;
+  *price_differs_avg = prices[time_price_idx] - *window_price_avg;
 
   return rank;
 }
@@ -2501,7 +2501,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
     JsonObject json_obj = doc.createNestedObject(var_code);
 
     float energyPriceSpot = prices[time_idx] / 100;
-    json_obj["p"] = (prices[time_idx]+50) / 100;
+    json_obj["p"] = (prices[time_idx] + 50) / 100;
 
     localtime_r(&time, &tm_struct_g);
 
@@ -2513,7 +2513,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
     {
       // rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices);
       window_price_avg = 0;
-      price_differs_avg = 0; //should not needed
+      price_differs_avg = 0; // should not needed
       rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg);
       if (rank > 0)
       {
@@ -2521,11 +2521,11 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
         json_obj[var_code] = rank;
       }
       snprintf(var_code, sizeof(var_code), "pa%d", price_variable_blocks[block_idx]);
-     // json_obj[var_code] = window_price_avg / 100;
-      json_obj[var_code] = (window_price_avg + 50) / 100; //round
+      // json_obj[var_code] = window_price_avg / 100;
+      json_obj[var_code] = (window_price_avg + 50) / 100; // round
 
       snprintf(var_code, sizeof(var_code), "pd%d", price_variable_blocks[block_idx]);
-      json_obj[var_code] = (price_differs_avg+50) /100; //round
+      json_obj[var_code] = (price_differs_avg + 50) / 100; // round
     }
     time_idx++;
   }
@@ -3931,7 +3931,7 @@ void reset_config(bool reset_password)
       for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
       {
         s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
-        s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = -1;
+        s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
         s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
       }
     }
@@ -3996,7 +3996,8 @@ void export_config(AsyncWebServerRequest *request)
   doc["influx_org"] = s_influx.org;
   doc["influx_bucket"] = s_influx.bucket;
 #endif
-  // JsonArray channel_array = doc.createNestedArray("channels");
+
+  int rule_idx_output;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     //  Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
@@ -4015,33 +4016,47 @@ void export_config(AsyncWebServerRequest *request)
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
+
+    rule_idx_output = 0; //***
+
+    int active_rule_count = 0;
     for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
     {
       if (s.ch[channel_idx].conditions[rule_idx].condition_active)
-        active_condition_idx = rule_idx;
+        active_condition_idx = rule_idx_output;
 
       int stmt_count = 0;
       for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
       {
         statement_st *stmt = &s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx];
-        if (stmt->variable_id != -1 && stmt->oper_id != -1)
+        // is there any statements for the rule
+        if (stmt->variable_id!= -1 && stmt->oper_id != 255)
         {
+          Serial.printf("Active statement %d %d \n",(int)stmt->variable_id,(int)stmt->oper_id);
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
-          Serial.printf("floatbuff:%s\n", floatbuff);
+          // Serial.printf("floatbuff:%s\n", floatbuff);
 
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][0] = stmt->variable_id;
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][1] = stmt->oper_id;
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][2] = stmt->const_val;
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][1] = stmt->oper_id;
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][2] = stmt->const_val;
 
-          doc["ch"][channel_idx]["rules"][rule_idx]["stmts"][stmt_count][3] = floatbuff;
-          //vars.const_to_float(stmt->variable_id, stmt->const_val);
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][3] = floatbuff;
+          // vars.const_to_float(stmt->variable_id, stmt->const_val);
           stmt_count++;
         }
       }
       if (stmt_count > 0)
-        doc["ch"][channel_idx]["rules"][rule_idx]["on"] = s.ch[channel_idx].conditions[rule_idx].on;
+      {
+        doc["ch"][channel_idx]["rules"][rule_idx_output]["on"] = s.ch[channel_idx].conditions[rule_idx].on;
+        rule_idx_output++;
+        active_rule_count++;
+      }
     }
-    doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
+    Serial.printf("Channel: %d,active_rule_count %d \n",channel_idx, active_rule_count);
+    if (active_rule_count > 0)
+    {
+      doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
+    }
   }
 
   serializeJson(doc, output);
@@ -4487,16 +4502,23 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       // statements
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
 
-      if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
-      {
-
+        // clean always
         for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
         {
           s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = -1;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
           s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
         }
-        //   }
+
+      if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
+      {
+
+      /*  for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+        {
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
+          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
+        } */
 
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
@@ -4523,7 +4545,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
                 float val_f = stmts_json[stmt_idx][2];
                 long long_val = vars.float_to_internal_l(variable_id, val_f);
                 //    Serial.printf("float_to_internal_l: %f  -> %ld\n", val_f, long_val);
-                Serial.printf(PSTR("Saving statement value of variable %d: %ld\n"), (int)stmts_json[stmt_idx][0], long_val);
+                //  Serial.printf(PSTR("Saving statement value of variable %d: %ld\n"), (int)stmts_json[stmt_idx][0], long_val);
                 s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = long_val;
               }
               else
@@ -4534,6 +4556,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
           }
         }
       }
+     
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
       //  Serial.printf("Channel %d, rule %d, field %s",channel_idx, condition_idx, ctrb_fld);

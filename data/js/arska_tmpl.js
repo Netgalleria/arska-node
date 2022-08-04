@@ -675,10 +675,12 @@ function setVar(evt) {
     }
     else if (el.value == -2) {
         // if (!document.getElementById("var_" + channel_idx + "_" + cond_idx + "_" + stmt_idx + 2) && stmt_idx>0) { //is last
-        if (confirm("Delete condition")) {
+        if (confirm("Delete condition") )  {
             //viimeinen olisi hyvä jättää, jos poistaa välistä niin numerot frakmentoituu
-            var elem = document.getElementById("var", "std" + suffix);
-            elem.parentNode.removeChild(elem);
+           // var elem = document.getElementById("var", "std" + suffix);
+            var elem = document.getElementById("std" + suffix);
+            if (elem)
+                elem.parentNode.removeChild(elem);
         }
         // }
     }
