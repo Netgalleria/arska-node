@@ -526,7 +526,7 @@ public:
   void get_variable_by_idx(int idx, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
   float const_to_float(int id, long const_in);
-  int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0);
+  int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0,size_t buffer_length=1);
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
@@ -621,7 +621,7 @@ float Variables::const_to_float(int id, long const_in)
   }
   return -1;
 }
-int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val)
+int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val,size_t buffer_length)
 {
   variable_st var;
   int idx = get_variable_by_id(id, &var);
@@ -635,7 +635,7 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
       val_l = var.val_l;
     if (val_l == VARIABLE_LONG_UNKNOWN)
     {
-      strcpy(strbuff, "null");
+      strncpy(strbuff, "null",buffer_length);
       return -1;
     }
     if (var.type < 10)
@@ -664,7 +664,7 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
       return strlen(strbuff);
     }
   }
-  strcpy(strbuff, "null");
+  strncpy(strbuff, "null",buffer_length);
   return -1;
 }
 
@@ -1465,7 +1465,7 @@ void scan_and_store_wifis(bool print_out)
 
 #define CONFIG_JSON_SIZE_MAX 6144
 /**
- * @brief Utility for reading a config file - to be tuned
+ * @brief Utility for reading a json config file to memory structures- to be tuned
  *
  * @param doc
  * @param key
@@ -1474,7 +1474,7 @@ void scan_and_store_wifis(bool print_out)
  * @return false
  */
 
-bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr)
+bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr,size_t buffer_length)
 {
 #ifdef DEBUG_MODE
   Serial.print("debug: ");
@@ -1482,7 +1482,7 @@ bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char
 #endif
   if (doc.containsKey(key))
   {
-    strcpy(tostr, doc[key]);
+    strncpy(tostr, doc[key],buffer_length);
     return true;
   }
   return false;
@@ -1661,7 +1661,7 @@ bool scan_sensors()
     }
     Serial.printf(PSTR("DEBUG: scan_sensors, slot %d cleared\n"), j);
     memset(s.sensors[j].address, 0, sizeof(DeviceAddress));
-    strcpy(s.sensors[j].id_str, "-");
+    strncpy(s.sensors[j].id_str, "-",sizeof(s.sensors[j].id_str));
   }
 
   for (j = 0; j < sensor_count; j++)
@@ -2936,11 +2936,11 @@ void get_status_fields(char *out)
   char rtc_status[15];
 #ifdef RTC_DS3231_ENABLED
   if (rtc_found)
-    strcpy(rtc_status, "(RTC OK)");
+    strncpy(rtc_status, "(RTC OK)",sizeof(rtc_status));
   else
-    strcpy(rtc_status, "(RTC FAILED)");
+    strncpy(rtc_status, "(RTC FAILED)",sizeof(rtc_status));
 #else
-  strcpy(rtc_status, "");
+  strncpy(rtc_status, "",sizeof(rtc_status));
 #endif
 
   localtime_r(&recording_period_start, &tm_struct);
@@ -3124,11 +3124,12 @@ String jscode_form_processor(const String &var)
     for (int i = 0; i < OPER_COUNT; i++)
     {
       snprintf(buff, 40, "[%d, \"%s\", %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false");
+      //TODO: memory safe strncat
       strcat(out, buff);
       if (i < OPER_COUNT - 1)
-        strcat(out, ", ");
+        strcat(out, ", "); //TODO: memory safe strncat
     }
-    strcat(out, "]");
+    strcat(out, "]"); //TODO: memory safe strncat
     return out;
   }
   if (var == F("channels"))
@@ -3139,8 +3140,8 @@ String jscode_form_processor(const String &var)
     {
       chp = &s.ch[channel_idx];
       snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
+      //TODO: memory safe strncat
       strcat(out, buff);
-    //  strncat(out)
       if (channel_idx < CHANNEL_COUNT - 1)
         strcat(out, ", ");
     }
@@ -3154,7 +3155,7 @@ String jscode_form_processor(const String &var)
     for (int i = 0; i < CHANNEL_TYPES; i++)
     {
       snprintf(buff, 50, "\"%s\"", channel_type_strings[i]);
-      strcat(out, buff);
+      strcat(out, buff); //TODO: memory safe strncat
       if (i < CHANNEL_TYPES - 1)
         strcat(out, ", ");
     }
@@ -3173,7 +3174,7 @@ String jscode_form_processor(const String &var)
       //  YYY
       vars.get_variable_by_idx(variable_idx, &variable);
       snprintf(buff, 40, "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
-      strcat(out, buff);
+      strcat(out, buff); //TODO: memory safe strncat
       if (variable_idx < variable_count - 1)
         strcat(out, ", ");
     }
@@ -3675,7 +3676,7 @@ void reset_config(bool full_reset)
   memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
-  strcpy(s.http_username, "admin");
+  strncpy(s.http_username, "admin",sizeof(s.http_username));
   if (full_reset)
     strncpy(s.http_password, default_http_password,sizeof(s.http_password));
   else
@@ -3824,7 +3825,7 @@ void export_config(AsyncWebServerRequest *request)
         if (stmt->variable_id != -1 && stmt->oper_id != 255)
         {
           Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
-          vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
+          vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val,sizeof(floatbuff));
           // Serial.printf("floatbuff:%s\n", floatbuff);
 
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
@@ -3913,29 +3914,29 @@ bool read_config_file(const char *config_file_name)
   }
   Serial.println(F("deserializeJson() config file OK."));
 
-  copy_doc_str(doc, (char *)"wifi_ssid", s.wifi_password);
-  copy_doc_str(doc, (char *)"wifi_password", s.wifi_password);
-  // copy_doc_str(doc, (char *)"http_password", s.http_password);
+  copy_doc_str(doc, (char *)"wifi_ssid", s.wifi_ssid,sizeof(s.wifi_ssid));
+  copy_doc_str(doc, (char *)"wifi_password", s.wifi_password,sizeof(s.wifi_password));
+  // copy_doc_str(doc, (char *)"http_password", s.http_password,sizeof());
   s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
-  copy_doc_str(doc, (char *)"entsoe_api_key", s.entsoe_api_key);
-  copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code);
-  copy_doc_str(doc, (char *)"variable_server", s.variable_server);
-  copy_doc_str(doc, (char *)"custom_ntp_server", s.custom_ntp_server);
-  copy_doc_str(doc, (char *)"timezone", s.timezone);
-  copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc);
-  copy_doc_str(doc, (char *)"lang", s.lang);
+  copy_doc_str(doc, (char *)"entsoe_api_key", s.entsoe_api_key,sizeof(s.entsoe_api_key));
+  copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code,sizeof(s.entsoe_area_code));
+  copy_doc_str(doc, (char *)"variable_server", s.variable_server,sizeof(s.variable_server));
+  copy_doc_str(doc, (char *)"custom_ntp_server", s.custom_ntp_server,sizeof(s.custom_ntp_server));
+  copy_doc_str(doc, (char *)"timezone", s.timezone,sizeof(s.timezone));
+  copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc,sizeof(s.forecast_loc));
+  copy_doc_str(doc, (char *)"lang", s.lang,sizeof( s.lang));
   s.baseload = get_doc_long(doc, "baseload", s.baseload);
 
   s.energy_meter_type = get_doc_long(doc, "energy_meter_type", s.energy_meter_type);
-  copy_doc_str(doc, (char *)"energy_meter_host", s.energy_meter_host);
+  copy_doc_str(doc, (char *)"energy_meter_host", s.energy_meter_host,sizeof(s.energy_meter_host));
   s.energy_meter_port = get_doc_long(doc, "energy_meter_port", s.energy_meter_port);
   s.energy_meter_id = get_doc_long(doc, "energy_meter_id", s.energy_meter_id);
 
 #ifdef INFLUX_REPORT_ENABLED
-  copy_doc_str(doc, (char *)"influx_url", s_influx.url);
-  copy_doc_str(doc, (char *)"influx_token", s_influx.token);
-  copy_doc_str(doc, (char *)"influx_org", s_influx.org);
-  copy_doc_str(doc, (char *)"influx_bucket", s_influx.bucket);
+  copy_doc_str(doc, (char *)"influx_url", s_influx.url,sizeof(s_influx.url));
+  copy_doc_str(doc, (char *)"influx_token", s_influx.token,sizeof(s_influx.token));
+  copy_doc_str(doc, (char *)"influx_org", s_influx.org,sizeof(s_influx.org));
+  copy_doc_str(doc, (char *)"influx_bucket", s_influx.bucket,sizeof( s_influx.bucket));
 #endif
 
   int channel_idx = 0;
@@ -4192,12 +4193,14 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
 
+  bool todo_in_loop_restart_local = false; //set global variable in the end when data is set
   // INPUTS
   if (s.energy_meter_type != request->getParam("emt", true)->value().toInt())
   {
-    todo_in_loop_restart = true;
+    todo_in_loop_restart_local = true;
     s.energy_meter_type = request->getParam("emt", true)->value().toInt();
   }
+
   strncpy(s.energy_meter_host, request->getParam("emh", true)->value().c_str(), sizeof(s.energy_meter_host));
   s.energy_meter_port = request->getParam("emp", true)->value().toInt();
   s.energy_meter_id = request->getParam("emid", true)->value().toInt();
@@ -4207,36 +4210,42 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   s.variable_mode = VARIABLE_MODE_SOURCE; // (byte)request->getParam("variable_mode", true)->value().toInt();
   if (s.variable_mode == 0)
   {
-    strcpy(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str());
+    strncpy(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str(),sizeof(s.entsoe_api_key));
     if (strcmp(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str()) != 0)
     {
-      strcpy(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str());
+      strncpy(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str(),sizeof(s.entsoe_area_code));
 
       // price area changes, clear cache
       LittleFS.remove(price_data_filename); // "/price_data.json"
     }
     // Solar forecast supported currently only in Finland
     if (strcmp(s.entsoe_area_code, "10YFI-1--------U") == 0)
-      strcpy(s.forecast_loc, request->getParam("forecast_loc", true)->value().c_str());
+      strncpy(s.forecast_loc, request->getParam("forecast_loc", true)->value().c_str(),sizeof(s.forecast_loc));
     else
       strcpy(s.forecast_loc, "#");
   }
   /* if (s.variable_mode == 1)
    {
-     strcpy(s.variable_server, request->getParam("variable_server", true)->value().c_str());
+     strncpy(s.variable_server, request->getParam("variable_server", true)->value().c_str(),sizeof(variable_server));
    }*/
 #ifdef INFLUX_REPORT_ENABLED
   strncpy(s_influx.url, request->getParam("influx_url", true)->value().c_str(), sizeof(s_influx.url));
   // Serial.printf("influx_url:%s\n", s_influx.url);
-  strcpy(s_influx.token, request->getParam("influx_token", true)->value().c_str());
-  strcpy(s_influx.org, request->getParam("influx_org", true)->value().c_str());
-  strcpy(s_influx.bucket, request->getParam("influx_bucket", true)->value().c_str());
+  strncpy(s_influx.token, request->getParam("influx_token", true)->value().c_str(),sizeof(s_influx.token));
+  strncpy(s_influx.org, request->getParam("influx_org", true)->value().c_str(),sizeof(s_influx.org));
+  strncpy(s_influx.bucket, request->getParam("influx_bucket", true)->value().c_str(),sizeof(s_influx.bucket));
 #endif
 
   // END OF INPUTS
   writeToEEPROM();
-  todo_in_loop_restart = true;
-  request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
+
+  todo_in_loop_restart = todo_in_loop_restart_local;
+
+  if (todo_in_loop_restart)
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
+  else
+    request->redirect("/inputs");
+
 }
 
 /**
@@ -4265,7 +4274,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
     snprintf(ch_fld, 20, "id_ch_%i", channel_idx); // channel id
     if (request->hasParam(ch_fld, true))
-      strcpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str());
+      strncpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str(),sizeof(s.ch[channel_idx].id_str));
 
     snprintf(ch_fld, 20, "chty_%i", channel_idx); // channel type
     if (request->hasParam(ch_fld, true))
@@ -4371,14 +4380,15 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     return request->requestAuthentication();
   }
+  bool todo_in_loop_restart_local = false; //set global variable in the end when data is set
 
   String message;
 
   if (!(request->getParam("wifi_ssid", true)->value().equals("NA")))
   {
-    strcpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str());
-    strcpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str());
-    todo_in_loop_restart = true;
+    strncpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str(),sizeof(s.wifi_ssid));
+    strncpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str(),sizeof(s.wifi_password));
+    todo_in_loop_restart_local = true;
   }
 
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
@@ -4386,12 +4396,12 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     Serial.println(F("Password ...."));
     if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
     {
-      strcpy(s.http_password, request->getParam("http_password", true)->value().c_str());
+      strncpy(s.http_password, request->getParam("http_password", true)->value().c_str(),sizeof(s.http_password));
     }
   }
 
   strncpy(s.timezone, request->getParam("timezone", true)->value().c_str(), 4);
-  strcpy(s.lang, request->getParam("lang", true)->value().c_str());
+  strncpy(s.lang, request->getParam("lang", true)->value().c_str(),sizeof(s.lang));
 
   // admin actions
   Serial.println(request->getParam("action", true)->value().c_str());
@@ -4407,7 +4417,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 
   if (request->getParam("action", true)->value().equals("reboot"))
   {
-    todo_in_loop_restart = true;
+    todo_in_loop_restart_local = true;
   }
 
   if (request->getParam("action", true)->value().equals("scan_wifis"))
@@ -4427,7 +4437,6 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   if (request->getParam("action", true)->value().equals("op_test_gpio"))
   {
     gpio_to_test_in_loop = request->getParam("test_gpio", true)->value().toInt();
-
     todo_in_loop_test_gpio = true;
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/admin' /></head><body>GPIO testing</body></html>");
     return;
@@ -4437,16 +4446,16 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     Serial.println(F("Starting reset..."));
     reset_config(false);
-    todo_in_loop_restart = true;
+    todo_in_loop_restart_local = true;
   }
   writeToEEPROM();
 
+  todo_in_loop_restart =  todo_in_loop_restart_local; 
+
   if (todo_in_loop_restart)
     request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body>restarting...wait...</body></html>");
-
-  // END OF ADMIN
-
-  request->redirect("/admin");
+  else
+    request->redirect("/admin");
 }
 
 /**
@@ -4491,7 +4500,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     vars.get_variable_by_idx(variable_idx, &variable);
     // if (variable.val_l != VARIABLE_LONG_UNKNOWN)
     snprintf(id_str, 6, "%d", variable.id);
-    vars.to_str(variable.id, buff_value, false);
+    vars.to_str(variable.id, buff_value, false,sizeof(buff_value));
     var_obj[id_str] = buff_value;
   }
   /*
@@ -4636,11 +4645,12 @@ void setup()
   Serial.println(F("LittleFS initialized"));
 
   // TODO: notify, ota-update
+  /*
   if (check_filesystem_version())
     Serial.println(F("Filesystem is up-to-date."));
   else
     Serial.println(F("Filesystem is too old."));
-
+*/
   // initiate EEPROM with correct size
   int eeprom_used_size = sizeof(s);
 #ifdef INFLUX_REPORT_ENABLED
