@@ -126,10 +126,19 @@ function get_price_for_block(start_ts, end_ts = 0) {
     return block_price_avg;
 }
 
-function get_time_string_from_ts(ts, show_day_diff = false) {
+function pad_to_2digits(num) {
+    return num.toString().padStart(2, '0');
+}
+
+function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
     // console.log("get_time_string_from_ts",ts)
     tmpDate = new Date(ts * 1000);
     tmpStr = tmpDate.toLocaleTimeString();
+
+    tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
+    if (show_secs)
+        tmpStr +=":"+ pad_to_2digits(tmpDate.getSeconds())
+
     if (show_day_diff) {
         tz_offset_minutes = tmpDate.getTimezoneOffset();
         //  console.log("tz_offset_minutes",tz_offset_minutes);
@@ -157,7 +166,7 @@ function updateStatus(show_variables = true) {
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
             if (data.last_msg_ts > getCookie("msg_read")) {
-                msgDateStr = get_time_string_from_ts(data.last_msg_ts, true);
+                msgDateStr = get_time_string_from_ts(data.last_msg_ts,true, true);
                 msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
             }
         }
@@ -227,7 +236,7 @@ function show_channel_status(channel_idx, ch) {
 
     if (ch.is_up) {
         if (ch.force_up)
-            info_text += "Up based on manual schedule: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true) + ". ";
+            info_text += "Up based on manual schedule: " + get_time_string_from_ts(ch.force_up_from, false,true) + " --> " + get_time_string_from_ts(ch.force_up_until,false, true) + ". ";
         else if (ch.active_condition > -1)
             info_text += "Up based on <a class='chlink'  href='/channels#c" + channel_idx + "r" + ch.active_condition + "'>rule " + (ch.active_condition + 1) + "</a>. ";
     }
@@ -241,7 +250,7 @@ function show_channel_status(channel_idx, ch) {
     if (ch.force_up_from > now_ts - 100) { //leave some margin
         if (info_text)
             info_text += "<br>";
-        info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, true) + " --> " + get_time_string_from_ts(ch.force_up_until, true);
+        info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, false,true) + " --> " + get_time_string_from_ts(ch.force_up_until,false, true);
     }
 
     chdiv_info = document.getElementById("chdinfo_" + channel_idx);
@@ -928,9 +937,6 @@ function initUrlBar(url) {
 const force_up_hours = [0, 1, 2, 4, 8, 12, 24];
 const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440];
 
-function pad_to_2digits(num) {
-    return num.toString().padStart(2, '0');
-}
 
 
 function update_schedule_select_periodical() {
@@ -1002,7 +1008,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         else
             price_str = "";
 
-        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts).substring(0, 5) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, true).substring(0, 5) + price_str, (prev_selected == start_ts));
+        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts,false,true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false,true)+ price_str, (prev_selected == start_ts));
         start_ts += 3600;
     }
     if (cheapest_index > -1) {

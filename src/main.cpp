@@ -235,6 +235,7 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 
 #define NETTING_PERIOD_MIN 60 //!< Netting time in minutes, (in Finland) 60 -> 15 minutes 2023
 #define NETTING_PERIOD_SEC (NETTING_PERIOD_MIN * 60)
+#define PRICE_PERIOD_SEC 3600
 #define SECONDS_IN_DAY 86400
 
 #define PV_FORECAST_HOURS 24 //!< solar forecast consist of this many hours
@@ -391,13 +392,14 @@ bool check_filesystem_version()
     String current_fs_version = info_file.readStringUntil('\n');
     strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
     is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
-
+/*
 #ifdef DEBUG_MODE
     if (is_ok)
       Serial.printf("Current fs version %s is ok.\n", current_fs_version.c_str());
     else
       Serial.printf("Current fs version %s is too old.\n", current_fs_version.c_str());
 #endif
+*/
   }
   else
     is_ok = false;
@@ -790,7 +792,8 @@ bool sensor_ds18b20_enabled = false;
 #ifdef INFLUX_REPORT_ENABLED
 #include <InfluxDbClient.h>
 // TODO: should we use macid?
-const char *influx_device_id PROGMEM = "arska";
+const char *influx_device_id_prefix PROGMEM = "arska-";
+String wifi_mac_short;
 
 typedef struct
 {
@@ -800,7 +803,10 @@ typedef struct
   int off_time;
 } channel_log_struct;
 
-Point state_stats("state_stats");
+// Point state_stats("state_stats");
+Point point_sensor_values("sensors");
+Point point_period_avg("period_avg"); //!< Influx buffer
+
 /**
  * @brief Handling channel utilization (uptime/downtime) statistics
  *
@@ -838,7 +844,8 @@ void ChannelCounters::new_log_period(time_t ts_report)
   time(&now_l);
 
   // influx buffer
-  state_stats.setTime(ts_report);
+  if (!point_period_avg.hasTime())
+    point_period_avg.setTime(ts_report);
   char field_name[10];
   for (int i = 0; i < CHANNEL_COUNT; i++)
   {
@@ -848,7 +855,7 @@ void ChannelCounters::new_log_period(time_t ts_report)
     else
       utilization = 0;
     snprintf(field_name, sizeof(field_name), "ch%d", i);
-    state_stats.addField(field_name, utilization);
+    point_period_avg.addField(field_name, utilization);
   }
   // then reset
   for (int i = 0; i < CHANNEL_COUNT; i++)
@@ -897,10 +904,6 @@ typedef struct
 
 influx_settings_struct s_influx;
 
-Point period_data("arska_period"); //!< Influx buffer
-
-// Point now_data("arska_now"); //!< Influx buffer
-
 /**
  * @brief Add time-series point values to buffer for later database insert
  *
@@ -909,23 +912,53 @@ Point period_data("arska_period"); //!< Influx buffer
 // TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
 void add_period_variables_to_influx_buffer(time_t ts_report)
 {
-  period_data.setTime(ts_report);
+  point_period_avg.setTime(ts_report);
 
   // prices are batch updated in function update_prices_to_influx
-  /*
-    if (vars.is_set(VARIABLE_PRICE))
-      period_data.addField("price", vars.get_f(VARIABLE_PRICE));
-    else
-      Serial.println(F("Price not set"));
-  */
+
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
-    period_data.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
+    point_period_avg.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
 
   if (vars.is_set(VARIABLE_SELLING_POWER))
-    period_data.addField("sellingW", vars.get_f(VARIABLE_SELLING_POWER));
+    point_period_avg.addField("sellingW", vars.get_f(VARIABLE_SELLING_POWER));
 
   if (vars.is_set(VARIABLE_SELLING_ENERGY))
-    period_data.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
+    point_period_avg.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
+}
+
+bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer)
+{
+  Serial.println(F("Starting write_point_buffer_influx"));
+  bool write_ok = true;
+  if (!point_buffer->hasTime())
+  {
+    time_t now_in_func;
+    time(&now_in_func);
+    point_buffer->setTime(now_in_func);
+  }
+
+  if (point_buffer->hasFields())
+  {
+    if (!point_buffer->hasTags())
+      point_buffer->addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
+
+    Serial.print("Writing: ");
+    Serial.println(ifclient->pointToLineProtocol(*point_buffer));
+
+    // Write point
+    write_ok = ifclient->writePoint(*point_buffer);
+    if (!write_ok)
+    {
+      Serial.print(F("InfluxDB write failed: "));
+      Serial.println(ifclient->getLastErrorMessage());
+    }
+    // else {
+    //     Serial.println("Write ok");
+    // }
+    point_buffer->clearFields();
+    //  Serial.println("clearFields ok");
+  }
+  return write_ok;
 }
 
 /**
@@ -937,11 +970,6 @@ void add_period_variables_to_influx_buffer(time_t ts_report)
 
 bool write_buffer_to_influx()
 {
-  if (!period_data.hasFields() && !state_stats.hasFields())
-  {
-    Serial.println(F("write_buffer_to_influx no fields in period_data or state_stats."));
-    return true; // no fields in the buffer
-  }
 
   // probably invalid parameters
   if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
@@ -951,32 +979,42 @@ bool write_buffer_to_influx()
   }
 
   InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
+  ifclient.setInsecure(true); // TODO: cert handling
 
-  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S));
+  // ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S)); // set time precision to seconds
+  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(2).bufferSize(2));
 
-  if (period_data.hasFields())
+  ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
+
+  bool influx_write_ok = write_point_buffer_influx(&ifclient, &point_period_avg);
+  if (!influx_write_ok)
+    return false;
+
+/*
+  if (point_period_avg.hasFields())
   {
-    if (!period_data.hasTags())
-      period_data.addTag("device", influx_device_id);
+    if (!point_period_avg.hasTags())
+      point_period_avg.addTag("device", String(influx_device_id_prefix)+wifi_mac_short);
+
     ifclient.setInsecure(true); // TODO: cert handling
 
     Serial.print("Writing: ");
-    Serial.println(ifclient.pointToLineProtocol(period_data));
+    Serial.println(ifclient.pointToLineProtocol(point_period_avg));
 
     // Write point
-    bool write_ok = ifclient.writePoint(period_data);
+    bool write_ok = ifclient.writePoint(point_period_avg);
     if (!write_ok)
     {
       Serial.print("InfluxDB write failed: ");
       Serial.println(ifclient.getLastErrorMessage());
     }
-    period_data.clearFields();
+    point_period_avg.clearFields();
   }
 
   if (state_stats.hasFields()) // TODO:combine the two
   {
     if (!state_stats.hasTags())
-      state_stats.addTag("device", influx_device_id);
+      state_stats.addTag("device", String(influx_device_id_prefix)+wifi_mac_short);
     ifclient.setInsecure(true); // TODO: cert handling
 
     Serial.print("Writing: ");
@@ -991,12 +1029,11 @@ bool write_buffer_to_influx()
     }
     state_stats.clearFields();
   }
+*/
 
-// add current debug and sensor values to the buffer, write later
+// add current debug and sensor values to the buffer and write later them
 #ifdef DEBUG_MODE
-  period_data.addField(F("freeHeap"), (long)ESP.getFreeHeap());
-  period_data.addField(F("uptime"), (long)(millis() / 1000));
-  Serial.printf(PSTR("Updating influx: sellingW %f, sellingWh %f\n"), vars.get_f(VARIABLE_SELLING_POWER), vars.get_f(VARIABLE_SELLING_ENERGY));
+  point_sensor_values.addField("uptime", (long)(millis() / 1000));
 #endif
 
 // add sensor values to influx update
@@ -1007,12 +1044,15 @@ bool write_buffer_to_influx()
     if (vars.is_set(VARIABLE_SENSOR_1 + j))
     {
       snprintf(field_name, sizeof(field_name), "sensor%i", j + 1);
-      period_data.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
+      point_sensor_values.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
     }
   }
 #endif
+  influx_write_ok = write_point_buffer_influx(&ifclient, &point_sensor_values);
 
-  return true; // write_ok TODO: check what to return
+  ifclient.flushBuffer();
+  // Serial.println(F("Ending write_buffer_to_influx"));
+  return influx_write_ok; //
 }
 
 // under contruction
@@ -1025,12 +1065,13 @@ bool write_buffer_to_influx()
 bool update_prices_to_influx()
 {
   time_t record_start = 0;
-  time_t current_ts;
+  time_t current_period_start_ts;
   long current_price;
   int resolution_secs;
   bool write_ok;
   time_t last_price_in_file_ts;
   String last_price_in_db;
+  bool db_price_found;
   char datebuff[30];
   tm tm2;
 
@@ -1041,7 +1082,7 @@ bool update_prices_to_influx()
     return false;
   }
 
-  String query = "from(bucket: \"" + String(s_influx.bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"arska_period\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
+  String query = "from(bucket: \"" + String(s_influx.bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"period_price\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
   query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
 
   InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
@@ -1053,15 +1094,15 @@ bool update_prices_to_influx()
   if (result.next())
   {
     FluxDateTime max_price_time = result.getValueByName("_time").getDateTime();
-
     Serial.print("max_price_time:");
     Serial.println(max_price_time.getRawValue());
     last_price_in_db = max_price_time.getRawValue();
+    db_price_found = true;
   }
   else
   {
     Serial.println("no result.next()");
-    return false;
+    db_price_found = false;
   }
 
   File price_file = LittleFS.open(price_data_filename, "r");
@@ -1092,19 +1133,22 @@ bool update_prices_to_influx()
   Serial.print("Last ts in the file");
   Serial.println(datebuff);
 
-  if (last_price_in_db.equals(datebuff))
+  if (db_price_found)
   {
-    Serial.print("Last ts in the file equal one in the influxdb");
-    return false;
-  }
-  if (last_price_in_db > String(datebuff))
-  {
-    Serial.print("Newer price in the influxDb - SHOULD NOT END UP HERE");
-    return false;
-  }
-  else
-  {
-    Serial.print("We have new prices to write to influx db. ");
+    if (last_price_in_db.equals(datebuff))
+    {
+      Serial.print("Last ts in the file equal one in the influxdb");
+      return false;
+    }
+    if (last_price_in_db > String(datebuff))
+    {
+     // Serial.print("Newer price in the influxDb - SHOULD NOT END UP HERE");
+      return false;
+    }
+    else
+    {
+      Serial.print("We have new prices to write to influx db. ");
+    }
   }
 
   // return false; // just testing  the first part
@@ -1117,28 +1161,30 @@ bool update_prices_to_influx()
   else
     Serial.print("isBufferEmpty no ");
 
-  Point price_data("arska_period");
-  price_data.addTag("device", influx_device_id);
+  Point point_period_price("period_price");
+  // point_period_price.addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
 
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
-    current_ts = record_start + resolution_secs * i;
-    ts_to_date_str(&current_ts, datebuff);
+    current_period_start_ts = record_start + resolution_secs * i;
+    // TODO: half period... record_start + resolution_secs * i + (resolution_secs/2)
+    ts_to_date_str(&current_period_start_ts, datebuff);
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
 
     current_price = (long)prices_array[i];
     Serial.println(current_price);
-    price_data.addField("price", (float)(current_price / 1000.0));
-    price_data.setTime(current_ts); // set the time
+    point_period_price.addField("price", (float)(current_price / 1000.0));
+    point_period_price.setTime(current_period_start_ts);                         // set the time, muuta
+    point_period_price.setTime(current_period_start_ts + (resolution_secs / 2)); // middle of the period
     Serial.print("Writing: ");
-    Serial.println(ifclient.pointToLineProtocol(price_data));
+    Serial.println(ifclient.pointToLineProtocol(point_period_price));
     // Write point
 
-    write_ok = ifclient.writePoint(price_data);
+    write_ok = ifclient.writePoint(point_period_price);
     Serial.println(write_ok ? "write_ok" : "write not ok");
 
-    price_data.clearFields();
+    point_period_price.clearFields();
   }
   ifclient.flushBuffer();
   delay(100);
@@ -1733,7 +1779,7 @@ bool read_ds18b20_sensors()
 
 #ifdef METER_SHELLY3EM_ENABLED
 unsigned shelly3em_last_period = 0;
-long shelly3em_last_period_last_ts = 0;
+long shelly3em_period_first_read_ts = 0;
 long shelly3em_meter_read_ts = 0; //!< Last time meter was read successfully
 long shelly3em_read_count = 0;
 float shelly3em_e_in_prev = 0;
@@ -1741,6 +1787,7 @@ float shelly3em_e_out_prev = 0;
 float shelly3em_e_in = 0;
 float shelly3em_e_out = 0;
 float shelly3em_power_in = 0;
+int shelly3em_period_read_count = 0;
 
 /**
  * @brief Get earlier read energy values
@@ -1760,13 +1807,13 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
   {
     netEnergyInPeriod = (shelly3em_e_in - shelly3em_e_out - shelly3em_e_in_prev + shelly3em_e_out_prev);
 #ifdef DEBUG_MODE
-    //  Serial.printf("get_values_shelly3m netEnergyInPeriod (%.1f) = (shelly3em_e_in (%.1f) - shelly3em_e_out (%.1f) - shelly3em_e_in_prev (%.1f) + shelly3em_e_out_prev (%.1f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
+    Serial.printf("get_values_shelly3m netEnergyInPeriod (%.1f) = (shelly3em_e_in (%.1f) - shelly3em_e_out (%.1f) - shelly3em_e_in_prev (%.1f) + shelly3em_e_out_prev (%.1f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
 #endif
-    if ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts) != 0)
+    if ((shelly3em_meter_read_ts - shelly3em_period_first_read_ts) != 0)
     {
-      netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((shelly3em_meter_read_ts - shelly3em_last_period_last_ts)));
+      netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((shelly3em_meter_read_ts - shelly3em_period_first_read_ts)));
 #ifdef DEBUG_MODE
-      //  Serial.printf("get_values_shelly3m netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_last_period_last_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_last_period_last_ts, (shelly3em_meter_read_ts - shelly3em_last_period_last_ts));
+      Serial.printf("get_values_shelly3m netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_period_first_read_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_period_first_read_ts, (shelly3em_meter_read_ts - shelly3em_period_first_read_ts));
 #endif
     }
     else // Do we ever get here with counter check
@@ -1804,23 +1851,26 @@ bool read_meter_shelly3em()
   }
   shelly3em_read_count++;
 
-  // unsigned now_period = int(shelly3em_meter_read_ts / (NETTING_PERIOD_SEC));
   unsigned now_period = int(now_in_func / (NETTING_PERIOD_SEC));
-  shelly3em_meter_read_ts = now_in_func; // doc["unixtime"]; //!< get time from Shelly response
+  shelly3em_meter_read_ts = now_in_func; 
 
   float netEnergyInPeriod;
   float netPowerInPeriod;
+ //if (shelly3em_last_period != now_period && (shelly3em_last_period > 0) && shelly3em_period_read_count == 1)
+  if (shelly3em_last_period != now_period) {
+    shelly3em_period_read_count = 0;
+  }
 
-  if (shelly3em_last_period != now_period && (shelly3em_last_period > 0))
+  if ((shelly3em_last_period > 0) && shelly3em_period_read_count == 1)
   { // new period
-    Serial.println(F("****Shelly - new period"));
-    shelly3em_last_period = now_period;
+    Serial.println(F("****Shelly - new period counter reset"));
+   // shelly3em_last_period = now_period;
     // from this call
-    shelly3em_last_period_last_ts = shelly3em_meter_read_ts;
     shelly3em_e_in_prev = shelly3em_e_in;
     shelly3em_e_out_prev = shelly3em_e_out;
   }
 
+  // read
   float power_tot = 0;
   int idx = 0;
   float power[3];
@@ -1840,24 +1890,31 @@ bool read_meter_shelly3em()
     idx++;
   }
   shelly3em_power_in = power_tot;
+  shelly3em_period_read_count++;
+  // read done
 
   // first query since boot
   if (shelly3em_last_period == 0)
   {
     Serial.println(F("Shelly - first query since startup"));
     shelly3em_last_period = now_period;
-    shelly3em_last_period_last_ts = shelly3em_meter_read_ts;
+    shelly3em_period_first_read_ts = shelly3em_meter_read_ts;
     shelly3em_e_in_prev = shelly3em_e_in;
     shelly3em_e_out_prev = shelly3em_e_out;
   }
+     // if ((shelly3em_meter_read_ts - shelly3em_period_first_read_ts) != 0)
 
-  // note:this was earlier before meter read
+
   get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
   vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
   vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
   vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
   vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-shelly3em_power_in)); // momentary
 
+  if (shelly3em_last_period != now_period) {
+    shelly3em_period_first_read_ts = shelly3em_meter_read_ts;
+    shelly3em_last_period = now_period;
+  }
   return true;
 }
 #endif
@@ -2008,7 +2065,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 {
   uint16_t ip_octets[MAX_SPLIT_ARRAY_SIZE];
   char host_ip[16];
-  strcpy(host_ip, s.energy_meter_host); // must be locally allocated
+  strncpy(host_ip, s.energy_meter_host,sizeof(host_ip)); // must be locally allocated
   str_to_uint_array(host_ip, ip_octets, ".");
 
   IPAddress remote(ip_octets[0], ip_octets[1], ip_octets[2], ip_octets[3]);
@@ -2174,7 +2231,7 @@ void update_meter_based_variables()
 long get_price_for_time(time_t ts)
 {
   // use global prices, prices_first_period
-  int price_idx = (int)(ts - prices_first_period) / (NETTING_PERIOD_SEC);
+  int price_idx = (int)(ts - prices_first_period) / (PRICE_PERIOD_SEC);
   if (price_idx < 0 || price_idx >= MAX_PRICE_PERIODS)
   {
     return VARIABLE_LONG_UNKNOWN;
@@ -2324,7 +2381,7 @@ bool get_solar_forecast()
   vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (long)VARIABLE_LONG_UNKNOWN);
 
   // snprintf(fcst_url, sizeof(fcst_url), "%s&loc=%s", fcst_url_base, s.forecast_loc);
-  strcpy(fcst_url, fcst_url_base);
+  strncpy(fcst_url, fcst_url_base,sizeof(fcst_url));
   client_http.begin(wifi_client, fcst_url);
   Serial.printf("fcst_url: %s\n", fcst_url);
 
@@ -2493,7 +2550,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
   long price_differs_avg;
   int rank;
 
-  for (time_t time = record_start + time_idx_now * NETTING_PERIOD_SEC; time < record_end_excl; time += NETTING_PERIOD_SEC)
+  for (time_t time = record_start + time_idx_now * PRICE_PERIOD_SEC; time < record_end_excl; time += PRICE_PERIOD_SEC)
   {
     delay(5);
 
@@ -2657,7 +2714,7 @@ bool get_price_data()
     if (line.endsWith(F("</period.timeInterval>")))
     { // header dates
       record_end_excl = period_end;
-      record_start = record_end_excl - (NETTING_PERIOD_SEC * MAX_PRICE_PERIODS);
+      record_start = record_end_excl - (PRICE_PERIOD_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
       Serial.printf("period_start: %ld record_start: %ld - period_end: %ld\n", period_start, record_start, period_end);
     }
@@ -2678,7 +2735,7 @@ bool get_price_data()
     }
     else if (line.endsWith("</Point>"))
     {
-      int period_idx = pos - 1 + (period_start - record_start) / NETTING_PERIOD_SEC;
+      int period_idx = pos - 1 + (period_start - record_start) / PRICE_PERIOD_SEC;
       if (period_idx >= 0 && period_idx < MAX_PRICE_PERIODS)
       {
 
@@ -2834,7 +2891,7 @@ bool update_price_rank_variables()
   record_start = (time_t)doc["record_start"];
 
   time(&now_infunc);
-  int time_idx_now = int((now_infunc - record_start) / NETTING_PERIOD_SEC);
+  int time_idx_now = int((now_infunc - record_start) / PRICE_PERIOD_SEC);
   Serial.printf("time_idx_now: %d, price now: %f\n", time_idx_now, (float)prices[time_idx_now] / 100);
   Serial.printf("record_start: %ld, record_end_excl: %ld\n", record_start, record_end_excl);
 
@@ -2853,69 +2910,6 @@ bool update_price_rank_variables()
   return true;
 }
 
-//
-/**
- * @brief Get the channel config fields channel config fields for the admin form
- *
- * @param out out buffer
- * @param channel_idx
- */
-/* old, to be removed
-void get_channel_config_fields(char *out, int channel_idx)
-{
-  char buff[200];
-  snprintf(buff, sizeof(buff), "<div><div class='fldshort'>id: <input name='id_ch_%d' type='text' value='%s' maxlength='9'></div>", channel_idx, s.ch[channel_idx].id_str);
-  strcat(out, buff);
-
-  snprintf(buff, sizeof(buff), "<div class='fldtiny' id='d_uptimem_%d'></span>mininum up (s):</span><input name='ch_uptimem_%d'  type='text' value='%d'></div></div>", channel_idx, channel_idx, (int)s.ch[channel_idx].uptime_minimum);
-  strcat(out, buff);
-
-  snprintf(buff, sizeof(buff), "<div class='flda'>type:<br><select id='chty_%d' name='chty_%d' onchange='setChannelFields(this)'>", channel_idx, channel_idx);
-  strcat(out, buff);
-
-  bool is_gpio_channel;
-  for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPES; channel_type_idx++)
-  {
-    is_gpio_channel = (s.ch[channel_idx].gpio != 255);
-    if ((channel_type_idx == 1 && is_gpio_channel) || !(channel_type_idx == 1 || is_gpio_channel))
-    {
-      snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</option>", channel_type_idx, (s.ch[channel_idx].type == channel_type_idx) ? "selected" : "", channel_type_strings[channel_type_idx]);
-      strcat(out, buff);
-    }
-  }
-  strcat(out, "</select></div>\n");
-
-  //  radio-toolbar
-  snprintf(buff, sizeof(buff), "<div class='secbr'>\nRule mode:<input type='radio' id='mo_%d_1' name='mo_%d' value='1' %s onchange='setRuleMode(%d, 1,true);'><label for='mo_%d_1'>Template</label>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_TEMPLATE) ? "checked='checked'" : "", channel_idx, channel_idx);
-  strcat(out, buff);
-  snprintf(buff, sizeof(buff), "<input type='radio' id='mo_%d_0' name='mo_%d' value='0' %s onchange='setRuleMode(%d, 0,true);'><label for='mo_%d'>Advanced</label>\n</div>\n", channel_idx, channel_idx, (s.ch[channel_idx].config_mode == CHANNEL_CONFIG_MODE_RULE) ? "checked='checked'" : "", channel_idx, channel_idx);
-  strcat(out, buff);
-
-  snprintf(buff, sizeof(buff), "<div id='rt_%d'><select id='rts_%d' onfocus='saveVal(this)' name='rts_%d' onchange='templateChanged(this)'></select></div>\n", channel_idx, channel_idx, channel_idx);
-  strcat(out, buff);
-
-  Serial.printf("get_channel_config_fields strlen(out):%d\n", strlen(out));
-}
-*/
-/**
- * @brief Get a condition row fields for the admin form
- *
- * @param out
- * @param channel_idx
- * @param condition_idx
- * @param buff_len
- */
-// Moved  element creation logic to javascript
-/*
-void get_channel_rule_fields(char *out, int channel_idx, int condition_idx, int buff_len)
-{
-  char suffix[10];
-  snprintf(suffix, 10, "_%d_%d", channel_idx, condition_idx);
-  // name attributes  will be added in javascript before submitting
-  snprintf(out, buff_len, "<div class='secbr'><br><span class='big'>Rule %i: %s</span></div><div class='secbr indent'>Target state: <input type='radio' id='ctrb%s_0' name='ctrb%s' value='0' %s><label for='ctrb%s_0'>DOWN</label><input type='radio' id='ctrb%s_1' name='ctrb%s' value='1' %s><label for='ctrb%s_1'>UP</label></div>", condition_idx + 1, s.ch[channel_idx].conditions[condition_idx].condition_active ? "<span style='color:green;'>* NOW MATCHING *</span>" : "", suffix, suffix, !s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix, suffix, suffix, s.ch[channel_idx].conditions[condition_idx].on ? "checked" : "", suffix);
-  return;
-}
-*/
 /**
  * @brief Get  status info for admin / view forms
  *
@@ -2955,34 +2949,15 @@ void get_status_fields(char *out)
 
   if (energym_read_last == 0)
   {
-    strcpy(time2, "");
-    strcpy(eupdate, ", not updated");
+    strncpy(time2, "",sizeof(time2));
+    strncpy(eupdate, ", not updated",sizeof(eupdate));
   }
   else
   {
     snprintf(time2, sizeof(time2), "%02d:%02d:%02d", tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
-    strcpy(eupdate, "");
+    strncpy(eupdate, "",sizeof(eupdate));
   }
 
-  /*
-    if (s.energy_meter_type == ENERGYM_SHELLY3EM)
-    {
-  #ifdef METER_SHELLY3EM_ENABLED
-      float netEnergyInPeriod;
-      float netPowerInPeriod;
-      get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-      snprintf(buff, 150, "<div class='fld'><div>Period %s-%s: net energy in %d Wh, power in  %d W %s</div>\n</div>\n", time1, time2, (int)netEnergyInPeriod, (int)netPowerInPeriod, eupdate);
-      strcat(out, buff);
-  #endif
-    }
-    else if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR or (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP))
-    {
-  #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-      snprintf(buff, 150, "<div class='fld'><div>Period %s-%s: produced %d Wh, power  %d W %s</div>\n</div>\n", time1, time2, (int)energy_produced_period, (int)power_produced_period_avg, eupdate);
-      strcat(out, buff);
-  #endif
-    }
-  */
   return;
 }
 
@@ -3006,78 +2981,7 @@ int active_condition(int channel_idx)
   }
   return -1;
 }
-/*
-typedef struct
-{
-  statement_st statements[RULE_STATEMENTS_MAX];
-  float target_val;
-  bool on;
-  bool condition_active; // for showing if the condition is currently active, for tracing
-}
-*/
 
-//
-/**
- * @brief Returns channel basic info html for the forms
- *
- * @param out out buffer
- * @param channel_idx 0-indexed
- * @param show_force_up show dashboard fields
- */
-// TODO: Move  element creation logic to javascript in next UI restructuring
-// To be removed in the new UI model
-/*
-void get_channel_status_header(char *out, int channel_idx, bool show_force_up)
-{
-  time_t now_in_func;
-  time(&now_in_func);
-  char buff[220];
-  char buff2[160];
-  char buff4[20];
-  tm tm_struct2;
-  time_t from_now;
-  snprintf(buff2, 160, "<svg viewBox='0 0 100 100' class='statusic'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='%s' id='status_%d'/></svg>", s.ch[channel_idx].is_up ? "#green" : "#red", channel_idx);
-
-  if (s.ch[channel_idx].force_up_until > now_in_func)
-  {
-    localtime_r(&s.ch[channel_idx].force_up_until, &tm_struct);
-    from_now = s.ch[channel_idx].force_up_until - now_in_func;
-    gmtime_r(&from_now, &tm_struct2);
-    snprintf(buff4, 20, "-> %02d:%02d (%02d:%02d)", tm_struct.tm_hour, tm_struct.tm_min, tm_struct2.tm_hour, tm_struct2.tm_min);
-  }
-  else
-  {
-    strcpy(buff4, "");
-  }
-
-  snprintf(buff, 220, "<div class='secbr cht'>%s<span>%d - %s</span></div><!-- gpio %d -->", buff2, channel_idx + 1, s.ch[channel_idx].id_str, s.ch[channel_idx].gpio);
-  // snprintf(buff, 220, "<div class='fld'><div>%s</div></div><!-- gpio %d -->",  buff2, s.ch[channel_idx].gpio);
-  strcat(out, buff);
-
-  if (show_force_up)
-  {
-    snprintf(buff, 220, "<div class='secbr radio-toolbar'>Set channel up for next:<br>");
-    strcat(out, buff);
-
-    int hour_array_element_count = (int)(sizeof(force_up_hours) / sizeof(*force_up_hours));
-    for (int hour_idx = 0; hour_idx < hour_array_element_count; hour_idx++)
-    {
-
-      snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' %s><label for='fup_%d_%d'>%d h</label>", channel_idx, force_up_hours[hour_idx], channel_idx, force_up_hours[hour_idx], ((s.ch[channel_idx].force_up_until < now_in_func) && (hour_idx == 0)) ? "checked" : "", channel_idx, force_up_hours[hour_idx], force_up_hours[hour_idx]);
-      strcat(out, buff);
-
-      // current force_up_until, if set
-      if ((s.ch[channel_idx].force_up_until > now_in_func) && (s.ch[channel_idx].force_up_until - now_in_func > force_up_hours[hour_idx] * 3600) && (s.ch[channel_idx].force_up_until - now_in_func < force_up_hours[hour_idx + 1] * 3600))
-      {
-        snprintf(buff, 220, "<input type='radio' id='fup_%d_%d' name='fup_%d' value='%d' checked><label for='fup_%d_%d'>%s</label>", channel_idx, -1, channel_idx, -1, channel_idx, -1, buff4);
-        strcat(out, buff);
-      }
-    }
-    strcat(out, "</div>\n");
-  }
-  return;
-}
-*/
 /**
  * @brief Template processor for the admin form
  *
@@ -3236,6 +3140,7 @@ String jscode_form_processor(const String &var)
       chp = &s.ch[channel_idx];
       snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
       strcat(out, buff);
+    //  strncat(out)
       if (channel_idx < CHANNEL_COUNT - 1)
         strcat(out, ", ");
     }
@@ -3305,131 +3210,6 @@ String setup_form_processor(const String &var)
     return String(CHANNEL_CONDITIONS_MAX);
   if (var == "wifi_in_setup_mode")
     return String(wifi_in_setup_mode ? 1 : 0);
-  /*
-    if (var.startsWith("chi_"))
-    {
-      char out[2000];
-      int channel_idx = var.substring(4, 5).toInt();
-      if (channel_idx >= CHANNEL_COUNT)
-        return String();
-
-      snprintf(out, 2000, "<div id='chdiv_%d' class='hb'>", channel_idx); // close on "cht_"
-      get_channel_status_header(out, channel_idx, false);
-      get_channel_config_fields(out, channel_idx);
-      // Serial.printf("strlen(out):%d\n",strlen(out));
-
-      return out;
-    } */
-  /* Old dashboard template, can be removed
-  if (var.startsWith("vch_"))
-  {
-    char out[1000];
-    int channel_idx = var.substring(4, 5).toInt();
-
-    if (channel_idx >= CHANNEL_COUNT)
-      return String();
-
-    if (s.ch[channel_idx].type < CH_TYPE_GPIO_ONOFF) // undefined
-      return String();
-
-    snprintf(out, 100, "<div id='chdiv_%d' class='hb'>", channel_idx); // close on "cht_"
-    get_channel_status_header(out, channel_idx, true);
-    strcat(out, "</div>"); // chdiv_
-    return out;
-  }
-*/
-  /*
-    if (var.startsWith("cht_"))
-    {
-      char out[2400];
-      char buff[500];
-      char buffstmt[50];
-      char buffstmt2[200];
-      int channel_idx = var.substring(4, 5).toInt();
-      // if (channel_idx >= 1)
-      if (channel_idx >= CHANNEL_COUNT)
-        return String();
-
-      // Serial.printf("var: %s\n", var.c_str());
-      snprintf(out, 1800, "<div id='rd_%d'>", channel_idx); // div envelope for all channel rules
-      for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
-      {
-
-        // strcpy(buff, "");
-        sprintf(buff, "<div id='ru_%d_%d'>", channel_idx, condition_idx); // open ru_X
-        strncat(out, buff, sizeof(out) - strlen(out) - 1);
-
-        strcpy(buffstmt2, "");
-
-        get_channel_rule_fields(buff, channel_idx, condition_idx, sizeof(buff) - 1);
-
-        strncat(out, buff, sizeof(out) - strlen(out) - 1);
-
-        int stmt_count = 0;
-        char floatbuff[20];
-        for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-        {
-          int variable_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id;
-          int oper_id = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id;
-          long const_val = s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val;
-
-          vars.to_str(variable_id, floatbuff, true, const_val);
-
-          // TODO: alusta tai jotain
-          if (variable_id == -1 || oper_id == -1)
-            continue;
-
-          snprintf(buffstmt, 30, "%s[%d, %d, %s]", (stmt_count > 0) ? ", " : "", variable_id, oper_id, floatbuff);
-          stmt_count++;
-          strcat(buffstmt2, buffstmt);
-        }
-        // no name in stmts_ , copy later in js
-        snprintf(buff, sizeof(buff), "<div id='stmtd_%d_%d' ><input type='button' class='addstmtb' id='addstmt_%d_%d' onclick='addStmt(this);' value='+'><input type='hidden' id='stmts_%d_%d' name='stmts_%d_%d' value='[%s]'>\n</div>\n<div class='secbr'></div>", channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, channel_idx, condition_idx, buffstmt2);
-
-        strcat(out, buff);
-        strcat(out, "</div>"); // close ru_X
-      }
-      strcat(out, "</div>\n"); // rd_X div
-      strcat(out, "</div>");   // chdiv_
-      return out;
-    }
-  */
-  /*
-   if (var == "status_fields")
-   {
-     char out[500];
-     memset(out, 0, 500);
-     get_status_fields(out);
-     return out;
-   }
- */
-  /*
-    if (var == "forecast_loc")
-    {
-      return String(s.forecast_loc);
-    }
-
-    for (int i = 0; i < CHANNEL_COUNT; i++)
-    {
-      if (var.equals(String("ch_uptimem_") + i))
-      {
-        return String(s.ch[i].uptime_minimum);
-      }
-
-      if (var.equals(String("id_ch_") + i))
-      {
-        return String(s.ch[i].id_str);
-      }
-
-      if (var.equals(String("up_ch_") + i))
-      {
-        if (s.ch[i].is_up == s.ch[i].wanna_be_up)
-          return String(s.ch[i].is_up ? "up" : "down");
-        else
-          return String(s.ch[i].is_up ? F("up but dropping") : F("down but rising"));
-      }
-    }
-    */
   return String("");
 }
 
@@ -3866,40 +3646,50 @@ void printProgress(size_t prg, size_t sz)
 /**
  * @brief Reset config variables to defaults
  *
- * @param reset_password Is admin password also resetted
+ * @param full_reset Is admin password also resetted
  */
-void reset_config(bool reset_password)
+void reset_config(bool full_reset)
 {
   Serial.println(F("Starting reset_config"));
+  
   // TODO: handle influx somehow
   // reset memory
   char current_password[MAX_ID_STR_LENGTH];
 
   char current_wifi_ssid[MAX_ID_STR_LENGTH];
   char current_wifi_password[MAX_ID_STR_LENGTH];
-  strcpy(current_wifi_ssid, s.wifi_ssid);
-  strcpy(current_wifi_password, s.wifi_password);
+  
 
-  if (!reset_password)
-    strcpy(current_password, s.http_password);
+  if (full_reset) {
+    strncpy(current_wifi_ssid, "",1);
+    strncpy(current_wifi_password,"",1);
+  }
+  else {
+    strncpy(current_wifi_ssid, s.wifi_ssid,sizeof(current_wifi_ssid));
+    strncpy(current_wifi_password, s.wifi_password,sizeof(current_wifi_password));
+    strncpy(current_password, s.http_password,sizeof(current_password));
+  }
+
+
   memset(&s, 0, sizeof(s));
   memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
   strcpy(s.http_username, "admin");
-  if (reset_password)
-    strcpy(s.http_password, default_http_password);
+  if (full_reset)
+    strncpy(s.http_password, default_http_password,sizeof(s.http_password));
   else
-    strcpy(s.http_password, current_password);
+    strncpy(s.http_password, current_password,sizeof(s.http_password));
 
   // use previous wifi settings by default
-  strcpy(s.wifi_ssid, current_wifi_ssid);
-  strcpy(s.wifi_password, current_wifi_password);
+  strncpy(s.wifi_ssid, current_wifi_ssid,sizeof(s.wifi_ssid));
+  strncpy(s.wifi_password, current_wifi_password,sizeof(s.wifi_password));
 
-  strcpy(s.http_password, default_http_password);
+  strncpy(s.http_password, default_http_password,sizeof(s.http_password));
   s.variable_mode = VARIABLE_MODE_SOURCE;
 
-  strcpy(s.custom_ntp_server, "");
+  strncpy(s.custom_ntp_server, "",sizeof(s.custom_ntp_server));
+  
 
   s.baseload = 0;
   s.energy_meter_type = ENERGYM_NONE;
@@ -3911,8 +3701,9 @@ void reset_config(bool reset_password)
   //  split comma separated gpio string to an array
   uint16_t channel_gpios[CHANNEL_COUNT];
   char ch_gpios_local[35];
-  strcpy(ch_gpios_local, CH_GPIOS);
+  strncpy(ch_gpios_local, CH_GPIOS,sizeof(ch_gpios_local));
   str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
+
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -3935,7 +3726,7 @@ void reset_config(bool reset_password)
         s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
       }
     }
-  }
+  } 
   Serial.println(F("Finishing reset_config"));
 }
 /**
@@ -4030,9 +3821,9 @@ void export_config(AsyncWebServerRequest *request)
       {
         statement_st *stmt = &s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx];
         // is there any statements for the rule
-        if (stmt->variable_id!= -1 && stmt->oper_id != 255)
+        if (stmt->variable_id != -1 && stmt->oper_id != 255)
         {
-          Serial.printf("Active statement %d %d \n",(int)stmt->variable_id,(int)stmt->oper_id);
+          Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val);
           // Serial.printf("floatbuff:%s\n", floatbuff);
 
@@ -4052,7 +3843,7 @@ void export_config(AsyncWebServerRequest *request)
         active_rule_count++;
       }
     }
-    Serial.printf("Channel: %d,active_rule_count %d \n",channel_idx, active_rule_count);
+    Serial.printf("Channel: %d,active_rule_count %d \n", channel_idx, active_rule_count);
     if (active_rule_count > 0)
     {
       doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
@@ -4165,11 +3956,6 @@ bool read_config_file(const char *config_file_name)
       stmt_idx = 0;
       for (JsonArray ch_rule_stmt : ch_rule["stmts"].as<JsonArray>())
       {
-        /*
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt["var"];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt["op"];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt["const"];
-        */
 
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
@@ -4502,23 +4288,23 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       // statements
       snprintf(stmts_fld, 20, "stmts_%i_%i", channel_idx, condition_idx);
 
-        // clean always
-        for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-        {
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
-        }
+      // clean always
+      for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+      {
+        s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
+        s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
+        s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
+      }
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
 
-      /*  for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-        {
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
-          s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
-        } */
+        /*  for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+          {
+            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
+            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
+            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
+          } */
 
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
@@ -4556,7 +4342,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
           }
         }
       }
-     
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
       //  Serial.printf("Channel %d, rule %d, field %s",channel_idx, condition_idx, ctrb_fld);
@@ -4783,7 +4568,7 @@ void set_time_settings()
  */
 void wifi_event_handler(WiFiEvent_t event)
 {
-  // Serial.printf("[WiFi-event] event: %d\n", event);
+//  Serial.printf("[WiFi-event] event: %d\n", event);
   switch (event)
   {
   case SYSTEM_EVENT_STA_CONNECTED:
@@ -4825,6 +4610,13 @@ void setup()
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("Version: %s\n"), compile_date);
 
+  String mac = WiFi.macAddress();
+  for (int i = 14; i > 0; i -= 3)
+  {
+    mac.remove(i, 1);
+  }
+  wifi_mac_short = mac;
+
 #ifdef SENSOR_DS18B20_ENABLED
   sensors.begin();
   delay(1000); // let the sensors settle
@@ -4835,11 +4627,10 @@ void setup()
 
 #endif
 
-  // TODO: pitäisikö olla jo kevyempi
   while (!LittleFS.begin())
   {
     Serial.println(F("Failed to initialize LittleFS library, restarting..."));
-    delay(1000);
+    delay(5000);
     ESP.restart();
   }
   Serial.println(F("LittleFS initialized"));
@@ -4863,6 +4654,7 @@ void setup()
     Serial.println(F("Resetting settings"));
     reset_config(true);
   }
+ 
 
   /*
     if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
@@ -4937,12 +4729,8 @@ void setup()
 #endif
     Serial.print("Creating AP, wifi_in_setup_mode:");
     Serial.print(wifi_in_setup_mode);
-    String mac = WiFi.macAddress();
-    for (int i = 14; i > 0; i -= 3)
-    {
-      mac.remove(i, 1);
-    }
-    String APSSID = String("ARSKA-") + mac;
+
+    String APSSID = String("ARSKA-") + wifi_mac_short;
     int wifi_channel = (int)random(1, 14);
     if (WiFi.softAP(APSSID.c_str(), (const char *)__null, wifi_channel, 0, 3) == true)
     {
@@ -5111,7 +4899,7 @@ void setup()
 
   uint16_t channel_gpios[CHANNEL_COUNT];
   char ch_gpios_local[35];
-  strcpy(ch_gpios_local, CH_GPIOS);
+  strncpy(ch_gpios_local, CH_GPIOS,sizeof(ch_gpios_local));
   str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -5140,7 +4928,7 @@ void setup()
 } // end of setup()
 
 // returns start time period (first second of an hour if 60 minutes netting period) of time stamp,
-long get_period_start_time(long ts)
+long get_netting_period_start_time(long ts)
 {
   return long(ts / (NETTING_PERIOD_SEC)) * (NETTING_PERIOD_SEC);
 }
@@ -5299,8 +5087,8 @@ void loop()
 
   // update period info
   time(&now);
-  current_period_start = get_period_start_time(now);
-  if (get_period_start_time(now) == get_period_start_time(started))
+  current_period_start = get_netting_period_start_time(now);
+  if (get_netting_period_start_time(now) == get_netting_period_start_time(started))
     recording_period_start = started;
   else
     recording_period_start = current_period_start;
@@ -5310,7 +5098,7 @@ void loop()
   {
     Serial.printf("\nPeriod changed %ld -> %ld\n", previous_period_start, current_period_start);
     period_changed = true;
-    next_process_ts = now;
+    next_process_ts = now; // process now if new period
     update_time_based_variables();
   }
 
@@ -5373,16 +5161,16 @@ void loop()
 #ifdef INFLUX_REPORT_ENABLED
     if (previous_period_start != 0)
     {
-      // add_period_variables_to_influx_buffer(previous_period_start);
+      // add values from the last period to the influx buffer and schedule writing to the influx db
       add_period_variables_to_influx_buffer(previous_period_start + (NETTING_PERIOD_SEC / 2));
       ch_counters.new_log_period(previous_period_start + (NETTING_PERIOD_SEC / 2));
-
       todo_in_loop_influx_write = true;
     }
 #endif
     previous_period_start = current_period_start;
     period_changed = false;
   }
+  period_changed = false;
 
 #ifdef INVERTER_SMA_MODBUS_ENABLED
   mb.task(); // process modbuss event queue
