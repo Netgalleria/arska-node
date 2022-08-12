@@ -2599,8 +2599,10 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
  * @return false 
  */
 bool is_garbage_line(String line) {
-  if (line.length()==4 && line.startsWith("50"))
+  if (line.length()==4 && line.startsWith("5")) {  //TODO: what creates this, is 5.. really a http code or some kind of counter
+    Serial.printf(PSTR("Garbage removed [%s]\n"),line.c_str());
     return true;
+  }
   else
     return false;
 }
@@ -2634,12 +2636,11 @@ bool get_price_data()
 
   time_t start_ts, end_ts; // this is the epoch
   tm tm_struct;
-  time_t now_infunc;
+  time_t now_infunc;  
 
-  time(&start_ts);
-  start_ts -= 3600*20; //no previous day after 20h, assume we have data ready for next day
-  //TODO: could history  be shorter to get shorter reply, e.g. 16*3600 would skip previous day after 16hours
- 
+  time(&now_infunc);
+  start_ts = now_infunc-(3600*18); //no previous day after 18h, assume we have data ready for next day
+
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
   DynamicJsonDocument doc(3072);
@@ -2666,7 +2667,6 @@ bool get_price_data()
   
   String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
-
 
   client_https.setTimeout(15000); // 15 Seconds
   delay(1000);
@@ -2721,6 +2721,7 @@ bool get_price_data()
   String line;
   String line2;
   bool line_incomplete = false;
+  bool contains_zero_prices = false;
 
   while (client_https.available())
   {
@@ -2785,8 +2786,12 @@ bool get_price_data()
     else if (line.endsWith(F("</price.amount>")))
     {
       price = int(getElementValue(line).toFloat() * 100);
+
+      if (abs(price) < 0.001) // suspicious value, could be parsing/data error
+        contains_zero_prices = true;
+
       price_rows++;
-   //   Serial.println(line);
+      //   Serial.println(line);
     }
     else if (line.endsWith("</Point>"))
     {
@@ -2831,7 +2836,15 @@ bool get_price_data()
     doc["record_end_excl"] = record_end_excl;
     doc["resolution_m"] = NETTING_PERIOD_MIN;
     doc["ts"] = now_infunc;
-    doc["expires"] = record_end_excl - (12 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+
+    if (contains_zero_prices) {//potential problem in latest fetch, give shorter validity time
+      Serial.println("Contains zero prices! Retry in 2 hours.");
+      doc["expires"] = now_infunc + (2*3600);
+    }
+    else {
+      Serial.println("No zero prices.");
+      doc["expires"] = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+    }
 
     File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
     serializeJson(doc, prices_file);
