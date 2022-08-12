@@ -4696,6 +4696,7 @@ void setup()
   Serial.println(F("LittleFS initialized"));
 
   // TODO: notify, ota-update
+  check_filesystem_version(); 
   /*
   if (check_filesystem_version())
     Serial.println(F("Filesystem is up-to-date."));
