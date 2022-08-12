@@ -621,6 +621,7 @@ float Variables::const_to_float(int id, long const_in)
   }
   return -1;
 }
+
 int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val, size_t buffer_length)
 {
   variable_st var;
@@ -3878,6 +3879,7 @@ void export_config(AsyncWebServerRequest *request)
         {
           Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val, sizeof(floatbuff));
+
           // Serial.printf("floatbuff:%s\n", floatbuff);
 
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
@@ -4551,7 +4553,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     vars.get_variable_by_idx(variable_idx, &variable);
     // if (variable.val_l != VARIABLE_LONG_UNKNOWN)
     snprintf(id_str, 6, "%d", variable.id);
-    vars.to_str(variable.id, buff_value, false, sizeof(buff_value));
+    vars.to_str(variable.id, buff_value, false, 0,sizeof(buff_value));
+
     var_obj[id_str] = buff_value;
   }
   /*
