@@ -2664,6 +2664,12 @@ bool get_price_data()
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
     return false;
   }
+  /*
+  if (WiFi.macAddress().equals("4C:11:AE:74:68:2C")) { 
+     log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Simulated error."));
+    return false;
+  }
+  */
   
   String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
@@ -4687,6 +4693,8 @@ void setup()
   Serial.printf(PSTR("Version: %s\n"), compile_date);
 
   String mac = WiFi.macAddress();
+  Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
+
   for (int i = 14; i > 0; i -= 3)
   {
     mac.remove(i, 1);
