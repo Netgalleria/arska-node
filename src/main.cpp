@@ -855,7 +855,7 @@ void ChannelCounters::new_log_period(time_t ts_report)
       utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
     else
       utilization = 0;
-    snprintf(field_name, sizeof(field_name), "ch%d", i);
+    snprintf(field_name, sizeof(field_name), "ch%d", i+1);  // 1-indexed channel numbers in UI
     point_period_avg.addField(field_name, utilization);
   }
   // then reset
