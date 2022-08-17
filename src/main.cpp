@@ -2728,7 +2728,8 @@ bool get_price_data()
   String line2;
   bool line_incomplete = false;
   bool contains_zero_prices = false;
-
+  // we must remove extra carbage cr (13) + "5xx" + cr lines
+  // .available() is 1 or low when the "garbage" comes, no more/much to read, after about 8k buffer is read
   while (client_https.available())
   {
     if (!line_incomplete)
@@ -3322,7 +3323,7 @@ void read_energy_meter()
     ESP.restart();
   }
   else
-    log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy meter."));
+    log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy meter. Check Wifi"));
 }
 //
 
