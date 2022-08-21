@@ -24,6 +24,8 @@ Resource files (see data subfolder):
 #define SENSOR_DS18B20_ENABLED // DS18B20 funtionality
 #define RTC_DS3231_ENABLED //real time clock functionality
 #define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
+
+branch devel 21.8.2022
 */
 
 #define EEPROM_CHECK_VALUE 12349
