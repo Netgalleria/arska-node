@@ -40,11 +40,11 @@ char version_fs[35];
 #include <LittleFS.h>
 #include "WebAuthentication.h"
 
-#ifdef ESP32 // not fully implemented with ESP32
+#ifdef ESP32 // tested only  with ESP32
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
-#elif defined(ESP8266) // tested only with ESP8266
+#elif defined(ESP8266) // not fully tested with ESP8266
 //#pragma message("ESP8266 version")
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
@@ -1238,11 +1238,19 @@ bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
 
 // data strcuture limits
-#define CHANNEL_TYPES 3
+#define CHANNEL_TYPE_COUNT 3
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_ONOFF 1
 #define CH_TYPE_SHELLY_ONOFF 2
 #define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
+
+//TODO
+//CH_TYPE_GPIO_SHELLY_1GEN 10
+//CH_TYPE_GPIO_SHELLY_2GEN 11
+//CH_TYPE_MODBUS_RTU 20
+
+
+
 
 // channels type string for admin UI
 const char *channel_type_strings[] PROGMEM = {
@@ -1250,6 +1258,7 @@ const char *channel_type_strings[] PROGMEM = {
     "GPIO",
     "Shelly",
 };
+
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -3227,11 +3236,11 @@ String jscode_form_processor(const String &var)
   if (var == F("channel_type_strings"))
   { // used by Javascript
     strcpy(out, "[");
-    for (int i = 0; i < CHANNEL_TYPES; i++)
+    for (int i = 0; i < CHANNEL_TYPE_COUNT; i++)
     {
       snprintf(buff, 50, "\"%s\"", channel_type_strings[i]);
       strcat(out, buff); // TODO: memory safe strncat
-      if (i < CHANNEL_TYPES - 1)
+      if (i < CHANNEL_TYPE_COUNT - 1)
         strcat(out, ", ");
     }
     strcat(out, "]");
@@ -3781,7 +3790,7 @@ void reset_config(bool full_reset)
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    s.ch[channel_idx].gpio = channel_gpios[channel_idx];
+    s.ch[channel_idx].gpio = channel_gpios[channel_idx]; //TODO: check first type, other types available
     s.ch[channel_idx].type = (s.ch[channel_idx].gpio < 255) ? CH_TYPE_GPIO_ONOFF : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
@@ -4989,6 +4998,7 @@ void setup()
   str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
+    //TODO: this should be in flash already
     s.ch[channel_idx].gpio = channel_gpios[channel_idx];
     s.ch[channel_idx].toggle_last = now;
     // reset values from eeprom
