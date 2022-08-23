@@ -10,7 +10,8 @@ const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent au
 const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
 const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
-const channel_type_strings = JSON.parse('%channel_type_strings%');
+//const channel_type_strings = JSON.parse('%channel_type_strings%');
+const channel_types = JSON.parse('%channel_types%');
 const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
 const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
@@ -19,8 +20,20 @@ const VERSION = '%VERSION%';
 const HWID = '%HWID%';
 const VERSION_SHORT = '%VERSION_SHORT%';
 const version_fs = '%version_fs%';
+const switch_subnet_wifi = '%switch_subnet_wifi%';
 
-const VARIABLE_LONG_UNKNOWN = -2147483648
+const VARIABLE_LONG_UNKNOWN = -2147483648;
+
+//selected constants
+const CHANNEL_CONFIG_MODE_RULE = 0;
+const CHANNEL_CONFIG_MODE_TEMPLATE = 1;
+
+const CH_TYPE_UNDEFINED = 0;
+const CH_TYPE_GPIO_FIXED = 1;
+const CH_TYPE_WIFI_SHELLY_1GEN = 2;
+const CH_TYPE_GPIO_USER_DEF = 3;
+const CH_TYPE_MODBUS_RTU = 20;
+const CH_TYPE_DISABLED = 255;
 
 
 let variable_list = {}; // populate later
@@ -137,7 +150,7 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
 
     tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
     if (show_secs)
-        tmpStr +=":"+ pad_to_2digits(tmpDate.getSeconds())
+        tmpStr += ":" + pad_to_2digits(tmpDate.getSeconds())
 
     if (show_day_diff) {
         tz_offset_minutes = tmpDate.getTimezoneOffset();
@@ -166,7 +179,7 @@ function updateStatus(show_variables = true) {
         keyfd = document.getElementById("keyfd");
         if (msgdiv) {
             if (data.last_msg_ts > getCookie("msg_read")) {
-                msgDateStr = get_time_string_from_ts(data.last_msg_ts,true, true);
+                msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
                 msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
             }
         }
@@ -236,7 +249,7 @@ function show_channel_status(channel_idx, ch) {
 
     if (ch.is_up) {
         if (ch.force_up)
-            info_text += "Up based on manual schedule: " + get_time_string_from_ts(ch.force_up_from, false,true) + " --> " + get_time_string_from_ts(ch.force_up_until,false, true) + ". ";
+            info_text += "Up based on manual schedule: " + get_time_string_from_ts(ch.force_up_from, false, true) + " --> " + get_time_string_from_ts(ch.force_up_until, false, true) + ". ";
         else if (ch.active_condition > -1)
             info_text += "Up based on <a class='chlink'  href='/channels#c" + channel_idx + "r" + ch.active_condition + "'>rule " + (ch.active_condition + 1) + "</a>. ";
     }
@@ -250,7 +263,7 @@ function show_channel_status(channel_idx, ch) {
     if (ch.force_up_from > now_ts - 100) { //leave some margin
         if (info_text)
             info_text += "<br>";
-        info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, false,true) + " --> " + get_time_string_from_ts(ch.force_up_until,false, true);
+        info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, false, true) + " --> " + get_time_string_from_ts(ch.force_up_until, false, true);
     }
 
     chdiv_info = document.getElementById("chdinfo_" + channel_idx);
@@ -551,11 +564,11 @@ function templateChanged(selEl) {
         $.each(data.conditions, function (cond_idx, rule) {
 
             set_radiob("ctrb_" + channel_idx + "_" + cond_idx, rule["on"] ? "1" : "0", true);
-         /*   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = !rule["on"];
-            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").disabled = rule["on"];
-
-            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = rule["on"];
-            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").disabled = !rule["on"];*/
+            /*   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = !rule["on"];
+               document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").disabled = rule["on"];
+   
+               document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = rule["on"];
+               document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").disabled = !rule["on"];*/
 
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
@@ -577,7 +590,7 @@ function templateChanged(selEl) {
     });
 
     // fixing ui fields is delayed to get dom parsed ready?
-    setTimeout(function () { fillStmtRules(channel_idx, 1,template_idx); }, 1000);
+    setTimeout(function () { fillStmtRules(channel_idx, 1, template_idx); }, 1000);
 
     return true;
 }
@@ -590,10 +603,10 @@ function deleteStmtsUI(channel_idx) {
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
         set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
-      /*  if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1"))
-            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
-        if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0"))
-            document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;*/
+        /*  if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1"))
+              document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
+          if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0"))
+              document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;*/
     }
 }
 
@@ -603,14 +616,14 @@ function setRuleModeEVT(evt) {
     fldA = evt.target.id.split("_");
     channel_idx = fldA[1];
     rule_mode = fldA[2];
-    if (rule_mode == 0)
+    if (rule_mode == CHANNEL_CONFIG_MODE_RULE)
         confirm_text = "Change to advanced rule mode?";
     else
         confirm_text = "Change to template mode and delete current rule definations?";
-        
+
     if (confirm(confirm_text)) {
         setRuleMode(channel_idx, rule_mode, true);
-        if (rule_mode == 1)
+        if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE)
             deleteStmtsUI(channel_idx);// delete rule statements when initiating template mode
         return true;
     }
@@ -626,14 +639,14 @@ function setRuleModeEVT(evt) {
 }
 
 function setRuleMode(channel_idx, rule_mode, reset, template_id) {
-    
+
     console.log("setRuleMode", template_id);
-    if (rule_mode == 1) { //template mode
+    if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) { //template mode
         templateSelEl = document.getElementById("rts_" + channel_idx);
         if (templateSelEl) {
             populateTemplateSel(templateSelEl, template_id);
             if (reset)
-                templateSelEl.value = -1;     
+                templateSelEl.value = -1;
         }
         else
             console.log("Cannot find element:", "rts_" + channel_idx);
@@ -645,10 +658,10 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
     $('#rd_' + channel_idx + " input[type='text']").prop('readonly', (rule_mode != 0));
 
     $('#rd_' + channel_idx + ' .addstmtb').css({ "display": ((rule_mode != 0) ? "none" : "block") });
-    $('#rts_' + channel_idx).css({ "display": ((rule_mode == 0) ? "none" : "block") });
+    $('#rts_' + channel_idx).css({ "display": ((rule_mode == CHANNEL_CONFIG_MODE_RULE) ? "none" : "block") });
 
-    fillStmtRules(channel_idx, rule_mode,template_id);
-    if (rule_mode == 0) //enable all
+    fillStmtRules(channel_idx, rule_mode, template_id);
+    if (rule_mode == CHANNEL_CONFIG_MODE_RULE) //enable all
         $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false);
 
 
@@ -717,9 +730,9 @@ function setVar(evt) {
         populateOper(document.getElementById("op" + suffix), var_this);
     }
     else if (el.value == -2) {
-            var elem = document.getElementById("std" + suffix);
-            if (elem)
-                elem.parentNode.removeChild(elem);
+        var elem = document.getElementById("std" + suffix);
+        if (elem)
+            elem.parentNode.removeChild(elem);
     }
 }
 
@@ -771,8 +784,8 @@ function setEnergyMeterFields(emt) { //
 }
 
 // populate rule statements of a channel
-function fillStmtRules(channel_idx, rule_mode,template_id) {
-    console.log("fillStmtRules", channel_idx, rule_mode,"*",template_id);
+function fillStmtRules(channel_idx, rule_mode, template_id) {
+    console.log("fillStmtRules", channel_idx, rule_mode, "*", template_id);
 
     prev_rule_var_defined = true;
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
@@ -780,7 +793,7 @@ function fillStmtRules(channel_idx, rule_mode,template_id) {
         firstStmtVar = document.getElementById(firstStmtVarId);
         first_var_defined = !!firstStmtVar;
 
-        show_rule = (rule_mode == 0) || first_var_defined;
+        show_rule = (rule_mode == CHANNEL_CONFIG_MODE_RULE) || first_var_defined;
 
 
         if (!template_id) {// not yet populated to the select
@@ -789,20 +802,20 @@ function fillStmtRules(channel_idx, rule_mode,template_id) {
         }
 
         console.log("template_id", template_id);
-        if (rule_mode == 0) {
+        if (rule_mode == CHANNEL_CONFIG_MODE_RULE) {
             if (cond_idx == 0)
                 show_rule = true;
             else {
                 show_rule = prev_rule_var_defined;
             }
-        } 
-        else if (rule_mode == 1)
+        }
+        else if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE)
             if (template_id == -1) //template mode, no template id selected
                 show_rule = false;
             else {
                 show_rule = first_var_defined;
             }
-            
+
         prev_rule_var_defined = first_var_defined;
 
         //rule defination inside this div
@@ -810,7 +823,7 @@ function fillStmtRules(channel_idx, rule_mode,template_id) {
         if (ru_div)
             ru_div.style.display = (show_rule ? "block" : "none");
 
-        if (!first_var_defined && (rule_mode == 0)) {  // advanced more add at least one statement for each rule
+        if (!first_var_defined && (rule_mode == CHANNEL_CONFIG_MODE_RULE)) {  // advanced more add at least one statement for each rule
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             console.log("addStmt++", channel_idx, cond_idx, 0);
             if (elBtn)
@@ -863,7 +876,7 @@ function initChannelForm() {
         template_id = channels[channel_idx]["tid"];
         console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
 
-        if (rule_mode == 1) {
+        if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) {
             templateSelEl = document.getElementById("rts_" + channel_idx);
             templateSelEl.value = template_id;
             //    console.log("templateSelEl.value:" + templateSelEl.value);
@@ -871,29 +884,34 @@ function initChannelForm() {
         setRuleMode(channel_idx, rule_mode, false, template_id);
     }
 
-
     if (document.getElementById('statusauto').checked) {
         setTimeout(function () { updateStatus(true); }, 3000);
     }
 
 }
 
-function setChannelFieldsByType(ch, chtype) {
-    for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
-        divid = 'td_' + ch + "_" + t;
-        var uptimediv = document.querySelector('#d_uptimem_' + ch);
-        if (chtype == 0)
-            uptimediv.style.display = "none";
-        else
-            uptimediv.style.display = "block";
+function setChannelFieldsByType(channel_idx, chtype) {
+    for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {   
+        $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
+        //set switch id caption based on type
+        switch_id_caption_span = document.getElementById("ch_swidc_" + channel_idx);
+        if (chtype == CH_TYPE_WIFI_SHELLY_1GEN)
+            switch_id_caption_span.innerHTML = "ip " + switch_subnet_wifi.substring(0, switch_subnet_wifi.length - 1) + "x:";
+        else if (chtype == CH_TYPE_GPIO_USER_DEF)
+            switch_id_caption_span.innerHTML = "gpio:";
+        else if (chtype == CH_TYPE_GPIO_FIXED) {
+            switch_id_caption_span.innerHTML = "gpio (fixed):";
+            //TSEKKAA DISABLOIKO
+            $('#ch_swid_' + channel_idx).attr('disabled', true);
+        }
+        else 
+            switch_id_caption_span.innerHTML = "switch id:";
     }
 }
 
 
 function initUrlBar(url) {
     var headdiv = document.getElementById("headdiv");
-
-
     var hdspan = document.createElement('div');
     //  hdspan.innerHTML = "Arska<br>";
     hdspan.innerHTML = "<svg viewBox='0 0 70 30' class='headlogo'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='#arskalogo' id='logo' /></svg><br>";
@@ -901,15 +919,6 @@ function initUrlBar(url) {
     headdiv.appendChild(hdspan);
 
     sections.forEach((sect, idx) => {
-        /* if (url == sect.url) {
-             var span = document.createElement('span');
-             var b = document.createElement('b');
-             b.className = 
-             b.innerHTML = sect.en;
-             span.appendChild(b);
-             headdiv.appendChild(span);
-         } 
-         else { */
         var a = document.createElement('a');
         var link = document.createTextNode(sect.en);
         a.appendChild(link);
@@ -1008,7 +1017,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         else
             price_str = "";
 
-        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts,false,true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false,true)+ price_str, (prev_selected == start_ts));
+        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false, true) + price_str, (prev_selected == start_ts));
         start_ts += 3600;
     }
     if (cheapest_index > -1) {
@@ -1055,7 +1064,7 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60, se
 }
 
 // add radio button and label, set checked/disabled
-function add_radiob_with_label(parent, name, value, label, checked,readonly = false) {
+function add_radiob_with_label(parent, name, value, label, checked, readonly = false) {
     rb_id = name + "_" + value;
     rb = createElem("input", rb_id, value, null, "radio");
     rb.name = name;
@@ -1083,13 +1092,14 @@ function set_radiob(prefix, value, readonly) {
         else if (readonly) {
             rbs[i].disabled = true;
         }
-    } 
+    }
 }
 
 function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     console.log("create_channel_config_elements", channel_idx);
     conf_div = createElem("div", null, null, null);
 
+    rc0_div = createElem("div", null, null, "secbr");
     //id
     id_div = createElem("div", null, null, "fldshort");
     id_div.insertAdjacentText('beforeend', 'id: ');
@@ -1097,15 +1107,10 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     inp_id.name = "id_ch_" + channel_idx;
     inp_id.setAttribute("maxlength", 9);
     id_div.appendChild(inp_id);
-    conf_div.appendChild(id_div);
+    rc0_div.appendChild(id_div);
+    //conf_div.appendChild(id_div);
 
-    //uptime
-    ut_div = createElem("div", "d_uptimem_" + channel_idx, null, "fldtiny");
-    ut_div.insertAdjacentText('beforeend', 'mininum up (s):');
-    inp_ut = createElem("input", "ch_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
-    inp_ut.name = "ch_uptimem_" + channel_idx;
-    ut_div.appendChild(inp_ut);
-    conf_div.appendChild(ut_div);
+
 
     //type
     ct_div = createElem("div", null, null, "flda");
@@ -1115,25 +1120,54 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     //TODO: check this
     ct_sel.addEventListener("change", setChannelFieldsEVT);
 
-    for (var i = 0; i < channel_type_strings.length; i++) {
-        is_gpio_channel = (ch_cur.gpio != 255);
-        console.log("addOption", i, is_gpio_channel, ch_cur.type);
-        if ((i == 0) || (i == 1 && is_gpio_channel) || !(i == 1 || is_gpio_channel)) {
-            addOption(ct_sel, i, channel_type_strings[i], (ch_cur.type == i));
+    for (var i = 0; i < channel_types.length; i++) {
+        is_fixed_gpio_channel = (ch_cur.type == CH_TYPE_GPIO_FIXED);
+        console.log("addOption", i, is_fixed_gpio_channel, ch_cur.type);
+        if ((!is_fixed_gpio_channel && channel_types[i].id != CH_TYPE_GPIO_FIXED) || (is_fixed_gpio_channel && channel_types[i].id == CH_TYPE_GPIO_FIXED)) {
+            //  addOption(ct_sel, i, channel_type_strings[i], (ch_cur.type == i));
+            addOption(ct_sel, channel_types[i].id, channel_types[i].name, (ch_cur.type == channel_types[i].id));
             console.log("addOption2", i);
         }
     }
     ct_div.appendChild(ct_sel);
+    rc0_div.appendChild(ct_div);
+    conf_div.appendChild(rc0_div);
 
-    conf_div.appendChild(ct_div);
+
+    rc1_div = createElem("div", "d_rc1_" + channel_idx, null, "secbr");
+    //uptime
+    ut_div = createElem("div", "d_uptimem_" + channel_idx, null, "fldtiny");
+    ut_div.insertAdjacentText('beforeend', 'mininum up (s):');
+    inp_ut = createElem("input", "ch_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
+    inp_ut.name = "ch_uptimem_" + channel_idx;
+    ut_div.appendChild(inp_ut);
+    //conf_div.appendChild(ut_div);
+    rc1_div.appendChild(ut_div);
+
+    //Rule config div
+    //maybe one row div including uptime
+    swid_div = createElem("div", "d_swid_" + channel_idx, null, "fldtiny");
+
+    switch_id_caption_span = createElem("span", "ch_swidc_" + channel_idx, null, null);
+    switch_id_caption_span.innerHTML = "switch id:";
+
+    inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.switch_id, null, "text");
+    inp_swid.name = "ch_swid_" + channel_idx;
+    inp_swid.setAttribute("maxlength", 3);
+    
+    swid_div.appendChild(switch_id_caption_span);
+    swid_div.appendChild(inp_swid);
+    rc1_div.appendChild(swid_div)
+
+    conf_div.appendChild(rc1_div);
 
     //Mode and template selection
     rm_div = createElem("div", null, null, "secbr");
     rm_div.insertAdjacentText('beforeend', 'Rule mode:');
 
-    rb1 = add_radiob_with_label(rm_div, "mo_" + channel_idx, 1, "Template", (ch_cur.config_mode == 1),false);
+    rb1 = add_radiob_with_label(rm_div, "mo_" + channel_idx, 1, "Template", (ch_cur.config_mode == CHANNEL_CONFIG_MODE_TEMPLATE), false);
     rb1.addEventListener("change", setRuleModeEVT);
-    rb0 = add_radiob_with_label(rm_div, "mo_" + channel_idx, 0, "Advanced", (ch_cur.config_mode == 0),false);
+    rb0 = add_radiob_with_label(rm_div, "mo_" + channel_idx, 0, "Advanced", (ch_cur.config_mode == CHANNEL_CONFIG_MODE_RULE), false);
     rb0.addEventListener("change", setRuleModeEVT);
 
     tmpl_div = createElem("div", "rt_" + channel_idx, null, null);
@@ -1144,8 +1178,8 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     rm_div.appendChild(tmpl_div);
     tmpl_sel.addEventListener("change", templateChangedEVT);
 
-    ct_div.appendChild(ct_sel);
-    conf_div.appendChild(ct_div);
+   // ct_div.appendChild(ct_sel);
+   // conf_div.appendChild(ct_div);
 
     conf_div.appendChild(rm_div); //paikka arvottu
 
@@ -1184,7 +1218,7 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
 
         rulel_div = createElem("div", null, null, "secbr indent");
 
-        ruled_div = createElem("div", 'stmtd' + suffix, null, "secbr indent");
+        ruled_div = createElem("div", 'stmtd' + suffix, null, "secbr"); //indent
         add_btn = createElem("input", 'addstmt' + suffix, "+", "addstmtb", "button");
         //TODO:change from hidden from based to javascript/object based
         statements = [];
@@ -1209,16 +1243,16 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
             rule_on = true;
         else
             rule_on = false;
-        add_radiob_with_label(rulel_div, "ctrb" + suffix, 0, "DOWN", !rule_on,true); //TODO:checked 
-        add_radiob_with_label(rulel_div, "ctrb" + suffix, 1, "UP", rule_on,true); //TODO:checked
-/* under construction
-        if (true) { //suffix = "_" + channel_idx + '_' + condition_idx;
-            console.log("ctrb" + suffix + "_0");
-            console.log(document.getElementById("ctrb" + suffix + "_0"));
-            document.getElementById("ctrb" + suffix + "_0").disabled = rule_on;
-            document.getElementById("ctrb" + suffix + "_1").disabled = !rule_on;  
-        }
-        */
+        add_radiob_with_label(rulel_div, "ctrb" + suffix, 0, "DOWN", !rule_on, true); //TODO:checked 
+        add_radiob_with_label(rulel_div, "ctrb" + suffix, 1, "UP", rule_on, true); //TODO:checked
+        /* under construction
+                if (true) { //suffix = "_" + channel_idx + '_' + condition_idx;
+                    console.log("ctrb" + suffix + "_0");
+                    console.log(document.getElementById("ctrb" + suffix + "_0"));
+                    document.getElementById("ctrb" + suffix + "_0").disabled = rule_on;
+                    document.getElementById("ctrb" + suffix + "_1").disabled = !rule_on;  
+                }
+                */
 
 
 
@@ -1252,7 +1286,7 @@ function init_channel_elements(edit_mode = false) {
             console.log('/export-config');
             $.each(data.ch, function (i, ch_cur) {
                 console.log("init_channel_elements, loop:", i, ch_cur);
-                if ((ch_cur.type == 0) && !edit_mode) {//undefined type 
+                if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
                     console.log("Skipping channel " + i);
                     return;
                 }

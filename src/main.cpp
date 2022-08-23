@@ -67,8 +67,6 @@ char version_fs[35];
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
 
-#define DUAL_MODE_WIFI_ // experimental, if defined we have always AP_MODE enabled
-
 // TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
 #define VARIABLE_MODE_SOURCE 0
@@ -191,10 +189,6 @@ void check_forced_restart(bool reset_counter = false)
   // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
   if (!wifi_in_setup_mode) // only valid if backup ap mode (no normal wifi)
     return;
-
-#ifdef DUAL_MODE_WIFI // if wifi dual-mode active we do not restart, because sta-mode is retrying //TODO: validate
-  return;
-#endif
 
   time_t now_in_func;
   time(&now_in_func);
@@ -857,7 +851,7 @@ void ChannelCounters::new_log_period(time_t ts_report)
       utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
     else
       utilization = 0;
-    snprintf(field_name, sizeof(field_name), "ch%d", i+1);  // 1-indexed channel numbers in UI
+    snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
     point_period_avg.addField(field_name, utilization);
   }
   // then reset
@@ -1239,28 +1233,44 @@ bool todo_in_loop_scan_wifis = false;
 bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
 
-// data strcuture limits
-#define CHANNEL_TYPE_COUNT 3
+#define CHANNEL_TYPE_COUNT 4
+
 #define CH_TYPE_UNDEFINED 0
-#define CH_TYPE_GPIO_ONOFF 1
-#define CH_TYPE_SHELLY_ONOFF 2
-#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
-
-//TODO
-//CH_TYPE_GPIO_SHELLY_1GEN 10
-//CH_TYPE_GPIO_SHELLY_2GEN 11
-//CH_TYPE_MODBUS_RTU 20
-
-
-
+#define CH_TYPE_GPIO_FIXED 1
+#define CH_TYPE_GPIO_USER_DEF 3
+#define CH_TYPE_WIFI_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
+#define CH_TYPE_MODBUS_RTU 20      // RFU
+#define CH_TYPE_DISABLED 255       // RFU, we could have disabled, but allocated channels (binary )
 
 // channels type string for admin UI
+/* OLD
 const char *channel_type_strings[] PROGMEM = {
     "undefined",
     "GPIO",
     "Shelly",
 };
+*/
+// TODOX: replace with channel_types, also in Javascript
+/*
+const char *channel_type_strings[] PROGMEM = {
+   "undefined",
+   "GPIO", //fixed gpio
+   "GPIO user-defined" // user defined gpio
+   "Shelly Gen 1", //define last ip, first 3 bytes from wifi(defined address)
+//  "Modbus", // define coil id, server id is global
+};
+*/
 
+struct channel_type_st
+{
+  byte id;
+  const char *name;
+};
+//#define CH_TYPE_SHELLY_ONOFF 2  -> 10
+//#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
+
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user defined"}, {CH_TYPE_WIFI_SHELLY_1GEN, "Shelly Gen 1"}};
+// later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -1305,7 +1315,7 @@ typedef struct
 {
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
-  uint8_t gpio;
+  uint8_t switch_id;
   bool is_up;
   bool wanna_be_up;
   byte type;
@@ -1352,6 +1362,7 @@ typedef struct
 #ifdef SENSOR_DS18B20_ENABLED
   sensor_struct sensors[MAX_DS18B20_SENSORS];
 #endif
+  IPAddress switch_subnet_wifi; // set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
 } settings_struct;
 
 // this stores settings also to eeprom
@@ -1563,15 +1574,18 @@ void notFound(AsyncWebServerRequest *request)
  * @param cache_file_name optional cache file name to store result
  * @return String
  */
-String httpGETRequest(const char *url, const char *cache_file_name)
+String httpGETRequest(const char *url, const char *cache_file_name, int32_t connect_timeout = 30000)
 {
+  unsigned long call_started = millis();
   WiFiClient wifi_client;
 
   HTTPClient http;
   http.setReuse(false);
   // http.useHTTP10(true); // for json input
 
+  http.setConnectTimeout(connect_timeout);
   http.begin(wifi_client, url); //  IP address with path or Domain name with URL path
+
   delay(100);
   int httpResponseCode = http.GET(); //  Send HTTP GET request
 
@@ -1605,8 +1619,7 @@ String httpGETRequest(const char *url, const char *cache_file_name)
   }
   else
   {
-    Serial.print(F("Error, httpResponseCode: "));
-    Serial.println(httpResponseCode);
+    Serial.printf(PSTR("Error, httpResponseCode: %d in time %lu\n"), httpResponseCode, (millis() - call_started));
     http.end();
     return String("");
   }
@@ -2604,14 +2617,16 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
 }
 /**
  * @brief Return true if line is "garbage" from http client, possibly read buffer issue
- * 
- * @param line 
- * @return true 
- * @return false 
+ *
+ * @param line
+ * @return true
+ * @return false
  */
-bool is_garbage_line(String line) {
-  if (line.length()==4 && line.startsWith("5")) {  //TODO: what creates this, is 5.. really a http code or some kind of counter
-    Serial.printf(PSTR("Garbage removed [%s]\n"),line.c_str());
+bool is_garbage_line(String line)
+{
+  if (line.length() == 4 && line.startsWith("5"))
+  { // TODO: what creates this, is 5.. really a http code or some kind of counter
+    Serial.printf(PSTR("Garbage removed [%s]\n"), line.c_str());
     return true;
   }
   else
@@ -2647,10 +2662,10 @@ bool get_price_data()
 
   time_t start_ts, end_ts; // this is the epoch
   tm tm_struct;
-  time_t now_infunc;  
+  time_t now_infunc;
 
   time(&now_infunc);
-  start_ts = now_infunc-(3600*18); //no previous day after 18h, assume we have data ready for next day
+  start_ts = now_infunc - (3600 * 18); // no previous day after 18h, assume we have data ready for next day
 
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
@@ -2676,12 +2691,12 @@ bool get_price_data()
     return false;
   }
   /*
-  if (WiFi.macAddress().equals("4C:11:AE:74:68:2C")) { 
+  if (WiFi.macAddress().equals("4C:11:AE:74:68:2C")) {
      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Simulated error."));
     return false;
   }
   */
-  
+
   String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
 
@@ -2725,7 +2740,7 @@ bool get_price_data()
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-  //  Serial.println(lineh);
+    //  Serial.println(lineh);
 
     if (lineh == "\r")
     {
@@ -2746,32 +2761,33 @@ bool get_price_data()
     if (!line_incomplete)
     {
       line = client_https.readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
- 
-     if (line.charAt(line.length() - 1) == 13)
-     { 
-      if (is_garbage_line(line)) // skip error status "garbage" line
-        continue;
-       line.trim(); // remove cr and mark line incomplete
-       line_incomplete = true; //we do not have whole line yet
-     }
+
+      if (line.charAt(line.length() - 1) == 13)
+      {
+        if (is_garbage_line(line)) // skip error status "garbage" line
+          continue;
+        line.trim();            // remove cr and mark line incomplete
+        line_incomplete = true; // we do not have whole line yet
+      }
     }
-    else //line is incomplete, we will get more to add
+    else // line is incomplete, we will get more to add
     {
       line2 = client_https.readStringUntil('\n');
-      if (line2.charAt(line2.length() - 1) == 13) {
+      if (line2.charAt(line2.length() - 1) == 13)
+      {
         if (is_garbage_line(line2)) // skip error status "garbage" line
-         continue;
+          continue;
       }
       else
-        line_incomplete = false; //ended normally
+        line_incomplete = false; // ended normally
 
-      line2.trim();// remove cr
+      line2.trim(); // remove cr
       line = line + line2;
       Serial.print("Combined line:");
       Serial.println(line);
     }
-     
- //   Serial.println(line);
+
+    //   Serial.println(line);
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
@@ -2798,7 +2814,7 @@ bool get_price_data()
     if (line.endsWith(F("</position>")))
     {
       pos = getElementValue(line).toInt();
-  //    Serial.println(pos);
+      //    Serial.println(pos);
     }
 
     else if (line.endsWith(F("</price.amount>")))
@@ -2855,11 +2871,13 @@ bool get_price_data()
     doc["resolution_m"] = NETTING_PERIOD_MIN;
     doc["ts"] = now_infunc;
 
-    if (contains_zero_prices) {//potential problem in latest fetch, give shorter validity time
+    if (contains_zero_prices)
+    { // potential problem in latest fetch, give shorter validity time
       Serial.println("Contains zero prices! Retry in 2 hours.");
-      doc["expires"] = now_infunc + (2*3600);
+      doc["expires"] = now_infunc + (2 * 3600);
     }
-    else {
+    else
+    {
       Serial.println("No zero prices.");
       doc["expires"] = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
     }
@@ -3198,6 +3216,9 @@ String jscode_form_processor(const String &var)
   if (var == F("version_fs"))
     return String(version_fs);
 
+  if (var == F("switch_subnet_wifi"))
+    return s.switch_subnet_wifi.toString();
+
   if (var == F("RULE_STATEMENTS_MAX"))
     return String(RULE_STATEMENTS_MAX);
   if (var == "CHANNEL_COUNT")
@@ -3235,12 +3256,34 @@ String jscode_form_processor(const String &var)
     return out;
   }
 
+  if (var == F("channel_types"))
+  { // used by Javascript
+    strcpy(out, "[");
+    channel_struct *chp;
+    for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+    {
+      chp = &s.ch[channel_type_idx];
+      snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
+      // TODO: memory safe strncat
+      strcat(out, buff);
+      if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
+        strcat(out, ", ");
+    }
+    strcat(out, "]");
+
+    // Serial.println("channel_types:");
+    // Serial.println(out);
+    return out;
+  }
+
+  // remove when channel_types ok
   if (var == F("channel_type_strings"))
   { // used by Javascript
     strcpy(out, "[");
     for (int i = 0; i < CHANNEL_TYPE_COUNT; i++)
     {
-      snprintf(buff, 50, "\"%s\"", channel_type_strings[i]);
+      // snprintf(buff, 50, "\"%s\"", channel_type_strings[i]);
+      snprintf(buff, 50, "\"%s\"", channel_types[i].name);
       strcat(out, buff); // TODO: memory safe strncat
       if (i < CHANNEL_TYPE_COUNT - 1)
         strcat(out, ", ");
@@ -3291,7 +3334,7 @@ String jscode_form_processor(const String &var)
  */
 String setup_form_processor(const String &var)
 {
-  Serial.printf("Debug setup_form_processor: %s\n", var.c_str());
+  // Serial.printf("Debug setup_form_processor: %s\n", var.c_str());
   // Javascript replacements
   if (var == "CHANNEL_CONDITIONS_MAX")
     return String(CHANNEL_CONDITIONS_MAX);
@@ -3379,39 +3422,90 @@ int get_channel_to_switch(bool is_rise, int switch_count)
  */
 bool set_channel_switch(int channel_idx, bool up)
 {
+  char error_msg[ERROR_MSG_LEN];
   if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     return false;
 
   ch_counters.set_state(channel_idx, up); // counters
-  if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
+  if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF))
   {
-    digitalWrite(s.ch[channel_idx].gpio, (up ? HIGH : LOW));
+    digitalWrite(s.ch[channel_idx].switch_id, (up ? HIGH : LOW));
     return true;
   }
-
-  else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_ONOFF && s.energy_meter_type == ENERGYM_SHELLY3EM)
+  else if (s.ch[channel_idx].type == CH_TYPE_WIFI_SHELLY_1GEN)
   {
-    String url_to_call = "http://" + String(s.energy_meter_host) + "/relay/0?turn=";
-    if (up)
-      url_to_call = url_to_call + String("on");
-    else
-      url_to_call = url_to_call + String("off");
-    Serial.println(url_to_call);
+    IPAddress switch_ip = s.switch_subnet_wifi;
+    switch_ip[3] = s.ch[channel_idx].switch_id; // 24 (or longer) bit subnet mask assumed, last octet from switch_id
+    String url_to_call = "http://" + switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
 
-    DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "")); // muutettu käyttämään omaa funtiota
+    Serial.printf("url_to_call:%s\n", url_to_call.c_str());
+
+    // DynamicJsonDocument doc(256);
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
     if (error)
     {
       Serial.print(F("Shelly relay call deserializeJson() failed: "));
       Serial.println(error.f_str());
+
+      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, switch_ip.toString().c_str());
+      log_msg(MSG_TYPE_WARN, error_msg, false);
       return false;
     }
     else
     {
       Serial.println(F("Shelly relay switched."));
+
+      if (doc.containsKey("ison"))
+      {
+        if (doc["ison"].is<bool>() && doc["ison"] == up)
+        {
+          Serial.println("Switch set properly.");
+        }
+        else
+        {
+          Serial.println("Switch not set properly.");
+          snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, switch_ip.toString().c_str());
+          log_msg(MSG_TYPE_WARN, error_msg, false);
+        }
+      }
+      else
+      {
+        Serial.println("Shelly, invalid response");
+        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, switch_ip.toString().c_str());
+        log_msg(MSG_TYPE_WARN, error_msg, false);
+      }
+
+
       return true;
     }
   }
+
+  /* TODOX REWRITE
+    else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_ONOFF && s.energy_meter_type == ENERGYM_SHELLY3EM)
+    {
+      String url_to_call = "http://" + String(s.energy_meter_host) + "/relay/0?turn=";
+      if (up)
+        url_to_call = url_to_call + String("on");
+      else
+        url_to_call = url_to_call + String("off");
+      Serial.println(url_to_call);
+
+      DynamicJsonDocument doc(256);
+      DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "")); // muutettu käyttämään omaa funtiota
+      if (error)
+      {
+        Serial.print(F("Shelly relay call deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        return false;
+      }
+      else
+      {
+        Serial.println(F("Shelly relay switched."));
+        return true;
+      }
+    }
+    */
   // else
   //   Serial.print(F("Cannot switch this channel"));
 
@@ -3547,11 +3641,11 @@ void set_relays()
     for (int i = 0; i < switchings_to_todo; i++)
     {
       int ch_to_switch = get_channel_to_switch(is_rise, oper_count--);
-      Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].gpio, s.ch[ch_to_switch].is_up, is_rise);
+      Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].switch_id, s.ch[ch_to_switch].is_up, is_rise);
       s.ch[ch_to_switch].is_up = is_rise;
       s.ch[ch_to_switch].toggle_last = now;
 
-      // digitalWrite(s.ch[ch_to_switch].gpio, (s.ch[ch_to_switch].is_up ? HIGH : LOW));
+      // digitalWrite(s.ch[ch_to_switch].switch_id, (s.ch[ch_to_switch].is_up ? HIGH : LOW));
       set_channel_switch(ch_to_switch, s.ch[ch_to_switch].is_up);
     }
   }
@@ -3792,8 +3886,8 @@ void reset_config(bool full_reset)
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    s.ch[channel_idx].gpio = channel_gpios[channel_idx]; //TODO: check first type, other types available
-    s.ch[channel_idx].type = (s.ch[channel_idx].gpio < 255) ? CH_TYPE_GPIO_ONOFF : CH_TYPE_UNDEFINED;
+    s.ch[channel_idx].switch_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
+    s.ch[channel_idx].type = (s.ch[channel_idx].switch_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
     s.ch[channel_idx].force_up_until = 0;
@@ -3888,7 +3982,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
-    doc["ch"][channel_idx]["gpio"] = s.ch[channel_idx].gpio;
+    doc["ch"][channel_idx]["switch_id"] = s.ch[channel_idx].switch_id;
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
@@ -3908,7 +4002,7 @@ void export_config(AsyncWebServerRequest *request)
         // is there any statements for the rule
         if (stmt->variable_id != -1 && stmt->oper_id != 255)
         {
-          Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
+          // Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val, sizeof(floatbuff));
 
           // Serial.printf("floatbuff:%s\n", floatbuff);
@@ -3929,7 +4023,7 @@ void export_config(AsyncWebServerRequest *request)
         active_rule_count++;
       }
     }
-    Serial.printf("Channel: %d,active_rule_count %d \n", channel_idx, active_rule_count);
+    // Serial.printf("Channel: %d,active_rule_count %d \n", channel_idx, active_rule_count);
     if (active_rule_count > 0)
     {
       doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
@@ -4229,7 +4323,7 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
 
       if (request->hasParam(force_up_from_fld, true))
       {
-        Serial.printf("%s: %d\n", force_up_from_fld, (int)request->getParam(force_up_from_fld, true)->value().toInt());
+        //  Serial.printf("%s: %d\n", force_up_from_fld, (int)request->getParam(force_up_from_fld, true)->value().toInt());
         if (request->getParam(force_up_from_fld, true)->value().toInt() == 0)
           force_up_from = now;
         else
@@ -4350,11 +4444,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
   // bool stmts_emptied = false;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
-    if (request->hasParam(ch_fld, true))
-    {
-      s.ch[channel_idx].uptime_minimum = request->getParam(ch_fld, true)->value().toInt();
-    }
 
     snprintf(ch_fld, 20, "id_ch_%i", channel_idx); // channel id
     if (request->hasParam(ch_fld, true))
@@ -4364,12 +4453,23 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     if (request->hasParam(ch_fld, true))
       s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
 
+    snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
+    if (request->hasParam(ch_fld, true))
+    {
+      s.ch[channel_idx].uptime_minimum = request->getParam(ch_fld, true)->value().toInt();
+    }
+
+    snprintf(ch_fld, 20, "ch_swid_%i", channel_idx);
+    if (request->hasParam(ch_fld, true))
+    {
+      s.ch[channel_idx].switch_id = request->getParam(ch_fld, true)->value().toInt();
+    }
+
     snprintf(ch_fld, 20, "mo_%i", channel_idx); // channel rule mode
     if (request->hasParam(ch_fld, true))
       s.ch[channel_idx].config_mode = request->getParam(ch_fld, true)->value().toInt();
 
     snprintf(ch_fld, 20, "rts_%i", channel_idx); // channe rule template
-                                                 // Serial.println(ch_fld);
     if (request->hasParam(ch_fld, true))
     {
 
@@ -4423,8 +4523,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
                 float val_f = stmts_json[stmt_idx][2];
                 long long_val = vars.float_to_internal_l(variable_id, val_f);
-                //    Serial.printf("float_to_internal_l: %f  -> %ld\n", val_f, long_val);
-                //  Serial.printf(PSTR("Saving statement value of variable %d: %ld\n"), (int)stmts_json[stmt_idx][0], long_val);
+
                 s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = long_val;
               }
               else
@@ -4437,15 +4536,14 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
-      //  Serial.printf("Channel %d, rule %d, field %s",channel_idx, condition_idx, ctrb_fld);
 
       if (request->hasParam(ctrb_fld, true))
       {
         s.ch[channel_idx].conditions[condition_idx].on = (request->getParam(ctrb_fld, true)->value().toInt() == (int)1);
-        Serial.print(request->getParam(ctrb_fld, true)->value().toInt());
+        //   Serial.print(request->getParam(ctrb_fld, true)->value().toInt());
       }
       else
-        Serial.println("field not found in the form");
+        Serial.printf("Field %s not found in the form.\n", ctrb_fld);
     }
   }
 
@@ -4584,7 +4682,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     vars.get_variable_by_idx(variable_idx, &variable);
     // if (variable.val_l != VARIABLE_LONG_UNKNOWN)
     snprintf(id_str, 6, "%d", variable.id);
-    vars.to_str(variable.id, buff_value, false, 0,sizeof(buff_value));
+    vars.to_str(variable.id, buff_value, false, 0, sizeof(buff_value));
 
     var_obj[id_str] = buff_value;
   }
@@ -4732,7 +4830,7 @@ void setup()
   Serial.println(F("LittleFS initialized"));
 
   // TODO: notify, ota-update
-  check_filesystem_version(); 
+  check_filesystem_version();
   /*
   if (check_filesystem_version())
     Serial.println(F("Filesystem is up-to-date."));
@@ -4765,14 +4863,8 @@ void setup()
   scan_and_store_wifis(true); // testing this in the beginning
 
   WiFi.onEvent(wifi_event_handler);
-#ifdef DUAL_MODE_WIFI
-
-  WiFi.mode(WIFI_AP_STA);
-  create_wifi_ap = true;
-#else // if DUAL_MODE_WIFI works ok, this branch could be removed
 
   WiFi.mode(WIFI_STA);
-#endif
 
   Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
   /*if (strlen(s.wifi_ssid) == 0)
@@ -4786,22 +4878,24 @@ void setup()
   if ((strlen(s.wifi_ssid) == 0) || WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
   {
     Serial.println(F("WiFi Failed!"));
-#ifdef DUAL_MODE_WIFI
+
     delay(1000);
-#else
+
     WiFi.disconnect();
     delay(3000);
     wifi_in_setup_mode = true;
     create_wifi_ap = true;
-#endif
     //  scan_and_store_wifis(true); we had this in the beginnig
     check_forced_restart(true); // schedule restart
   }
   else
   {
     Serial.printf(PSTR("Connected to wifi [%s] with IP Address:"), s.wifi_ssid);
-    wifi_connection_succeeded = true;
     Serial.println(WiFi.localIP());
+    s.switch_subnet_wifi = WiFi.localIP();
+    s.switch_subnet_wifi[3] = 0; // assume 24 bit subnet
+    wifi_connection_succeeded = true;
+
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
 
@@ -4818,12 +4912,7 @@ void setup()
 
   { // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
     // create ap-mode ssid for config wifi
-#ifndef DUAL_MODE_WIFI
-    delay(200);
-    WiFi.mode(WIFI_OFF);
-    delay(1000);
-    WiFi.mode(WIFI_AP);
-#endif
+
     Serial.print("Creating AP, wifi_in_setup_mode:");
     Serial.print(wifi_in_setup_mode);
 
@@ -5000,15 +5089,16 @@ void setup()
   str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    //TODO: this should be in flash already
-    s.ch[channel_idx].gpio = channel_gpios[channel_idx];
+    // TODOX: this should be in flash already
+    // s.ch[channel_idx].switch_id = channel_gpios[channel_idx];
+
     s.ch[channel_idx].toggle_last = now;
     // reset values from eeprom
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
-    if (s.ch[channel_idx].type == CH_TYPE_GPIO_ONOFF)
+    if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED)
     { // gpio channel
-      pinMode(s.ch[channel_idx].gpio, OUTPUT);
+      pinMode(s.ch[channel_idx].switch_id, OUTPUT);
     }
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
@@ -5152,17 +5242,6 @@ void loop()
     set_relays();
   }
 
-#ifdef DUAL_MODE_WIFI
-  // update period info
-  // TODO: check if we need this
-  time(&now);
-  if ((now - WIFI_RECONNECT_INTERVAL) > last_wifi_connect_tried)
-  { // actually if wifi-reconnect and persistent, this should not be needed if cfredential are ok?
-    wifi_connection_succeeded = (WiFi.waitForConnectResult(30000) == WL_CONNECTED);
-    last_wifi_connect_tried = now;
-  }
-
-#else // OLD way, could be removed if DUAL mode works
   // just in case check the wifi and reconnect/restart if neede
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
@@ -5181,7 +5260,6 @@ void loop()
       ESP.restart(); // boot if cannot recover wifi in time
     }
   }
-#endif
 
   // update period info
   time(&now);
