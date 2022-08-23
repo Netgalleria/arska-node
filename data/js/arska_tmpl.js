@@ -10,8 +10,10 @@ const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent au
 const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
 const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
 const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
-//const channel_type_strings = JSON.parse('%channel_type_strings%');
+
 const channel_types = JSON.parse('%channel_types%');
+//const hw_templates = JSON.parse('%hw_templates%'); currently hardocoded in html
+
 const lang = '%lang%';
 const using_default_password = ('%using_default_password%' === 'true');
 const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
@@ -1419,6 +1421,12 @@ function initForm(url) {
         $('#lang option').filter(function () {
             return this.value.indexOf(lang) > -1;
         }).prop('selected', true);
+
+        //set hw_template select list
+          var lang = document.getElementById("hw_template_id_db").value;
+          $('#hw_template_id option').filter(function () {
+              return this.value.indexOf(lang) > -1;
+          }).prop('selected', true);
     }
     else if (url == '/channels') {
         init_channel_elements(true);

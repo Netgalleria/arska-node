@@ -28,7 +28,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 12349
+#define EEPROM_CHECK_VALUE 12350
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -1272,6 +1272,18 @@ struct channel_type_st
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user defined"}, {CH_TYPE_WIFI_SHELLY_1GEN, "Shelly Gen 1"}};
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
+
+#define HW_TEMPLATE_COUNT 4
+#define HW_TEMPLATE_GPIO_COUNT 4
+struct hw_template_st
+{
+  int id;
+  const char *name;
+  byte gpios[HW_TEMPLATE_GPIO_COUNT];
+};
+
+hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "undefined", { 255, 255, 255 ,255}},{1, "manual",  { 255, 255, 255 ,255}},{2, "esp32lilygo-4ch",  { 21,19,18,5}},{3, "esp32wroom-4ch-a",  { 32,33,25,26}}};
+
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
 #define RULE_STATEMENTS_MAX 5
@@ -1363,6 +1375,7 @@ typedef struct
   sensor_struct sensors[MAX_DS18B20_SENSORS];
 #endif
   IPAddress switch_subnet_wifi; // set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
+  int hw_template_id;
 } settings_struct;
 
 // this stores settings also to eeprom
@@ -3110,6 +3123,9 @@ String admin_form_processor(const String &var)
     return s.lang;
   if (var == F("timezone"))
     return String(s.timezone);
+  if (var == F("hw_template_id"))
+    return String(s.hw_template_id);
+    
   return String();
 }
 
@@ -3259,10 +3275,8 @@ String jscode_form_processor(const String &var)
   if (var == F("channel_types"))
   { // used by Javascript
     strcpy(out, "[");
-    channel_struct *chp;
     for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
     {
-      chp = &s.ch[channel_type_idx];
       snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
       // TODO: memory safe strncat
       strcat(out, buff);
@@ -3270,27 +3284,25 @@ String jscode_form_processor(const String &var)
         strcat(out, ", ");
     }
     strcat(out, "]");
-
-    // Serial.println("channel_types:");
-    // Serial.println(out);
     return out;
   }
 
-  // remove when channel_types ok
-  if (var == F("channel_type_strings"))
+  // TODO: currently unused when coded in html template
+  if (var == F("hw_templates"))
   { // used by Javascript
     strcpy(out, "[");
-    for (int i = 0; i < CHANNEL_TYPE_COUNT; i++)
+    for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
     {
-      // snprintf(buff, 50, "\"%s\"", channel_type_strings[i]);
-      snprintf(buff, 50, "\"%s\"", channel_types[i].name);
-      strcat(out, buff); // TODO: memory safe strncat
-      if (i < CHANNEL_TYPE_COUNT - 1)
+      snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
+      // TODO: memory safe strncat
+      strcat(out, buff);
+      if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
         strcat(out, ", ");
     }
     strcat(out, "]");
     return out;
   }
+
 
   if (var == F("VARIABLES")) // used by Javascript
   {
@@ -3878,15 +3890,26 @@ void reset_config(bool full_reset)
   strcpy(s.lang, "EN");
   strcpy(s.timezone, "EET");
 
-  //  split comma separated gpio string to an array
+  s.hw_template_id = 0; //undefined my default
+
+
+
+  bool gpios_defined = false; // if CH_GPIOS array hardcoded (in platformio.ini)
   uint16_t channel_gpios[CHANNEL_COUNT];
   char ch_gpios_local[35];
-  strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));
+ #ifdef CH_GPIOS  
+  gpios_defined = true;
+  strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));  //  split comma separated gpio string to an array
   str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
+#endif
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    s.ch[channel_idx].switch_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
+    if (gpios_defined)
+      s.ch[channel_idx].switch_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
+    else
+      s.ch[channel_idx].switch_id = 255;
+      
     s.ch[channel_idx].type = (s.ch[channel_idx].switch_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
@@ -4104,6 +4127,7 @@ bool read_config_file(const char *config_file_name)
   copy_doc_str(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
   copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
   copy_doc_str(doc, (char *)"lang", s.lang, sizeof(s.lang));
+  s.hw_template_id = get_doc_long(doc, "hw_template_id", s.hw_template_id);
   s.baseload = get_doc_long(doc, "baseload", s.baseload);
 
   s.energy_meter_type = get_doc_long(doc, "energy_meter_type", s.energy_meter_type);
@@ -4584,6 +4608,23 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 
   strncpy(s.timezone, request->getParam("timezone", true)->value().c_str(), 4);
   strncpy(s.lang, request->getParam("lang", true)->value().c_str(), sizeof(s.lang));
+
+  
+  if ((request->getParam("hw_template_id", true)->value().toInt() != s.hw_template_id)) {
+      s.hw_template_id = request->getParam("hw_template_id", true)->value().toInt();
+      //TODO: change gpios etc
+      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT;channel_idx++) {
+        if (channel_idx<HW_TEMPLATE_GPIO_COUNT) { // touch only channel which could have gpio definitions
+        if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255) {
+          s.ch[channel_idx].type = CH_TYPE_GPIO_FIXED;
+          s.ch[channel_idx].switch_id = hw_templates[s.hw_template_id].gpios[channel_idx];
+        }
+        else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) { // fixed gpio -> user defined
+          s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
+        }
+        }
+      }
+    }
 
   // admin actions
   Serial.println(request->getParam("action", true)->value().c_str());
@@ -5083,10 +5124,12 @@ void setup()
   //  split comma separated gpio string to an array
   // TODO: if set in reset, we do not set it here?
 
+/*
   uint16_t channel_gpios[CHANNEL_COUNT];
   char ch_gpios_local[35];
   strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));
   str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
+  */
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     // TODOX: this should be in flash already
