@@ -3914,7 +3914,7 @@ void reset_config(bool full_reset)
       s.ch[channel_idx].switch_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
     else
       s.ch[channel_idx].switch_id = 255;
-
+      
     s.ch[channel_idx].type = (s.ch[channel_idx].switch_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
