@@ -5235,7 +5235,8 @@ void loop()
     localtime_r(&now, &tm_struct);
     // Serial.printf("\nPeriods prev %ld ---- current %ld  (now %ld)\n", previous_period_start, current_period_start,now);
     Serial.printf(PSTR("\n%02d:%02d:%02d (%ld) Reading sensor and meter data \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, now);
-    read_energy_meter();
+    if (s.energy_meter_type != ENERGYM_NONE)
+      read_energy_meter();
 
 #ifdef SENSOR_DS18B20_ENABLED
     read_ds18b20_sensors();
