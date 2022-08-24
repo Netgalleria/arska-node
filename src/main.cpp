@@ -3505,6 +3505,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     else
       return false; // invalid gpio
   }
+  // do not try to connect if there is no wifi stack initiated
   else if (wifi_connection_succeeded && (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN || s.ch[channel_idx].type == CH_TYPE_TASMOTA))
     switch_http_relay(channel_idx, up);
 
