@@ -28,7 +28,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 12350
+#define EEPROM_CHECK_VALUE 100920
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -1272,8 +1272,7 @@ struct channel_type_st
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user defined"}, {CH_TYPE_WIFI_SHELLY_1GEN, "Shelly Gen 1"}};
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
-
-#define HW_TEMPLATE_COUNT 4
+#define HW_TEMPLATE_COUNT 3
 #define HW_TEMPLATE_GPIO_COUNT 4
 struct hw_template_st
 {
@@ -1282,7 +1281,7 @@ struct hw_template_st
   byte gpios[HW_TEMPLATE_GPIO_COUNT];
 };
 
-hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "undefined", { 255, 255, 255 ,255}},{1, "manual",  { 255, 255, 255 ,255}},{2, "esp32lilygo-4ch",  { 21,19,18,5}},{3, "esp32wroom-4ch-a",  { 32,33,25,26}}};
+hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 255}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}};
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -2662,6 +2661,11 @@ bool get_price_data()
     Serial.println(F("Price cache file %s was not expired, returning"));
     return true;
   }
+  if (strlen(s.entsoe_api_key)<36 || strlen(s.entsoe_area_code)< 5) {
+    log_msg(MSG_TYPE_WARN, PSTR("Check Entso-E parameters (API key and price area) for price updates."));
+    return false;
+  }
+
   prices_initiated = true; // TODO:we could read prices from a non-expired cache file, so requery would not be needed
 
   time_t period_start = 0, period_end = 0;
@@ -2731,7 +2735,6 @@ bool get_price_data()
     return false;
   }
 
-  // String url = url_base + String("&securityToken=") + s.entsoe_api_key + String("&In_Domain=") + queryInOutDomain + String("&Out_Domain=") + queryInOutDomain + "&outBiddingZone_Domain=" + outBiddingZone_Domain + String("&periodStart=") + date_str_start + String("&periodEnd=") + date_str_end;
   String url = url_base + String("&securityToken=") + s.entsoe_api_key + String("&In_Domain=") + s.entsoe_area_code + String("&Out_Domain=") + s.entsoe_area_code + String("&periodStart=") + date_str_start + String("&periodEnd=") + date_str_end;
   Serial.print("requesting URL: ");
 
@@ -3125,7 +3128,7 @@ String admin_form_processor(const String &var)
     return String(s.timezone);
   if (var == F("hw_template_id"))
     return String(s.hw_template_id);
-    
+
   return String();
 }
 
@@ -3303,7 +3306,6 @@ String jscode_form_processor(const String &var)
     return out;
   }
 
-
   if (var == F("VARIABLES")) // used by Javascript
   {
     strcpy(out, "[");
@@ -3363,17 +3365,23 @@ void read_energy_meter()
 {
   bool read_ok;
   time_t now_in_func;
+  // SHELLY
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
 #ifdef METER_SHELLY3EM_ENABLED
     read_ok = read_meter_shelly3em();
 #endif
   }
+  //INVERTER
   else if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR or (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP))
   {
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
     read_ok = read_inverter(period_changed);
 #endif
+  }
+  // NO ENERGY METER DEFINED, function should not be called
+  else {
+    return;
   }
 
   time(&now_in_func);
@@ -3487,7 +3495,6 @@ bool set_channel_switch(int channel_idx, bool up)
         snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, switch_ip.toString().c_str());
         log_msg(MSG_TYPE_WARN, error_msg, false);
       }
-
 
       return true;
     }
@@ -3890,17 +3897,15 @@ void reset_config(bool full_reset)
   strcpy(s.lang, "EN");
   strcpy(s.timezone, "EET");
 
-  s.hw_template_id = 0; //undefined my default
-
-
+  s.hw_template_id = 0; // undefined my default
 
   bool gpios_defined = false; // if CH_GPIOS array hardcoded (in platformio.ini)
   uint16_t channel_gpios[CHANNEL_COUNT];
   char ch_gpios_local[35];
- #ifdef CH_GPIOS  
+#ifdef CH_GPIOS
   gpios_defined = true;
-  strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));  //  split comma separated gpio string to an array
-  str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
+  strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local)); //  split comma separated gpio string to an array
+  str_to_uint_array(ch_gpios_local, channel_gpios, ",");     // ESP32: first param must be locally allocated to avoid memory protection crash
 #endif
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -3909,7 +3914,7 @@ void reset_config(bool full_reset)
       s.ch[channel_idx].switch_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
     else
       s.ch[channel_idx].switch_id = 255;
-      
+
     s.ch[channel_idx].type = (s.ch[channel_idx].switch_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
@@ -4397,13 +4402,17 @@ void onWebInputsPost(AsyncWebServerRequest *request)
     return request->requestAuthentication();
 
   bool todo_in_loop_restart_local = false; // set global variable in the end when data is set
+  time_t now_infunc;
+  time(&now_infunc);
+  bool entsoe_params_changed = false;
+
   // INPUTS
   if (s.energy_meter_type != request->getParam("emt", true)->value().toInt())
   {
     todo_in_loop_restart_local = true;
     s.energy_meter_type = request->getParam("emt", true)->value().toInt();
   }
-
+ 
   strncpy(s.energy_meter_host, request->getParam("emh", true)->value().c_str(), sizeof(s.energy_meter_host));
   s.energy_meter_port = request->getParam("emp", true)->value().toInt();
   s.energy_meter_id = request->getParam("emid", true)->value().toInt();
@@ -4411,15 +4420,21 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   s.baseload = request->getParam("baseload", true)->value().toInt();
 
   s.variable_mode = VARIABLE_MODE_SOURCE; // (byte)request->getParam("variable_mode", true)->value().toInt();
-  if (s.variable_mode == 0)
+  if (s.variable_mode == 0) //TODO: remove other than this mode
   {
+    if ((strcmp(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str())!=0))
+      entsoe_params_changed = true;
+
     strncpy(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str(), sizeof(s.entsoe_api_key));
     if (strcmp(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str()) != 0)
     {
       strncpy(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str(), sizeof(s.entsoe_area_code));
-
-      // price area changes, clear cache
+      entsoe_params_changed = true;
+    }
+    if (entsoe_params_changed) {
+      // api key or price area changes, clear cache and requery
       LittleFS.remove(price_data_filename); // "/price_data.json"
+      next_query_price_data = now + 10; // query with new parameters soon
     }
     // Solar forecast supported currently only in Finland
     if (strcmp(s.entsoe_area_code, "10YFI-1--------U") == 0)
@@ -4609,22 +4624,29 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   strncpy(s.timezone, request->getParam("timezone", true)->value().c_str(), 4);
   strncpy(s.lang, request->getParam("lang", true)->value().c_str(), sizeof(s.lang));
 
-  
-  if ((request->getParam("hw_template_id", true)->value().toInt() != s.hw_template_id)) {
+  if (request->hasParam("hw_template_id", true))
+  { // older firmware may not have it in the form
+    if ((request->getParam("hw_template_id", true)->value().toInt() != s.hw_template_id))
+    {
       s.hw_template_id = request->getParam("hw_template_id", true)->value().toInt();
-      //TODO: change gpios etc
-      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT;channel_idx++) {
-        if (channel_idx<HW_TEMPLATE_GPIO_COUNT) { // touch only channel which could have gpio definitions
-        if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255) {
-          s.ch[channel_idx].type = CH_TYPE_GPIO_FIXED;
-          s.ch[channel_idx].switch_id = hw_templates[s.hw_template_id].gpios[channel_idx];
-        }
-        else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) { // fixed gpio -> user defined
-          s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
-        }
+      // TODO: change gpios etc
+      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+      {
+        if (channel_idx < HW_TEMPLATE_GPIO_COUNT)
+        { // touch only channel which could have gpio definitions
+          if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255)
+          {
+            s.ch[channel_idx].type = CH_TYPE_GPIO_FIXED;
+            s.ch[channel_idx].switch_id = hw_templates[s.hw_template_id].gpios[channel_idx];
+          }
+          else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED)
+          { // fixed gpio -> user defined
+            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
+          }
         }
       }
     }
+  }
 
   // admin actions
   Serial.println(request->getParam("action", true)->value().c_str());
@@ -5124,12 +5146,12 @@ void setup()
   //  split comma separated gpio string to an array
   // TODO: if set in reset, we do not set it here?
 
-/*
-  uint16_t channel_gpios[CHANNEL_COUNT];
-  char ch_gpios_local[35];
-  strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));
-  str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
-  */
+  /*
+    uint16_t channel_gpios[CHANNEL_COUNT];
+    char ch_gpios_local[35];
+    strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));
+    str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
+    */
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     // TODOX: this should be in flash already
@@ -5358,7 +5380,8 @@ void loop()
     localtime_r(&now, &tm_struct);
     // Serial.printf("\nPeriods prev %ld ---- current %ld  (now %ld)\n", previous_period_start, current_period_start,now);
     Serial.printf(PSTR("\n%02d:%02d:%02d (%ld) Reading sensor and meter data \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec, now);
-    read_energy_meter();
+    if (s.energy_meter_type != ENERGYM_NONE)
+      read_energy_meter();
 
 #ifdef SENSOR_DS18B20_ENABLED
     read_ds18b20_sensors();

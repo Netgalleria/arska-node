@@ -201,9 +201,22 @@ function updateStatus(show_variables = true) {
             }
             if (sensor_text)
                 sensor_text = "<br>" + sensor_text;
-
-            selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
-            keyfd.innerHTML = selling_text + '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), Price: <span class="big">' + price + ' ¢/kWh </span>' + sensor_text;
+    
+            if (isNaN(selling)) {
+                selling_text = '';
+            }
+            else {
+                selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
+                selling_text += '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), ';
+            }
+            if (isNaN(price)) {
+                price_text = 'not available';
+            }
+            else {
+                price_text = ' ' + price;
+            }
+            
+            keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + ' ¢/kWh </span>' + sensor_text;
         }
         if (show_variables) {
             document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
@@ -1410,6 +1423,7 @@ function initForm(url) {
         if (using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
+ 
         //set timezone select element
         var timezone = document.getElementById("timezone_db").value;
         $('#timezone option').filter(function () {
@@ -1423,9 +1437,9 @@ function initForm(url) {
         }).prop('selected', true);
 
         //set hw_template select list
-          var lang = document.getElementById("hw_template_id_db").value;
+          var hw_template_id = document.getElementById("hw_template_id_db").value;
           $('#hw_template_id option').filter(function () {
-              return this.value.indexOf(lang) > -1;
+              return this.value.indexOf(hw_template_id) > -1;
           }).prop('selected', true);
     }
     else if (url == '/channels') {

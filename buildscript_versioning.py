@@ -3,7 +3,7 @@
 FILENAME_BUILDNO = 'versioning'
 FILENAME_VERSION_H = 'include/version.h'
 # main version, build added to the end
-version = '0.91.'
+version = '0.92.'
 
 import datetime
 
