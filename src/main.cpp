@@ -28,7 +28,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 100921
+#define EEPROM_CHECK_VALUE 100922
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
