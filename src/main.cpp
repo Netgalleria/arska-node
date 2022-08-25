@@ -28,7 +28,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 100920
+#define EEPROM_CHECK_VALUE 100921
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -1327,6 +1327,7 @@ typedef struct
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
   uint8_t switch_id;
+  uint8_t switch_unit_id; //RFU 
   bool is_up;
   bool wanna_be_up;
   byte type;
@@ -3859,7 +3860,16 @@ void reset_config(bool full_reset)
   char current_wifi_ssid[MAX_ID_STR_LENGTH];
   char current_wifi_password[MAX_ID_STR_LENGTH];
 
-  if (full_reset)
+  bool reset_wifi_settings = false;
+
+  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n",s.wifi_ssid[0],s.wifi_ssid[1],s.wifi_ssid[2],s.wifi_password[0],s.wifi_password[1],s.wifi_password[2]);
+  if ((strlen(s.wifi_ssid) > sizeof(s.wifi_ssid) - 1) || (strlen(s.wifi_password) > sizeof(s.wifi_password) - 1))
+    reset_wifi_settings = true;
+
+  if (s.wifi_ssid[0]==255 || s.wifi_password[0] == 255) //indication that flash is erased?
+    reset_wifi_settings = true;
+
+  if (reset_wifi_settings) // reset disabled, lets try to use old wifi settings anyways
   {
     strncpy(current_wifi_ssid, "", 1);
     strncpy(current_wifi_password, "", 1);
@@ -3868,8 +3878,10 @@ void reset_config(bool full_reset)
   {
     strncpy(current_wifi_ssid, s.wifi_ssid, sizeof(current_wifi_ssid));
     strncpy(current_wifi_password, s.wifi_password, sizeof(current_wifi_password));
-    strncpy(current_password, s.http_password, sizeof(current_password));
+    
   }
+  if (!full_reset)
+    strncpy(current_password, s.http_password, sizeof(current_password));
 
   memset(&s, 0, sizeof(s));
   memset(&s_influx, 0, sizeof(s_influx));
