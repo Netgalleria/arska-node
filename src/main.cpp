@@ -1327,7 +1327,7 @@ typedef struct
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
   uint8_t switch_id;
-  uint8_t switch_unit_id; //RFU 
+  uint8_t switch_unit_id; // RFU
   bool is_up;
   bool wanna_be_up;
   byte type;
@@ -2662,7 +2662,8 @@ bool get_price_data()
     Serial.println(F("Price cache file %s was not expired, returning"));
     return true;
   }
-  if (strlen(s.entsoe_api_key)<36 || strlen(s.entsoe_area_code)< 5) {
+  if (strlen(s.entsoe_api_key) < 36 || strlen(s.entsoe_area_code) < 5)
+  {
     log_msg(MSG_TYPE_WARN, PSTR("Check Entso-E parameters (API key and price area) for price updates."));
     return false;
   }
@@ -3373,7 +3374,7 @@ void read_energy_meter()
     read_ok = read_meter_shelly3em();
 #endif
   }
-  //INVERTER
+  // INVERTER
   else if (s.energy_meter_type == ENERGYM_FRONIUS_SOLAR or (s.energy_meter_type == ENERGYM_SMA_MODBUS_TCP))
   {
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
@@ -3381,7 +3382,8 @@ void read_energy_meter()
 #endif
   }
   // NO ENERGY METER DEFINED, function should not be called
-  else {
+  else
+  {
     return;
   }
 
@@ -3862,11 +3864,11 @@ void reset_config(bool full_reset)
 
   bool reset_wifi_settings = false;
 
-  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n",s.wifi_ssid[0],s.wifi_ssid[1],s.wifi_ssid[2],s.wifi_password[0],s.wifi_password[1],s.wifi_password[2]);
+  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n", s.wifi_ssid[0], s.wifi_ssid[1], s.wifi_ssid[2], s.wifi_password[0], s.wifi_password[1], s.wifi_password[2]);
   if ((strlen(s.wifi_ssid) > sizeof(s.wifi_ssid) - 1) || (strlen(s.wifi_password) > sizeof(s.wifi_password) - 1))
     reset_wifi_settings = true;
 
-  if (s.wifi_ssid[0]==255 || s.wifi_password[0] == 255) //indication that flash is erased?
+  if (s.wifi_ssid[0] == 255 || s.wifi_password[0] == 255) // indication that flash is erased?
     reset_wifi_settings = true;
 
   if (reset_wifi_settings) // reset disabled, lets try to use old wifi settings anyways
@@ -3878,7 +3880,6 @@ void reset_config(bool full_reset)
   {
     strncpy(current_wifi_ssid, s.wifi_ssid, sizeof(current_wifi_ssid));
     strncpy(current_wifi_password, s.wifi_password, sizeof(current_wifi_password));
-    
   }
   if (!full_reset)
     strncpy(current_password, s.http_password, sizeof(current_password));
@@ -3926,7 +3927,7 @@ void reset_config(bool full_reset)
       s.ch[channel_idx].switch_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
     else
       s.ch[channel_idx].switch_id = 255;
-      
+
     s.ch[channel_idx].type = (s.ch[channel_idx].switch_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
@@ -4424,7 +4425,7 @@ void onWebInputsPost(AsyncWebServerRequest *request)
     todo_in_loop_restart_local = true;
     s.energy_meter_type = request->getParam("emt", true)->value().toInt();
   }
- 
+
   strncpy(s.energy_meter_host, request->getParam("emh", true)->value().c_str(), sizeof(s.energy_meter_host));
   s.energy_meter_port = request->getParam("emp", true)->value().toInt();
   s.energy_meter_id = request->getParam("emid", true)->value().toInt();
@@ -4432,21 +4433,22 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   s.baseload = request->getParam("baseload", true)->value().toInt();
 
   s.variable_mode = VARIABLE_MODE_SOURCE; // (byte)request->getParam("variable_mode", true)->value().toInt();
-  if (s.variable_mode == 0) //TODO: remove other than this mode
+  if (s.variable_mode == 0)               // TODO: remove other than this mode
   {
-    if ((strcmp(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str())!=0))
+    if ((strcmp(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str()) != 0) ||(strlen(s.entsoe_api_key) != strlen(request->getParam("entsoe_api_key", true)->value().c_str())))
       entsoe_params_changed = true;
 
     strncpy(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str(), sizeof(s.entsoe_api_key));
-    if (strcmp(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str()) != 0)
+    if ((strcmp(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str()) != 0) || (strlen(s.entsoe_area_code) != strlen(request->getParam("entsoe_area_code", true)->value().c_str())))
     {
       strncpy(s.entsoe_area_code, request->getParam("entsoe_area_code", true)->value().c_str(), sizeof(s.entsoe_area_code));
       entsoe_params_changed = true;
     }
-    if (entsoe_params_changed) {
+    if (entsoe_params_changed)
+    {
       // api key or price area changes, clear cache and requery
       LittleFS.remove(price_data_filename); // "/price_data.json"
-      next_query_price_data = now + 10; // query with new parameters soon
+      next_query_price_data = now + 10;     // query with new parameters soon
     }
     // Solar forecast supported currently only in Finland
     if (strcmp(s.entsoe_area_code, "10YFI-1--------U") == 0)
@@ -4922,7 +4924,7 @@ void setup()
 
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
-    Serial.println(F("Resetting settings"));
+    Serial.println(F("Memory structure changed. Resetting settings"));
     reset_config(true);
   }
 
