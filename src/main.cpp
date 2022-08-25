@@ -1327,7 +1327,8 @@ typedef struct
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
   uint8_t switch_id;
-  uint8_t switch_unit_id; // RFU
+  uint8_t switch_unit_id; // RFU, , eg. port in a relay
+  uint8_t switch_iface_id; // RFU, interface, eg eth, wifi
   bool is_up;
   bool wanna_be_up;
   byte type;
