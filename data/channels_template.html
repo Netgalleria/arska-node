@@ -16,9 +16,11 @@
 
     <div class="secbr" id="headdiv">
     </div>
-    <br>
-   <div id="msgdiv">
-   </div>
+    <div id="headinfod" class="hb">
+        <div id="msgdiv">
+        </div>
+    </div>
+  
     <div id="variables" class="hb" style="display:none;">
         <table id="tblVariables">
             <thead>
@@ -39,8 +41,13 @@
     <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)">
         <input name="source" type="hidden" value="channels">
         <div id="chlist"></div>
-        <br><input type="submit" value="Save">
+        <br><input id="btnSubmit" type="submit" value="Save">
+     
     </form>
+    <div id="actiond">
+        <div class="indent"><button id="act_scan_devices" class="actBtn" onclick="return doAction('scan_devices')">Discover devices</button>
+        </div>
+    </div>
 
     <div class="secbr" id="footerdiv">
     </div>

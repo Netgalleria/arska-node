@@ -11,6 +11,10 @@
     <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
     </div>
+    <div id="headinfod" class="hb">
+        <div id="msgdiv">
+        </div>
+    </div>
     <form method="post" id="inpFrm" onsubmit="return submitInputsForm(event)""> 
         <input name=" source" type="hidden" value="inputs">
 
@@ -249,7 +253,7 @@
                         value="%influx_bucket%" maxlength='19'></div>
             </div>
         </div>
-        <br><input type="submit" value="Save">
+        <br><input id="btnSubmit" type="submit" value="Save">
     </form>
 
     <div class="secbr" id="footerdiv">

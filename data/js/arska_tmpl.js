@@ -32,10 +32,12 @@ const CHANNEL_CONFIG_MODE_TEMPLATE = 1;
 
 const CH_TYPE_UNDEFINED = 0;
 const CH_TYPE_GPIO_FIXED = 1;
-const CH_TYPE_WIFI_SHELLY_1GEN = 2;
+const CH_TYPE_SHELLY_1GEN = 2;
 const CH_TYPE_GPIO_USER_DEF = 3;
+const CH_TYPE_SHELLY_2GEN = 4;
 const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
+const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
 
 
 let variable_list = {}; // populate later
@@ -170,6 +172,61 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
     return tmpStr;
 }
 
+function update_discovered_devices() {
+    $("body").css("cursor", "progress");
+    $.ajax({
+        url: '/discover',
+        dataType: 'json',
+        async: true,
+        success: function (data) {
+
+            switch_list = [];
+            $.each(data.services, function (i, service) {
+                //    console.log(JSON.stringify(service));
+                if (service["type"] == 2 || service["type"] == 4) {//Shelly gen1/gen2
+                    for (i = 0; i < service.outputs; i++) {
+                        switch_did = service.type + '_' + service.ip + '_' + i;
+                        switch_desc = service.app + " (" + service.ip + ")";
+                        if (service.outputs > 1)
+                            switch_desc = switch_desc + "/" + i; 
+
+                        switch_list.push([switch_did, switch_desc, service.type, service.ip, i]);
+                        console.log(JSON.stringify([service.type, service.ip, i]));
+                    }
+
+                }
+            });
+            //TODO: save current selection (if discovery updated later that in the init )
+            selector_str = "select[id^='ch_swdisc_']";
+            document.querySelectorAll(selector_str).forEach(function (obj) {
+                for (i = obj.options.length - 1; i >= 0; i--) {
+                    obj.options[i] = null;
+                }
+                if (switch_list.length == 0) 
+                    addOption(obj, -1, "no devices", true); //TODO:selected 
+                else
+                    addOption(obj, -1, "select device/relay", true); //TODO:selected 
+                for (i = 0; i < switch_list.length; i++) {
+                    addOption(obj, switch_list[i][0], switch_list[i][1], false); //TODO:selected 
+                }
+                //      $group.append('<option value="' + obj.code + '">' + obj.cityname + '</option>')
+            })
+            //   document.querySelectorAll(selector_str).forEach(e => e.remove());
+
+            $("body").css("cursor", "default");  //done
+
+            console.log(JSON.stringify(switch_list));
+
+            // ch_swdisc_
+            //   setTimeout(function () { update_discovered_devices(); }, 1800000);
+        },
+        fail: function () {
+            console.log("Cannot get discovered devices");
+            //   setTimeout(function () { get_price_data(); }, 10000);
+        }
+    });
+
+}
 
 // update variables and channels statuses to channels form
 function updateStatus(show_variables = true) {
@@ -201,7 +258,7 @@ function updateStatus(show_variables = true) {
             }
             if (sensor_text)
                 sensor_text = "<br>" + sensor_text;
-    
+
             if (isNaN(selling)) {
                 selling_text = '';
             }
@@ -215,7 +272,7 @@ function updateStatus(show_variables = true) {
             else {
                 price_text = ' ' + price;
             }
-            
+
             keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + ' ¢/kWh </span>' + sensor_text;
         }
         if (show_variables) {
@@ -906,20 +963,39 @@ function initChannelForm() {
 }
 
 function setChannelFieldsByType(channel_idx, chtype) {
-    for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {   
+    for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
         //set switch id caption based on type
         switch_id_caption_span = document.getElementById("ch_swidc_" + channel_idx);
-        if (chtype == CH_TYPE_WIFI_SHELLY_1GEN)
+        // visibility
+        if (chtype == CH_TYPE_DISCOVERED) {
+            switch_id_caption_span.innerHTML = "device:";
+            document.getElementById("ch_swdisc_" + channel_idx).style.display = "block";
+            document.getElementById("ch_swidc_" + channel_idx).style.display = "block";
+            document.getElementById("ch_swid_" + channel_idx).style.display = "none"; 
+        }
+        else if (chtype == CH_TYPE_UNDEFINED) {
+            document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
+            document.getElementById("ch_swidc_" + channel_idx).style.display = "none";
+            document.getElementById("ch_swid_" + channel_idx).style.display = "none"; 
+        }
+        else {
+            document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
+            document.getElementById("ch_swidc_" + channel_idx).style.display = "block";
+            document.getElementById("ch_swid_" + channel_idx).style.display = "block"; 
+        }
+
+       // document.getElementById("ch_swid_" + channel_idx).style.display = (chtype == CH_TYPE_UNDEFINED) ? "none":"block";
+
+        if (chtype == CH_TYPE_SHELLY_1GEN)
             switch_id_caption_span.innerHTML = "ip " + switch_subnet_wifi.substring(0, switch_subnet_wifi.length - 1) + "x:";
         else if (chtype == CH_TYPE_GPIO_USER_DEF)
             switch_id_caption_span.innerHTML = "gpio:";
         else if (chtype == CH_TYPE_GPIO_FIXED) {
             switch_id_caption_span.innerHTML = "gpio (fixed):";
-            //TSEKKAA DISABLOIKO
             $('#ch_swid_' + channel_idx).attr('disabled', true);
         }
-        else 
+        else
             switch_id_caption_span.innerHTML = "switch id:";
     }
 }
@@ -1110,6 +1186,7 @@ function set_radiob(prefix, value, readonly) {
     }
 }
 
+
 function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     console.log("create_channel_config_elements", channel_idx);
     conf_div = createElem("div", null, null, null);
@@ -1135,13 +1212,15 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     //TODO: check this
     ct_sel.addEventListener("change", setChannelFieldsEVT);
 
+    is_fixed_gpio_channel = (ch_cur.type == CH_TYPE_GPIO_FIXED);
+    if (!is_fixed_gpio_channel)
+        addOption(ct_sel, CH_TYPE_DISCOVERED, "Discovered", false); //TODO: when this could be checked
+
     for (var i = 0; i < channel_types.length; i++) {
-        is_fixed_gpio_channel = (ch_cur.type == CH_TYPE_GPIO_FIXED);
-        console.log("addOption", i, is_fixed_gpio_channel, ch_cur.type);
+        //console.log("addOption", i, is_fixed_gpio_channel, ch_cur.type);
         if ((!is_fixed_gpio_channel && channel_types[i].id != CH_TYPE_GPIO_FIXED) || (is_fixed_gpio_channel && channel_types[i].id == CH_TYPE_GPIO_FIXED)) {
-            //  addOption(ct_sel, i, channel_type_strings[i], (ch_cur.type == i));
             addOption(ct_sel, channel_types[i].id, channel_types[i].name, (ch_cur.type == channel_types[i].id));
-            console.log("addOption2", i);
+      //      console.log("addOption2", i);
         }
     }
     ct_div.appendChild(ct_sel);
@@ -1169,10 +1248,21 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.switch_id, null, "text");
     inp_swid.name = "ch_swid_" + channel_idx;
     inp_swid.setAttribute("maxlength", 3);
-    
+
+    inp_swdisc_sel = createElem("select", "ch_swdisc_" + channel_idx, ch_cur.switch_id, null);
+    inp_swdisc_sel.name = "ch_swdisc_" + channel_idx;
+
     swid_div.appendChild(switch_id_caption_span);
     swid_div.appendChild(inp_swid);
-    rc1_div.appendChild(swid_div)
+
+    swid_div.appendChild(inp_swid);
+
+    swid_div.appendChild(inp_swdisc_sel);
+
+
+    rc1_div.appendChild(swid_div);
+
+
 
     conf_div.appendChild(rc1_div);
 
@@ -1193,8 +1283,8 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     rm_div.appendChild(tmpl_div);
     tmpl_sel.addEventListener("change", templateChangedEVT);
 
-   // ct_div.appendChild(ct_sel);
-   // conf_div.appendChild(ct_div);
+    // ct_div.appendChild(ct_sel);
+    // conf_div.appendChild(ct_div);
 
     conf_div.appendChild(rm_div); //paikka arvottu
 
@@ -1292,6 +1382,7 @@ function init_channel_elements(edit_mode = false) {
     var xlinkns = "http://www.w3.org/1999/xlink";
 
     chlist = document.getElementById("chlist");
+    listed_channels = 0;
     //async: false, because this initates elements used later, everything must be initiated, could be later split to init+populate
     $.ajax({
         url: '/export-config',
@@ -1305,15 +1396,14 @@ function init_channel_elements(edit_mode = false) {
                     console.log("Skipping channel " + i);
                     return;
                 }
+                listed_channels++;
 
                 chdiv = createElem("div", "chdiv_" + i, null, "hb");
                 chdiv_head = createElem("div", null, null, "secbr cht");
                 chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
                 chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
 
-
                 var svg = document.createElementNS(svgns, "svg");
-
                 // svg.viewBox = '0 0 100 100';
                 svg.setAttribute('viewBox', '0 0 100 100');
                 svg.classList.add("statusic");
@@ -1342,12 +1432,10 @@ function init_channel_elements(edit_mode = false) {
                 now_ts = Date.now() / 1000;
 
                 if (!edit_mode) { // is dashboard
-                    // fu_div = createElem("div", null, null, "secbr radio-toolbar");
                     //Set channel up for next:<br>
                     current_duration_minute = 0;
                     current_start_ts = 0;
                     has_forced_setting = false;
-                    //    if ((ch_cur.force_up_until > now_ts) && (ch_cur.force_up_until - now_ts > hour_cur * 3600) && (ch_cur.force_up_until - now_ts < force_up_hours[hour_idx + 1] * 3600)) {
                     if ((ch_cur.force_up_until > now_ts)) {
                         has_forced_setting = true;
                     }
@@ -1367,12 +1455,16 @@ function init_channel_elements(edit_mode = false) {
                 if (edit_mode) {
                     create_channel_config_elements(chdiv, i, ch_cur);
                     create_channel_rule_elements(chdiv, i, ch_cur);
-
                 }
             });
+            if (listed_channels == 0) {
+                btnSubmit = document.getElementById("btnSubmit");
+                if (btnSubmit)
+                    btnSubmit.style.display = "none";
+                chlist.insertAdjacentHTML('beforeend', "<br><span>No channels defined. Define them on <a href=\"/channels\">Channels section</a></span>");
+            }
         }
     });
-
 }
 
 function initWifiForm() {
@@ -1420,10 +1512,11 @@ function initForm(url) {
     initUrlBar(url);
     if (url == '/admin') {
         initWifiForm();
+        setTimeout(function () { updateStatus(false); }, 2000);
         if (using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
- 
+
         //set timezone select element
         var timezone = document.getElementById("timezone_db").value;
         $('#timezone option').filter(function () {
@@ -1437,15 +1530,17 @@ function initForm(url) {
         }).prop('selected', true);
 
         //set hw_template select list
-          var hw_template_id = document.getElementById("hw_template_id_db").value;
-          $('#hw_template_id option').filter(function () {
-              return this.value.indexOf(hw_template_id) > -1;
-          }).prop('selected', true);
+        var hw_template_id = document.getElementById("hw_template_id_db").value;
+        $('#hw_template_id option').filter(function () {
+            return this.value.indexOf(hw_template_id) > -1;
+        }).prop('selected', true);
     }
     else if (url == '/channels') {
         init_channel_elements(true);
         getVariableList();
         initChannelForm();
+        update_discovered_devices(); //CHECK THIS
+        setTimeout(function () { updateStatus(false); }, 2000);
         //scroll to anchor, done after page is created
         url_a = window.location.href.split("#");
         if (url_a.length == 2) {
@@ -1462,13 +1557,13 @@ function initForm(url) {
       //     setTimeout(function () { updateStatus(false); }, 2000);
       // } */
     else if (url == '/') {
-        get_price_data();
-        init_channel_elements(false);
-        //  setTimeout(function () { get_price_data(); }, 500);
+        get_price_data(); // price data for manual scheduling / price hints
+        init_channel_elements(false); //dashboard, no edit
         setTimeout(function () { updateStatus(false); }, 2000);
     }
 
     else if (url == '/inputs') {
+        setTimeout(function () { updateStatus(false); }, 2000);
         if (document.getElementById("VARIABLE_SOURCE_ENABLED").value == 0) {
             variable_mode = 1;
             document.getElementById("variable_mode_0").disabled = true;
@@ -1580,8 +1675,11 @@ function checkAdminForm() {
 }
 
 function doAction(action) {
+    
     actiond_fld = document.getElementById("action");
-    actiond_fld.value = action;
+    if (actiond_fld)
+        actiond_fld.value = action;
+    
     save_form = document.getElementById("save_form");
     if (action == 'ts') {
         if (confirm('Syncronize device with workstation time?')) {
@@ -1604,6 +1702,9 @@ function doAction(action) {
         if (confirm('Scan WiFi networks now?')) {
             save_form.submit();
         }
+    }
+    else if (action == 'scan_devices') {
+        update_discovered_devices(); //TODO: cursor?
     }
     else if (action == 'scan_sensors') {
         if (confirm('Scan connected temperature sensors? This can change sensor numbers, so scan only if neccessary and check sensor rules after scanning.')) {

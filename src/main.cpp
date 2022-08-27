@@ -28,7 +28,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 100922
+#define EEPROM_CHECK_VALUE 100923
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -66,6 +66,7 @@ char version_fs[35];
 #define METER_SHELLY3EM_ENABLED
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
+#define MDNS_ENABLED                      // evaluation
 
 // TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
@@ -118,7 +119,8 @@ bool wifi_in_setup_mode = false;
 bool wifi_connection_succeeded = false;
 time_t last_wifi_connect_tried = 0;
 #define WIFI_RECONNECT_INTERVAL 300
-bool clock_set = false; // true if we have get (more or less) correct time from net or rtc
+bool clock_set = false;       // true if we have get (more or less) correct time from net or rtc
+bool config_resetted = false; // true if configuration cleared when version upgraded
 
 #define ERROR_MSG_LEN 100
 #define DEBUG_FILE_ENABLED
@@ -175,6 +177,10 @@ void log_msg(byte type, const char *msg, bool write_to_file = false)
   }
 #endif
 }
+
+#ifdef MDNS_ENABLED
+#include "ESPmDNS.h"
+#endif
 
 /**
  * @brief System goes to  AP mode  if it cannot connect to existing wifi, but restart automatically.
@@ -1238,7 +1244,8 @@ bool todo_in_loop_set_relays = false;
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
 #define CH_TYPE_GPIO_USER_DEF 3
-#define CH_TYPE_WIFI_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
+#define CH_TYPE_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
+#define CH_TYPE_SHELLY_2GEN 4 // 
 #define CH_TYPE_MODBUS_RTU 20      // RFU
 #define CH_TYPE_DISABLED 255       // RFU, we could have disabled, but allocated channels (binary )
 
@@ -1269,8 +1276,20 @@ struct channel_type_st
 //#define CH_TYPE_SHELLY_ONOFF 2  -> 10
 //#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user defined"}, {CH_TYPE_WIFI_SHELLY_1GEN, "Shelly Gen 1"}};
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user defined"}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}};
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
+
+struct device_db_struct
+{
+  const char *app;
+  byte switch_type;
+  byte outputs;
+};
+
+device_db_struct device_db[] PROGMEM = {{"shelly1l",CH_TYPE_SHELLY_1GEN,1}, {"shellyswitch",CH_TYPE_SHELLY_1GEN,2},{"shellyswitch25",CH_TYPE_SHELLY_1GEN,2},{"shelly4pro",CH_TYPE_SHELLY_1GEN,4}, {"shellyplug",CH_TYPE_SHELLY_1GEN,1}, {"shellyplug-s",CH_TYPE_SHELLY_1GEN,1},{"shellyem",CH_TYPE_SHELLY_1GEN,1},{"shellyem3",CH_TYPE_SHELLY_1GEN,5},{"shellypro2",CH_TYPE_SHELLY_2GEN,2}};
+//{"",CH_TYPE_SHELLY_1GEN,1}, {"",CH_TYPE_SHELLY_2GEN,1},
+ 
+
 
 #define HW_TEMPLATE_COUNT 3
 #define HW_TEMPLATE_GPIO_COUNT 4
@@ -1327,8 +1346,9 @@ typedef struct
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
   uint8_t switch_id;
-  uint8_t switch_unit_id; // RFU, , eg. port in a relay
+  uint8_t switch_unit_id;  // RFU, , eg. port in a relay
   uint8_t switch_iface_id; // RFU, interface, eg eth, wifi
+  IPAddress switch_ip;
   bool is_up;
   bool wanna_be_up;
   byte type;
@@ -3435,6 +3455,23 @@ int get_channel_to_switch(bool is_rise, int switch_count)
   return -1; // we should not end up here
 }
 
+bool set_gpio_pinmode_output(int channel_idx)
+{
+  // set pin mode for gpio switches
+  if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED || s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF)
+  {
+    uint8_t gpio = s.ch[channel_idx].switch_id;
+    if ((gpio == 20) || (gpio == 24) || (gpio >= 28 && gpio <= 31) || (gpio > 39))
+    {
+      Serial.printf("Channel %d, invalid output gpio %d\n", channel_idx, (int)gpio);
+      return false;
+    }
+    pinMode(gpio, OUTPUT);
+    return true;
+  }
+  return false;
+}
+
 //
 /**
  * @brief Switch a channel up/down
@@ -3453,10 +3490,16 @@ bool set_channel_switch(int channel_idx, bool up)
   ch_counters.set_state(channel_idx, up); // counters
   if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF))
   {
-    digitalWrite(s.ch[channel_idx].switch_id, (up ? HIGH : LOW));
-    return true;
+    if (set_gpio_pinmode_output(channel_idx))
+    {
+      // TODO: check if this can do always in this cases before
+      digitalWrite(s.ch[channel_idx].switch_id, (up ? HIGH : LOW));
+      return true;
+    }
+    else
+      return false; // invalid gpio
   }
-  else if (s.ch[channel_idx].type == CH_TYPE_WIFI_SHELLY_1GEN)
+  else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
   {
     IPAddress switch_ip = s.switch_subnet_wifi;
     switch_ip[3] = s.ch[channel_idx].switch_id; // 24 (or longer) bit subnet mask assumed, last octet from switch_id
@@ -3668,7 +3711,6 @@ void set_relays()
       s.ch[ch_to_switch].is_up = is_rise;
       s.ch[ch_to_switch].toggle_last = now;
 
-      // digitalWrite(s.ch[ch_to_switch].switch_id, (s.ch[ch_to_switch].is_up ? HIGH : LOW));
       set_channel_switch(ch_to_switch, s.ch[ch_to_switch].is_up);
     }
   }
@@ -3865,7 +3907,7 @@ void reset_config(bool full_reset)
 
   bool reset_wifi_settings = false;
 
-  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n", s.wifi_ssid[0], s.wifi_ssid[1], s.wifi_ssid[2], s.wifi_password[0], s.wifi_password[1], s.wifi_password[2]);
+  //  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n", s.wifi_ssid[0], s.wifi_ssid[1], s.wifi_ssid[2], s.wifi_password[0], s.wifi_password[1], s.wifi_password[2]);
   if ((strlen(s.wifi_ssid) > sizeof(s.wifi_ssid) - 1) || (strlen(s.wifi_password) > sizeof(s.wifi_password) - 1))
     reset_wifi_settings = true;
 
@@ -3930,6 +3972,9 @@ void reset_config(bool full_reset)
       s.ch[channel_idx].switch_id = 255;
 
     s.ch[channel_idx].type = (s.ch[channel_idx].switch_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
+
+    // set_gpio_pinmode_output(channel_idx); // do before switch
+
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
     s.ch[channel_idx].force_up_until = 0;
@@ -4436,7 +4481,7 @@ void onWebInputsPost(AsyncWebServerRequest *request)
   s.variable_mode = VARIABLE_MODE_SOURCE; // (byte)request->getParam("variable_mode", true)->value().toInt();
   if (s.variable_mode == 0)               // TODO: remove other than this mode
   {
-    if ((strcmp(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str()) != 0) ||(strlen(s.entsoe_api_key) != strlen(request->getParam("entsoe_api_key", true)->value().c_str())))
+    if ((strcmp(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str()) != 0) || (strlen(s.entsoe_api_key) != strlen(request->getParam("entsoe_api_key", true)->value().c_str())))
       entsoe_params_changed = true;
 
     strncpy(s.entsoe_api_key, request->getParam("entsoe_api_key", true)->value().c_str(), sizeof(s.entsoe_api_key));
@@ -4517,6 +4562,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     if (request->hasParam(ch_fld, true))
     {
       s.ch[channel_idx].switch_id = request->getParam(ch_fld, true)->value().toInt();
+      // set_gpio_pinmode_output(channel_idx); // do before switch
     }
 
     snprintf(ch_fld, 20, "mo_%i", channel_idx); // channel rule mode
@@ -4718,6 +4764,84 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     request->redirect("/admin");
 }
 
+#ifdef MDNS_ENABLED
+/**
+ * @brief Get the switch type by MSDN info (app), recornizes Shelly devices
+ * 
+ * @return byte 
+ */
+byte get_device_swith_type(int mdns_device_idx,device_db_struct *device)
+{
+ int device_db_count = sizeof(device_db)/ sizeof(*device_db);
+ Serial.println("device_db_count:");
+  Serial.println(device_db_count);
+ if (!MDNS.hasTxt(mdns_device_idx, "app") || MDNS.txt(mdns_device_idx, "app").length() == 0)
+   return CH_TYPE_UNDEFINED;
+
+   for (int i = 0; i < device_db_count; i++) {
+       if ((strcmp(device_db[i].app, MDNS.txt(mdns_device_idx,"app").c_str()) == 0 ) && strlen(device_db[i].app)== strlen(MDNS.txt(mdns_device_idx,"app").c_str()) ) {
+         memcpy(device, &device_db[i], sizeof(device_db_struct));
+         return CH_TYPE_SHELLY_1GEN;
+       }
+   
+
+   }
+
+  return CH_TYPE_UNDEFINED;
+}
+/**
+ * @brief mDNS discovery of devices in the local network, returns json
+ *
+ * @param request
+ */
+void onWebDiscoverGet(AsyncWebServerRequest *request)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+  {
+    return request->requestAuthentication();
+  }
+  unsigned long started = millis();
+  Serial.println("onWebDiscoverGet");
+
+  StaticJsonDocument<2048> doc; //
+  String output;
+  int service_count = MDNS.queryService("http", "tcp");
+  device_db_struct device_db_entry;
+  byte switch_type;
+
+  for (int i = 0; i < service_count; i++)
+  {
+    doc["services"][i]["host"] = MDNS.hostname(i);
+    doc["services"][i]["ip"] = MDNS.IP(i);
+    doc["services"][i]["port"] = MDNS.port(i);
+    switch_type =get_device_swith_type(i,&device_db_entry);
+    doc["services"][i]["type"] =switch_type;
+    if (switch_type!=CH_TYPE_UNDEFINED) {
+      Serial.printf("switch_type:%d, outputs: %d\n",(int)switch_type,(int)device_db_entry.outputs);
+      doc["services"][i]["outputs"] =(int)device_db_entry.outputs;
+    }
+      
+
+    Serial.println(MDNS.hostname(i));
+
+    if (MDNS.hasTxt(i, "app"))
+    {
+      doc["services"][i]["app"] = MDNS.txt(i, "app");
+    }
+    //   Serial.println(  MDNS.txt(i, "app"));
+    //  String txt(int idx, const char *key);
+  }
+
+  time_t now_l;
+  time(&now_l);
+  doc["ts"] = now_l;
+  doc["process_time"] = millis() - started; // debug
+
+  serializeJson(doc, output);
+  request->send(200, "application/json", output);
+}
+#endif
+
 /**
  * @brief Returns status in json
  *
@@ -4880,14 +5004,13 @@ void setup()
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("Version: %s\n"), compile_date);
 
-  String mac = WiFi.macAddress();
+  String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
 
   for (int i = 14; i > 0; i -= 3)
   {
-    mac.remove(i, 1);
+    wifi_mac_short.remove(i, 1);
   }
-  wifi_mac_short = mac;
 
 #ifdef SENSOR_DS18B20_ENABLED
   sensors.begin();
@@ -4922,21 +5045,13 @@ void setup()
 #endif
   EEPROM.begin(eeprom_used_size);
   readFromEEPROM();
-
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
     Serial.println(F("Memory structure changed. Resetting settings"));
     reset_config(true);
+    config_resetted = true;
   }
 
-  /*
-    if (1 == 2) //Softap should be created if cannot connect to wifi (like in init), redirect
-    { // check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-      if (WiFi.softAP("arska-node", "arska", 1, false, 1) == true)
-      {
-        Serial.println(F("WiFi AP created!"));
-      }
-    }*/
   Serial.println("Starting wifi");
   scan_and_store_wifis(true); // testing this in the beginning
 
@@ -5041,7 +5156,23 @@ void setup()
       { handleDoUpdate(request, filename, index, data, len, final); });
 #endif
 
+#ifdef MDNS_ENABLED
+  if (!MDNS.begin(("arskanode-" + wifi_mac_short).c_str())) // UNIQUE NAME with mac here
+  {
+    Serial.println("Error starting mDNS");
+    // return;
+  }
+  else
+  {
+    Serial.println("Started mDNS service");
+    MDNS.addService("http", "tcp", 80);
+  }
+#endif
+
   server_web.on("/status", HTTP_GET, onWebStatusGet);
+
+  server_web.on("/discover", HTTP_GET, onWebDiscoverGet);
+
   server_web.on("/export-config", HTTP_GET, export_config);
   // run handleUpload function when any file is uploaded
 
@@ -5176,10 +5307,8 @@ void setup()
     // reset values from eeprom
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
-    if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED)
-    { // gpio channel
-      pinMode(s.ch[channel_idx].switch_id, OUTPUT);
-    }
+    // set_gpio_pinmode_output(channel_idx); // do before switch
+
     set_channel_switch(channel_idx, s.ch[channel_idx].is_up);
   }
   if (!wifi_in_setup_mode)
@@ -5309,7 +5438,12 @@ void loop()
   else if (started == 0) // we have clock set
   {
     started = now;
-    log_msg(MSG_TYPE_INFO, PSTR("Started processing"), true);
+
+    if (config_resetted)
+      log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
+    else
+      log_msg(MSG_TYPE_INFO, PSTR("Started processing.Started processing"), true);
+
     set_time_settings(); // set tz info
     ch_counters.init();
   }
