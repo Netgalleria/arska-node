@@ -34,11 +34,11 @@
             </table>
     </div>
     <div class="secbr">
-        <input type="checkbox" id="statusauto"  onclick="statusCBClicked(this)"><label for='statusauto'>Show variable details</label> 
+
     </div>  
-    %status_fields%
  
     <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)">
+        <input type="checkbox" id="statusauto"  onclick="statusCBClicked(this)"><label for='statusauto'>Show variable details</label> 
         <input name="source" type="hidden" value="channels">
         <div id="chlist"></div>
         <br><input id="btnSubmit" type="submit" value="Save">

@@ -1239,15 +1239,16 @@ bool todo_in_loop_scan_wifis = false;
 bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
 
-#define CHANNEL_TYPE_COUNT 4
+#define CHANNEL_TYPE_COUNT 6
 
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
 #define CH_TYPE_GPIO_USER_DEF 3
 #define CH_TYPE_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
-#define CH_TYPE_SHELLY_2GEN 4 // 
-#define CH_TYPE_MODBUS_RTU 20      // RFU
-#define CH_TYPE_DISABLED 255       // RFU, we could have disabled, but allocated channels (binary )
+#define CH_TYPE_SHELLY_2GEN 4 //
+#define CH_TYPE_TASMOTA 5     //
+#define CH_TYPE_MODBUS_RTU 20 // RFU
+#define CH_TYPE_DISABLED 255  // RFU, we could have disabled, but allocated channels (binary )
 
 // channels type string for admin UI
 /* OLD
@@ -1276,7 +1277,7 @@ struct channel_type_st
 //#define CH_TYPE_SHELLY_ONOFF 2  -> 10
 //#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user defined"}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}};
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user def."}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}};
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
 struct device_db_struct
@@ -1286,10 +1287,8 @@ struct device_db_struct
   byte outputs;
 };
 
-device_db_struct device_db[] PROGMEM = {{"shelly1l",CH_TYPE_SHELLY_1GEN,1}, {"shellyswitch",CH_TYPE_SHELLY_1GEN,2},{"shellyswitch25",CH_TYPE_SHELLY_1GEN,2},{"shelly4pro",CH_TYPE_SHELLY_1GEN,4}, {"shellyplug",CH_TYPE_SHELLY_1GEN,1}, {"shellyplug-s",CH_TYPE_SHELLY_1GEN,1},{"shellyem",CH_TYPE_SHELLY_1GEN,1},{"shellyem3",CH_TYPE_SHELLY_1GEN,5},{"shellypro2",CH_TYPE_SHELLY_2GEN,2}};
+device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
 //{"",CH_TYPE_SHELLY_1GEN,1}, {"",CH_TYPE_SHELLY_2GEN,1},
- 
-
 
 #define HW_TEMPLATE_COUNT 3
 #define HW_TEMPLATE_GPIO_COUNT 4
@@ -3501,21 +3500,16 @@ bool set_channel_switch(int channel_idx, bool up)
   }
   else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
   {
-    IPAddress switch_ip = s.switch_subnet_wifi;
-    switch_ip[3] = s.ch[channel_idx].switch_id; // 24 (or longer) bit subnet mask assumed, last octet from switch_id
-    String url_to_call = "http://" + switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
-
+    String url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
     Serial.printf("url_to_call:%s\n", url_to_call.c_str());
 
-    // DynamicJsonDocument doc(256);
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
     if (error)
     {
       Serial.print(F("Shelly relay call deserializeJson() failed: "));
       Serial.println(error.f_str());
-
-      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, switch_ip.toString().c_str());
+      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
       log_msg(MSG_TYPE_WARN, error_msg, false);
       return false;
     }
@@ -3532,17 +3526,61 @@ bool set_channel_switch(int channel_idx, bool up)
         else
         {
           Serial.println("Switch not set properly.");
-          snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, switch_ip.toString().c_str());
+          snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
           log_msg(MSG_TYPE_WARN, error_msg, false);
         }
       }
       else
       {
         Serial.println("Shelly, invalid response");
-        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, switch_ip.toString().c_str());
+        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
         log_msg(MSG_TYPE_WARN, error_msg, false);
       }
+      return true;
+    }
+  }
+  else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA)
+  {
 
+    String url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/cm?cmnd=Power" + s.ch[channel_idx].switch_unit_id + "%20" + (up ? String("On") : String("Off"));
+    Serial.printf("url_to_call:%s\n", url_to_call.c_str());
+    // http://192.168.66.34
+
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
+    if (error)
+    {
+      Serial.print(F("Tasmota relay call deserializeJson() failed: "));
+      Serial.println(error.f_str());
+      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
+      log_msg(MSG_TYPE_WARN, error_msg, false);
+      return false;
+    }
+    else
+    {
+      Serial.println(F("Tasmota relay switched."));
+      //{"POWER1":"ON"}
+      char status_key[10];
+      sprintf(status_key, "POWER%d", s.ch[channel_idx].switch_unit_id);
+      if (doc.containsKey(status_key))
+      {
+        if (doc[status_key] == (up ?"ON":"OFF"))
+        {
+          Serial.println("Switch set properly.");
+        }
+        else
+        {
+          Serial.println("Switch not set properly.");
+          snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
+          log_msg(MSG_TYPE_WARN, error_msg, false);
+        }
+      }
+      else
+      {
+        Serial.println("Shelly, invalid response");
+        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
+        log_msg(MSG_TYPE_WARN, error_msg, false);
+      }
       return true;
     }
   }
@@ -4069,7 +4107,9 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
-    doc["ch"][channel_idx]["switch_id"] = s.ch[channel_idx].switch_id;
+    doc["ch"][channel_idx]["sw_id"] = s.ch[channel_idx].switch_id;
+    doc["ch"][channel_idx]["sw_ip"] = s.ch[channel_idx].switch_ip.toString();
+    doc["ch"][channel_idx]["sw_unit_id"] = s.ch[channel_idx].switch_unit_id;
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
@@ -4525,6 +4565,20 @@ void onWebInputsPost(AsyncWebServerRequest *request)
     request->redirect("/inputs");
 }
 
+// TODO: refaktoroi, myös intille oma
+bool update_channel_field_str(AsyncWebServerRequest *request, char *target_str, int channel_idx, const char *field_format, size_t max_length)
+{
+  char ch_fld[20];
+  snprintf(ch_fld, 20, field_format, channel_idx);
+  if (request->hasParam(ch_fld, true))
+  {
+    strncpy(target_str, request->getParam(ch_fld, true)->value().c_str(), max_length);
+    return true;
+  }
+  Serial.println(ch_fld);
+  return false;
+}
+
 /**
  * @brief Process channel config  edits
  *
@@ -4537,6 +4591,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
   char stmts_fld[20];
   char target_fld[20];
   char ctrb_fld[20];
+  char ip_buff[16];
 
   StaticJsonDocument<300> stmts_json;
 
@@ -4548,9 +4603,19 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     if (request->hasParam(ch_fld, true))
       strncpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str(), sizeof(s.ch[channel_idx].id_str));
 
-    snprintf(ch_fld, 20, "chty_%i", channel_idx); // channel type
+    snprintf(ch_fld, 20, "swtype_%i", channel_idx); // channel type
     if (request->hasParam(ch_fld, true))
-      s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
+    {
+      if (request->getParam(ch_fld, true)->value().startsWith("1000_"))
+      {
+        String ch_type_str = request->getParam(ch_fld, true)->value().substring(5, request->getParam(ch_fld, true)->value().indexOf("_", 6));
+        // Serial.println("ch_type_str");
+        // Serial.println(ch_type_str);
+        s.ch[channel_idx].type = ch_type_str.toInt();
+      }
+      else
+        s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
+    }
 
     snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
     if (request->hasParam(ch_fld, true))
@@ -4563,6 +4628,29 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     {
       s.ch[channel_idx].switch_id = request->getParam(ch_fld, true)->value().toInt();
       // set_gpio_pinmode_output(channel_idx); // do before switch
+    }
+
+    //  snprintf(ch_fld, 20, "ch_swip_%i", channel_idx);
+    //  if (request->hasParam(ch_fld, true))
+    //        strncpy(s.ch[channel_idx].switch_ip, request->getParam(ch_fld, true)->value().c_str(), sizeof(s.ch[channel_idx].switch_ip));
+    Serial.println("IP ADRRESS");
+    if (update_channel_field_str(request, ip_buff, channel_idx, "ch_swip_%i", 15))
+    {
+      s.ch[channel_idx].switch_ip.fromString(ip_buff);
+      Serial.println(ip_buff);
+      Serial.println(s.ch[channel_idx].switch_ip.toString());
+    }
+    else
+    {
+      Serial.println("NO IP");
+    }
+
+    // bool update_channel_field_str(AsyncWebServerRequest *request,char *target_str, int channel_idx,const char *field_format,size_t max_length) {
+
+    snprintf(ch_fld, 20, "ch_swuid_%i", channel_idx);
+    if (request->hasParam(ch_fld, true))
+    {
+      s.ch[channel_idx].switch_unit_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
     snprintf(ch_fld, 20, "mo_%i", channel_idx); // channel rule mode
@@ -4591,14 +4679,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
-
-        /*  for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-          {
-            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].variable_id = -1;
-            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].oper_id = 255;
-            s.ch[channel_idx].conditions[condition_idx].statements[stmt_idx].const_val = 0;
-          } */
-
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
         {
@@ -4767,25 +4847,25 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 #ifdef MDNS_ENABLED
 /**
  * @brief Get the switch type by MSDN info (app), recornizes Shelly devices
- * 
- * @return byte 
+ *
+ * @return byte
  */
-byte get_device_swith_type(int mdns_device_idx,device_db_struct *device)
+byte get_device_swith_type(int mdns_device_idx, device_db_struct *device)
 {
- int device_db_count = sizeof(device_db)/ sizeof(*device_db);
- Serial.println("device_db_count:");
+  int device_db_count = sizeof(device_db) / sizeof(*device_db);
+  Serial.println("device_db_count:");
   Serial.println(device_db_count);
- if (!MDNS.hasTxt(mdns_device_idx, "app") || MDNS.txt(mdns_device_idx, "app").length() == 0)
-   return CH_TYPE_UNDEFINED;
+  if (!MDNS.hasTxt(mdns_device_idx, "app") || MDNS.txt(mdns_device_idx, "app").length() == 0)
+    return CH_TYPE_UNDEFINED;
 
-   for (int i = 0; i < device_db_count; i++) {
-       if ((strcmp(device_db[i].app, MDNS.txt(mdns_device_idx,"app").c_str()) == 0 ) && strlen(device_db[i].app)== strlen(MDNS.txt(mdns_device_idx,"app").c_str()) ) {
-         memcpy(device, &device_db[i], sizeof(device_db_struct));
-         return CH_TYPE_SHELLY_1GEN;
-       }
-   
-
-   }
+  for (int i = 0; i < device_db_count; i++)
+  {
+    if ((strcmp(device_db[i].app, MDNS.txt(mdns_device_idx, "app").c_str()) == 0) && strlen(device_db[i].app) == strlen(MDNS.txt(mdns_device_idx, "app").c_str()))
+    {
+      memcpy(device, &device_db[i], sizeof(device_db_struct));
+      return CH_TYPE_SHELLY_1GEN;
+    }
+  }
 
   return CH_TYPE_UNDEFINED;
 }
@@ -4814,13 +4894,13 @@ void onWebDiscoverGet(AsyncWebServerRequest *request)
     doc["services"][i]["host"] = MDNS.hostname(i);
     doc["services"][i]["ip"] = MDNS.IP(i);
     doc["services"][i]["port"] = MDNS.port(i);
-    switch_type =get_device_swith_type(i,&device_db_entry);
-    doc["services"][i]["type"] =switch_type;
-    if (switch_type!=CH_TYPE_UNDEFINED) {
-      Serial.printf("switch_type:%d, outputs: %d\n",(int)switch_type,(int)device_db_entry.outputs);
-      doc["services"][i]["outputs"] =(int)device_db_entry.outputs;
+    switch_type = get_device_swith_type(i, &device_db_entry);
+    doc["services"][i]["type"] = switch_type;
+    if (switch_type != CH_TYPE_UNDEFINED)
+    {
+      Serial.printf("switch_type:%d, outputs: %d\n", (int)switch_type, (int)device_db_entry.outputs);
+      doc["services"][i]["outputs"] = (int)device_db_entry.outputs;
     }
-      
 
     Serial.println(MDNS.hostname(i));
 

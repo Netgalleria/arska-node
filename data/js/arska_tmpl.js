@@ -35,6 +35,7 @@ const CH_TYPE_GPIO_FIXED = 1;
 const CH_TYPE_SHELLY_1GEN = 2;
 const CH_TYPE_GPIO_USER_DEF = 3;
 const CH_TYPE_SHELLY_2GEN = 4;
+const CH_TYPE_TASMOTA = 5;
 const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
 const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
@@ -183,42 +184,58 @@ function update_discovered_devices() {
             switch_list = [];
             $.each(data.services, function (i, service) {
                 //    console.log(JSON.stringify(service));
-                if (service["type"] == 2 || service["type"] == 4) {//Shelly gen1/gen2
+                if (service["type"] == CH_TYPE_SHELLY_1GEN || service["type"] == CH_TYPE_SHELLY_2GEN) {
                     for (i = 0; i < service.outputs; i++) {
                         switch_did = service.type + '_' + service.ip + '_' + i;
-                        switch_desc = service.app + " (" + service.ip + ")";
-                        if (service.outputs > 1)
-                            switch_desc = switch_desc + "/" + i; 
+                        ip_a = service.ip.split(".");
+                        switch_desc = service.app + " ." + ip_a[3];
+                        //if (service.outputs > 1)
+                            switch_desc = switch_desc + "/" + i;
 
                         switch_list.push([switch_did, switch_desc, service.type, service.ip, i]);
                         console.log(JSON.stringify([service.type, service.ip, i]));
                     }
-
                 }
             });
             //TODO: save current selection (if discovery updated later that in the init )
+            /*
             selector_str = "select[id^='ch_swdisc_']";
             document.querySelectorAll(selector_str).forEach(function (obj) {
                 for (i = obj.options.length - 1; i >= 0; i--) {
                     obj.options[i] = null;
                 }
-                if (switch_list.length == 0) 
+                if (switch_list.length == 0)
                     addOption(obj, -1, "no devices", true); //TODO:selected 
                 else
                     addOption(obj, -1, "select device/relay", true); //TODO:selected 
                 for (i = 0; i < switch_list.length; i++) {
-                    addOption(obj, switch_list[i][0], switch_list[i][1], false); //TODO:selected 
+                    addOption(obj, switch_list[i][0], switch_list[i][1], false); //TODO:selected     
                 }
-                //      $group.append('<option value="' + obj.code + '">' + obj.cityname + '</option>')
             })
-            //   document.querySelectorAll(selector_str).forEach(e => e.remove());
+            */
 
+            // add to type
+            for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
+                // clear first, TODO: could update only changed
+                swtype_sel = document.getElementById("swtype_" + channel_idx);
+                if (swtype_sel) { //if not yet created?
+                    for (i = swtype_sel.options.length - 1; i >= 0; i--) {
+                        if (swtype_sel.options[i].value.substring(0, 5) == "1000_") //discovery pseudo type
+                            swtype_sel.options[i] = null;
+                    }
+
+                    if (swtype_sel.value != CH_TYPE_GPIO_FIXED) { //TODO: check if discovery on
+                        for (i = 0; i < switch_list.length; i++) {
+                            addOption(swtype_sel, "1000_" + switch_list[i][0], switch_list[i][1], false); //TODO:selected     
+                        }
+                    }
+                }
+
+            }
             $("body").css("cursor", "default");  //done
 
             console.log(JSON.stringify(switch_list));
 
-            // ch_swdisc_
-            //   setTimeout(function () { update_discovered_devices(); }, 1800000);
         },
         fail: function () {
             console.log("Cannot get discovered devices");
@@ -962,41 +979,73 @@ function initChannelForm() {
 
 }
 
-function setChannelFieldsByType(channel_idx, chtype) {
+function is_switch_id_used(channel_type) { // id required
+    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
+}
+function is_switch_ip_used(channel_type) { //ip required
+    return [CH_TYPE_SHELLY_1GEN, CH_TYPE_SHELLY_2GEN, CH_TYPE_TASMOTA].includes(parseInt(channel_type));
+}
+function is_switch_uid_used(channel_type) { //unit_id required
+    if (is_switch_ip_used(parseInt(channel_type)))
+        return true;
+    return [CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
+}
+
+function set_switch_field_visibility(channel_idx, chtype) {
+    document.getElementById("d_swip_" + channel_idx).style.display = is_switch_ip_used(chtype) ? "block" : "none";
+    document.getElementById("d_swid_" + channel_idx).style.display = is_switch_id_used(chtype) ? "block" : "none";
+    document.getElementById("d_swuid_" + channel_idx).style.display = is_switch_uid_used(chtype) ? "block" : "none";
+    switch_id_caption_span = document.getElementById("ch_swidcap_" + channel_idx);
+
+    if (chtype == CH_TYPE_GPIO_USER_DEF)
+        switch_id_caption_span.innerHTML = "gpio:<br>";
+    else if (chtype == CH_TYPE_GPIO_FIXED) {
+        switch_id_caption_span.innerHTML = "gpio (fixed):<br>";
+        $('#ch_swid_' + channel_idx).attr('disabled', true);
+    }
+    else
+        switch_id_caption_span.innerHTML = "device id:"; //TODO: later modbus...
+}
+
+function setChannelFieldsByType(channel_idx, chtype_in) {
+    if (chtype_in.substring(0, 5) == "1000_") { //combined id, like 1000_2_192.168.66.36_0 
+        id_a = chtype_in.split("_");
+        chtype = id_a[1];
+        if (is_switch_ip_used(chtype))
+            document.getElementById("ch_swip_" + channel_idx).value = id_a[2];
+        if (is_switch_uid_used(chtype))
+            document.getElementById("ch_swuid_" + channel_idx).value = id_a[3];
+        //       console.log(id_a,channel_idx,chtype,is_switch_ip_used(chtype));
+    }
+    else
+        chtype = chtype_in;
+
+    set_switch_field_visibility(channel_idx, chtype);
+    /* document.getElementById("d_swip_" + channel_idx).style.display = is_switch_ip_used(chtype) ? "block" : "none";
+     document.getElementById("d_swid_" + channel_idx).style.display = is_switch_id_used(chtype) ? "block" : "none";
+     document.getElementById("d_swuid_" + channel_idx).style.display = is_switch_uid_used(chtype) ? "block" : "none";*/
+
+    chtype = chtype_in;
     for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
         //set switch id caption based on type
-        switch_id_caption_span = document.getElementById("ch_swidc_" + channel_idx);
+/*
         // visibility
         if (chtype == CH_TYPE_DISCOVERED) {
             switch_id_caption_span.innerHTML = "device:";
-            document.getElementById("ch_swdisc_" + channel_idx).style.display = "block";
-            document.getElementById("ch_swidc_" + channel_idx).style.display = "block";
-            document.getElementById("ch_swid_" + channel_idx).style.display = "none"; 
+            //     document.getElementById("ch_swdisc_" + channel_idx).style.display = "block";
+            document.getElementById("ch_swidcap_" + channel_idx).style.display = "block";
         }
         else if (chtype == CH_TYPE_UNDEFINED) {
-            document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
-            document.getElementById("ch_swidc_" + channel_idx).style.display = "none";
-            document.getElementById("ch_swid_" + channel_idx).style.display = "none"; 
+            //    document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
+            document.getElementById("ch_swidcap_" + channel_idx).style.display = "none";
         }
         else {
-            document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
-            document.getElementById("ch_swidc_" + channel_idx).style.display = "block";
-            document.getElementById("ch_swid_" + channel_idx).style.display = "block"; 
+            //     document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
+            document.getElementById("ch_swidcap_" + channel_idx).style.display = "block";
         }
+*/
 
-       // document.getElementById("ch_swid_" + channel_idx).style.display = (chtype == CH_TYPE_UNDEFINED) ? "none":"block";
-
-        if (chtype == CH_TYPE_SHELLY_1GEN)
-            switch_id_caption_span.innerHTML = "ip " + switch_subnet_wifi.substring(0, switch_subnet_wifi.length - 1) + "x:";
-        else if (chtype == CH_TYPE_GPIO_USER_DEF)
-            switch_id_caption_span.innerHTML = "gpio:";
-        else if (chtype == CH_TYPE_GPIO_FIXED) {
-            switch_id_caption_span.innerHTML = "gpio (fixed):";
-            $('#ch_swid_' + channel_idx).attr('disabled', true);
-        }
-        else
-            switch_id_caption_span.innerHTML = "switch id:";
     }
 }
 
@@ -1191,7 +1240,8 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     console.log("create_channel_config_elements", channel_idx);
     conf_div = createElem("div", null, null, null);
 
-    rc0_div = createElem("div", null, null, "secbr");
+    rc0_div = createElem("div", null, null, "secbr"); // first config row
+    rc1_div = createElem("div", "d_rc1_" + channel_idx, null, "secbr"); // 2nd row
     //id
     id_div = createElem("div", null, null, "fldshort");
     id_div.insertAdjacentText('beforeend', 'id: ');
@@ -1202,68 +1252,90 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     rc0_div.appendChild(id_div);
     //conf_div.appendChild(id_div);
 
+    //uptime
+    upt_div = createElem("div", "d_uptimem_" + channel_idx, null, "fldtiny");
+    upt_div.insertAdjacentText('beforeend', 'minim. up(s):');
+    inp_ut = createElem("input", "ch_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
+    inp_ut.name = "ch_uptimem_" + channel_idx;
+    upt_div.appendChild(inp_ut);
+    rc0_div.appendChild(upt_div); //oli rc1_div
 
-
-    //type
-    ct_div = createElem("div", null, null, "flda");
-    ct_div.insertAdjacentHTML('beforeend', 'type:<br>');
-    ct_sel = createElem("select", "chty_" + channel_idx, null, null);
-    ct_sel.name = "chty_" + channel_idx;
-    //TODO: check this
+    //switch type
+    swt_div = createElem("div", "swtyped_" + channel_idx, null, "flda");
+    swt_div.insertAdjacentHTML('beforeend', 'switch type:<br>');
+    ct_sel = createElem("select", "swtype_" + channel_idx, null, null);
+    ct_sel.name = "swtype_" + channel_idx;
     ct_sel.addEventListener("change", setChannelFieldsEVT);
 
     is_fixed_gpio_channel = (ch_cur.type == CH_TYPE_GPIO_FIXED);
-    if (!is_fixed_gpio_channel)
-        addOption(ct_sel, CH_TYPE_DISCOVERED, "Discovered", false); //TODO: when this could be checked
+    //  if (!is_fixed_gpio_channel)
+    //      addOption(ct_sel, CH_TYPE_DISCOVERED, "discovered", false); //TODO: when this could be checked
 
     for (var i = 0; i < channel_types.length; i++) {
-        //console.log("addOption", i, is_fixed_gpio_channel, ch_cur.type);
         if ((!is_fixed_gpio_channel && channel_types[i].id != CH_TYPE_GPIO_FIXED) || (is_fixed_gpio_channel && channel_types[i].id == CH_TYPE_GPIO_FIXED)) {
             addOption(ct_sel, channel_types[i].id, channel_types[i].name, (ch_cur.type == channel_types[i].id));
-      //      console.log("addOption2", i);
         }
     }
-    ct_div.appendChild(ct_sel);
-    rc0_div.appendChild(ct_div);
-    conf_div.appendChild(rc0_div);
-
-
-    rc1_div = createElem("div", "d_rc1_" + channel_idx, null, "secbr");
-    //uptime
-    ut_div = createElem("div", "d_uptimem_" + channel_idx, null, "fldtiny");
-    ut_div.insertAdjacentText('beforeend', 'mininum up (s):');
-    inp_ut = createElem("input", "ch_uptimem_" + channel_idx, ch_cur.uptime_minimum, null, "text");
-    inp_ut.name = "ch_uptimem_" + channel_idx;
-    ut_div.appendChild(inp_ut);
-    //conf_div.appendChild(ut_div);
-    rc1_div.appendChild(ut_div);
+    swt_div.appendChild(ct_sel);
+    rc0_div.appendChild(swt_div); //oli rc0_div
 
     //Rule config div
     //maybe one row div including uptime
-    swid_div = createElem("div", "d_swid_" + channel_idx, null, "fldtiny");
-
-    switch_id_caption_span = createElem("span", "ch_swidc_" + channel_idx, null, null);
-    switch_id_caption_span.innerHTML = "switch id:";
-
-    inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.switch_id, null, "text");
+    swid_div = createElem("div", "d_swid_" + channel_idx, null, "flda"); //"fldtiny"
+    switch_id_caption_span = createElem("span", "ch_swidcap_" + channel_idx, null, null);
+    switch_id_caption_span.innerHTML = "device id:<br>";
+    // switch id, modbus etc... RFU
+    inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.sw_id, "flda", "text");
     inp_swid.name = "ch_swid_" + channel_idx;
     inp_swid.setAttribute("maxlength", 3);
+    inp_swid.setAttribute("min", 0);
+    inp_swid.setAttribute("max", 255);
+    inp_swid.setAttribute("step", 1);
+    inp_swid.setAttribute("size", 3);
+    inp_swid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
 
-    inp_swdisc_sel = createElem("select", "ch_swdisc_" + channel_idx, ch_cur.switch_id, null);
+    // Switch ip address
+    swip_div = createElem("div", "d_swip_" + channel_idx, null, "flda");
+    switch_ip_caption_span = createElem("span", "ch_swipcap_" + channel_idx, null, null);
+    switch_ip_caption_span.innerHTML = "IP address:<br>";
+    inp_swip = createElem("input", "ch_swip_" + channel_idx, ch_cur.sw_ip, "flda", "text");
+    inp_swip.name = "ch_swip_" + channel_idx;
+    inp_swip.setAttribute("minlength", 7);
+    inp_swip.setAttribute("maxlength", 15);
+    inp_swip.setAttribute("size", 15);
+    inp_swip.setAttribute("placeholder", "xxx.xxx.xxx.xxx");
+    inp_swip.setAttribute("pattern", "^([0-9]{1,3}\.){3}[0-9]{1,3}$");
+
+    // switch unit id
+    swuid_div = createElem("div", "d_swuid_" + channel_idx, ch_cur.sw_unit_id, "flda");
+    switch_uid_caption_span = createElem("span", "ch_swuidcap_" + channel_idx, null, null);
+    switch_uid_caption_span.innerHTML = "relay id:<br>";
+    inp_swuid = createElem("input", "ch_swuid_" + channel_idx, ch_cur.sw_unit_id, "flda", "number");
+    inp_swuid.name = "ch_swuid_" + channel_idx;
+    inp_swuid.setAttribute("min", 0);
+    inp_swuid.setAttribute("max", 255);
+    inp_swuid.setAttribute("step", 1);
+    inp_swuid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
+
+    /*inp_swdisc_sel = createElem("select", "ch_swdisc_" + channel_idx, ch_cur.sw_id, null);
     inp_swdisc_sel.name = "ch_swdisc_" + channel_idx;
-
+*/
     swid_div.appendChild(switch_id_caption_span);
     swid_div.appendChild(inp_swid);
 
-    swid_div.appendChild(inp_swid);
+    swip_div.appendChild(switch_ip_caption_span);
+    swip_div.appendChild(inp_swip);
 
-    swid_div.appendChild(inp_swdisc_sel);
+    swuid_div.appendChild(switch_uid_caption_span);
+    swuid_div.appendChild(inp_swuid);
 
 
+    // swid_div.appendChild(inp_swdisc_sel);
     rc1_div.appendChild(swid_div);
+    rc1_div.appendChild(swip_div);
+    rc1_div.appendChild(swuid_div);
 
-
-
+    conf_div.appendChild(rc0_div);
     conf_div.appendChild(rc1_div);
 
     //Mode and template selection
@@ -1283,12 +1355,14 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     rm_div.appendChild(tmpl_div);
     tmpl_sel.addEventListener("change", templateChangedEVT);
 
-    // ct_div.appendChild(ct_sel);
-    // conf_div.appendChild(ct_div);
+    // swt_div.appendChild(ct_sel);
+    // conf_div.appendChild(swt_div);
 
     conf_div.appendChild(rm_div); //paikka arvottu
-
     ce_div.appendChild(conf_div);
+
+    // visibility depend on the type
+    set_switch_field_visibility(channel_idx, ch_cur.type);
 }
 
 
@@ -1675,11 +1749,11 @@ function checkAdminForm() {
 }
 
 function doAction(action) {
-    
+
     actiond_fld = document.getElementById("action");
     if (actiond_fld)
         actiond_fld.value = action;
-    
+
     save_form = document.getElementById("save_form");
     if (action == 'ts') {
         if (confirm('Syncronize device with workstation time?')) {
