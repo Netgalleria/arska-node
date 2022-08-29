@@ -197,22 +197,6 @@ function update_discovered_devices() {
                     }
                 }
             });
-            //TODO: save current selection (if discovery updated later that in the init )
-            /*
-            selector_str = "select[id^='ch_swdisc_']";
-            document.querySelectorAll(selector_str).forEach(function (obj) {
-                for (i = obj.options.length - 1; i >= 0; i--) {
-                    obj.options[i] = null;
-                }
-                if (switch_list.length == 0)
-                    addOption(obj, -1, "no devices", true); //TODO:selected 
-                else
-                    addOption(obj, -1, "select device/relay", true); //TODO:selected 
-                for (i = 0; i < switch_list.length; i++) {
-                    addOption(obj, switch_list[i][0], switch_list[i][1], false); //TODO:selected     
-                }
-            })
-            */
 
             // add to type
             for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
@@ -530,7 +514,8 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
     const elem = document.createElement(tagName);
     if (id)
         elem.id = id;
-    if (value)
+   // if (value)
+    if (!(value == null))
         elem.value = value;
     if (class_) {
         for (const class_this of class_.split(" ")) {
@@ -997,8 +982,18 @@ function set_switch_field_visibility(channel_idx, chtype) {
     document.getElementById("d_swuid_" + channel_idx).style.display = is_switch_uid_used(chtype) ? "block" : "none";
     switch_id_caption_span = document.getElementById("ch_swidcap_" + channel_idx);
 
-    if (chtype == CH_TYPE_GPIO_USER_DEF)
+    if (is_switch_id_used(chtype)) {
+        max_swid = (chtype == (CH_TYPE_GPIO_USER_DEF) ? 39 : 255);
+        document.getElementById("ch_swid_" + channel_idx).setAttribute("max", max_swid);
+    }
+    if (is_switch_uid_used(chtype)) {
+        min_swuid = (chtype == (CH_TYPE_TASMOTA) ? 1 : 0);
+        document.getElementById("ch_swuid_" + channel_idx).setAttribute("min", min_swuid);
+    }  
+
+    if (chtype == CH_TYPE_GPIO_USER_DEF) {
         switch_id_caption_span.innerHTML = "gpio:<br>";
+    }
     else if (chtype == CH_TYPE_GPIO_FIXED) {
         switch_id_caption_span.innerHTML = "gpio (fixed):<br>";
         $('#ch_swid_' + channel_idx).attr('disabled', true);
@@ -1021,31 +1016,10 @@ function setChannelFieldsByType(channel_idx, chtype_in) {
         chtype = chtype_in;
 
     set_switch_field_visibility(channel_idx, chtype);
-    /* document.getElementById("d_swip_" + channel_idx).style.display = is_switch_ip_used(chtype) ? "block" : "none";
-     document.getElementById("d_swid_" + channel_idx).style.display = is_switch_id_used(chtype) ? "block" : "none";
-     document.getElementById("d_swuid_" + channel_idx).style.display = is_switch_uid_used(chtype) ? "block" : "none";*/
 
     chtype = chtype_in;
     for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
-        //set switch id caption based on type
-/*
-        // visibility
-        if (chtype == CH_TYPE_DISCOVERED) {
-            switch_id_caption_span.innerHTML = "device:";
-            //     document.getElementById("ch_swdisc_" + channel_idx).style.display = "block";
-            document.getElementById("ch_swidcap_" + channel_idx).style.display = "block";
-        }
-        else if (chtype == CH_TYPE_UNDEFINED) {
-            //    document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
-            document.getElementById("ch_swidcap_" + channel_idx).style.display = "none";
-        }
-        else {
-            //     document.getElementById("ch_swdisc_" + channel_idx).style.display = "none";
-            document.getElementById("ch_swidcap_" + channel_idx).style.display = "block";
-        }
-*/
-
     }
 }
 
@@ -1188,8 +1162,7 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60, se
 
         addOption(fups_sel, -1, "select", true); //check checked
         if (setting_exists)
-            addOption(fups_sel, 0, "remove", false); //check checked
-        // addOption(fups_sel, 0, "remove", false);
+            addOption(fups_sel, 0, "unschedule", false); //check checked
         for (i = 0; i < force_up_mins.length; i++) {
             min_cur = force_up_mins[i];
             duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
@@ -1242,6 +1215,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
 
     rc0_div = createElem("div", null, null, "secbr"); // first config row
     rc1_div = createElem("div", "d_rc1_" + channel_idx, null, "secbr"); // 2nd row
+    
     //id
     id_div = createElem("div", null, null, "fldshort");
     id_div.insertAdjacentText('beforeend', 'id: ');
@@ -1285,7 +1259,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     switch_id_caption_span = createElem("span", "ch_swidcap_" + channel_idx, null, null);
     switch_id_caption_span.innerHTML = "device id:<br>";
     // switch id, modbus etc... RFU
-    inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.sw_id, "flda", "text");
+    inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.sw_id, "flda", "number");
     inp_swid.name = "ch_swid_" + channel_idx;
     inp_swid.setAttribute("maxlength", 3);
     inp_swid.setAttribute("min", 0);
@@ -1307,19 +1281,18 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     inp_swip.setAttribute("pattern", "^([0-9]{1,3}\.){3}[0-9]{1,3}$");
 
     // switch unit id
-    swuid_div = createElem("div", "d_swuid_" + channel_idx, ch_cur.sw_unit_id, "flda");
+    swuid_div = createElem("div", "d_swuid_" + channel_idx, null, "flda");
     switch_uid_caption_span = createElem("span", "ch_swuidcap_" + channel_idx, null, null);
     switch_uid_caption_span.innerHTML = "relay id:<br>";
     inp_swuid = createElem("input", "ch_swuid_" + channel_idx, ch_cur.sw_unit_id, "flda", "number");
+    //inp_swuid.value = ch_cur.sw_unit_id; //set also 0 skipped by create
     inp_swuid.name = "ch_swuid_" + channel_idx;
     inp_swuid.setAttribute("min", 0);
     inp_swuid.setAttribute("max", 255);
     inp_swuid.setAttribute("step", 1);
     inp_swuid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
 
-    /*inp_swdisc_sel = createElem("select", "ch_swdisc_" + channel_idx, ch_cur.sw_id, null);
-    inp_swdisc_sel.name = "ch_swdisc_" + channel_idx;
-*/
+
     swid_div.appendChild(switch_id_caption_span);
     swid_div.appendChild(inp_swid);
 
@@ -1328,7 +1301,6 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
 
     swuid_div.appendChild(switch_uid_caption_span);
     swuid_div.appendChild(inp_swuid);
-
 
     // swid_div.appendChild(inp_swdisc_sel);
     rc1_div.appendChild(swid_div);
@@ -1613,7 +1585,7 @@ function initForm(url) {
         init_channel_elements(true);
         getVariableList();
         initChannelForm();
-        update_discovered_devices(); //CHECK THIS
+       // update_discovered_devices(); //CHECK THIS
         setTimeout(function () { updateStatus(false); }, 2000);
         //scroll to anchor, done after page is created
         url_a = window.location.href.split("#");
@@ -1777,8 +1749,15 @@ function doAction(action) {
             save_form.submit();
         }
     }
-    else if (action == 'scan_devices') {
-        update_discovered_devices(); //TODO: cursor?
+    else if (action == 'discover_devices') {
+        // this version adds discovery task and after timeout queries results
+        $.ajax({
+            url: '/do?action=discover_devices',
+            dataType: 'json',
+            async: false,
+            success: function (data) { console.log(data); }
+        });
+        setTimeout(function () { update_discovered_devices(); }, 5000);
     }
     else if (action == 'scan_sensors') {
         if (confirm('Scan connected temperature sensors? This can change sensor numbers, so scan only if neccessary and check sensor rules after scanning.')) {

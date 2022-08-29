@@ -28,7 +28,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 100923
+#define EEPROM_CHECK_VALUE 10093
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -1238,8 +1238,9 @@ int gpio_to_test_in_loop = -1;       //!< if not -1 then gpio should be tested i
 bool todo_in_loop_scan_wifis = false;
 bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
+bool todo_in_loop_discover_devices = false;
 
-#define CHANNEL_TYPE_COUNT 6
+
 
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
@@ -1250,24 +1251,7 @@ bool todo_in_loop_set_relays = false;
 #define CH_TYPE_MODBUS_RTU 20 // RFU
 #define CH_TYPE_DISABLED 255  // RFU, we could have disabled, but allocated channels (binary )
 
-// channels type string for admin UI
-/* OLD
-const char *channel_type_strings[] PROGMEM = {
-    "undefined",
-    "GPIO",
-    "Shelly",
-};
-*/
-// TODOX: replace with channel_types, also in Javascript
-/*
-const char *channel_type_strings[] PROGMEM = {
-   "undefined",
-   "GPIO", //fixed gpio
-   "GPIO user-defined" // user defined gpio
-   "Shelly Gen 1", //define last ip, first 3 bytes from wifi(defined address)
-//  "Modbus", // define coil id, server id is global
-};
-*/
+
 
 struct channel_type_st
 {
@@ -1277,7 +1261,9 @@ struct channel_type_st
 //#define CH_TYPE_SHELLY_ONOFF 2  -> 10
 //#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user def."}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}};
+#define CHANNEL_TYPE_COUNT 5
+
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user def."}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"},/* {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"},*/ {CH_TYPE_TASMOTA, "Tasmota"}};
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
 struct device_db_struct
@@ -1288,7 +1274,6 @@ struct device_db_struct
 };
 
 device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
-//{"",CH_TYPE_SHELLY_1GEN,1}, {"",CH_TYPE_SHELLY_2GEN,1},
 
 #define HW_TEMPLATE_COUNT 3
 #define HW_TEMPLATE_GPIO_COUNT 4
@@ -1396,6 +1381,7 @@ typedef struct
 #endif
   IPAddress switch_subnet_wifi; // set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
   int hw_template_id;
+  bool mdns_activated;
 } settings_struct;
 
 // this stores settings also to eeprom
@@ -3470,7 +3456,73 @@ bool set_gpio_pinmode_output(int channel_idx)
   }
   return false;
 }
+//TODO: tee loppuun ja testaa
+/**
+ * @brief Switch http get relays
+ * 
+ * @param channel_idx 
+ * @param up 
+ * @return true 
+ * @return false 
+ */
+bool switch_http_relay(int channel_idx, bool up)
+{
+  char error_msg[ERROR_MSG_LEN];
+  String url_to_call;
+  char response_key[20];
+  char response_value[20];
+  bool switch_set_ok = false;
+  if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
+  {
+    url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
+    strcpy(response_key, "ison");
+  }
+  else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA)
+  {
+    url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/cm?cmnd=Power" + s.ch[channel_idx].switch_unit_id + "%20" + (up ? String("On") : String("Off"));
+    sprintf(response_key, "POWER%d", s.ch[channel_idx].switch_unit_id);
+  }
 
+  Serial.printf("url_to_call:%s\n", url_to_call.c_str());
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
+  if (error)
+  {
+    Serial.print(F("Http relay call response deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
+    log_msg(MSG_TYPE_WARN, error_msg, false);
+    return false;
+  }
+  else
+  {
+    Serial.println(F("Http relay switched."));
+    if (doc.containsKey(response_key))
+    {
+      if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN && doc["ison"].is<bool>() && doc["ison"] == up)
+        switch_set_ok = true;
+      else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA && doc[response_key] == (up ? "ON" : "OFF")) 
+        switch_set_ok = true;
+      if (switch_set_ok)
+      {
+        Serial.println("Switch set properly.");
+      }
+      else
+      {
+        Serial.println("Switch not set properly.");
+        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
+        log_msg(MSG_TYPE_WARN, error_msg, false);
+      }
+    }
+    else
+    {
+      Serial.println("Http relay, invalid response");
+      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
+      log_msg(MSG_TYPE_WARN, error_msg, false);
+    }
+    return true;
+  }
+}
 //
 /**
  * @brief Switch a channel up/down
@@ -3498,6 +3550,9 @@ bool set_channel_switch(int channel_idx, bool up)
     else
       return false; // invalid gpio
   }
+  else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type ==CH_TYPE_TASMOTA)
+    switch_http_relay(channel_idx, up);
+    /*
   else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
   {
     String url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
@@ -3544,7 +3599,6 @@ bool set_channel_switch(int channel_idx, bool up)
 
     String url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/cm?cmnd=Power" + s.ch[channel_idx].switch_unit_id + "%20" + (up ? String("On") : String("Off"));
     Serial.printf("url_to_call:%s\n", url_to_call.c_str());
-    // http://192.168.66.34
 
     StaticJsonDocument<256> doc;
     DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
@@ -3564,7 +3618,7 @@ bool set_channel_switch(int channel_idx, bool up)
       sprintf(status_key, "POWER%d", s.ch[channel_idx].switch_unit_id);
       if (doc.containsKey(status_key))
       {
-        if (doc[status_key] == (up ?"ON":"OFF"))
+        if (doc[status_key] == (up ? "ON" : "OFF"))
         {
           Serial.println("Switch set properly.");
         }
@@ -3584,34 +3638,7 @@ bool set_channel_switch(int channel_idx, bool up)
       return true;
     }
   }
-
-  /* TODOX REWRITE
-    else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_ONOFF && s.energy_meter_type == ENERGYM_SHELLY3EM)
-    {
-      String url_to_call = "http://" + String(s.energy_meter_host) + "/relay/0?turn=";
-      if (up)
-        url_to_call = url_to_call + String("on");
-      else
-        url_to_call = url_to_call + String("off");
-      Serial.println(url_to_call);
-
-      DynamicJsonDocument doc(256);
-      DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "")); // muutettu käyttämään omaa funtiota
-      if (error)
-      {
-        Serial.print(F("Shelly relay call deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        return false;
-      }
-      else
-      {
-        Serial.println(F("Shelly relay switched."));
-        return true;
-      }
-    }
-    */
-  // else
-  //   Serial.print(F("Cannot switch this channel"));
+*/
 
   return false;
 }
@@ -4633,16 +4660,9 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     //  snprintf(ch_fld, 20, "ch_swip_%i", channel_idx);
     //  if (request->hasParam(ch_fld, true))
     //        strncpy(s.ch[channel_idx].switch_ip, request->getParam(ch_fld, true)->value().c_str(), sizeof(s.ch[channel_idx].switch_ip));
-    Serial.println("IP ADRRESS");
     if (update_channel_field_str(request, ip_buff, channel_idx, "ch_swip_%i", 15))
     {
       s.ch[channel_idx].switch_ip.fromString(ip_buff);
-      Serial.println(ip_buff);
-      Serial.println(s.ch[channel_idx].switch_ip.toString());
-    }
-    else
-    {
-      Serial.println("NO IP");
     }
 
     // bool update_channel_field_str(AsyncWebServerRequest *request,char *target_str, int channel_idx,const char *field_format,size_t max_length) {
@@ -4660,7 +4680,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     snprintf(ch_fld, 20, "rts_%i", channel_idx); // channe rule template
     if (request->hasParam(ch_fld, true))
     {
-
       s.ch[channel_idx].template_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
@@ -4845,6 +4864,9 @@ void onWebAdminPost(AsyncWebServerRequest *request)
 }
 
 #ifdef MDNS_ENABLED
+
+#define MAX_DISCOVERY_COUNT 10
+StaticJsonDocument<2048> discover_doc; // global doc to discoveries
 /**
  * @brief Get the switch type by MSDN info (app), recornizes Shelly devices
  *
@@ -4869,8 +4891,53 @@ byte get_device_swith_type(int mdns_device_idx, device_db_struct *device)
 
   return CH_TYPE_UNDEFINED;
 }
+
 /**
- * @brief mDNS discovery of devices in the local network, returns json
+ * @brief mDNS discovery of devices in the local network, update global json doc
+ *
+ */
+void discover_devices()
+{
+  unsigned long started = millis();
+  device_db_struct device_db_entry;
+  byte switch_type;
+
+  if (s.mdns_activated)
+  {
+    discover_doc.clear();
+
+    int service_count = min(MDNS.queryService("http", "tcp"), MAX_DISCOVERY_COUNT);
+    for (int i = 0; i < service_count; i++)
+    {
+      discover_doc["services"][i]["host"] = MDNS.hostname(i);
+      discover_doc["services"][i]["ip"] = MDNS.IP(i);
+      discover_doc["services"][i]["port"] = MDNS.port(i);
+      switch_type = get_device_swith_type(i, &device_db_entry);
+      discover_doc["services"][i]["type"] = switch_type;
+
+      if (switch_type != CH_TYPE_UNDEFINED)
+      {
+        Serial.printf("switch_type:%d, outputs: %d\n", (int)switch_type, (int)device_db_entry.outputs);
+        discover_doc["services"][i]["outputs"] = (int)device_db_entry.outputs;
+      }
+      if (MDNS.hasTxt(i, "app"))
+      {
+        discover_doc["services"][i]["app"] = MDNS.txt(i, "app");
+      }
+    }
+  }
+  else
+  {
+    discover_doc["result"] = "deactivated";
+  }
+  time_t now_l;
+  time(&now_l);
+  discover_doc["ts"] = now_l;
+  discover_doc["process_time"] = millis() - started; // debug
+}
+
+/**
+ * @brief returns global mDNS discoverydoc
  *
  * @param request
  */
@@ -4880,47 +4947,35 @@ void onWebDiscoverGet(AsyncWebServerRequest *request)
   {
     return request->requestAuthentication();
   }
-  unsigned long started = millis();
-  Serial.println("onWebDiscoverGet");
-
-  StaticJsonDocument<2048> doc; //
   String output;
-  int service_count = MDNS.queryService("http", "tcp");
-  device_db_struct device_db_entry;
-  byte switch_type;
-
-  for (int i = 0; i < service_count; i++)
-  {
-    doc["services"][i]["host"] = MDNS.hostname(i);
-    doc["services"][i]["ip"] = MDNS.IP(i);
-    doc["services"][i]["port"] = MDNS.port(i);
-    switch_type = get_device_swith_type(i, &device_db_entry);
-    doc["services"][i]["type"] = switch_type;
-    if (switch_type != CH_TYPE_UNDEFINED)
-    {
-      Serial.printf("switch_type:%d, outputs: %d\n", (int)switch_type, (int)device_db_entry.outputs);
-      doc["services"][i]["outputs"] = (int)device_db_entry.outputs;
-    }
-
-    Serial.println(MDNS.hostname(i));
-
-    if (MDNS.hasTxt(i, "app"))
-    {
-      doc["services"][i]["app"] = MDNS.txt(i, "app");
-    }
-    //   Serial.println(  MDNS.txt(i, "app"));
-    //  String txt(int idx, const char *key);
-  }
-
-  time_t now_l;
-  time(&now_l);
-  doc["ts"] = now_l;
-  doc["process_time"] = millis() - started; // debug
-
-  serializeJson(doc, output);
+  serializeJson(discover_doc, output);
   request->send(200, "application/json", output);
 }
 #endif
+
+/**
+ * @brief Add tasks to task queueu
+ *
+ * @param request
+ */
+void onWebDoGet(AsyncWebServerRequest *request)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+  {
+    return request->requestAuthentication();
+  }
+  if (!request->hasParam("action"))
+    request->send(404, "text/plain", "Not found");
+
+  if (request->getParam("action")->value() == "discover_devices")
+    todo_in_loop_discover_devices = true;
+  else if (request->getParam("action")->value() == "scan_wifis")
+    todo_in_loop_scan_wifis = true;
+  else if (request->getParam("action")->value() == "scan_sensors")
+    todo_in_loop_scan_sensors = true;
+
+  request->send(200, "application/json", "{\"result\": \"queued\"}");
+}
 
 /**
  * @brief Returns status in json
@@ -4930,9 +4985,7 @@ void onWebDiscoverGet(AsyncWebServerRequest *request)
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
-  {
     return request->requestAuthentication();
-  }
   StaticJsonDocument<2048> doc; //
   String output;
 
@@ -5132,6 +5185,8 @@ void setup()
     config_resetted = true;
   }
 
+  s.mdns_activated = false; // TODO: test if stable, if ok add activation to admin or channles view
+  Serial.println("mDNS not activated");
   Serial.println("Starting wifi");
   scan_and_store_wifis(true); // testing this in the beginning
 
@@ -5237,17 +5292,25 @@ void setup()
 #endif
 
 #ifdef MDNS_ENABLED
-  if (!MDNS.begin(("arskanode-" + wifi_mac_short).c_str())) // UNIQUE NAME with mac here
+  if (s.mdns_activated)
   {
-    Serial.println("Error starting mDNS");
-    // return;
+    if (!MDNS.begin(("arskanode-" + wifi_mac_short).c_str())) // UNIQUE NAME with mac here
+    {
+      Serial.println("Error starting mDNS");
+    }
+    else
+    {
+      Serial.println("Started mDNS service");
+      MDNS.addService("http", "tcp", 80);
+    }
   }
   else
   {
-    Serial.println("Started mDNS service");
-    MDNS.addService("http", "tcp", 80);
+    Serial.println("mDNS service not activated.");
   }
 #endif
+
+  server_web.on("/do", HTTP_GET, onWebDoGet); // action queueu
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
 
@@ -5489,6 +5552,14 @@ void loop()
     todo_in_loop_scan_wifis = false;
     scan_and_store_wifis(false);
   }
+
+#ifdef MDNS_ENABLED
+  if (todo_in_loop_discover_devices) // TODO: check that stable enough
+  {
+    todo_in_loop_discover_devices = false;
+    discover_devices();
+  }
+#endif
 
   // started from admin UI
   if (todo_in_loop_scan_sensors)
