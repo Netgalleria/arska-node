@@ -3474,14 +3474,22 @@ bool switch_http_relay(int channel_idx, bool up)
   bool switch_set_ok = false;
   if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
   {
-    url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
+    url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/relay/" + s.ch[channel_idx].switch_unit_id +  "?turn=" + (up ? String("on") : String("off"));
     strcpy(response_key, "ison");
+  }
+  if (s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN)
+  {
+    //http://192.168.33.1/rpc/HTTP.GET?url="http://10.33.53.21/rpc/Switch.Set?id=[ID]&on=true"
+    url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/rpc/Switch.Set?id=" + s.ch[channel_idx].switch_unit_id +  "&on=" + (up ? String("true") : String("false"));
+    strcpy(response_key, "was_on");
   }
   else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA)
   {
     url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/cm?cmnd=Power" + s.ch[channel_idx].switch_unit_id + "%20" + (up ? String("On") : String("Off"));
     sprintf(response_key, "POWER%d", s.ch[channel_idx].switch_unit_id);
   }
+
+
 
   Serial.printf("url_to_call:%s\n", url_to_call.c_str());
   StaticJsonDocument<256> doc;
@@ -3499,7 +3507,9 @@ bool switch_http_relay(int channel_idx, bool up)
     Serial.println(F("Http relay switched."));
     if (doc.containsKey(response_key))
     {
-      if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN && doc["ison"].is<bool>() && doc["ison"] == up)
+      if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN && doc[response_key].is<bool>() && doc[response_key] == up)
+        switch_set_ok = true;
+      if (s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN && doc[response_key].is<bool>() ) //we do not get new switch state, just check that response is ok
         switch_set_ok = true;
       else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA && doc[response_key] == (up ? "ON" : "OFF")) 
         switch_set_ok = true;
@@ -3552,94 +3562,7 @@ bool set_channel_switch(int channel_idx, bool up)
   }
   else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type ==CH_TYPE_TASMOTA)
     switch_http_relay(channel_idx, up);
-    /*
-  else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
-  {
-    String url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/relay/0?turn=" + (up ? String("on") : String("off"));
-    Serial.printf("url_to_call:%s\n", url_to_call.c_str());
-
-    StaticJsonDocument<256> doc;
-    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
-    if (error)
-    {
-      Serial.print(F("Shelly relay call deserializeJson() failed: "));
-      Serial.println(error.f_str());
-      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
-      log_msg(MSG_TYPE_WARN, error_msg, false);
-      return false;
-    }
-    else
-    {
-      Serial.println(F("Shelly relay switched."));
-
-      if (doc.containsKey("ison"))
-      {
-        if (doc["ison"].is<bool>() && doc["ison"] == up)
-        {
-          Serial.println("Switch set properly.");
-        }
-        else
-        {
-          Serial.println("Switch not set properly.");
-          snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
-          log_msg(MSG_TYPE_WARN, error_msg, false);
-        }
-      }
-      else
-      {
-        Serial.println("Shelly, invalid response");
-        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
-        log_msg(MSG_TYPE_WARN, error_msg, false);
-      }
-      return true;
-    }
-  }
-  else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA)
-  {
-
-    String url_to_call = "http://" + s.ch[channel_idx].switch_ip.toString() + "/cm?cmnd=Power" + s.ch[channel_idx].switch_unit_id + "%20" + (up ? String("On") : String("Off"));
-    Serial.printf("url_to_call:%s\n", url_to_call.c_str());
-
-    StaticJsonDocument<256> doc;
-    DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
-    if (error)
-    {
-      Serial.print(F("Tasmota relay call deserializeJson() failed: "));
-      Serial.println(error.f_str());
-      snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
-      log_msg(MSG_TYPE_WARN, error_msg, false);
-      return false;
-    }
-    else
-    {
-      Serial.println(F("Tasmota relay switched."));
-      //{"POWER1":"ON"}
-      char status_key[10];
-      sprintf(status_key, "POWER%d", s.ch[channel_idx].switch_unit_id);
-      if (doc.containsKey(status_key))
-      {
-        if (doc[status_key] == (up ? "ON" : "OFF"))
-        {
-          Serial.println("Switch set properly.");
-        }
-        else
-        {
-          Serial.println("Switch not set properly.");
-          snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
-          log_msg(MSG_TYPE_WARN, error_msg, false);
-        }
-      }
-      else
-      {
-        Serial.println("Shelly, invalid response");
-        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s, invalid response."), channel_idx + 1, s.ch[channel_idx].switch_ip.toString().c_str());
-        log_msg(MSG_TYPE_WARN, error_msg, false);
-      }
-      return true;
-    }
-  }
-*/
-
+  
   return false;
 }
 
