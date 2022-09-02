@@ -5,11 +5,15 @@
     },
     "1": {
         "id": "price rank 9h",
-        "en": "price rank in 9 hours, 1 if now lowest price, 9 if highest"
+        "en": "price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest"
     },
     "2": {
         "id": "price rank 24h",
-        "en": "price rank in 24 hours, 1 if now lowest price, 24 if highest"
+        "en": "price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest"
+    },
+    "3": {
+        "id": "price rank 24h",
+        "en": "price rank in 24 hours, fixed nychthemeron, 1 if now lowest price, 24 if highest"
     },
     "5": {
         "id": "price average 9h",

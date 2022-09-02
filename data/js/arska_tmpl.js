@@ -181,18 +181,18 @@ function update_discovered_devices() {
         async: true,
         success: function (data) {
 
-            switch_list = [];
+            relay_list = [];
             $.each(data.services, function (i, service) {
                 //    console.log(JSON.stringify(service));
                 if (service["type"] == CH_TYPE_SHELLY_1GEN || service["type"] == CH_TYPE_SHELLY_2GEN) {
                     for (i = 0; i < service.outputs; i++) {
-                        switch_did = service.type + '_' + service.ip + '_' + i;
+                        relay_did = service.type + '_' + service.ip + '_' + i;
                         ip_a = service.ip.split(".");
-                        switch_desc = service.app + " ." + ip_a[3];
+                        relay_desc = service.app + " ." + ip_a[3];
                         //if (service.outputs > 1)
-                            switch_desc = switch_desc + "/" + i;
+                            relay_desc = relay_desc + "/" + i;
 
-                        switch_list.push([switch_did, switch_desc, service.type, service.ip, i]);
+                        relay_list.push([relay_did, relay_desc, service.type, service.ip, i]);
                         console.log(JSON.stringify([service.type, service.ip, i]));
                     }
                 }
@@ -201,16 +201,16 @@ function update_discovered_devices() {
             // add to type
             for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
                 // clear first, TODO: could update only changed
-                swtype_sel = document.getElementById("swtype_" + channel_idx);
-                if (swtype_sel) { //if not yet created?
-                    for (i = swtype_sel.options.length - 1; i >= 0; i--) {
-                        if (swtype_sel.options[i].value.substring(0, 5) == "1000_") //discovery pseudo type
-                            swtype_sel.options[i] = null;
+                rtype_sel = document.getElementById("rtype_" + channel_idx);
+                if (rtype_sel) { //if not yet created?
+                    for (i = rtype_sel.options.length - 1; i >= 0; i--) {
+                        if (rtype_sel.options[i].value.substring(0, 5) == "1000_") //discovery pseudo type
+                            rtype_sel.options[i] = null;
                     }
 
-                    if (swtype_sel.value != CH_TYPE_GPIO_FIXED) { //TODO: check if discovery on
-                        for (i = 0; i < switch_list.length; i++) {
-                            addOption(swtype_sel, "1000_" + switch_list[i][0], switch_list[i][1], false); //TODO:selected     
+                    if (rtype_sel.value != CH_TYPE_GPIO_FIXED) { //TODO: check if discovery on
+                        for (i = 0; i < relay_list.length; i++) {
+                            addOption(rtype_sel, "1000_" + relay_list[i][0], relay_list[i][1], false); //TODO:selected     
                         }
                     }
                 }
@@ -218,7 +218,7 @@ function update_discovered_devices() {
             }
             $("body").css("cursor", "default");  //done
 
-            console.log(JSON.stringify(switch_list));
+            console.log(JSON.stringify(relay_list));
 
         },
         fail: function () {
@@ -677,10 +677,7 @@ function deleteStmtsUI(channel_idx) {
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
         set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
-        /*  if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1"))
-              document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = false;
-          if (document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0"))
-              document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = true;*/
+     
     }
 }
 
@@ -964,58 +961,60 @@ function initChannelForm() {
 
 }
 
-function is_switch_id_used(channel_type) { // id required
+function is_relay_id_used(channel_type) { // id required
     return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
 }
-function is_switch_ip_used(channel_type) { //ip required
+function is_relay_ip_used(channel_type) { //ip required
     return [CH_TYPE_SHELLY_1GEN, CH_TYPE_SHELLY_2GEN, CH_TYPE_TASMOTA].includes(parseInt(channel_type));
 }
-function is_switch_uid_used(channel_type) { //unit_id required
-    if (is_switch_ip_used(parseInt(channel_type)))
+function is_relay_uid_used(channel_type) { //unit_id required
+    if (is_relay_ip_used(parseInt(channel_type)))
         return true;
     return [CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
 }
 
-function set_switch_field_visibility(channel_idx, chtype) {
-    document.getElementById("d_swip_" + channel_idx).style.display = is_switch_ip_used(chtype) ? "block" : "none";
-    document.getElementById("d_swid_" + channel_idx).style.display = is_switch_id_used(chtype) ? "block" : "none";
-    document.getElementById("d_swuid_" + channel_idx).style.display = is_switch_uid_used(chtype) ? "block" : "none";
-    switch_id_caption_span = document.getElementById("ch_swidcap_" + channel_idx);
+function set_relay_field_visibility(channel_idx, chtype) {
+    document.getElementById("d_rip_" + channel_idx).style.display = is_relay_ip_used(chtype) ? "block" : "none";
+    document.getElementById("d_rid_" + channel_idx).style.display = is_relay_id_used(chtype) ? "block" : "none";
+    document.getElementById("d_ruid_" + channel_idx).style.display = is_relay_uid_used(chtype) ? "block" : "none";
+    relay_id_caption_span = document.getElementById("ch_ridcap_" + channel_idx);
 
-    if (is_switch_id_used(chtype)) {
-        max_swid = (chtype == (CH_TYPE_GPIO_USER_DEF) ? 39 : 255);
-        document.getElementById("ch_swid_" + channel_idx).setAttribute("max", max_swid);
+    if (is_relay_id_used(chtype)) {
+        max_rid = (chtype == (CH_TYPE_GPIO_USER_DEF) ? 39 : 255); //GPIO max 39
+        document.getElementById("ch_rid_" + channel_idx).setAttribute("max", max_rid);
     }
-    if (is_switch_uid_used(chtype)) {
-        min_swuid = (chtype == (CH_TYPE_TASMOTA) ? 1 : 0);
-        document.getElementById("ch_swuid_" + channel_idx).setAttribute("min", min_swuid);
+    if (is_relay_uid_used(chtype)) {
+        min_ruid = (chtype == (CH_TYPE_TASMOTA) ? 1 : 0); //Shelly min 0, Tasmota 1
+        cur_ruid = document.getElementById("ch_ruid_" + channel_idx).value;
+        document.getElementById("ch_ruid_" + channel_idx).setAttribute("min", min_ruid);
+        document.getElementById("ch_ruid_" + channel_idx).value = Math.max(min_ruid, cur_ruid); //for min value
     }  
 
     if (chtype == CH_TYPE_GPIO_USER_DEF) {
-        switch_id_caption_span.innerHTML = "gpio:<br>";
+        relay_id_caption_span.innerHTML = "gpio:<br>";
     }
     else if (chtype == CH_TYPE_GPIO_FIXED) {
-        switch_id_caption_span.innerHTML = "gpio (fixed):<br>";
-        $('#ch_swid_' + channel_idx).attr('disabled', true);
+        relay_id_caption_span.innerHTML = "gpio (fixed):<br>";
+        $('#ch_rid_' + channel_idx).attr('disabled', true);
     }
     else
-        switch_id_caption_span.innerHTML = "device id:"; //TODO: later modbus...
+        relay_id_caption_span.innerHTML = "device id:"; //TODO: later modbus...
 }
 
 function setChannelFieldsByType(channel_idx, chtype_in) {
     if (chtype_in.substring(0, 5) == "1000_") { //combined id, like 1000_2_192.168.66.36_0 
         id_a = chtype_in.split("_");
         chtype = id_a[1];
-        if (is_switch_ip_used(chtype))
-            document.getElementById("ch_swip_" + channel_idx).value = id_a[2];
-        if (is_switch_uid_used(chtype))
-            document.getElementById("ch_swuid_" + channel_idx).value = id_a[3];
-        //       console.log(id_a,channel_idx,chtype,is_switch_ip_used(chtype));
+        if (is_relay_ip_used(chtype))
+            document.getElementById("ch_rip_" + channel_idx).value = id_a[2];
+        if (is_relay_uid_used(chtype))
+            document.getElementById("ch_ruid_" + channel_idx).value = id_a[3];
+        //       console.log(id_a,channel_idx,chtype,is_relay_ip_used(chtype));
     }
     else
         chtype = chtype_in;
 
-    set_switch_field_visibility(channel_idx, chtype);
+    set_relay_field_visibility(channel_idx, chtype);
 
     chtype = chtype_in;
     for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
@@ -1234,11 +1233,11 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     upt_div.appendChild(inp_ut);
     rc0_div.appendChild(upt_div); //oli rc1_div
 
-    //switch type
-    swt_div = createElem("div", "swtyped_" + channel_idx, null, "flda");
-    swt_div.insertAdjacentHTML('beforeend', 'switch type:<br>');
-    ct_sel = createElem("select", "swtype_" + channel_idx, null, null);
-    ct_sel.name = "swtype_" + channel_idx;
+    //relay type
+    relayt_div = createElem("div", "rtyped_" + channel_idx, null, "flda");
+    relayt_div.insertAdjacentHTML('beforeend', 'relay type:<br>');
+    ct_sel = createElem("select", "rtype_" + channel_idx, null, null);
+    ct_sel.name = "rtype_" + channel_idx;
     ct_sel.addEventListener("change", setChannelFieldsEVT);
 
     is_fixed_gpio_channel = (ch_cur.type == CH_TYPE_GPIO_FIXED);
@@ -1250,62 +1249,60 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
             addOption(ct_sel, channel_types[i].id, channel_types[i].name, (ch_cur.type == channel_types[i].id));
         }
     }
-    swt_div.appendChild(ct_sel);
-    rc0_div.appendChild(swt_div); //oli rc0_div
+    relayt_div.appendChild(ct_sel);
+    rc0_div.appendChild(relayt_div); //oli rc0_div
 
     //Rule config div
     //maybe one row div including uptime
-    swid_div = createElem("div", "d_swid_" + channel_idx, null, "flda"); //"fldtiny"
-    switch_id_caption_span = createElem("span", "ch_swidcap_" + channel_idx, null, null);
-    switch_id_caption_span.innerHTML = "device id:<br>";
-    // switch id, modbus etc... RFU
-    inp_swid = createElem("input", "ch_swid_" + channel_idx, ch_cur.sw_id, "flda", "number");
-    inp_swid.name = "ch_swid_" + channel_idx;
-    inp_swid.setAttribute("maxlength", 3);
-    inp_swid.setAttribute("min", 0);
-    inp_swid.setAttribute("max", 255);
-    inp_swid.setAttribute("step", 1);
-    inp_swid.setAttribute("size", 3);
-    inp_swid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
+    rid_div = createElem("div", "d_rid_" + channel_idx, null, "flda"); //"fldtiny"
+    relay_id_caption_span = createElem("span", "ch_ridcap_" + channel_idx, null, null);
+    relay_id_caption_span.innerHTML = "device id:<br>";
+    // relay id, modbus etc... RFU
+    inp_rid = createElem("input", "ch_rid_" + channel_idx, ch_cur.r_id, "flda", "number");
+    inp_rid.name = "ch_rid_" + channel_idx;
+    inp_rid.setAttribute("maxlength", 3);
+    inp_rid.setAttribute("min", 0);
+    inp_rid.setAttribute("max", 255);
+    inp_rid.setAttribute("step", 1);
+    inp_rid.setAttribute("size", 3);
+    inp_rid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
 
-    // Switch ip address
-    swip_div = createElem("div", "d_swip_" + channel_idx, null, "flda");
-    switch_ip_caption_span = createElem("span", "ch_swipcap_" + channel_idx, null, null);
-    switch_ip_caption_span.innerHTML = "IP address:<br>";
-    inp_swip = createElem("input", "ch_swip_" + channel_idx, ch_cur.sw_ip, "flda", "text");
-    inp_swip.name = "ch_swip_" + channel_idx;
-    inp_swip.setAttribute("minlength", 7);
-    inp_swip.setAttribute("maxlength", 15);
-    inp_swip.setAttribute("size", 15);
-    inp_swip.setAttribute("placeholder", "xxx.xxx.xxx.xxx");
-    inp_swip.setAttribute("pattern", "^([0-9]{1,3}\.){3}[0-9]{1,3}$");
+    // relay ip address
+    rip_div = createElem("div", "d_rip_" + channel_idx, null, "flda");
+    relay_ip_caption_span = createElem("span", "ch_ripcap_" + channel_idx, null, null);
+    relay_ip_caption_span.innerHTML = "IP address:<br>";
+    inp_rip = createElem("input", "ch_rip_" + channel_idx, ch_cur.r_ip, "flda", "text");
+    inp_rip.name = "ch_rip_" + channel_idx;
+    inp_rip.setAttribute("minlength", 7);
+    inp_rip.setAttribute("maxlength", 15);
+    inp_rip.setAttribute("size", 15);
+    inp_rip.setAttribute("placeholder", "xxx.xxx.xxx.xxx");
+    inp_rip.setAttribute("pattern", "^([0-9]{1,3}\.){3}[0-9]{1,3}$");
 
-    // switch unit id
-    swuid_div = createElem("div", "d_swuid_" + channel_idx, null, "flda");
-    switch_uid_caption_span = createElem("span", "ch_swuidcap_" + channel_idx, null, null);
-    switch_uid_caption_span.innerHTML = "relay id:<br>";
-    inp_swuid = createElem("input", "ch_swuid_" + channel_idx, ch_cur.sw_unit_id, "flda", "number");
-    //inp_swuid.value = ch_cur.sw_unit_id; //set also 0 skipped by create
-    inp_swuid.name = "ch_swuid_" + channel_idx;
-    inp_swuid.setAttribute("min", 0);
-    inp_swuid.setAttribute("max", 255);
-    inp_swuid.setAttribute("step", 1);
-    inp_swuid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
+    // relay unit id
+    ruid_div = createElem("div", "d_ruid_" + channel_idx, null, "flda");
+    relay_uid_caption_span = createElem("span", "ch_ruidcap_" + channel_idx, null, null);
+    relay_uid_caption_span.innerHTML = "relay id:<br>";
+    inp_ruid = createElem("input", "ch_ruid_" + channel_idx, ch_cur.r_uid, "flda", "number");
+    inp_ruid.name = "ch_ruid_" + channel_idx;
+    inp_ruid.setAttribute("min", 0);
+    inp_ruid.setAttribute("max", 255);
+    inp_ruid.setAttribute("step", 1);
+    inp_ruid.setAttribute("pattern", "^([0-9]|[0-9][0-9]|2[0-4][0-9]|25[0-5])$");
 
 
-    swid_div.appendChild(switch_id_caption_span);
-    swid_div.appendChild(inp_swid);
+    rid_div.appendChild(relay_id_caption_span);
+    rid_div.appendChild(inp_rid);
 
-    swip_div.appendChild(switch_ip_caption_span);
-    swip_div.appendChild(inp_swip);
+    rip_div.appendChild(relay_ip_caption_span);
+    rip_div.appendChild(inp_rip);
 
-    swuid_div.appendChild(switch_uid_caption_span);
-    swuid_div.appendChild(inp_swuid);
+    ruid_div.appendChild(relay_uid_caption_span);
+    ruid_div.appendChild(inp_ruid);
 
-    // swid_div.appendChild(inp_swdisc_sel);
-    rc1_div.appendChild(swid_div);
-    rc1_div.appendChild(swip_div);
-    rc1_div.appendChild(swuid_div);
+    rc1_div.appendChild(rid_div);
+    rc1_div.appendChild(rip_div);
+    rc1_div.appendChild(ruid_div);
 
     conf_div.appendChild(rc0_div);
     conf_div.appendChild(rc1_div);
@@ -1327,14 +1324,14 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     rm_div.appendChild(tmpl_div);
     tmpl_sel.addEventListener("change", templateChangedEVT);
 
-    // swt_div.appendChild(ct_sel);
-    // conf_div.appendChild(swt_div);
+    // relayt_div.appendChild(ct_sel);
+    // conf_div.appendChild(relayt_div);
 
     conf_div.appendChild(rm_div); //paikka arvottu
     ce_div.appendChild(conf_div);
 
     // visibility depend on the type
-    set_switch_field_visibility(channel_idx, ch_cur.type);
+    set_relay_field_visibility(channel_idx, ch_cur.type);
 }
 
 
