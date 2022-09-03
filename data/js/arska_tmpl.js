@@ -289,7 +289,6 @@ function updateStatus(show_variables = true) {
                 id_str = ' (' + var_this[0] + ') ' + var_this[1];
                 if (var_this[2] == 50 || var_this[2] == 51) {
                     newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
-                    //newRow = '<tr><td>X' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
                 }
                 else {
                     newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
@@ -496,7 +495,6 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     for (var i = 0; i < variables.length; i++) {
         var type_indi = (variables[i][2] >= 50 && variables[i][2] <= 51) ? "*" : " ";
         var id_str = variables[i][1] + type_indi;
-        //var id_str = variables[i][0] + " " + variables[i][1] + type_indi;
         addOption(varFld, variables[i][0], id_str, (stmt[0] == variables[i][0]));
     }
 }
@@ -758,23 +756,20 @@ function populateOper(el, var_this, stmt = [-1, -1, 0]) {
 
     if (var_this) {
         for (let i = 0; i < opers.length; i++) {
-            if (var_this[2] >= 50 && !opers[i][5]) //2-type, logical
+            if (!opers[i][6])
+                ; //defined oper, do not skipp
+            else if (var_this[2] >= 50 && !opers[i][5]) //2-type, logical
                 continue;
-            if (var_this[2] < 50 && opers[i][5]) // numeric
+            else if (var_this[2] < 50 && opers[i][5]) // numeric
                 continue;
             const_id = el.id.replace("op", "const");
             //  console.log(const_id);
             el.style.display = "block";
-            document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]) ? "none" : "block";
+            document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]||opers[i][6]) ? "none" : "block";
             addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
         }
     }
 
-    /*
-        el.readonly = (!advanced_mode);
-        document.getElementById(el.id.replace("op_", "var_")).readonly = (!advanced_mode);
-        document.getElementById(el.id.replace("op_", "const_")).readonly = (!advanced_mode);
-        */
     el.disabled = (rule_mode != 0);
     document.getElementById(el.id.replace("op_", "var_")).disabled = (rule_mode != 0);
     document.getElementById(el.id.replace("op_", "const_")).disabled = (rule_mode != 0);

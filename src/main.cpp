@@ -421,14 +421,15 @@ bool check_filesystem_version()
 struct oper_st
 {
   byte id;           //!< identifier used in data structures
-  char code[4];      //!< code used in UI
+  char code[10];      //!< code used in UI
   bool gt;           //!< true if variable is greater than the compared value
   bool eq;           //!< true if variable is equal with then compared value
   bool reverse;      //!< negate comparison result
   bool boolean_only; //!< hand variable value as boolean (1=true), eq and reverse possible
+  bool has_value;    //!< true if not value not VARIABLE_LONG_UNKNOWN, reverse possible
 };
 
-#define OPER_COUNT 8
+#define OPER_COUNT 10
 /**
  * @brief Statament checking conditions
  * @details
@@ -442,7 +443,7 @@ struct oper_st
 7, "not",  boolean_only=true and because not reverse=true
  */
 // TODO: maybe operator NA - not available
-const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false}, {1, ">", true, false, false, false}, {2, "<", true, true, true, false}, {3, ">=", true, true, false, false}, {4, "<=", true, false, true, false}, {5, "<>", false, true, true, false}, {6, "is", false, false, false, true}, {7, "not", false, false, true, true}};
+const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false}, {1, ">", true, false, false, false, false}, {2, "<", true, true, true, false, false}, {3, ">=", true, true, false, false, false}, {4, "<=", true, false, true, false, false}, {5, "<>", false, true, true, false, false}, {6, "is", false, false, false, true, false}, {7, "not", false, false, true, true, false}, {8, "defined", false, false, false, false, true}, {9, "undefined", false, false, true, false, true}};
 
 /*constant_type, variable_type
 long val_l
@@ -526,6 +527,9 @@ public:
   void set_NA(int id);
   long get_l(int id);
   float get_f(int id);
+
+  //get     
+ // unsigned long operator [](int i) {return variables[i];}
 
   bool is_statement_true(statement_st *statement, bool default_value = false);
   int get_variable_by_id(int id, variable_st *variable);
@@ -658,15 +662,13 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
     }
     else if (var.type == CONSTANT_TYPE_CHAR_2)
     { // 2 char number, 0 padding, e.g. hh
-      // sprintf(strbuff, "\"%02ld\"", val_l);
-      // sprintf(strbuff, "'%02ld'", val_l);
+
       sprintf(strbuff, "%ld", val_l); // kokeiltu ilman paddingiä
       return strlen(strbuff);
     }
     else if (var.type == CONSTANT_TYPE_BOOLEAN_NO_REVERSE || var.type == CONSTANT_TYPE_BOOLEAN_REVERSE_OK)
     {
       sprintf(strbuff, "%s", (var.val_l == 1) ? "true" : "false");
-      //  Serial.printf("Logical variable, internal value = %ld -> %s\n", var.val_l, strbuff);
       return strlen(strbuff);
     }
   }
@@ -740,8 +742,7 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value)
   }
 
   int variable_idx = get_variable_by_id(statement->variable_id, &var);
-
-  if ((variable_idx == -1) || (var.val_l == VARIABLE_LONG_UNKNOWN))
+  if ((variable_idx == -1))
     return default_value;
 
   oper_st oper;
@@ -753,6 +754,17 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value)
     }
   }
   bool result = false;
+
+  if (oper.has_value) {
+    if (oper.reverse)
+      return (var.val_l == VARIABLE_LONG_UNKNOWN);
+    else
+      return (var.val_l != VARIABLE_LONG_UNKNOWN);
+  }
+
+  
+  if ((var.val_l == VARIABLE_LONG_UNKNOWN))
+    return default_value;
 
   if (oper.boolean_only)
     result = (var.val_l == 1);
@@ -3233,7 +3245,7 @@ String jscode_form_processor(const String &var)
 {
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
   char out[1000]; // depends on VARIABLE_COUNT
-  char buff[50];
+  char buff[70];
   if (var == F("compile_date"))
     return String(compile_date);
   if (var == F("HWID"))
@@ -3261,7 +3273,7 @@ String jscode_form_processor(const String &var)
     strcpy(out, "[");
     for (int i = 0; i < OPER_COUNT; i++)
     {
-      snprintf(buff, 40, "[%d, \"%s\", %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false");
+      snprintf(buff, sizeof(buff), "[%d, \"%s\", %s, %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false", opers[i].has_value ? "true" : "false");
       // TODO: memory safe strncat
       strcat(out, buff);
       if (i < OPER_COUNT - 1)
