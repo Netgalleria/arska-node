@@ -441,6 +441,8 @@ struct oper_st
 5, "<>", eq=true and thre result is reversed so reverse=true \n
 6, "is", boolean_only=true \n
 7, "not",  boolean_only=true and because not reverse=true
+8, "defined", true if variable has value
+9, "undefined", true is variable value is not set
  */
 // TODO: maybe operator NA - not available
 const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false}, {1, ">", true, false, false, false, false}, {2, "<", true, true, true, false, false}, {3, ">=", true, true, false, false, false}, {4, "<=", true, false, true, false, false}, {5, "<>", false, true, true, false, false}, {6, "is", false, false, false, true, false}, {7, "not", false, false, true, true, false}, {8, "defined", false, false, false, false, true}, {9, "undefined", false, false, true, false, true}};
@@ -468,7 +470,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 27
+#define VARIABLE_COUNT 30
 
 #define VARIABLE_PRICE 0        //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1  //!< price rank within 9 hours window
@@ -478,6 +480,9 @@ struct statement_st
 #define VARIABLE_PRICEAVG_24 6
 #define VARIABLE_PRICEDIFF_9 9
 #define VARIABLE_PRICEDIFF_24 10
+#define VARIABLE_PRICERATIO_9 13
+#define VARIABLE_PRICERATIO_24 14
+#define VARIABLE_PRICERATIO_FIXED_24 15
 #define VARIABLE_PVFORECAST_SUM24 20
 #define VARIABLE_PVFORECAST_VALUE24 21
 #define VARIABLE_PVFORECAST_AVGPRICE24 22
@@ -540,7 +545,7 @@ public:
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE},  {VARIABLE_PRICERATIO_FIXED_24, "p %% fixed 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE},{VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
   int get_variable_index(int id);
 };
 
@@ -2369,11 +2374,15 @@ void update_price_variables(time_t current_period_start)
   update_variable_from_json(variable_list, "pr24", VARIABLE_PRICERANK_24);
 
   update_variable_from_json(variable_list, "prf24", VARIABLE_PRICERANK_FIXED_24);
+  update_variable_from_json(variable_list, "prrf24", VARIABLE_PRICERATIO_FIXED_24);
 
   update_variable_from_json(variable_list, "pa9", VARIABLE_PRICEAVG_9);
   update_variable_from_json(variable_list, "pd9", VARIABLE_PRICEDIFF_9);
+  update_variable_from_json(variable_list, "prr9", VARIABLE_PRICERATIO_9);
+
   update_variable_from_json(variable_list, "pa24", VARIABLE_PRICEAVG_24);
   update_variable_from_json(variable_list, "pd24", VARIABLE_PRICEDIFF_24);
+  update_variable_from_json(variable_list, "prr24", VARIABLE_PRICERATIO_24);
 }
 /**
  * @brief Get the Element Value from piece of xml
@@ -2548,31 +2557,31 @@ If not enough future periods exist, include periods from history to get full win
  * @param prices
  * @return int
  */
-// int get_period_price_rank_in_window(time_t time, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg) //[MAX_PRICE_PERIODS]
-int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg) //[MAX_PRICE_PERIODS]
+int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg, long *price_ratio_avg) //[MAX_PRICE_PERIODS]
 {
-
-  // int window_end_excl_idx = min(MAX_PRICE_PERIODS, time_price_idx + window_duration_hours);
-  // int window_start_incl_idx = window_end_excl_idx - window_duration_hours;
-
   int window_start_incl_idx = min(MAX_PRICE_PERIODS, (window_start_incl_suggested_idx + window_duration_hours)) - window_duration_hours;
   int window_end_excl_idx = window_start_incl_idx + window_duration_hours;
 
-  long windows_price_sum = 0;
+  long window_price_sum = 0;
 
   int rank = 1;
   for (int price_idx = window_start_incl_idx; price_idx < window_end_excl_idx; price_idx++)
   {
-    windows_price_sum += prices[price_idx];
+    window_price_sum += prices[price_idx];
     if (prices[price_idx] < prices[time_price_idx])
     {
       rank++;
     }
   }
-  *window_price_avg = windows_price_sum / window_duration_hours;
+  *window_price_avg = window_price_sum / window_duration_hours;
   *price_differs_avg = prices[time_price_idx] - *window_price_avg;
+  if (abs(window_price_sum)> 0) {
+    *price_ratio_avg = window_duration_hours*(prices[time_price_idx] * 1000) / window_price_sum;
+  }
+  else
+    *price_ratio_avg = VARIABLE_LONG_UNKNOWN;
 
-  Serial.printf("get_period_price_rank_in_window %d in [%d - %d[  --> rank: %d\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank);
+  Serial.printf("get_period_price_rank_in_window %d in [%d - %d[  --> rank: %d, price ratio %ld\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank,*price_ratio_avg);
   return rank;
 }
 
@@ -2596,6 +2605,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
   char var_code[25];
   long window_price_avg;
   long price_differs_avg;
+  long price_ratio_avg;
   int rank;
   int window_start_incl_idx;
 
@@ -2617,11 +2627,10 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
     int price_block_count = (int)(sizeof(price_variable_blocks) / sizeof(*price_variable_blocks));
     for (int block_idx = 0; block_idx < price_block_count; block_idx++)
     {
-      // rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices);
       window_price_avg = 0;
+
       price_differs_avg = 0; // should not needed
-                             //  rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg);
-      rank = get_period_price_rank_in_window(time_idx, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg);
+      rank = get_period_price_rank_in_window(time_idx, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg,&price_ratio_avg);
       if (rank > 0)
       {
         snprintf(var_code, sizeof(var_code), "pr%d", price_variable_blocks[block_idx]);
@@ -2633,17 +2642,21 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
 
       snprintf(var_code, sizeof(var_code), "pd%d", price_variable_blocks[block_idx]);
       json_obj[var_code] = (price_differs_avg + 50) / 100; // round
+
+      //price ratio
+      snprintf(var_code, sizeof(var_code), "prr%d", price_variable_blocks[block_idx]);
+      json_obj[var_code] = price_ratio_avg;
     }
     // TODO fixed 24H, prf24 VARIABLE_PRICERANK_FIXED_24
     window_start_incl_idx = time_idx - tm_struct_g.tm_hour; // first hour of the day/nychthemeron
     // Serial.printf("%d %d %d \n",time_idx-tm_struct_g.tm_hour,time_idx,tm_struct_g.tm_hour);
 
-    // rank = get_period_price_rank_in_window(time, 24, nychthemeron_start_idx, prices, &window_price_avg, &price_differs_avg);
-    rank = get_period_price_rank_in_window(window_start_incl_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg);
+    rank = get_period_price_rank_in_window(window_start_incl_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg,&price_ratio_avg);
     if (rank > 0)
     {
-      json_obj["prf24"] = rank;
+      json_obj["prf24"] = rank; 
     }
+    json_obj["prrf24"] = price_ratio_avg;
     time_idx++;
   }
   // Serial.println("calculate_price_ranks finished");
@@ -3340,7 +3353,7 @@ String jscode_form_processor(const String &var)
       // Serial.println(variable.code);
       //  YYY
       vars.get_variable_by_idx(variable_idx, &variable);
-      snprintf(buff, 40, "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
+      snprintf(buff, sizeof(buff), "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
       strcat(out, buff); // TODO: memory safe strncat
       if (variable_idx < variable_count - 1)
         strcat(out, ", ");
@@ -5309,10 +5322,6 @@ void setup()
 
   server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
-  // server_web.serveStatic("/js/", LittleFS, "/js/");
-
-  // server_web.on("/data/template-list.json", HTTP_GET, [](AsyncWebServerRequest *request)
-  //               { request->send(LittleFS, F("/data/template-list.json"), F("application/json")); });
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });

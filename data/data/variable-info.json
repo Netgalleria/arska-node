@@ -31,6 +31,18 @@
         "id": "price diff to average 24h",
         "en": "price difference to 24 hours average"
     },
+    "13": {
+        "id": "price ratio % to average 9h",
+        "en": "price ratio % to 9 hours average,  "
+    },
+    "14": {
+        "id": "price ratio % to average 24h",
+        "en": "price ratio % to 24 hours average"
+    },
+    "15": {
+        "id": "price ratio % to average fixed 24h",
+        "en": "price ratio %, avg of fixed nychthemeron 24h"
+    },
     "20": {
         "id": "pv forecast 24 h",
         "en": "solar power forecast for next 24 hours, 0.. ca.25"
