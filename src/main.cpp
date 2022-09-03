@@ -469,10 +469,10 @@ struct statement_st
 // do not change variable id:s (will broke statements)
 #define VARIABLE_COUNT 27
 
-#define VARIABLE_PRICE 0              //!< price of current period, 1 decimal
-#define VARIABLE_PRICERANK_9 1        //!< price rank within 9 hours window
-#define VARIABLE_PRICERANK_24 2       //!< price rank within 24 hours window
-#define VARIABLE_PRICERANK_FIXED_24 3 
+#define VARIABLE_PRICE 0        //!< price of current period, 1 decimal
+#define VARIABLE_PRICERANK_9 1  //!< price rank within 9 hours window
+#define VARIABLE_PRICERANK_24 2 //!< price rank within 24 hours window
+#define VARIABLE_PRICERANK_FIXED_24 3
 #define VARIABLE_PRICEAVG_9 5
 #define VARIABLE_PRICEAVG_24 6
 #define VARIABLE_PRICEDIFF_9 9
@@ -536,7 +536,7 @@ public:
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE},{VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
   int get_variable_index(int id);
 };
 
@@ -1328,26 +1328,26 @@ typedef struct
 {
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
-  uint8_t relay_id;
-  uint8_t relay_unit_id;   // RFU, , eg. port in a relay
-  uint8_t switch_iface_id; // RFU, interface, eg eth, wifi
-  IPAddress relay_ip;
-  bool is_up;
-  bool wanna_be_up;
-  byte type;
-  time_t uptime_minimum;
-  time_t toggle_last;
-  time_t force_up_from;
-  time_t force_up_until; // TODO: we could have also force_up_from to enable scheduled start
-  byte config_mode;      // CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
-  int template_id;
+  uint8_t relay_id;       //!< relay id, eg. number modbus server id
+  uint8_t relay_unit_id;  //!<  unit id, eg. port in a relay
+  uint8_t relay_iface_id; // RFU, interface, eg eth, wifi
+  IPAddress relay_ip;     //!< relay ip address
+  bool is_up;             //!< is channel currently up
+  bool wanna_be_up;       //!< should channel be switched up (when the time is right)
+  byte type;              //!< channel type, for values see constants CH_TYPE_...
+  time_t uptime_minimum;  //!< minimum time channel should be up
+  time_t toggle_last;     //!< last toggle time
+  time_t force_up_from;   //<! force channel up starting from
+  time_t force_up_until;  //<! force channel up until
+  byte config_mode;       //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
+  int template_id;        //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
 } channel_struct;
 
 #ifdef SENSOR_DS18B20_ENABLED
 typedef struct
 {
-  DeviceAddress address;
-  char id_str[MAX_CH_ID_STR_LENGTH];
+  DeviceAddress address;             //!< 1-wire hardware address of the sensor device
+  char id_str[MAX_CH_ID_STR_LENGTH]; //!< sensor id string, RFU
 } sensor_struct;
 #endif
 
@@ -1355,32 +1355,32 @@ typedef struct
 // Setting stucture, stored in non-volatile memory
 typedef struct
 {
-  int check_value;
-  char wifi_ssid[MAX_ID_STR_LENGTH];
-  char wifi_password[MAX_ID_STR_LENGTH];
+  int check_value;                       //!< version number of memory struct, if equals one in the eeprom, stored data can be directly used
+  char wifi_ssid[MAX_ID_STR_LENGTH];     //!< WiFi SSID
+  char wifi_password[MAX_ID_STR_LENGTH]; //!< WiFi password
   char http_username[MAX_ID_STR_LENGTH];
   char http_password[MAX_ID_STR_LENGTH];
   channel_struct ch[CHANNEL_COUNT];
-  char variable_server[MAX_ID_STR_LENGTH]; // used in replica mode
-  char entsoe_api_key[37];
-  char entsoe_area_code[17];
-  char custom_ntp_server[35]; // TODO:UI to set up
-  char timezone[4];           //!< EET,CET supported
-  uint32_t baseload;          // production above baseload is "free" to use/store
-  bool next_boot_ota_update;  // RFU
-  byte energy_meter_type;
-  char energy_meter_host[MAX_URL_STR_LENGTH];
-  unsigned int energy_meter_port;
-  byte energy_meter_id;
-  char forecast_loc[MAX_ID_STR_LENGTH];
-  byte variable_mode; // VARIABLE_MODE_SOURCE, VARIABLE_MODE_REPLICA
-  char lang[3];       // preferred language
+  char variable_server[MAX_ID_STR_LENGTH];    //!< projected to be used in replica mode, RFU
+  char entsoe_api_key[37];                    //!< EntsoE API key
+  char entsoe_area_code[17];                  //!< Price area code in day ahead market
+  char custom_ntp_server[35];                 //!< RFU, TODO:UI to set up
+  char timezone[4];                           //!< EET,CET supported
+  uint32_t baseload;                          //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
+  bool next_boot_ota_update;                  //!< not currently in use
+  byte energy_meter_type;                     //!< energy metering type, see constants: ENERGYM_
+  char energy_meter_host[MAX_URL_STR_LENGTH]; //!< enerygy meter address string
+  unsigned int energy_meter_port;             //!< energy meter port,  tcp port if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
+  byte energy_meter_id;                       //!< energy meter id,  uinid if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
+  char forecast_loc[MAX_ID_STR_LENGTH];       //!< Energy forecast location, BCDC-energy location
+  byte variable_mode;                         // VARIABLE_MODE_SOURCE (currently only supported), VARIABLE_MODE_REPLICA (not implemented)
+  char lang[3];                               //<! preferred language
 #ifdef SENSOR_DS18B20_ENABLED
-  sensor_struct sensors[MAX_DS18B20_SENSORS];
+  sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
 #endif
-  IPAddress switch_subnet_wifi; // set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
-  int hw_template_id;
-  bool mdns_activated;
+  IPAddress switch_subnet_wifi; //!< not currently in use, set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
+  int hw_template_id;           //!< hardware template defining channel gpios, see hw_templates
+  bool mdns_activated;          //!< is mDSN device discovery active, currently deactivatated due to stability concerns
 } settings_struct;
 
 // this stores settings also to eeprom
@@ -2536,12 +2536,12 @@ If not enough future periods exist, include periods from history to get full win
  * @param prices
  * @return int
  */
-//int get_period_price_rank_in_window(time_t time, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg) //[MAX_PRICE_PERIODS]
-int get_period_price_rank_in_window(int window_start_incl_suggested_idx , int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg) //[MAX_PRICE_PERIODS]
+// int get_period_price_rank_in_window(time_t time, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg) //[MAX_PRICE_PERIODS]
+int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg) //[MAX_PRICE_PERIODS]
 {
-  
-  //int window_end_excl_idx = min(MAX_PRICE_PERIODS, time_price_idx + window_duration_hours);
-  //int window_start_incl_idx = window_end_excl_idx - window_duration_hours;
+
+  // int window_end_excl_idx = min(MAX_PRICE_PERIODS, time_price_idx + window_duration_hours);
+  // int window_start_incl_idx = window_end_excl_idx - window_duration_hours;
 
   int window_start_incl_idx = min(MAX_PRICE_PERIODS, (window_start_incl_suggested_idx + window_duration_hours)) - window_duration_hours;
   int window_end_excl_idx = window_start_incl_idx + window_duration_hours;
@@ -2554,13 +2554,13 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx , int wi
     windows_price_sum += prices[price_idx];
     if (prices[price_idx] < prices[time_price_idx])
     {
-      rank++;     
+      rank++;
     }
   }
   *window_price_avg = windows_price_sum / window_duration_hours;
   *price_differs_avg = prices[time_price_idx] - *window_price_avg;
 
-  Serial.printf("get_period_price_rank_in_window %d in [%d - %d[  --> rank: %d\n",time_price_idx,window_start_incl_idx,window_end_excl_idx,rank);
+  Serial.printf("get_period_price_rank_in_window %d in [%d - %d[  --> rank: %d\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank);
   return rank;
 }
 
@@ -2585,7 +2585,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
   long window_price_avg;
   long price_differs_avg;
   int rank;
-  int window_start_incl_idx; 
+  int window_start_incl_idx;
 
   for (time_t time = record_start + time_idx_now * PRICE_PERIOD_SEC; time < record_end_excl; time += PRICE_PERIOD_SEC)
   {
@@ -2608,7 +2608,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
       // rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices);
       window_price_avg = 0;
       price_differs_avg = 0; // should not needed
-    //  rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg);
+                             //  rank = get_period_price_rank_in_window(time, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg);
       rank = get_period_price_rank_in_window(time_idx, price_variable_blocks[block_idx], time_idx, prices, &window_price_avg, &price_differs_avg);
       if (rank > 0)
       {
@@ -2623,8 +2623,8 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
       json_obj[var_code] = (price_differs_avg + 50) / 100; // round
     }
     // TODO fixed 24H, prf24 VARIABLE_PRICERANK_FIXED_24
-    window_start_incl_idx = time_idx-tm_struct_g.tm_hour;  //first hour of the day/nychthemeron
-   // Serial.printf("%d %d %d \n",time_idx-tm_struct_g.tm_hour,time_idx,tm_struct_g.tm_hour);
+    window_start_incl_idx = time_idx - tm_struct_g.tm_hour; // first hour of the day/nychthemeron
+    // Serial.printf("%d %d %d \n",time_idx-tm_struct_g.tm_hour,time_idx,tm_struct_g.tm_hour);
 
     // rank = get_period_price_rank_in_window(time, 24, nychthemeron_start_idx, prices, &window_price_avg, &price_differs_avg);
     rank = get_period_price_rank_in_window(window_start_incl_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg);
@@ -4016,11 +4016,9 @@ void export_config(AsyncWebServerRequest *request)
   doc["http_username"] = s.http_username;
   // doc["http_password"] = s.http_password; // TODO: maybe not here
   doc["variable_mode"] = VARIABLE_MODE_SOURCE; // no selection
-                                               // if (s.variable_mode == VARIABLE_MODE_SOURCE)
-                                               // {
+                                    
   doc["entsoe_api_key"] = s.entsoe_api_key;
   doc["entsoe_area_code"] = s.entsoe_area_code;
-  // }
   //  if (s.variable_mode == VARIABLE_MODE_REPLICA)
   //   doc["variable_server"] = s.variable_server;
   doc["custom_ntp_server"] = s.custom_ntp_server;
@@ -4037,6 +4035,8 @@ void export_config(AsyncWebServerRequest *request)
 
   doc["forecast_loc"] = s.forecast_loc;
   doc["lang"] = s.lang;
+  doc["hw_template_id"] = s.hw_template_id; 
+
 
 #ifdef INFLUX_REPORT_ENABLED
   doc["influx_url"] = s_influx.url;
@@ -4063,6 +4063,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["r_id"] = s.ch[channel_idx].relay_id;
     doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
     doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
+    doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
@@ -4144,7 +4145,7 @@ void export_config(AsyncWebServerRequest *request)
  * @return true
  * @return false
  */
-bool read_config_file(const char *config_file_name)
+bool import_config(const char *config_file_name)
 {
   Serial.println(F("Reading config file"));
   if (!LittleFS.exists(config_file_name))
@@ -4179,7 +4180,7 @@ bool read_config_file(const char *config_file_name)
   s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
   copy_doc_str(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
   copy_doc_str(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
-  copy_doc_str(doc, (char *)"variable_server", s.variable_server, sizeof(s.variable_server));
+  //copy_doc_str(doc, (char *)"variable_server", s.variable_server, sizeof(s.variable_server));
   copy_doc_str(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
   copy_doc_str(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
   copy_doc_str(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
@@ -4192,6 +4193,7 @@ bool read_config_file(const char *config_file_name)
   s.energy_meter_port = get_doc_long(doc, "energy_meter_port", s.energy_meter_port);
   s.energy_meter_id = get_doc_long(doc, "energy_meter_id", s.energy_meter_id);
 
+
 #ifdef INFLUX_REPORT_ENABLED
   copy_doc_str(doc, (char *)"influx_url", s_influx.url, sizeof(s_influx.url));
   copy_doc_str(doc, (char *)"influx_token", s_influx.token, sizeof(s_influx.token));
@@ -4202,7 +4204,7 @@ bool read_config_file(const char *config_file_name)
   int channel_idx = 0;
   int rule_idx = 0;
   int stmt_idx = 0;
-
+  
   for (JsonObject ch_item : doc["ch"].as<JsonArray>())
   {
     strncpy(s.ch[channel_idx].id_str, ch_item["id_str"], 9);
@@ -4211,23 +4213,39 @@ bool read_config_file(const char *config_file_name)
     s.ch[channel_idx].template_id = ch_item["template_id"];
     s.ch[channel_idx].uptime_minimum = ch_item["uptime_minimum"];
     rule_idx = 0;
+
+    // relay params
+    char ip_buff[16];
+    if (ch_item.containsKey("r_id"))
+      s.ch[channel_idx].relay_id = ch_item["r_id"];
+    if (ch_item.containsKey("r_ip")) {
+      strncpy(ip_buff, ch_item["r_ip"], 16);
+      s.ch[channel_idx].relay_ip.fromString(ip_buff);
+    }  
+    if (ch_item.containsKey("r_uid"))
+      s.ch[channel_idx].relay_unit_id = ch_item["r_uid"];
+    if (ch_item.containsKey("r_ifid"))
+      s.ch[channel_idx].relay_iface_id = ch_item["r_ifid"];
+
+
+    // channel rules
     for (JsonObject ch_rule : ch_item["rules"].as<JsonArray>())
     {
       s.ch[channel_idx].conditions[rule_idx].on = ch_rule["on"];
       stmt_idx = 0;
+      Serial.printf("rule on %s", s.ch[channel_idx].conditions[rule_idx].on ? "true" : "false");
+      
       for (JsonArray ch_rule_stmt : ch_rule["stmts"].as<JsonArray>())
       {
-
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
         s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2];
-        Serial.printf("Tulos: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
+        Serial.printf("rules/stmts: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
 
         stmt_idx++;
       }
       rule_idx++;
     }
-
     channel_idx++;
   }
 
@@ -4238,7 +4256,7 @@ bool read_config_file(const char *config_file_name)
 
 //
 /**
- * @brief Handle config upload
+ * @brief Handle config file upload
  *
  * @param request
  * @param filename
@@ -4279,7 +4297,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
     Serial.println(logmessage);
 
     reset_config(false);
-    read_config_file(filename_internal);
+    import_config(filename_internal);
 
     request->redirect("/");
   }
