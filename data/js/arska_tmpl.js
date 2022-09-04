@@ -190,7 +190,7 @@ function update_discovered_devices() {
                         ip_a = service.ip.split(".");
                         relay_desc = service.app + " ." + ip_a[3];
                         //if (service.outputs > 1)
-                            relay_desc = relay_desc + "/" + i;
+                        relay_desc = relay_desc + "/" + i;
 
                         relay_list.push([relay_did, relay_desc, service.type, service.ip, i]);
                         console.log(JSON.stringify([service.type, service.ip, i]));
@@ -448,8 +448,6 @@ var submitChannelForm = function (e) {
         disSels[i].disabled = false;
     }
     formSubmitting = true;
-
-
     return true;
 };
 
@@ -484,7 +482,7 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
 
-    document.getElementById(varFld.id.replace("var", "const")).style.display = "none";
+    document.getElementById(varFld.id.replace("var", "const")).style.display = "none"; //const-style
     document.getElementById(varFld.id.replace("var", "op")).style.display = "none";
 
     advanced_mode = document.getElementById("mo_" + channel_idx + "_0").checked;
@@ -512,7 +510,7 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
     const elem = document.createElement(tagName);
     if (id)
         elem.id = id;
-   // if (value)
+    // if (value)
     if (!(value == null))
         elem.value = value;
     if (class_) {
@@ -565,7 +563,6 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
 
     sel_op.addEventListener("change", setOper);
 
-
     const inp_const = createElem("input", "const" + suffix, 0, "fldtiny fldstmt inpnum", "text");
     const div_std = createElem("div", "std" + suffix, VARIABLE_LONG_UNKNOWN, "divstament", "text");
     div_std.appendChild(sel_var);
@@ -576,6 +573,7 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
         elBtn.parentNode.insertBefore(div_std, elBtn);
     populateStmtField(document.getElementById("var" + suffix), stmt);
 }
+
 
 function getVariableList() {
     $.getJSON('/data/variable-info.json', function (data) {
@@ -636,11 +634,6 @@ function templateChanged(selEl) {
         $.each(data.conditions, function (cond_idx, rule) {
 
             set_radiob("ctrb_" + channel_idx + "_" + cond_idx, rule["on"] ? "1" : "0", true);
-            /*   document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").checked = !rule["on"];
-               document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_0").disabled = rule["on"];
-   
-               document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").checked = rule["on"];
-               document.getElementById("ctrb_" + channel_idx + "_" + cond_idx + "_1").disabled = !rule["on"];*/
 
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
@@ -649,8 +642,9 @@ function templateChanged(selEl) {
                 if (stmt.hasOwnProperty('const_prompt')) {
                     stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
                 }
-                if (elBtn)
+                if (elBtn) {
                     addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
+                }
 
                 var_this = get_var_by_id(stmt.values[0]);
                 populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
@@ -675,7 +669,7 @@ function deleteStmtsUI(channel_idx) {
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
         set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
-     
+
     }
 }
 
@@ -709,7 +703,7 @@ function setRuleModeEVT(evt) {
 
 function setRuleMode(channel_idx, rule_mode, reset, template_id) {
 
-    console.log("setRuleMode", template_id);
+    //  console.log("setRuleMode", template_id);
     if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) { //template mode
         templateSelEl = document.getElementById("rts_" + channel_idx);
         if (templateSelEl) {
@@ -732,47 +726,49 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
     fillStmtRules(channel_idx, rule_mode, template_id);
     if (rule_mode == CHANNEL_CONFIG_MODE_RULE) //enable all
         $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false);
-
-
-
 }
 
-function populateOper(el, var_this, stmt = [-1, -1, 0]) {
-    fldA = el.id.split("_");
+
+function populateOper(el_oper, var_this, stmt = [-1, -1, 0]) {
+    fldA = el_oper.id.split("_");
     channel_idx = parseInt(fldA[1]);
     cond_idx = parseInt(fldA[2]);
 
     rule_mode = document.getElementById("mo_" + channel_idx + "_0").checked ? 0 : 1;
 
-    document.getElementById(el.id.replace("op", "const")).value = stmt[2];
+    el_const = document.getElementById(el_oper.id.replace("op", "const"));
+    el_const.value = stmt[2];
     // console.log("stmt[2]", stmt[2]);
 
-    if (el.options.length == 0)
-        addOption(el, -1, "select", (stmt[1] == -1));
-    if (el.options)
-        while (el.options.length > 1) {
-            el.remove(1);
+    if (el_oper.options.length == 0)
+        addOption(el_oper, -1, "select", (stmt[1] == -1));
+    if (el_oper.options)
+        while (el_oper.options.length > 1) {
+            el_oper.remove(1);
         }
-
+    
     if (var_this) {
+        //populate oper select
         for (let i = 0; i < opers.length; i++) {
-            if (!opers[i][6])
-                ; //defined oper, do not skipp
-            else if (var_this[2] >= 50 && !opers[i][5]) //2-type, logical
+            if (var_this[2] >= 50 && !opers[i][5]) //2-type, logical
                 continue;
             else if (var_this[2] < 50 && opers[i][5]) // numeric
                 continue;
-            const_id = el.id.replace("op", "const");
-            //  console.log(const_id);
-            el.style.display = "block";
-            document.getElementById(el.id.replace("op", "const")).style.display = (opers[i][5]||opers[i][6]) ? "none" : "block";
-            addOption(el, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
+            const_id = el_oper.id.replace("op", "const");
+            el_oper.style.display = "block";
+            // constant element visibility
+
+            // document.getElementById(el_oper.id.replace("op", "const")).style.display = (opers[i][5]||opers[i][6]) ? "none" : "block"; //const-style
+            addOption(el_oper, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
+            if (opers[i][0] == stmt[1]) {
+                el_const.style.display = (opers[i][5] || opers[i][6]) ? "none" : "block"; //const-style    
+            }
         }
     }
 
-    el.disabled = (rule_mode != 0);
-    document.getElementById(el.id.replace("op_", "var_")).disabled = (rule_mode != 0);
-    document.getElementById(el.id.replace("op_", "const_")).disabled = (rule_mode != 0);
+    el_oper.disabled = (rule_mode != 0);
+    document.getElementById(el_oper.id.replace("op_", "var_")).disabled = (rule_mode != 0);
+    document.getElementById(el_oper.id.replace("op_", "const_")).disabled = (rule_mode != 0);
 }
 
 function get_var_by_id(id) {
@@ -806,16 +802,21 @@ function setVar(evt) {
 
 // operator select changed, show next statement fields if hidden
 function setOper(evt) {
-    const el = evt.target;
-    if ((el.value >= 0)) {
-        fldA = el.id.split("_");
+    const el_oper = evt.target;
+    if ((el_oper.value >= 0)) {
+        fldA = el_oper.id.split("_");
         channel_idx = parseInt(fldA[1]);
         cond_idx = parseInt(fldA[2]);
         // show initially hidden rules
         if ((cond_idx + 1) < CHANNEL_CONDITIONS_MAX) {
             document.getElementById("ru_" + channel_idx + "_" + (cond_idx + 1)).style.display = "block";
         }
+        // set constant visibility (defined oper use no constants)
+        console.log("setOper", el_oper.id, el_oper.value);
+        el_const = document.getElementById(el_oper.id.replace("op", "const"));
+        el_const.style.display = (opers[el_oper.value][5] || opers[el_oper.value][6]) ? "none" : "block"; // const-style
     }
+    
 }
 
 
@@ -867,7 +868,7 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
             template_id = document.getElementById("rts_" + channel_idx).value;
         }
 
-        console.log("template_id", template_id);
+      //  console.log("template_id", template_id);
         if (rule_mode == CHANNEL_CONFIG_MODE_RULE) {
             if (cond_idx == 0)
                 show_rule = true;
@@ -891,7 +892,7 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
 
         if (!first_var_defined && (rule_mode == CHANNEL_CONFIG_MODE_RULE)) {  // advanced more add at least one statement for each rule
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-            console.log("addStmt++", channel_idx, cond_idx, 0);
+            //   console.log("addStmt++", channel_idx, cond_idx, 0);
             if (elBtn)
                 addStmt(elBtn, channel_idx, cond_idx, 0);
         }
@@ -903,8 +904,7 @@ function initChannelForm() {
     var chtype;
 
     for (var channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
-        //ch_t_%d_1
-        console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
+       // console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
         //TODO: fix if more types coming
         if (document.getElementById('chty_' + channel_idx)) {
             chtype = document.getElementById('chty_' + channel_idx).value;
@@ -912,7 +912,7 @@ function initChannelForm() {
         }
     }
 
-    // set rule statements
+    // set rule statements, statements are in hidden fields
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     //  console.log("stmts_s.length:" + stmts_s.length);
     for (let i = 0; i < stmts_s.length; i++) {
@@ -921,19 +921,20 @@ function initChannelForm() {
             channel_idx = parseInt(fldA[1]);
             cond_idx = parseInt(fldA[2]);
             //  console.log(stmts_s[i].value); 
-            //    if (stmts_s[i].value) {  //TODO: miksi samat iffit sisäkkäin?
+
             stmts = JSON.parse(stmts_s[i].value);
             if (stmts && stmts.length > 0) {
                 console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
                 for (let j = 0; j < stmts.length; j++) {
                     elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-                    if (elBtn)
+                    if (elBtn) {
                         addStmt(elBtn, channel_idx, cond_idx, j, stmts[j]);
+                    }
                     var_this = get_var_by_id(stmts[j][0]); //vika indeksi oli 1
                     populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
                 }
             }
-            // }
+
         }
     }
 
@@ -983,7 +984,7 @@ function set_relay_field_visibility(channel_idx, chtype) {
         cur_ruid = document.getElementById("ch_ruid_" + channel_idx).value;
         document.getElementById("ch_ruid_" + channel_idx).setAttribute("min", min_ruid);
         document.getElementById("ch_ruid_" + channel_idx).value = Math.max(min_ruid, cur_ruid); //for min value
-    }  
+    }
 
     if (chtype == CH_TYPE_GPIO_USER_DEF) {
         relay_id_caption_span.innerHTML = "gpio:<br>";
@@ -1058,7 +1059,7 @@ const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 144
 
 function update_schedule_select_periodical() {
     //remove starts from history
-    console.log("update_schedule_select_periodical");
+  //  console.log("update_schedule_select_periodical");
     let selects = document.querySelectorAll("select[id^='fupfrom_']");
     now_ts = Date.now() / 1000;
     for (i = 0; i < selects.length; i++) {
@@ -1209,7 +1210,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
 
     rc0_div = createElem("div", null, null, "secbr"); // first config row
     rc1_div = createElem("div", "d_rc1_" + channel_idx, null, "secbr"); // 2nd row
-    
+
     //id
     id_div = createElem("div", null, null, "fldshort");
     id_div.insertAdjacentText('beforeend', 'id: ');
@@ -1577,7 +1578,7 @@ function initForm(url) {
         init_channel_elements(true);
         getVariableList();
         initChannelForm();
-       // update_discovered_devices(); //CHECK THIS
+        // update_discovered_devices(); //CHECK THIS
         setTimeout(function () { updateStatus(false); }, 2000);
         //scroll to anchor, done after page is created
         url_a = window.location.href.split("#");

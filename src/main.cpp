@@ -470,7 +470,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 30
+#define VARIABLE_COUNT 29
 
 #define VARIABLE_PRICE 0        //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1  //!< price rank within 9 hours window
@@ -4138,9 +4138,7 @@ void export_config(AsyncWebServerRequest *request)
 
   serializeJson(doc, output);
 
-  // TODO: format parameter, file or ajax response
-  // byte format = 1;
-  // TODO: format option
+  
   byte format = 0;
   if (request->hasParam("format"))
   {
@@ -4589,7 +4587,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
   char ctrb_fld[20];
   char ip_buff[16];
 
-  StaticJsonDocument<300> stmts_json;
+  StaticJsonDocument<1024> stmts_json;
 
   // bool stmts_emptied = false;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
