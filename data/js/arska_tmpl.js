@@ -750,9 +750,11 @@ function populateOper(el_oper, var_this, stmt = [-1, -1, 0]) {
     if (var_this) {
         //populate oper select
         for (let i = 0; i < opers.length; i++) {
-            if (var_this[2] >= 50 && !opers[i][5]) //2-type, logical
+            if (opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
+            void(0); // do nothing, do not skip
+            else if (var_this[2] >= 50 && !opers[i][5]) //boolean variable, not boolean oper
                 continue;
-            else if (var_this[2] < 50 && opers[i][5]) // numeric
+            else if (var_this[2] < 50 && opers[i][5]) // numeric variable, boolean oper
                 continue;
             const_id = el_oper.id.replace("op", "const");
             el_oper.style.display = "block";
