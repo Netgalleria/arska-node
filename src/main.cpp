@@ -3940,25 +3940,27 @@ void reset_config(bool full_reset)
     strncpy(current_wifi_ssid, s.wifi_ssid, sizeof(current_wifi_ssid));
     strncpy(current_wifi_password, s.wifi_password, sizeof(current_wifi_password));
   }
-  if (!full_reset)
+  if (!full_reset) {
     strncpy(current_password, s.http_password, sizeof(current_password));
+  }
 
   memset(&s, 0, sizeof(s));
   memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
-  strncpy(s.http_username, "admin", sizeof(s.http_username));
-  if (full_reset)
+  strncpy(s.http_username, "admin", sizeof(s.http_username)); //admin id is fixed
+  if (full_reset) {
     strncpy(s.http_password, default_http_password, sizeof(s.http_password));
-  else
+  }
+  else {
     strncpy(s.http_password, current_password, sizeof(s.http_password));
+  }
 
   // use previous wifi settings by default
   strncpy(s.wifi_ssid, current_wifi_ssid, sizeof(s.wifi_ssid));
   strncpy(s.wifi_password, current_wifi_password, sizeof(s.wifi_password));
 
-  strncpy(s.http_password, default_http_password, sizeof(s.http_password));
-  s.variable_mode = VARIABLE_MODE_SOURCE;
+  s.variable_mode = VARIABLE_MODE_SOURCE; //this mode only supported now
 
   strncpy(s.custom_ntp_server, "", sizeof(s.custom_ntp_server));
 
