@@ -3803,7 +3803,8 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
     function abortHandler(event) {   _('status').innerHTML = 'Upload Aborted';}\
     </script>\
     <h1>Firmware and filesystem update</h1>\
-    <p>Update firmware first and filesystem (littlefs.bin) after that (if required).</p>\
+    <p><a style=\"cursor:pointer; border-bottom: 4px solid #f3f300;color:white;text-decoration:none;\"; href=\"/export-config?format=file\">Backup configuration</a> before starting upgrade.</p>\
+    <p>Update firmware first and filesystem (littlefs.bin) after that (if required). After update check version data from the bottom of the page - update could be succeeded even if you get an error message.</p>\
         <form method='post' enctype='multipart/form-data'>\
         <input type='file' name ='firmware' id='firmware' onchange='upload()'><br>\
         <progress id='progressBar' value='0' max='100' style='width:250px;'></progress>\
@@ -3876,7 +3877,7 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
 
   if (final)
   {
-    AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", "Please wait while the device reboots");
+    AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", PSTR("Please wait while the device reboots"));
     // response->addHeader("Refresh", "20");
     // response->addHeader("Location", "/");
 
@@ -4153,8 +4154,9 @@ void export_config(AsyncWebServerRequest *request)
   else
   {
     char Content_Disposition[70];
-    snprintf(Content_Disposition, 70, "attachment; name=arska-config-%s.json", export_time);
-    AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
+    snprintf(Content_Disposition, 70, "attachment; filename=\"arska-config-%s.json\"", export_time);
+   // AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/octet-stream", output);
     response->addHeader("Content-Disposition", Content_Disposition);
     request->send(response);
   }
