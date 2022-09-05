@@ -465,7 +465,7 @@ struct statement_st
   int variable_id;
   byte oper_id;
   byte constant_type;
-  unsigned int depends;
+  unsigned int depends; //TODO: check if needed?
   long const_val;
 };
 
@@ -814,7 +814,6 @@ bool sensor_ds18b20_enabled = false;
 
 #ifdef INFLUX_REPORT_ENABLED
 #include <InfluxDbClient.h>
-// TODO: should we use macid?
 const char *influx_device_id_prefix PROGMEM = "arska-";
 String wifi_mac_short;
 
@@ -1013,46 +1012,6 @@ bool write_buffer_to_influx()
   if (!influx_write_ok)
     return false;
 
-/*
-  if (point_period_avg.hasFields())
-  {
-    if (!point_period_avg.hasTags())
-      point_period_avg.addTag("device", String(influx_device_id_prefix)+wifi_mac_short);
-
-    ifclient.setInsecure(true); // TODO: cert handling
-
-    Serial.print("Writing: ");
-    Serial.println(ifclient.pointToLineProtocol(point_period_avg));
-
-    // Write point
-    bool write_ok = ifclient.writePoint(point_period_avg);
-    if (!write_ok)
-    {
-      Serial.print("InfluxDB write failed: ");
-      Serial.println(ifclient.getLastErrorMessage());
-    }
-    point_period_avg.clearFields();
-  }
-
-  if (state_stats.hasFields()) // TODO:combine the two
-  {
-    if (!state_stats.hasTags())
-      state_stats.addTag("device", String(influx_device_id_prefix)+wifi_mac_short);
-    ifclient.setInsecure(true); // TODO: cert handling
-
-    Serial.print("Writing: ");
-    Serial.println(ifclient.pointToLineProtocol(state_stats));
-
-    // Write point
-    bool write_ok = ifclient.writePoint(state_stats);
-    if (!write_ok)
-    {
-      Serial.print("InfluxDB write failed: ");
-      Serial.println(ifclient.getLastErrorMessage());
-    }
-    state_stats.clearFields();
-  }
-*/
 
 // add current debug and sensor values to the buffer and write later them
 #ifdef DEBUG_MODE
@@ -1333,10 +1292,10 @@ unsigned long power_produced_period_avg = 0;
 typedef struct
 {
   statement_st statements[RULE_STATEMENTS_MAX];
-  float target_val;
+  float target_val; //TODO: remove
   bool on;
   bool condition_active; // for showing if the condition is currently active, for tracing
-} condition_struct;
+} condition_struct; //size 88
 
 #define CHANNEL_CONFIG_MODE_RULE 0
 #define CHANNEL_CONFIG_MODE_TEMPLATE 1
@@ -5107,6 +5066,7 @@ void setup()
 
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("Version: %s\n"), compile_date);
+ 
 
   String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
