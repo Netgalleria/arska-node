@@ -41,6 +41,9 @@ const CH_TYPE_DISABLED = 255;
 const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
 
 
+
+
+
 let variable_list = {}; // populate later
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
@@ -59,9 +62,9 @@ function setVariableMode(variable_mode) {
 
 
 function statusCBClicked(elCb) {
-    //if (elCb.checked) {
-    setTimeout(function () { updateStatus(elCb.checked); }, 1000);
-    //}
+    if (elCb.checked) {
+        setTimeout(function () { updateStatus(false); }, 300);
+    }
     document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 }
 
@@ -86,20 +89,22 @@ function sleep(ms) {
 
 function get_price_data() {
     now_ts = Date.now() / 1000;
-    if (prices_expires > now_ts)
+    if (prices_expires > now_ts) {
+        expires_in = (now_ts - prices_expires);
+        console.log("Next get_price_data in" + expires_in + "seconds.");
+        setTimeout(function () { get_price_data(); }, (1800 * 1000));
         return;
-    console.log("get_price_data, wait first");
+    }
+    console.log("get_price_data starting");
     //await sleep(5000);
-    console.log("get_price_data, now requesting");
+    //console.log("get_price_data, now requesting");
 
     $.ajax({
         url: '/data/price-data.json',
         dataType: 'json',
         async: false,
-        success: function (data) {
-            console.log('/data/price-data.json');
-            //   $.each(data.ch, function (i, ch_cur) {
-            //    }
+        success: function (data, textStatus, jqXHR) {
+            console.log('got /data/price-data.json', textStatus, jqXHR.status);
             prices = data.prices;
             prices_first_ts = data.record_start;
             prices_resolution_min = data.resolution_m;
@@ -107,14 +112,12 @@ function get_price_data() {
             prices_expires = data.expires;
             setTimeout(function () { get_price_data(); }, 1800000);
         },
-        fail: function () {
-            console.log("Cannot get prices");
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get prices", textStatus, jqXHR.status);
             setTimeout(function () { get_price_data(); }, 10000);
         }
+
     });
-    //  });
-    // next update (if expired)
-    // setTimeout(function () { get_price_data(); }, 1800000);
 }
 
 function get_price_for_block(start_ts, end_ts = 0) {
@@ -137,10 +140,8 @@ function get_price_for_block(start_ts, end_ts = 0) {
         price_sum += prices[price_idx];
         price_count++;
     }
-
     var block_price_avg = (price_sum / price_count) / 1000;
     //  console.log("get_price_for_block result:", start_ts,end_ts,block_price_avg,price_sum,price_count);
-
     return block_price_avg;
 }
 
@@ -168,7 +169,6 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
         day_diff = ts_day - now_day;
         if (day_diff != 0)
             tmpStr += " (" + ((day_diff > 0) ? "+" : "") + (day_diff) + ")";
-
     }
     return tmpStr;
 }
@@ -180,7 +180,6 @@ function update_discovered_devices() {
         dataType: 'json',
         async: true,
         success: function (data) {
-
             relay_list = [];
             $.each(data.services, function (i, service) {
                 //    console.log(JSON.stringify(service));
@@ -223,90 +222,114 @@ function update_discovered_devices() {
         },
         fail: function () {
             console.log("Cannot get discovered devices");
-            //   setTimeout(function () { get_price_data(); }, 10000);
         }
     });
 
 }
 
 // update variables and channels statuses to channels form
-function updateStatus(show_variables = true) {
+// function updateStatus(show_variables = true) {
+function updateStatus(repeat) {
+    if (document.getElementById("statusauto"))
+        show_variables = document.getElementById("statusauto").checked;
+    else
+        show_variables = false;
 
     update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
 
-    $.getJSON('/status', function (data) {
-        msgdiv = document.getElementById("msgdiv");
-        keyfd = document.getElementById("keyfd");
-        if (msgdiv) {
-            if (data.last_msg_ts > getCookie("msg_read")) {
-                msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
-                msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
-            }
-        }
-        if (keyfd) {
-            selling = data.variables["102"];
-            price = data.variables["0"];
-            sensor_text = '';
-
-            emDate = new Date(data.energym_read_last * 1000);
-
-            for (i = 0; i < 3; i++) {
-                if (data.variables[(i + 201).toString()] != "null") {
-                    if (sensor_text)
-                        sensor_text += ", ";
-                    sensor_text += 'Sensor ' + (i + 1) + ': <span  class="big">' + data.variables[(i + 201).toString()] + ' &deg;C</span>';
+    var jqxhr_obj = $.ajax({
+        url: '/status',
+        dataType: 'json',
+        async: false,  //oli true
+        success: function (data, textStatus, jqXHR) {
+            console.log("got status data", textStatus, jqXHR.status);
+            msgdiv = document.getElementById("msgdiv");
+            keyfd = document.getElementById("keyfd");
+            if (msgdiv) {
+                if (data.last_msg_ts > getCookie("msg_read")) {
+                    msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
+                    msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
                 }
             }
-            if (sensor_text)
-                sensor_text = "<br>" + sensor_text;
+            if (keyfd) {
+                selling = data.variables["102"];
+                price = data.variables["0"];
+                sensor_text = '';
 
-            if (isNaN(selling)) {
-                selling_text = '';
-            }
-            else {
-                selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
-                selling_text += '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), ';
-            }
-            if (isNaN(price)) {
-                price_text = 'not available';
-            }
-            else {
-                price_text = ' ' + price;
-            }
+                emDate = new Date(data.energym_read_last * 1000);
 
-            keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + ' ¢/kWh </span>' + sensor_text;
-        }
-        if (show_variables) {
-            document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+                for (i = 0; i < 3; i++) {
+                    if (data.variables[(i + 201).toString()] != "null") {
+                        if (sensor_text)
+                            sensor_text += ", ";
+                        sensor_text += 'Sensor ' + (i + 1) + ': <span  class="big">' + data.variables[(i + 201).toString()] + ' &deg;C</span>';
+                    }
+                }
+                if (sensor_text)
+                    sensor_text = "<br>" + sensor_text;
 
-            $("#tblVariables_tb").empty();
-            $.each(data.variables, function (i, variable) {
-                var_this = getVariable(i);
-                if (var_this[0] in variable_list)
-                    variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
-                else
-                    variable_desc = "";
-                id_str = ' (' + var_this[0] + ') ' + var_this[1];
-                if (var_this[2] == 50 || var_this[2] == 51) {
-                    newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
+                if (isNaN(selling)) {
+                    selling_text = '';
                 }
                 else {
-                    newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
+                    selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
+                    selling_text += '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), ';
                 }
-                $(newRow).appendTo($("#tblVariables_tb"));
-            });
-            $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
-        }
-        $.each(data.ch, function (i, ch) {
-            show_channel_status(i, ch)
-        });
-    });
-    //  if (document.getElementById('statusauto').checked) {
-    setTimeout(function () { updateStatus(show_variables); }, 30000);
-    //  }
-    //  get_price_data(); // get prices, if expired or not fetched before
-}
+                if (isNaN(price)) {
+                    price_text = 'not available';
+                }
+                else {
+                    price_text = ' ' + price;
+                }
 
+                keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + ' ¢/kWh </span>' + sensor_text;
+            }
+            if (show_variables) {
+                document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+
+                $("#tblVariables_tb").empty();
+                $.each(data.variables, function (i, variable) {
+                    var_this = getVariable(i);
+                    if (var_this[0] in variable_list)
+                        variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                    else
+                        variable_desc = "";
+                    id_str = ' (' + var_this[0] + ') ' + var_this[1];
+                    if (var_this[2] == 50 || var_this[2] == 51) {
+                        newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
+                    }
+                    else {
+                        newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
+                    }
+                    $(newRow).appendTo($("#tblVariables_tb"));
+                });
+                $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
+            }
+            $.each(data.ch, function (i, ch) {
+                show_channel_status(i, ch)
+            });
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get status", Date(Date.now()).toString(), textStatus, jqXHR.status);
+          
+            if (jqXHR.status === 401) {
+                // or just location.reload();
+                href_a = window.location.href;
+                window.location.href=href_a[0] + "?rnd="+Math.floor(Math.random() * 1000);
+                return;
+            }
+        }/*,
+        complete: function (jqXHR, textStatus, errorThrown) {
+            console.log("A Status queried with result ", textStatus,jqXHR.status);
+        }*/
+    }
+
+    );
+    if (repeat)
+        setTimeout(function () { updateStatus(true); }, 30000);
+
+
+}
 
 
 function show_channel_status(channel_idx, ch) {
@@ -471,8 +494,6 @@ function addOption(el, value, text, selected = false) {
     // then append it to the select element
     el.appendChild(opt);
 }
-
-
 
 function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     if (varFld.options && varFld.options.length > 0) {
@@ -746,12 +767,12 @@ function populateOper(el_oper, var_this, stmt = [-1, -1, 0]) {
         while (el_oper.options.length > 1) {
             el_oper.remove(1);
         }
-    
+
     if (var_this) {
         //populate oper select
         for (let i = 0; i < opers.length; i++) {
             if (opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
-            void(0); // do nothing, do not skip
+                void (0); // do nothing, do not skip
             else if (var_this[2] >= 50 && !opers[i][5]) //boolean variable, not boolean oper
                 continue;
             else if (var_this[2] < 50 && opers[i][5]) // numeric variable, boolean oper
@@ -818,7 +839,7 @@ function setOper(evt) {
         el_const = document.getElementById(el_oper.id.replace("op", "const"));
         el_const.style.display = (opers[el_oper.value][5] || opers[el_oper.value][6]) ? "none" : "block"; // const-style
     }
-    
+
 }
 
 
@@ -870,7 +891,7 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
             template_id = document.getElementById("rts_" + channel_idx).value;
         }
 
-      //  console.log("template_id", template_id);
+        //  console.log("template_id", template_id);
         if (rule_mode == CHANNEL_CONFIG_MODE_RULE) {
             if (cond_idx == 0)
                 show_rule = true;
@@ -906,7 +927,7 @@ function initChannelForm() {
     var chtype;
 
     for (var channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
-       // console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
+        // console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
         //TODO: fix if more types coming
         if (document.getElementById('chty_' + channel_idx)) {
             chtype = document.getElementById('chty_' + channel_idx).value;
@@ -936,7 +957,6 @@ function initChannelForm() {
                     populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmts[j]);
                 }
             }
-
         }
     }
 
@@ -953,9 +973,9 @@ function initChannelForm() {
         setRuleMode(channel_idx, rule_mode, false, template_id);
     }
 
-    if (document.getElementById('statusauto').checked) {
-        setTimeout(function () { updateStatus(true); }, 3000);
-    }
+    /*   if (document.getElementById('statusauto').checked) {
+           setTimeout(function () { updateStatus(); }, 3000);
+       } */
 
 }
 
@@ -1061,7 +1081,7 @@ const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 144
 
 function update_schedule_select_periodical() {
     //remove starts from history
-  //  console.log("update_schedule_select_periodical");
+    //  console.log("update_schedule_select_periodical");
     let selects = document.querySelectorAll("select[id^='fupfrom_']");
     now_ts = Date.now() / 1000;
     for (i = 0; i < selects.length; i++) {
@@ -1432,7 +1452,7 @@ function init_channel_elements(edit_mode = false) {
         success: function (data) {
             console.log('/export-config');
             $.each(data.ch, function (i, ch_cur) {
-                console.log("init_channel_elements, loop:", i, ch_cur);
+                //   console.log("init_channel_elements, loop:", i, ch_cur);
                 if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
                     console.log("Skipping channel " + i);
                     return;
@@ -1553,7 +1573,8 @@ function initForm(url) {
     initUrlBar(url);
     if (url == '/admin') {
         initWifiForm();
-        setTimeout(function () { updateStatus(false); }, 2000);
+
+
         if (using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
@@ -1581,7 +1602,6 @@ function initForm(url) {
         getVariableList();
         initChannelForm();
         // update_discovered_devices(); //CHECK THIS
-        setTimeout(function () { updateStatus(false); }, 2000);
         //scroll to anchor, done after page is created
         url_a = window.location.href.split("#");
         if (url_a.length == 2) {
@@ -1590,21 +1610,13 @@ function initForm(url) {
                 element.scrollIntoView();
         }
     }
-    /*  else if (url == '/channels_old') {
-          getVariableList();
-          initChannelForm();
-      }
-      // else if (url == '/') {
-      //     setTimeout(function () { updateStatus(false); }, 2000);
-      // } */
+
     else if (url == '/') {
         get_price_data(); // price data for manual scheduling / price hints
         init_channel_elements(false); //dashboard, no edit
-        setTimeout(function () { updateStatus(false); }, 2000);
     }
 
     else if (url == '/inputs') {
-        setTimeout(function () { updateStatus(false); }, 2000);
         if (document.getElementById("VARIABLE_SOURCE_ENABLED").value == 0) {
             variable_mode = 1;
             document.getElementById("variable_mode_0").disabled = true;
@@ -1637,6 +1649,9 @@ function initForm(url) {
             document.getElementById("influx_div").style.display = "none";
         }
     }
+
+    setTimeout(function () { updateStatus(true); }, 1000);  // first
+   // setInterval(function () { updateStatus(false); }, 30000);  //frequent
 
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
@@ -1767,10 +1782,7 @@ function doAction(action) {
     else if (action == 'test_gpio') {
         document.querySelector('#test_gpio').value = prompt("GPIO to test", "-1");
         save_form.submit();
-
     }
-
-
 }
 
 // remove?
