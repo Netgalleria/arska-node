@@ -14,7 +14,10 @@
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
     <div class="secbr" id="headdiv">
-
+    </div>
+    <div id="headinfod" class="hb">
+        <div id="msgdiv">
+        </div>
     </div>
     <form id="save_form" method="post" onsubmit="setFormSubmitting()">
         <input name="source" type="hidden" value="admin">
@@ -78,10 +81,25 @@
         <div class="fld">
             <br />
         </div>
+        
+            <h3>Hardware template</h3>
+        
+        <div class="secbr indent">
+           
+            <input type="hidden" id="hw_template_id_db" value="%hw_template_id%">Channel template:
+            <br><select id="hw_template_id" name="hw_template_id">
+                <option value="0">manual</option>
+                <option value="1">esp32lilygo-4ch</option>
+                <option value="2">esp32wroom-4ch-a</option>
+            </select>
+        </div>
+        <div class="fld">
+            <br />
+        </div>
 
         <input type="hidden" id="ts" name="ts">
         <input type="hidden" id="action" name="action">
-        <br><input type="submit" value="Save" onclick="checkAdminForm()">
+        <br><input id="btnSubmit" type="submit" value="Save" onclick="checkAdminForm()">
         <input type="hidden" id="test_gpio" name="test_gpio" value="-1">
 
     </form>
@@ -106,6 +124,12 @@
                     onchange="document.getElementById('file_form').submit();" />
             </form>
         </div>
+    </div>
+    <div>
+        <h3>Open source licenses:</h3>
+        ESPAsyncWebServer, bblanchon/ArduinoJson, NTPClient, emelianov/modbus-esp8266 adafruit/RTClib, SPI,
+        tobiasschuerg/ESP8266 Influxdb, milesburton/DallasTemperature, paulstoffregen/OneWire, 
+        marian-craciunescu/ESP32Ping
     </div>
     <div class="secbr" id="footerdiv">
     </div><svg>

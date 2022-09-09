@@ -31,6 +31,7 @@ input {
 }
 
 input[type="text"],
+input[type="number"],
 input[type="password"],
 textarea,
 select,
@@ -119,11 +120,20 @@ h3 {
     width: 17%;
     margin-right: 2%;
 }
+.fldip {
+    float: left;
+    width: 300px;
+    margin-right: 2%;
+}
+.fldfit {
+    width:max-content;
+}
 
 .fldstmt {
     float: left;
     margin-right: 2%;
 }
+
 .addstmtb {
     float: left;
     width:fit-content;
@@ -208,7 +218,6 @@ h2 {
     padding-bottom: 8px;*/
     padding:15px;}
     
-  
 
   .actUrl {color:#f3f300; font-weight: 400;}
  
@@ -305,7 +314,7 @@ color:yellow }
 td {padding: 5px;}
 tr:nth-child(even) {background: #373a3b}
 tr:nth-child(odd) {background: #181817}
-input[type="text"]:disabled {
+input[type="text"]:disabled,input[type="number"]:disabled {
     color: #dddddd;
   }
 .headlogo {height: 80px;margin-right:20px}

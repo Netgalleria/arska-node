@@ -5,11 +5,15 @@
     },
     "1": {
         "id": "price rank 9h",
-        "en": "price rank in 9 hours, 1 if now lowest price, 9 if highest"
+        "en": "price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest"
     },
     "2": {
         "id": "price rank 24h",
-        "en": "price rank in 24 hours, 1 if now lowest price, 24 if highest"
+        "en": "price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest"
+    },
+    "3": {
+        "id": "price rank 24h",
+        "en": "price rank in 24 hours, fixed nychthemeron, 1 if now lowest price, 24 if highest"
     },
     "5": {
         "id": "price average 9h",
@@ -26,6 +30,18 @@
     "10": {
         "id": "price diff to average 24h",
         "en": "price difference to 24 hours average"
+    },
+    "13": {
+        "id": "price ratio % to average 9h",
+        "en": "price ratio % to sliding 9 hours average,  "
+    },
+    "14": {
+        "id": "price ratio % to average 24h",
+        "en": "price ratio % to sliding 24 hours average"
+    },
+    "15": {
+        "id": "price ratio % to average fixed 24h",
+        "en": "price ratio % to fixed nychthemeron 24h"
     },
     "20": {
         "id": "pv forecast 24 h",
