@@ -3,26 +3,31 @@ Copyright, Netgalleria Oy, Olli Rinne 2021-2022
 */
 const sections = [{ "url": "/", "en": "Dashboard", "wiki": "Dashboard" }, { "url": "/inputs", "en": "Services", "wiki": "Edit-Services" }
     , { "url": "/channels", "en": "Channels", "wiki": "Edit-Channels" }, { "url": "/admin", "en": "Admin", "wiki": "Edit-Admin" }];
+//constants start
+//const opers = JSON.parse('%OPERS%');
+//const variables = JSON.parse('%VARIABLES%');
+//const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent automatic format to mess it up
+//const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
+//const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
+////const channels = JSON.parse('%channels%');  //moving data (for UI processing )  //TODO: this should come from config
 
-const opers = JSON.parse('%OPERS%');
-const variables = JSON.parse('%VARIABLES%');
-const CHANNEL_COUNT = parseInt('%CHANNEL_COUNT%'); //parseInt hack to prevent automatic format to mess it up
-const CHANNEL_CONDITIONS_MAX = parseInt('%CHANNEL_CONDITIONS_MAX%');
-const RULE_STATEMENTS_MAX = parseInt('%RULE_STATEMENTS_MAX%');
-const channels = JSON.parse('%channels%');  //moving data (for UI processing ) 
-
-const channel_types = JSON.parse('%channel_types%');
+//const channel_types = JSON.parse('%channel_types%');
 //const hw_templates = JSON.parse('%hw_templates%'); currently hardocoded in html
 
-const lang = '%lang%';
-const using_default_password = ('%using_default_password%' === 'true');
-const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true');
-const DEBUG_MODE = ('%DEBUG_MODE%' === 'true');
-const VERSION = '%VERSION%';
-const HWID = '%HWID%';
-const VERSION_SHORT = '%VERSION_SHORT%';
-const version_fs = '%version_fs%';
-const switch_subnet_wifi = '%switch_subnet_wifi%';
+
+//const DEBUG_MODE = ('%DEBUG_MODE%' === 'true');
+//const VERSION = '%VERSION%';
+//const HWID = '%HWID%';
+//const VERSION_SHORT = '%VERSION_SHORT%';
+//const version_fs = '%version_fs%';
+
+//const switch_subnet_wifi = '%switch_subnet_wifi%'; //TODO: this should come from config - not used
+//const lang = '%lang%';  //TODO: this should come from config
+//const using_default_password = ('%using_default_password%' === 'true'); //TODO: this should come from config
+//const backup_wifi_config_mode = ('%backup_wifi_config_mode%' === 'true'); //TODO: this should come from config wifi_in_setup_mode
+//constants end
+let g_constants = null; // from query /data/ui-constants.json
+let g_config = null; // global data from export-config
 
 const VARIABLE_LONG_UNKNOWN = -2147483648;
 
@@ -198,7 +203,7 @@ function update_discovered_devices() {
             });
 
             // add to type
-            for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
+            for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
                 // clear first, TODO: could update only changed
                 rtype_sel = document.getElementById("rtype_" + channel_idx);
                 if (rtype_sel) { //if not yet created?
@@ -305,6 +310,7 @@ function updateStatus(repeat) {
                 });
                 $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
             }
+       
             $.each(data.ch, function (i, ch) {
                 show_channel_status(i, ch)
             });
@@ -314,7 +320,7 @@ function updateStatus(repeat) {
           
             if (jqXHR.status === 401) {
                 // or just location.reload();
-                href_a = window.location.href;
+                href_a = window.location.href.split("?");
                 window.location.href=href_a[0] + "?rnd="+Math.floor(Math.random() * 1000);
                 return;
             }
@@ -478,9 +484,9 @@ var submitChannelForm = function (e) {
 var isDirty = function () { return true; }
 
 function getVariable(variable_id) {
-    for (var i = 0; i < variables.length; i++) {
-        if (variables[i][0] == variable_id)
-            return variables[i];
+    for (var i = 0; i < g_constants.variables.length; i++) {
+        if (g_constants.variables[i][0] == variable_id)
+            return g_constants.variables[i];
     }
     return null;
 }
@@ -511,10 +517,10 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     addOption(varFld, -2, "delete condition");
     addOption(varFld, -1, "select", (stmt[0] == -1));
 
-    for (var i = 0; i < variables.length; i++) {
-        var type_indi = (variables[i][2] >= 50 && variables[i][2] <= 51) ? "*" : " ";
-        var id_str = variables[i][1] + type_indi;
-        addOption(varFld, variables[i][0], id_str, (stmt[0] == variables[i][0]));
+    for (var i = 0; i < g_constants.variables.length; i++) {
+        var type_indi = (g_constants.variables[i][2] >= 50 && g_constants.variables[i][2] <= 51) ? "*" : " ";
+        var id_str = g_constants.variables[i][1] + type_indi;
+        addOption(varFld, g_constants.variables[i][0], id_str, (stmt[0] == g_constants.variables[i][0]));
     }
 }
 
@@ -566,8 +572,8 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
             fldB = stmtDivs[i].id.split("_");
             stmt_idx = Math.max(parseInt(fldB[3]), stmt_idx);
         }
-        if (stmtDivs.length >= RULE_STATEMENTS_MAX) {
-            alert('Max ' + RULE_STATEMENTS_MAX + ' statements allowed');
+        if (stmtDivs.length >= g_constants.RULE_STATEMENTS_MAX) {
+            alert('Max ' + g_constants.RULE_STATEMENTS_MAX + ' statements allowed');
             return false;
         }
 
@@ -621,8 +627,8 @@ function saveVal(el) {
 
 //localised text
 function _ltext(obj, prop) {
-    if (obj.hasOwnProperty(prop + '_' + lang))
-        return obj[prop + '_' + lang];
+    if (obj.hasOwnProperty(prop + '_' + g_config.lang))
+        return obj[prop + '_' + g_config.lang];
     else if (obj.hasOwnProperty(prop))
         return obj[prop];
     else
@@ -688,7 +694,7 @@ function deleteStmtsUI(channel_idx) {
     document.querySelectorAll(selector_str).forEach(e => e.remove());
 
     // reset up/down checkboxes
-    for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
+    for (let cond_idx = 0; cond_idx < g_constants.CHANNEL_CONDITIONS_MAX; cond_idx++) {
         set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
 
     }
@@ -770,21 +776,20 @@ function populateOper(el_oper, var_this, stmt = [-1, -1, 0]) {
 
     if (var_this) {
         //populate oper select
-        for (let i = 0; i < opers.length; i++) {
-            if (opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
+        for (let i = 0; i < g_constants.opers.length; i++) {
+            if (g_constants.opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
                 void (0); // do nothing, do not skip
-            else if (var_this[2] >= 50 && !opers[i][5]) //boolean variable, not boolean oper
+            else if (var_this[2] >= 50 && !g_constants.opers[i][5]) //boolean variable, not boolean oper
                 continue;
-            else if (var_this[2] < 50 && opers[i][5]) // numeric variable, boolean oper
+            else if (var_this[2] < 50 && g_constants.opers[i][5]) // numeric variable, boolean oper
                 continue;
             const_id = el_oper.id.replace("op", "const");
             el_oper.style.display = "block";
             // constant element visibility
 
-            // document.getElementById(el_oper.id.replace("op", "const")).style.display = (opers[i][5]||opers[i][6]) ? "none" : "block"; //const-style
-            addOption(el_oper, opers[i][0], opers[i][1], (opers[i][0] == stmt[1]));
-            if (opers[i][0] == stmt[1]) {
-                el_const.style.display = (opers[i][5] || opers[i][6]) ? "none" : "block"; //const-style    
+            addOption(el_oper, g_constants.opers[i][0], g_constants.opers[i][1], (g_constants.opers[i][0] == stmt[1]));
+            if (g_constants.opers[i][0] == stmt[1]) {
+                el_const.style.display = (g_constants.opers[i][5] || g_constants.opers[i][6]) ? "none" : "block"; //const-style    
             }
         }
     }
@@ -795,9 +800,9 @@ function populateOper(el_oper, var_this, stmt = [-1, -1, 0]) {
 }
 
 function get_var_by_id(id) {
-    for (var i = 0; i < variables.length; i++) {
-        if (variables[i][0] == id) {
-            return variables[i];
+    for (var i = 0; i < g_constants.variables.length; i++) {
+        if (g_constants.variables[i][0] == id) {
+            return g_constants.variables[i];
         }
     };
 }
@@ -810,7 +815,6 @@ function setVar(evt) {
     cond_idx = parseInt(fldA[2]);
     stmt_idx = parseInt(fldA[3]);
     if (el.value > -1) { //variable selected
-        // let var_this = variables[el.value];
         var_this = get_var_by_id(el.value);
         populateOper(document.getElementById("op" + suffix), var_this);
     }
@@ -831,13 +835,13 @@ function setOper(evt) {
         channel_idx = parseInt(fldA[1]);
         cond_idx = parseInt(fldA[2]);
         // show initially hidden rules
-        if ((cond_idx + 1) < CHANNEL_CONDITIONS_MAX) {
+        if ((cond_idx + 1) < g_constants.CHANNEL_CONDITIONS_MAX) {
             document.getElementById("ru_" + channel_idx + "_" + (cond_idx + 1)).style.display = "block";
         }
         // set constant visibility (defined oper use no constants)
         console.log("setOper", el_oper.id, el_oper.value);
         el_const = document.getElementById(el_oper.id.replace("op", "const"));
-        el_const.style.display = (opers[el_oper.value][5] || opers[el_oper.value][6]) ? "none" : "block"; // const-style
+        el_const.style.display = (g_constants.opers[el_oper.value][5] || g_constants.opers[el_oper.value][6]) ? "none" : "block"; // const-style
     }
 
 }
@@ -878,7 +882,7 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
     console.log("fillStmtRules", channel_idx, rule_mode, "*", template_id);
 
     prev_rule_var_defined = true;
-    for (let cond_idx = 0; cond_idx < CHANNEL_CONDITIONS_MAX; cond_idx++) {
+    for (let cond_idx = 0; cond_idx < g_constants.CHANNEL_CONDITIONS_MAX; cond_idx++) {
         firstStmtVarId = "var_" + channel_idx + "_" + cond_idx + "_0";
         firstStmtVar = document.getElementById(firstStmtVarId);
         first_var_defined = !!firstStmtVar;
@@ -926,7 +930,7 @@ function initChannelForm() {
     console.log("initChannelForm");
     var chtype;
 
-    for (var channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
+    for (var channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
         // console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
         //TODO: fix if more types coming
         if (document.getElementById('chty_' + channel_idx)) {
@@ -960,9 +964,13 @@ function initChannelForm() {
         }
     }
 
-    for (let channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++) {
-        rule_mode = channels[channel_idx]["cm"];
-        template_id = channels[channel_idx]["tid"];
+    for (let channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {  
+        //rule_mode = channels[channel_idx]["cm"];
+        //template_id = channels[channel_idx]["tid"];
+        // now from global variale updated in the first query
+        rule_mode = g_config.ch[channel_idx]["config_mode"];
+        template_id = g_config.ch[channel_idx]["template_id"];
+
         console.log("rule_mode: " + rule_mode + ", template_id:" + template_id);
 
         if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) {
@@ -1035,7 +1043,7 @@ function setChannelFieldsByType(channel_idx, chtype_in) {
     set_relay_field_visibility(channel_idx, chtype);
 
     chtype = chtype_in;
-    for (var t = 0; t < RULE_STATEMENTS_MAX; t++) {
+    for (var t = 0; t < g_constants.RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
     }
 }
@@ -1262,9 +1270,9 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     //  if (!is_fixed_gpio_channel)
     //      addOption(ct_sel, CH_TYPE_DISCOVERED, "discovered", false); //TODO: when this could be checked
 
-    for (var i = 0; i < channel_types.length; i++) {
-        if ((!is_fixed_gpio_channel && channel_types[i].id != CH_TYPE_GPIO_FIXED) || (is_fixed_gpio_channel && channel_types[i].id == CH_TYPE_GPIO_FIXED)) {
-            addOption(ct_sel, channel_types[i].id, channel_types[i].name, (ch_cur.type == channel_types[i].id));
+    for (var i = 0; i < g_constants.channel_types.length; i++) {
+        if ((!is_fixed_gpio_channel && g_constants.channel_types[i].id != CH_TYPE_GPIO_FIXED) || (is_fixed_gpio_channel && g_constants.channel_types[i].id == CH_TYPE_GPIO_FIXED)) {
+            addOption(ct_sel, g_constants.channel_types[i].id, g_constants.channel_types[i].name, (ch_cur.type == g_constants.channel_types[i].id));
         }
     }
     relayt_div.appendChild(ct_sel);
@@ -1357,7 +1365,7 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
     // div envelope for all channel rules
     console.log("create_channel_rule_elements");
     rules_div = createElem("div", "rd_" + channel_idx, null, null);
-    for (condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++) {
+    for (condition_idx = 0; condition_idx < g_constants.CHANNEL_CONDITIONS_MAX; condition_idx++) {
         suffix = "_" + channel_idx + '_' + condition_idx;
         rule_div = createElem("div", "ru" + suffix, null, null);
 
@@ -1451,8 +1459,8 @@ function init_channel_elements(edit_mode = false) {
         async: false,
         success: function (data) {
             console.log('/export-config');
+            g_config = data; // set config to a global variable
             $.each(data.ch, function (i, ch_cur) {
-                //   console.log("init_channel_elements, loop:", i, ch_cur);
                 if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
                     console.log("Skipping channel " + i);
                     return;
@@ -1545,7 +1553,7 @@ function initWifiForm() {
             var opt = document.createElement("option");
             opt.value = wifi.id;
 
-            if (backup_wifi_config_mode && i == 0)
+            if (g_config.wifi_in_setup_mode && i == 0)
                 opt.selected = true;
             else if (wifi_ssid_db.value == wifi.id) {
                 opt.selected = true;
@@ -1571,11 +1579,31 @@ function initWifiForm() {
 //
 function initForm(url) {
     initUrlBar(url);
+
+    $.ajax({
+        url: '/data/ui-constants.json',
+        dataType: 'json',
+        async: false,
+        success: function (data) { g_constants = data; console.log("got g_constants"); },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get g_constants", textStatus, jqXHR.status);
+        }
+    });
+
     if (url == '/admin') {
+        //TODO: this could be do ne always and then use variable g_config in init_channel_elements
+        $.ajax({
+            url: '/export-config',
+            dataType: 'json',
+            async: false,
+            success: function (data) { g_config = data; console.log("got g_config"); },
+            error: function (jqXHR, textStatus, errorThrown) {
+                console.log("Cannot get g_config", textStatus, jqXHR.status);
+            }
+        });
+
         initWifiForm();
-
-
-        if (using_default_password) {
+        if (g_config.using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
 
@@ -1655,7 +1683,7 @@ function initForm(url) {
 
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
-        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + VERSION + " (" + HWID + "),   Filesystem version: " + version_fs + "</i></div>";
+        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + g_constants.VERSION + " (" + g_constants.HWID + "),   Filesystem version: " + g_constants.version_fs + "</i></div>";
     }
 }
 

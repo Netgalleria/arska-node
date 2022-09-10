@@ -88,6 +88,7 @@ const char *variables_filename PROGMEM = "/data/variables.json";
 const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
 const char *wifis_filename PROGMEM = "/wifis.json";
 const char *template_filename PROGMEM = "/data/templates.json";
+const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
 
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
@@ -1431,7 +1432,6 @@ bool is_cache_file_valid(const char *cache_file_name)
     return false;
   }
   StaticJsonDocument<16> filter;
-  // filter["ts"] = true; // first get timestamp field, old way
   filter["expires"] = true; // first check expires timestamp field
 
   StaticJsonDocument<50> doc_ts;
@@ -3231,21 +3231,28 @@ String inputs_form_processor(const String &var)
  */
 String jscode_form_processor(const String &var)
 {
+  // %VERSION% (%HWID%), Filesystem %version_fs% 
+
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
-  char out[1000]; // depends on VARIABLE_COUNT
-  char buff[70];
-  if (var == F("compile_date"))
-    return String(compile_date);
-  if (var == F("HWID"))
-    return String(HWID);
 
   if (var == F("VERSION"))
     return String(VERSION);
+
+  if (var == F("HWID"))
+    return String(HWID);
+  if (var == F("version_fs"))
+    return String(version_fs);
+/*
+  char out[1000]; // depends on VARIABLE_COUNT
+  char buff[70];
+
+
+  if (var == F("compile_date"))
+    return String(compile_date);
+
   if (var == F("VERSION_SHORT"))
     return String(VERSION_SHORT);
 
-  if (var == F("version_fs"))
-    return String(version_fs);
 
   if (var == F("switch_subnet_wifi"))
     return s.switch_subnet_wifi.toString();
@@ -3347,8 +3354,156 @@ String jscode_form_processor(const String &var)
 #endif
   if (var == "wifi_in_setup_mode")
     return String(wifi_in_setup_mode ? "true" : "false");
-
+*/
   return String();
+}
+// Work in progress....
+
+bool generate_ui_constants(bool force_create = false) // true if exist or generated ok
+{
+  File constant_file;
+  if (!force_create && LittleFS.exists(ui_constants_filename))
+  {
+    constant_file = LittleFS.open(ui_constants_filename, "r");
+    if (constant_file)
+    {
+      StaticJsonDocument<24> filter;
+      filter["VERSION_SHORT"] = true; // first check expires timestamp field
+      StaticJsonDocument<50> doc_ts;
+
+      DeserializationError error = deserializeJson(doc_ts, constant_file, DeserializationOption::Filter(filter));
+      constant_file.close();
+      if (error)
+      {
+        Serial.printf(PSTR("Constant file deserializeJson() failed: %s\n"), error.f_str());
+        return false;
+      }
+      else
+      {
+        String cached_version_short = doc_ts["VERSION_SHORT"];
+        if (String(VERSION_SHORT).equals(cached_version_short))
+          return true;
+      }
+    }
+  }
+
+  // No up-to-date json cache file, let's create one
+  DynamicJsonDocument doc(8192);
+  doc["compile_date"] = compile_date;
+  doc["HWID"] = HWID;
+
+  doc["VERSION"] = VERSION;
+  doc["VERSION_SHORT"] = VERSION_SHORT;
+  doc["version_fs"] = version_fs;
+  doc["RULE_STATEMENTS_MAX"] = RULE_STATEMENTS_MAX;
+  doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
+  doc["CHANNEL_CONDITIONS_MAX"] = CHANNEL_CONDITIONS_MAX;
+#ifdef  DEBUG_MODE
+  doc["DEBUG_MODE"] = true;
+#else
+doc["DEBUG_MODE"] = false;
+#endif
+
+
+  JsonArray json_opers = doc.createNestedArray("opers");
+  for (int i = 0; i < OPER_COUNT; i++)
+  {
+    JsonArray json_oper = json_opers.createNestedArray();
+    json_oper.add(opers[i].id);
+
+    json_oper.add(opers[i].code);
+    json_oper.add(opers[i].gt);
+    json_oper.add(opers[i].eq);
+    json_oper.add(opers[i].reverse);
+    json_oper.add(opers[i].boolean_only);
+    json_oper.add(opers[i].has_value);
+  }
+
+  int variable_count = vars.get_variable_count();
+  variable_st variable;
+
+  JsonArray json_variables = doc.createNestedArray("variables");
+  for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
+  {
+    JsonArray json_variable = json_variables.createNestedArray();
+    vars.get_variable_by_idx(variable_idx, &variable);
+    json_variable.add(variable.id);
+    json_variable.add(variable.code);
+    json_variable.add(variable.type);
+    vars.get_variable_by_idx(variable_idx, &variable);
+  }
+
+  JsonArray json_channel_types = doc.createNestedArray("channel_types");
+  for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+  {
+    JsonObject json_channel_type = json_channel_types.createNestedObject();
+    json_channel_type["id"] = (int)channel_types[channel_type_idx].id;
+    json_channel_type["name"] = channel_types[channel_type_idx].name;
+  }
+
+   JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
+  for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
+  {
+    JsonObject json_hs_template = json_hs_templates.createNestedObject();
+    json_hs_template["id"] = (int)hw_templates[hw_template_idx].id;
+    json_hs_template["name"] = hw_templates[hw_template_idx].name;
+  }
+
+
+
+  constant_file = LittleFS.open(ui_constants_filename, "w"); // Open file for writing
+  serializeJson(doc, constant_file);
+
+  constant_file.close();
+  /*
+
+
+
+
+    if (var == F("channel_types"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+    // TODO: currently unused when coded in html template
+    if (var == F("hw_templates"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+
+
+    if (var == F("DEBUG_MODE"))
+  #ifdef DEBUG_MODE
+      return "true";
+  #endif
+    if (var == "wifi_in_setup_mode")
+      return String(wifi_in_setup_mode ? "true" : "false");
+
+    return String();
+
+    */
+  return true;
 }
 
 // variables for the admin form
@@ -3358,6 +3513,7 @@ String jscode_form_processor(const String &var)
  * @param var
  * @return String
  */
+/*
 String setup_form_processor(const String &var)
 {
   // Serial.printf("Debug setup_form_processor: %s\n", var.c_str());
@@ -3368,7 +3524,7 @@ String setup_form_processor(const String &var)
     return String(wifi_in_setup_mode ? 1 : 0);
   return String("");
 }
-
+*/
 /**
  * @brief Read grid or production info from energy meter/inverter
  *
@@ -3409,7 +3565,7 @@ void read_energy_meter()
     if (internet_connection_ok)
       log_msg(MSG_TYPE_FATAL, PSTR("Internet connection ok, but cannot read energy meter. Check the meter."));
     else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_in_func) && (energym_read_last > 0))
-    { //connected earlier, but now many unsuccesfull reads
+    { // connected earlier, but now many unsuccesfull reads
       WiFi.disconnect();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter connections."), true);
       delay(2000);
@@ -4003,6 +4159,12 @@ void export_config(AsyncWebServerRequest *request)
   doc["wifi_password"] = s.wifi_password; // TODO: maybe not here
   doc["http_username"] = s.http_username;
   // doc["http_password"] = s.http_password; // TODO: maybe not here
+
+  // current status, do not import
+  doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
+  doc["using_default_password"] = String(s.http_password).equals(default_http_password);
+//  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
+
   doc["variable_mode"] = VARIABLE_MODE_SOURCE; // no selection
 
   doc["entsoe_api_key"] = s.entsoe_api_key;
@@ -4299,8 +4461,12 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
     request->redirect("/admin");
     return;
   }
-  sendForm(request, "/dashboard_template.html", setup_form_processor);
-  //  sendForm(request, "/dashboard_template.html");
+  // sendForm(request, "/dashboard_template.html", setup_form_processor);
+
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
+  request->send(LittleFS, "/dashboard_template.html", "text/html");
 }
 /**
  * @brief Returns services (inputs) form
@@ -4326,7 +4492,11 @@ void onWebChannelsGet_old(AsyncWebServerRequest *request)
 */
 void onWebChannelsGet(AsyncWebServerRequest *request)
 {
-  sendForm(request, "/channels_template.html", setup_form_processor);
+  // sendForm(request, "/channels_template.html", setup_form_processor);
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
+  request->send(LittleFS, "/channels_template.html", "text/html");
 }
 
 /**
@@ -4705,6 +4875,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
     {
       strncpy(s.http_password, request->getParam("http_password", true)->value().c_str(), sizeof(s.http_password));
+      Serial.println(s.http_password);
     }
   }
 
@@ -4911,16 +5082,17 @@ void onWebDoGet(AsyncWebServerRequest *request)
  */
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
-  if (!request->authenticate(s.http_username, s.http_password)) {
-/*   Serial.println("onWebStatusGet  requestAuthentication");
-    Serial.printf("Does not match %s/%s\n", s.http_username, s.http_password);
-    for (int i = 0; i<request->headers();i++)
-      Serial.print(request->getHeader(i)->toString());*/
+  if (!request->authenticate(s.http_username, s.http_password))
+  {
+    /*   Serial.println("onWebStatusGet  requestAuthentication");
+        Serial.printf("Does not match %s/%s\n", s.http_username, s.http_password);
+        for (int i = 0; i<request->headers();i++)
+          Serial.print(request->getHeader(i)->toString());*/
     return request->requestAuthentication();
   }
- /*   for (int i = 0; i<request->headers();i++)
-      Serial.print(request->getHeader(i)->toString());*/
-    
+  /*   for (int i = 0; i<request->headers();i++)
+       Serial.print(request->getHeader(i)->toString());*/
+
   StaticJsonDocument<2048> doc; //
   String output;
 
@@ -5283,8 +5455,16 @@ void setup()
                   { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
   */
 
+/*
   server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });
+                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });*/
+
+  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html"); });
+
+  //  /data/ui-constants.json
+  server_web.on(ui_constants_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, ui_constants_filename, F("application/json")); });
 
   server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
@@ -5315,6 +5495,8 @@ void setup()
                 { request->send(LittleFS, "/wifis.json", "text/json"); });
 
   server_web.onNotFound(notFound);
+  // TODO: remove force create
+  generate_ui_constants(true); // generate ui constant json if needed
   server_web.begin();
 
   if (wifi_in_setup_mode)
