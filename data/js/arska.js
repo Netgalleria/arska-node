@@ -62,13 +62,13 @@ function setVariableMode(variable_mode) {
     document.getElementById("entsoe_api_key").disabled = (variable_mode != 0);
     document.getElementById("entsoe_area_code").disabled = (variable_mode != 0);
     document.getElementById("forecast_loc").disabled = (variable_mode != 0);
-    document.getElementById("variable_server").disabled = (variable_mode != 1);
+   // document.getElementById("variable_server").disabled = (variable_mode != 1);
 }
 
 
 function statusCBClicked(elCb) {
     if (elCb.checked) {
-        setTimeout(function () { updateStatus(false); }, 300);
+        setTimeout(function () { updateStatus(false,false); }, 300);
     }
     document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 }
@@ -233,8 +233,7 @@ function update_discovered_devices() {
 }
 
 // update variables and channels statuses to channels form
-// function updateStatus(show_variables = true) {
-function updateStatus(repeat) {
+function updateStatus(repeat,initial_call) {
     if (document.getElementById("statusauto"))
         show_variables = document.getElementById("statusauto").checked;
     else
@@ -310,18 +309,18 @@ function updateStatus(repeat) {
                 });
                 $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
             }
-       
+
             $.each(data.ch, function (i, ch) {
                 show_channel_status(i, ch)
             });
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get status", Date(Date.now()).toString(), textStatus, jqXHR.status);
-          
+
             if (jqXHR.status === 401) {
                 // or just location.reload();
                 href_a = window.location.href.split("?");
-                window.location.href=href_a[0] + "?rnd="+Math.floor(Math.random() * 1000);
+                window.location.href = href_a[0] + "?rnd=" + Math.floor(Math.random() * 1000);
                 return;
             }
         }/*,
@@ -332,8 +331,9 @@ function updateStatus(repeat) {
 
     );
     if (repeat)
-        setTimeout(function () { updateStatus(true); }, 30000);
-
+        setTimeout(function () { updateStatus(true,false); }, 30000);
+    if (initial_call) //show page when fully loaded
+        $("#cover").fadeOut(200);//.hide(); 
 
 }
 
@@ -889,7 +889,6 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
 
         show_rule = (rule_mode == CHANNEL_CONFIG_MODE_RULE) || first_var_defined;
 
-
         if (!template_id) {// not yet populated to the select
             console.log("template_id from ui select");
             template_id = document.getElementById("rts_" + channel_idx).value;
@@ -964,7 +963,7 @@ function initChannelForm() {
         }
     }
 
-    for (let channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {  
+    for (let channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
         //rule_mode = channels[channel_idx]["cm"];
         //template_id = channels[channel_idx]["tid"];
         // now from global variale updated in the first query
@@ -980,10 +979,6 @@ function initChannelForm() {
         }
         setRuleMode(channel_idx, rule_mode, false, template_id);
     }
-
-    /*   if (document.getElementById('statusauto').checked) {
-           setTimeout(function () { updateStatus(); }, 3000);
-       } */
 
 }
 
@@ -1428,8 +1423,6 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
                 }
                 */
 
-
-
         ruleh_div.appendChild(rulel_div);
         rule_div.appendChild(ruleh_div);
         rule_div.appendChild(ruled_div); //meniköhän oikeaan kohtaan
@@ -1441,8 +1434,6 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
 
 // dashboard or channel config (edit_mode)
 /* TODO 20.7.2022
-- tsekkaa erityisesti eventlistenerit ja evt versiot, niitä ei tehty loppuun
-- tsekaa tuleeko stmt formiin saakka
 - katso jos stmt-voisi tulla suoraan ettei tarvitse viedä formin kautta
     - pitäisikö element creation ja populate olla selkeästi erilleen, niin vasta populatessa tehdään kysely
     */
@@ -1452,88 +1443,165 @@ function init_channel_elements(edit_mode = false) {
 
     chlist = document.getElementById("chlist");
     listed_channels = 0;
-    //async: false, because this initates elements used later, everything must be initiated, could be later split to init+populate
-    $.ajax({
-        url: '/export-config',
-        dataType: 'json',
-        async: false,
-        success: function (data) {
-            console.log('/export-config');
-            g_config = data; // set config to a global variable
-            $.each(data.ch, function (i, ch_cur) {
-                if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
-                    console.log("Skipping channel " + i);
-                    return;
-                }
-                listed_channels++;
 
-                chdiv = createElem("div", "chdiv_" + i, null, "hb");
-                chdiv_head = createElem("div", null, null, "secbr cht");
-                chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
-                chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
+    $.each(g_config.ch, function (i, ch_cur) {
+        if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
+            console.log("Skipping channel " + i);
+            return;
+        }
+        listed_channels++;
 
-                var svg = document.createElementNS(svgns, "svg");
-                // svg.viewBox = '0 0 100 100';
-                svg.setAttribute('viewBox', '0 0 100 100');
-                svg.classList.add("statusic");
-                svg.className = "statusic";
+        chdiv = createElem("div", "chdiv_" + i, null, "hb");
+        chdiv_head = createElem("div", null, null, "secbr cht");
+        chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
+        chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
 
-                var use = document.createElementNS(svgns, "use");
-                use.id = 'status_' + i;
-                use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
+        var svg = document.createElementNS(svgns, "svg");
+        // svg.viewBox = '0 0 100 100';
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.classList.add("statusic");
+        svg.className = "statusic";
 
-                svg.appendChild(use);
-                chdiv_head.appendChild(svg);
+        var use = document.createElementNS(svgns, "use");
+        use.id = 'status_' + i;
+        use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
 
-                var span = document.createElement('span');
-                span.id = 'chid_' + i;
-                span.innerHTML = ch_cur["id_str"];
-                $('#chid_' + i).html(ch_cur["id_str"]);
+        svg.appendChild(use);
+        chdiv_head.appendChild(svg);
 
-                chdiv_head.appendChild(span);
-                chdiv.appendChild(chdiv_head);
-                chdiv.appendChild(chdiv_info);
-                chdiv.appendChild(chdiv_sched);
-                chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
+        var span = document.createElement('span');
+        span.id = 'chid_' + i;
+        span.innerHTML = ch_cur["id_str"];
+        $('#chid_' + i).html(ch_cur["id_str"]);
 
-                chlist.appendChild(chdiv);
+        chdiv_head.appendChild(span);
+        chdiv.appendChild(chdiv_head);
+        chdiv.appendChild(chdiv_info);
+        chdiv.appendChild(chdiv_sched);
+        chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
 
-                now_ts = Date.now() / 1000;
+        chlist.appendChild(chdiv);
 
-                if (!edit_mode) { // is dashboard
-                    //Set channel up for next:<br>
-                    current_duration_minute = 0;
-                    current_start_ts = 0;
-                    has_forced_setting = false;
-                    if ((ch_cur.force_up_until > now_ts)) {
-                        has_forced_setting = true;
-                    }
+        now_ts = Date.now() / 1000;
 
-                    if ((ch_cur.force_up_from > now_ts)) {
-                        current_start_ts = ch_cur.force_up_from;
-                    }
+        if (!edit_mode) { // is dashboard
+            //Set channel up for next:<br>
+            current_duration_minute = 0;
+            current_start_ts = 0;
+            has_forced_setting = false;
+            if ((ch_cur.force_up_until > now_ts)) {
+                has_forced_setting = true;
+            }
 
-                    for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
-                        hour_cur = force_up_hours[hour_idx];
-                        // new test
-                        update_fup_duration_element(i, current_duration_minute, has_forced_setting);
-                        update_fup_schedule_element(i, current_start_ts);
+            if ((ch_cur.force_up_from > now_ts)) {
+                current_start_ts = ch_cur.force_up_from;
+            }
 
-                    }
-                }
-                if (edit_mode) {
-                    create_channel_config_elements(chdiv, i, ch_cur);
-                    create_channel_rule_elements(chdiv, i, ch_cur);
-                }
-            });
-            if (listed_channels == 0) {
-                btnSubmit = document.getElementById("btnSubmit");
-                if (btnSubmit)
-                    btnSubmit.style.display = "none";
-                chlist.insertAdjacentHTML('beforeend', "<br><span>No channels defined. Define them on <a href=\"/channels\">Channels section</a></span>");
+            for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
+                hour_cur = force_up_hours[hour_idx];
+                // new test
+                update_fup_duration_element(i, current_duration_minute, has_forced_setting);
+                update_fup_schedule_element(i, current_start_ts);
+
             }
         }
+        if (edit_mode) {
+            create_channel_config_elements(chdiv, i, ch_cur);
+            create_channel_rule_elements(chdiv, i, ch_cur);
+        }
     });
+    if (listed_channels == 0) {
+        btnSubmit = document.getElementById("btnSubmit");
+        if (btnSubmit)
+            btnSubmit.style.display = "none";
+        chlist.insertAdjacentHTML('beforeend', "<br><span>No channels defined. Define them on <a href=\"/channels\">Channels section</a></span>");
+    }
+
+    /* OLD, remove when structure above is ok 
+        $.ajax({
+            url: '/export-config',
+            dataType: 'json',
+            async: false,
+            success: function (data) {
+                console.log('/export-config');
+                g_config = data; // set config to a global variable
+                $.each(data.ch, function (i, ch_cur) {
+                    if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
+                        console.log("Skipping channel " + i);
+                        return;
+                    }
+                    listed_channels++;
+    
+                    chdiv = createElem("div", "chdiv_" + i, null, "hb");
+                    chdiv_head = createElem("div", null, null, "secbr cht");
+                    chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
+                    chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
+    
+                    var svg = document.createElementNS(svgns, "svg");
+                    // svg.viewBox = '0 0 100 100';
+                    svg.setAttribute('viewBox', '0 0 100 100');
+                    svg.classList.add("statusic");
+                    svg.className = "statusic";
+    
+                    var use = document.createElementNS(svgns, "use");
+                    use.id = 'status_' + i;
+                    use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
+    
+                    svg.appendChild(use);
+                    chdiv_head.appendChild(svg);
+    
+                    var span = document.createElement('span');
+                    span.id = 'chid_' + i;
+                    span.innerHTML = ch_cur["id_str"];
+                    $('#chid_' + i).html(ch_cur["id_str"]);
+    
+                    chdiv_head.appendChild(span);
+                    chdiv.appendChild(chdiv_head);
+                    chdiv.appendChild(chdiv_info);
+                    chdiv.appendChild(chdiv_sched);
+                    chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
+    
+                    chlist.appendChild(chdiv);
+    
+                    now_ts = Date.now() / 1000;
+    
+                    if (!edit_mode) { // is dashboard
+                        //Set channel up for next:<br>
+                        current_duration_minute = 0;
+                        current_start_ts = 0;
+                        has_forced_setting = false;
+                        if ((ch_cur.force_up_until > now_ts)) {
+                            has_forced_setting = true;
+                        }
+    
+                        if ((ch_cur.force_up_from > now_ts)) {
+                            current_start_ts = ch_cur.force_up_from;
+                        }
+    
+                        for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
+                            hour_cur = force_up_hours[hour_idx];
+                            // new test
+                            update_fup_duration_element(i, current_duration_minute, has_forced_setting);
+                            update_fup_schedule_element(i, current_start_ts);
+    
+                        }
+                    }
+                    if (edit_mode) {
+                        create_channel_config_elements(chdiv, i, ch_cur);
+                        create_channel_rule_elements(chdiv, i, ch_cur);
+                    }
+                });
+                if (listed_channels == 0) {
+                    btnSubmit = document.getElementById("btnSubmit");
+                    if (btnSubmit)
+                        btnSubmit.style.display = "none";
+                    chlist.insertAdjacentHTML('beforeend', "<br><span>No channels defined. Define them on <a href=\"/channels\">Channels section</a></span>");
+                }
+            }
+        });
+        */
+
+
 }
 
 function initWifiForm() {
@@ -1546,7 +1614,7 @@ function initWifiForm() {
 
     wifisp.sort(compare_wifis);
     var wifi_sel = document.getElementById("wifi_ssid");
-    var wifi_ssid_db = document.getElementById("wifi_ssid_db");
+    var wifi_ssid_db = g_config.wifi_ssid;// document.getElementById("wifi_ssid_db");
 
     wifisp.forEach(function (wifi, i) {
         if (wifi.id) {
@@ -1579,7 +1647,9 @@ function initWifiForm() {
 //
 function initForm(url) {
     initUrlBar(url);
+ 
 
+    //constants generated from 
     $.ajax({
         url: '/data/ui-constants.json',
         dataType: 'json',
@@ -1589,38 +1659,41 @@ function initForm(url) {
             console.log("Cannot get g_constants", textStatus, jqXHR.status);
         }
     });
+ 
+    
+    //current config
+    $.ajax({
+        url: '/export-config',
+        dataType: 'json',
+        async: false,
+        success: function (data) { g_config = data; console.log("got g_config"); },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get g_config", textStatus, jqXHR.status);
+        }
+    });
+  
 
     if (url == '/admin') {
-        //TODO: this could be do ne always and then use variable g_config in init_channel_elements
-        $.ajax({
-            url: '/export-config',
-            dataType: 'json',
-            async: false,
-            success: function (data) { g_config = data; console.log("got g_config"); },
-            error: function (jqXHR, textStatus, errorThrown) {
-                console.log("Cannot get g_config", textStatus, jqXHR.status);
-            }
-        });
-
         initWifiForm();
         if (g_config.using_default_password) {
             document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
         }
 
-        //set timezone select element
-        var timezone = document.getElementById("timezone_db").value;
+        document.getElementById("wifi_password").value = g_config.wifi_password;
+        //set timezone select element 
+        var timezone = g_config.timezone;// document.getElementById("timezone_db").value;
         $('#timezone option').filter(function () {
             return this.value.indexOf(timezone) > -1;
         }).prop('selected', true);
 
         // set language select element
-        var lang = document.getElementById("lang_db").value;
+        var lang = g_config.lang; //document.getElementById("lang_db").value;
         $('#lang option').filter(function () {
             return this.value.indexOf(lang) > -1;
         }).prop('selected', true);
 
         //set hw_template select list
-        var hw_template_id = document.getElementById("hw_template_id_db").value;
+        var hw_template_id = g_config.hw_template_id;// document.getElementById("hw_template_id_db").value;
         $('#hw_template_id option').filter(function () {
             return this.value.indexOf(hw_template_id) > -1;
         }).prop('selected', true);
@@ -1645,48 +1718,65 @@ function initForm(url) {
     }
 
     else if (url == '/inputs') {
-        if (document.getElementById("VARIABLE_SOURCE_ENABLED").value == 0) {
+        var variable_mode;
+        // replicat mode disabled
+      /*  if (document.getElementById("VARIABLE_SOURCE_ENABLED").value == 0) {
             variable_mode = 1;
             document.getElementById("variable_mode_0").disabled = true;
         }
         else {
-            variable_mode = document.getElementById("variable_mode_db").value;
-        }
-
+            variable_mode = g_config.variable_mode; //document.getElementById("variable_mode_db").value;
+        }*/
+        variable_mode = g_config.variable_mode; //should be 0 
         setVariableMode(variable_mode);
         document.getElementById("variable_mode_" + variable_mode).checked = true;
-        setEnergyMeterFields(document.getElementById("emt").value);
+
+        document.getElementById("emt").value = g_config.energy_meter_type;
+        setEnergyMeterFields(g_config.energy_meter_type);
+        document.getElementById("emh").value = g_config.energy_meter_host;
+        document.getElementById("emp").value = g_config.energy_meter_port;
+        document.getElementById("emid").value = g_config.energy_meter_id;
+        document.getElementById("emid").value = g_config.energy_meter_id;
+        document.getElementById("baseload").value = g_config.baseload;
+        document.getElementById("entsoe_api_key").value = g_config.entsoe_api_key;
+
+        setEnergyMeterFields(g_config.energy_meter_type);
 
         //set forecast location select element
-        var location = document.getElementById("forecast_loc_db").value;
+        var location = g_config.forecast_loc; //foredocument.getElementById("forecast_loc_db").value;
         $('#forecast_loc option').filter(function () {
             return this.value.indexOf(location) > -1;
         }).prop('selected', true);
 
         //set forecast location select element
-        var area_code = document.getElementById("entsoe_area_code_db").value;
+        var area_code = g_config.entsoe_area_code; //document.getElementById("entsoe_area_code_db").value;
         if (!(area_code))
             area_code = "#";
         $('#entsoe_area_code option').filter(function () {
             return this.value.indexOf(area_code) > -1;
         }).prop('selected', true);
 
-
         // show influx definations only if enbaled by server
-        if (document.getElementById("INFLUX_REPORT_ENABLED").value != 1) {
+        if (g_constants.INFLUX_REPORT_ENABLED)
+        { 
+            document.getElementById("influx_url").value = g_config.influx_url;
+            document.getElementById("influx_token").value = g_config.influx_token;
+            document.getElementById("influx_org").value = g_config.influx_org;
+            document.getElementById("influx_bucket").value = g_config.influx_bucket;
+        }
+        else {
             document.getElementById("influx_div").style.display = "none";
         }
     }
 
-    setTimeout(function () { updateStatus(true); }, 1000);  // first
-   // setInterval(function () { updateStatus(false); }, 30000);  //frequent
-
+   
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
         footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + g_constants.VERSION + " (" + g_constants.HWID + "),   Filesystem version: " + g_constants.version_fs + "</i></div>";
     }
+  //  setTimeout(function () { updateStatus(true,true); }, 100);  // first, could be synchronous
+    updateStatus(true,true);
 }
-
 
 // for sorting wifis by signal strength
 function compare_wifis(a, b) {

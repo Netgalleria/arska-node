@@ -4,11 +4,11 @@
 Resource files (see data subfolder):
 - arska.js - web UI Javascript routines
 - style.css - web UI styles
-- admin_template.html - html template file for admin web UI
-- channels_template.html - template file for channel configuration
-- dashboard_template.html - html template file for dashboard UI
-- inputs_template.htm - htmll template for services configuration UI
-- js/arska_tmpl-js - main javascript code template //TODO:separate variable(constant) and code
+- admin.html - html template file for admin web UI
+- channels.html - template file for channel configuration
+- dashboard.html - html template file for dashboard UI
+- inputs.htm - htmll template for services configuration UI
+- js/arska.js - main javascript code template //TODO:separate variable(constant) and code
 - js/jquery-3.6.0.min.js - jquery library
 - data/version.txt - file system version info
 - data/template-list.json - list of rule templates
@@ -1293,8 +1293,8 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 
 #define ENERGYM_SMA_MODBUS_TCP 3
 #define ENERGYM_MAX 3
 
-// Type texts for config ui
-const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
+// Type texts for config ui - now hardcoded in html
+// const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -3120,6 +3120,7 @@ int active_condition(int channel_idx)
  * @param var
  * @return String
  */
+/*
 String admin_form_processor(const String &var)
 {
   if (var == "wifi_ssid")
@@ -3143,86 +3144,89 @@ String admin_form_processor(const String &var)
 
   return String();
 }
-
+*/
 /**
  * @brief Template processor for the service (inputs) form
  *
  * @param var
  * @return String
  */
+/*
 String inputs_form_processor(const String &var)
 {
   // Serial.println(var);
-  if (var == F("emt"))
-    return String(s.energy_meter_type);
 
-  if (var == F("emt_options"))
-  {
-    char out[200];
-    char buff[50];
-    for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
+  
+    if (var == F("emt_options"))
     {
-      snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
-      strcat(out, buff);
+      char out[200];
+      char buff[50];
+      for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
+      {
+        snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
+        strcat(out, buff);
+      }
+      return String(out);
     }
-    return String(out);
-  }
-  if (var == F("VARIABLE_SOURCE_ENABLED"))
-#ifdef VARIABLE_SOURCE_ENABLED
-    return String(1);
-#else
-    return String(0);
-#endif
 
-  if (var == F("emh"))
-    return String(s.energy_meter_host);
-  if (var == F("emh"))
-    return String(s.energy_meter_host);
-  if (var == F("emp"))
-    return String(s.energy_meter_port);
-  if (var == F("emid"))
-    return String(s.energy_meter_id);
+      if (var == F("emt"))
+      return String(s.energy_meter_type);
+    if (var == F("VARIABLE_SOURCE_ENABLED"))
+  #ifdef VARIABLE_SOURCE_ENABLED
+      return String(1);
+  #else
+      return String(0);
+  #endif
 
-  if (var == F("baseload"))
-    return String(s.baseload);
+    if (var == F("emh"))
+      return String(s.energy_meter_host);
+    if (var == F("emh"))
+      return String(s.energy_meter_host);
+    if (var == F("emp"))
+      return String(s.energy_meter_port);
+    if (var == F("emid"))
+      return String(s.energy_meter_id);
 
-  if (var == F("variable_mode"))
-    return String((VARIABLE_MODE_SOURCE)); // removed selection
+    if (var == F("baseload"))
+      return String(s.baseload);
 
-  if (var == F("entsoe_api_key"))
-    return String(s.entsoe_api_key);
+    if (var == F("variable_mode"))
+      return String((VARIABLE_MODE_SOURCE)); // removed selection
 
-  if (var == F("entsoe_area_code"))
-    return String(s.entsoe_area_code);
+    if (var == F("entsoe_api_key"))
+      return String(s.entsoe_api_key);
 
-  if (var == F("variable_server"))
-    return String(s.variable_server);
-  if (var == F("forecast_loc"))
-    return String(s.forecast_loc);
+    if (var == F("entsoe_area_code"))
+      return String(s.entsoe_area_code);
 
-  // influx
-  if (var == F("INFLUX_REPORT_ENABLED"))
-#ifdef INFLUX_REPORT_ENABLED
-    return String(1);
-#else
-    return String(0);
-#endif
-#ifdef INFLUX_REPORT_ENABLED
-  if (var == F("influx_url"))
-    return String(s_influx.url);
-  if (var == F("influx_token"))
-  {
-    return String(s_influx.token);
-  }
-  if (var == F("influx_org"))
-    return String(s_influx.org);
-  if (var == F("influx_bucket"))
-    return String(s_influx.bucket);
-#endif
+    if (var == F("variable_server"))
+      return String(s.variable_server);
+    if (var == F("forecast_loc"))
+      return String(s.forecast_loc);
 
+    // influx
+    if (var == F("INFLUX_REPORT_ENABLED"))
+  #ifdef INFLUX_REPORT_ENABLED
+      return String(1);
+  #else
+      return String(0);
+  #endif
+  #ifdef INFLUX_REPORT_ENABLED
+    if (var == F("influx_url"))
+      return String(s_influx.url);
+    if (var == F("influx_token"))
+    {
+      return String(s_influx.token);
+    }
+    if (var == F("influx_org"))
+      return String(s_influx.org);
+    if (var == F("influx_bucket"))
+      return String(s_influx.bucket);
+  #endif
+  
   return String();
 }
-
+*/
 /**
  * @brief Template processor for the javascript code.
  *
@@ -3231,7 +3235,7 @@ String inputs_form_processor(const String &var)
  */
 String jscode_form_processor(const String &var)
 {
-  // %VERSION% (%HWID%), Filesystem %version_fs% 
+  // %VERSION% (%HWID%), Filesystem %version_fs%
 
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
 
@@ -3242,119 +3246,119 @@ String jscode_form_processor(const String &var)
     return String(HWID);
   if (var == F("version_fs"))
     return String(version_fs);
-/*
-  char out[1000]; // depends on VARIABLE_COUNT
-  char buff[70];
+  /*
+    char out[1000]; // depends on VARIABLE_COUNT
+    char buff[70];
 
 
-  if (var == F("compile_date"))
-    return String(compile_date);
+    if (var == F("compile_date"))
+      return String(compile_date);
 
-  if (var == F("VERSION_SHORT"))
-    return String(VERSION_SHORT);
+    if (var == F("VERSION_SHORT"))
+      return String(VERSION_SHORT);
 
 
-  if (var == F("switch_subnet_wifi"))
-    return s.switch_subnet_wifi.toString();
+    if (var == F("switch_subnet_wifi"))
+      return s.switch_subnet_wifi.toString();
 
-  if (var == F("RULE_STATEMENTS_MAX"))
-    return String(RULE_STATEMENTS_MAX);
-  if (var == "CHANNEL_COUNT")
-    return String(CHANNEL_COUNT);
-  if (var == F("CHANNEL_CONDITIONS_MAX"))
-    return String(CHANNEL_CONDITIONS_MAX);
-  if (var == F("OPERS"))
-  {
-    strcpy(out, "[");
-    for (int i = 0; i < OPER_COUNT; i++)
+    if (var == F("RULE_STATEMENTS_MAX"))
+      return String(RULE_STATEMENTS_MAX);
+    if (var == "CHANNEL_COUNT")
+      return String(CHANNEL_COUNT);
+    if (var == F("CHANNEL_CONDITIONS_MAX"))
+      return String(CHANNEL_CONDITIONS_MAX);
+    if (var == F("OPERS"))
     {
-      snprintf(buff, sizeof(buff), "[%d, \"%s\", %s, %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false", opers[i].has_value ? "true" : "false");
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (i < OPER_COUNT - 1)
-        strcat(out, ", "); // TODO: memory safe strncat
+      strcpy(out, "[");
+      for (int i = 0; i < OPER_COUNT; i++)
+      {
+        snprintf(buff, sizeof(buff), "[%d, \"%s\", %s, %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false", opers[i].has_value ? "true" : "false");
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (i < OPER_COUNT - 1)
+          strcat(out, ", "); // TODO: memory safe strncat
+      }
+      strcat(out, "]"); // TODO: memory safe strncat
+      return out;
     }
-    strcat(out, "]"); // TODO: memory safe strncat
-    return out;
-  }
-  if (var == F("channels"))
-  { // used by Javascript
-    strcpy(out, "[");
-    channel_struct *chp;
-    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-    {
-      chp = &s.ch[channel_idx];
-      snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (channel_idx < CHANNEL_COUNT - 1)
-        strcat(out, ", ");
+    if (var == F("channels"))
+    { // used by Javascript
+      strcpy(out, "[");
+      channel_struct *chp;
+      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+      {
+        chp = &s.ch[channel_idx];
+        snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (channel_idx < CHANNEL_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
     }
-    strcat(out, "]");
-    return out;
-  }
 
-  if (var == F("channel_types"))
-  { // used by Javascript
-    strcpy(out, "[");
-    for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
-    {
-      snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
-        strcat(out, ", ");
+    if (var == F("channel_types"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
     }
-    strcat(out, "]");
-    return out;
-  }
 
-  // TODO: currently unused when coded in html template
-  if (var == F("hw_templates"))
-  { // used by Javascript
-    strcpy(out, "[");
-    for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
-    {
-      snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
-        strcat(out, ", ");
+    // TODO: currently unused when coded in html template
+    if (var == F("hw_templates"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
     }
-    strcat(out, "]");
-    return out;
-  }
 
-  if (var == F("VARIABLES")) // used by Javascript
-  {
-    strcpy(out, "[");
-    int variable_count = vars.get_variable_count();
-    variable_st variable;
-    for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
+    if (var == F("VARIABLES")) // used by Javascript
     {
-      // Serial.println(variable.code);
-      //  YYY
-      vars.get_variable_by_idx(variable_idx, &variable);
-      snprintf(buff, sizeof(buff), "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
-      strcat(out, buff); // TODO: memory safe strncat
-      if (variable_idx < variable_count - 1)
-        strcat(out, ", ");
-    }
-    strcat(out, "]");
-    return out;
-  };
-  if (var == "lang")
-    return s.lang;
+      strcpy(out, "[");
+      int variable_count = vars.get_variable_count();
+      variable_st variable;
+      for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
+      {
+        // Serial.println(variable.code);
+        //  YYY
+        vars.get_variable_by_idx(variable_idx, &variable);
+        snprintf(buff, sizeof(buff), "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
+        strcat(out, buff); // TODO: memory safe strncat
+        if (variable_idx < variable_count - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    };
+    if (var == "lang")
+      return s.lang;
 
-  if (var == F("using_default_password"))
-    return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
-  if (var == F("DEBUG_MODE"))
-#ifdef DEBUG_MODE
-    return "true";
-#endif
-  if (var == "wifi_in_setup_mode")
-    return String(wifi_in_setup_mode ? "true" : "false");
-*/
+    if (var == F("using_default_password"))
+      return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
+    if (var == F("DEBUG_MODE"))
+  #ifdef DEBUG_MODE
+      return "true";
+  #endif
+    if (var == "wifi_in_setup_mode")
+      return String(wifi_in_setup_mode ? "true" : "false");
+  */
   return String();
 }
 // Work in progress....
@@ -3398,12 +3402,18 @@ bool generate_ui_constants(bool force_create = false) // true if exist or genera
   doc["RULE_STATEMENTS_MAX"] = RULE_STATEMENTS_MAX;
   doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
   doc["CHANNEL_CONDITIONS_MAX"] = CHANNEL_CONDITIONS_MAX;
-#ifdef  DEBUG_MODE
-  doc["DEBUG_MODE"] = true;
+
+#ifdef INFLUX_REPORT_ENABLED
+  doc["INFLUX_REPORT_ENABLED"] = true;
 #else
-doc["DEBUG_MODE"] = false;
+  doc["INFLUX_REPORT_ENABLED"] = false;
 #endif
 
+#ifdef DEBUG_MODE
+  doc["DEBUG_MODE"] = true;
+#else
+  doc["DEBUG_MODE"] = false;
+#endif
 
   JsonArray json_opers = doc.createNestedArray("opers");
   for (int i = 0; i < OPER_COUNT; i++)
@@ -3441,15 +3451,13 @@ doc["DEBUG_MODE"] = false;
     json_channel_type["name"] = channel_types[channel_type_idx].name;
   }
 
-   JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
+  JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
   for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
   {
     JsonObject json_hs_template = json_hs_templates.createNestedObject();
     json_hs_template["id"] = (int)hw_templates[hw_template_idx].id;
     json_hs_template["name"] = hw_templates[hw_template_idx].name;
   }
-
-
 
   constant_file = LittleFS.open(ui_constants_filename, "w"); // Open file for writing
   serializeJson(doc, constant_file);
@@ -4163,7 +4171,7 @@ void export_config(AsyncWebServerRequest *request)
   // current status, do not import
   doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
   doc["using_default_password"] = String(s.http_password).equals(default_http_password);
-//  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
+  //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
 
   doc["variable_mode"] = VARIABLE_MODE_SOURCE; // no selection
 
@@ -4466,7 +4474,7 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
-  request->send(LittleFS, "/dashboard_template.html", "text/html");
+  request->send(LittleFS, "/dashboard.html", "text/html");
 }
 /**
  * @brief Returns services (inputs) form
@@ -4475,7 +4483,10 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
  */
 void onWebInputsGet(AsyncWebServerRequest *request)
 {
-  sendForm(request, "/inputs_template.html", inputs_form_processor);
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  request->send(LittleFS, "/inputs.html", "text/html");
+  //  sendForm(request, "/inputs_template.html", inputs_form_processor);
 }
 
 /**
@@ -4496,7 +4507,7 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
-  request->send(LittleFS, "/channels_template.html", "text/html");
+  request->send(LittleFS, "/channels.html", "text/html");
 }
 
 /**
@@ -4506,7 +4517,10 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
  */
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
-  sendForm(request, "/admin_template.html", admin_form_processor);
+  //sendForm(request, "/admin_template.html", admin_form_processor);
+    if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  request->send(LittleFS, "/admin.html", "text/html");
 }
 
 /**
@@ -5455,12 +5469,12 @@ void setup()
                   { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
   */
 
-/*
-  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });*/
+  /*
+    server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });*/
 
   server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html"); });
+                { request->send(LittleFS, "/js/arska.js", "text/html"); });
 
   //  /data/ui-constants.json
   server_web.on(ui_constants_filename, HTTP_GET, [](AsyncWebServerRequest *request)

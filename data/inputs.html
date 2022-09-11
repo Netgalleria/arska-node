@@ -9,6 +9,7 @@
 <body onload="initForm('/inputs')">
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
+    <div id="cover"></div>
     <div class="secbr" id="headdiv">
     </div>
     <div id="headinfod" class="hb">
@@ -24,35 +25,36 @@
         </div>
         <div class="indent">
             <div class='fld'><select name='emt' id='emt'
-                    onchange='setEnergyMeterFields(this.value)'>%emt_options%</select>
+                    onchange='setEnergyMeterFields(this.value)'>
+                    <option value='0'>none</option>
+                    <option value='1'>Shelly 3EM</option>
+                    <option value='2'>Fronius Solar API</option>
+                    <option value='3'>SMA Modbus TCP</option>
+                </select>
             </div>
             <div id='emhd' class='fld'>
-                <div class='fldlong'>host:<input name='emh' id='emh' type='text' value='%emh%'></div>
-                <div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text' value='%emp%'></div>
-                <div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text' value='%emid%'></div>
+                <div class='fldlong'>host:<input name='emh' id='emh' type='text'></div>
+                <div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text'></div>
+                <div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text'></div>
             </div>
         </div>
 
-
-        <div class="fldshort" id="baseld">base load (W):<input name="baseload" class="inpnum" type="text"
-                value="%baseload%"></div>
+        <div class="fldshort" id="baseld">base load (W):<input id="baseload" name="baseload" class="inpnum" type="text"></div>
 
         <div class="secbr">
             <h3>Data sources</h3>
         </div>
-        <input type="hidden" id="VARIABLE_SOURCE_ENABLED" value="%VARIABLE_SOURCE_ENABLED%">
-        <input type="hidden" id="variable_mode_db" value="%variable_mode%">
         <div class="secbr" style="display:none;"><input type="radio" id="variable_mode_0" name="variable_mode" value="0"
                 onchange="setVariableMode(this.value)"><label for='vm0'>Source - calculate variables based on
                 market
                 and forecast info</label></div>
         <div class="indent">
             <div class="secbr">EntsoE API key:<br><input class="fldlong" id="entsoe_api_key" name="entsoe_api_key"
-                    type="text" value="%entsoe_api_key%" maxlength='36'></div>
+                    type="text" value="" maxlength='36'></div>
 
 
             <div class="secbr">
-                <input type="hidden" id="entsoe_area_code_db" value="%entsoe_area_code%">Price area:
+                Price area:
                 <br><select id="entsoe_area_code" name="entsoe_area_code">
                     <option value="#">not in use</option>
                     <option value='10YAT-APG------L'>Austria, APG 🇦🇹</option>
@@ -103,8 +105,7 @@
             </div>
 
             <div class="secbr">
-                <input type="hidden" id="forecast_loc_db" value="%forecast_loc%">Forecast
-                location (only Finland supported):<br><select id="forecast_loc" name="forecast_loc">
+                Forecast location (only Finland supported):<br><select id="forecast_loc" name="forecast_loc">
                     <option value="#">not in use</option>
                     <option>Akaa</option>
                     <option>Alajärvi</option>
@@ -234,23 +235,19 @@
                 device</label>
         </div>
         <div class="indent"  style="display:none;">
-            <div class="secbr">Variable source:<br><input class="fldlong" id="variable_server" name="variable_server"
-                    type="text" value="%variable_server%" maxlength='29'></div>
+            <div class="secbr">Variable source:<br><input class="fldlong" id="variable_server_not_in_use" name="variable_server"
+                    type="text" maxlength='29'></div>
         </div>
         <div class="influx_div">
             <div class="secbr">
                 <h3>InfluxDb Server<span><a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/InfluxDB-settings">ℹ</a></span></h3>
             </div>
             <div class="indent">
-                <input type="hidden" id="INFLUX_REPORT_ENABLED" value="%INFLUX_REPORT_ENABLED%">
-                <div class="secbr">Server URL:<br><input id="influx_url" name="influx_url" type="text"
-                        value="%influx_url%" maxlength='69'></div>
-                <div class="secbr">Token:<br><input id="influx_token" name="influx_token" type="text"
-                        value="%influx_token%" maxlength='99'></div>
-                <div class="secbr">Org:<br><input id="influx_org" name="influx_org" type="text" value="%influx_org%"
-                    maxlength='30'></div>
-                <div class="secbr">Bucket:<br><input id="influx_bucket" name="influx_bucket" type="text"
-                        value="%influx_bucket%" maxlength='19'></div>
+                <input type="hidden" id="INFLUX_REPORT_ENABLED">
+                <div class="secbr">Server URL:<br><input id="influx_url" name="influx_url" type="text" maxlength='69'></div>
+                <div class="secbr">Token:<br><input id="influx_token" name="influx_token" type="text" maxlength='99'></div>
+                <div class="secbr">Org:<br><input id="influx_org" name="influx_org" type="text" maxlength='30'></div>
+                <div class="secbr">Bucket:<br><input id="influx_bucket" name="influx_bucket" type="text" maxlength='19'></div>
             </div>
         </div>
         <br><input id="btnSubmit" type="submit" value="Save">

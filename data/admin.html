@@ -1,5 +1,4 @@
 <html>
-
 <head>
     <meta charset="UTF-8">
     <title>Arska Node | Admin Dashboard</title>
@@ -7,12 +6,10 @@
 </head>
 
 <body onload="initForm('/admin');">
-    <script>
-        const wifi_ssid = '%wifi_ssid%'; 
-    </script>
     <script type="text/javascript" src="wifis.json"></script>
     <script src="js/jquery-3.6.0.min.js"></script>
     <script src="js/arska.js"></script>
+    <div id="cover"></div>
     <div class="secbr" id="headdiv">
     </div>
     <div id="headinfod" class="hb">
@@ -28,8 +25,6 @@
             <div class="indent">
                 <div class="fld">
                     <div>Wifi ssid</div>
-
-                    <input id="wifi_ssid_db" type="hidden" value="%wifi_ssid%">
                     <div class="fldh"><select name='wifi_ssid' id='wifi_ssid'>
                             <option value="NA">Select WiFi</option>
                         </select>
@@ -37,7 +32,7 @@
                     </div>
                     <div class="fld">
                         <div>Wifi password</div>
-                        <div class="fldh"><input name="wifi_password" type="password" value="%wifi_password%"></div>
+                        <div class="fldh"><input id="wifi_password"  name="wifi_password" type="password"</div>
                     </div>
                 </div>
             </div>
@@ -64,14 +59,13 @@
             <h3>Localization</h3>
         </div>
         <div class="secbr indent">
-            <input type="hidden" id="timezone_db" value="%timezone%">Timezone:
             <br><select id="timezone" name="timezone">
                 <option value="EET">EET</option>
                 <option value="CET">CET</option>
             </select>
         </div>
         <div class="secbr indent">
-            <input type="hidden" id="lang_db" value="%lang%">Preferred language (mostly still only English texts
+            Preferred language (mostly still only English texts
             available):
             <br><select id="lang" name="lang">
                 <option value="en">English</option>
@@ -86,7 +80,6 @@
         
         <div class="secbr indent">
            
-            <input type="hidden" id="hw_template_id_db" value="%hw_template_id%">Channel template:
             <br><select id="hw_template_id" name="hw_template_id">
                 <option value="0">manual</option>
                 <option value="1">esp32lilygo-4ch</option>
