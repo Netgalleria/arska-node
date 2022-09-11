@@ -68,7 +68,7 @@ function setVariableMode(variable_mode) {
 
 function statusCBClicked(elCb) {
     if (elCb.checked) {
-        setTimeout(function () { updateStatus(false,false); }, 300);
+        setTimeout(function () { updateStatus(false); }, 300);
     }
     document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
 }
@@ -102,7 +102,6 @@ function get_price_data() {
     }
     console.log("get_price_data starting");
     //await sleep(5000);
-    //console.log("get_price_data, now requesting");
 
     $.ajax({
         url: '/data/price-data.json',
@@ -133,7 +132,6 @@ function get_price_for_block(start_ts, end_ts = 0) {
     if (end_ts == 0)
         end_ts = start_ts;
     if (start_ts < prices_first_ts || end_ts > prices_last_ts) {
-        //   console.log("no match", start_ts, prices_first_ts, end_ts, prices_last_ts);
         return -VARIABLE_LONG_UNKNOWN;
     }
     var price_count = 0;
@@ -141,12 +139,10 @@ function get_price_for_block(start_ts, end_ts = 0) {
 
     for (cur_ts = start_ts; cur_ts <= end_ts; cur_ts += (prices_resolution_min * 60)) {
         price_idx = (cur_ts - prices_first_ts) / (prices_resolution_min * 60);
-        //   console.log("price",cur_ts,price_idx,prices[price_idx])
         price_sum += prices[price_idx];
         price_count++;
     }
     var block_price_avg = (price_sum / price_count) / 1000;
-    //  console.log("get_price_for_block result:", start_ts,end_ts,block_price_avg,price_sum,price_count);
     return block_price_avg;
 }
 
@@ -155,7 +151,6 @@ function pad_to_2digits(num) {
 }
 
 function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
-    // console.log("get_time_string_from_ts",ts)
     tmpDate = new Date(ts * 1000);
     tmpStr = tmpDate.toLocaleTimeString();
 
@@ -233,7 +228,7 @@ function update_discovered_devices() {
 }
 
 // update variables and channels statuses to channels form
-function updateStatus(repeat,initial_call) {
+function updateStatus(repeat) {
     if (document.getElementById("statusauto"))
         show_variables = document.getElementById("statusauto").checked;
     else
@@ -331,10 +326,7 @@ function updateStatus(repeat,initial_call) {
 
     );
     if (repeat)
-        setTimeout(function () { updateStatus(true,false); }, 30000);
-    if (initial_call) //show page when fully loaded
-        $("#cover").fadeOut(200);//.hide(); 
-
+        setTimeout(function () { updateStatus(true); }, 30000);
 }
 
 
@@ -451,11 +443,11 @@ var submitChannelForm = function (e) {
             channel_rules.push({ "on": target_up, "statements": [stmts_s[i].value] });
 
             if (prev_channel_idx != channel_idx) {
-                if (channel_rules.length > 0) {
+            /*    if (channel_rules.length > 0) {
                     //    console.log("channel_idx:" + prev_channel_idx);
                     // console.table(channel_rules);      
                     console.log(JSON.stringify(channel_rules));
-                }
+                }*/
                 prev_channel_idx = channel_idx;
                 channel_rules = [];
             }
@@ -463,14 +455,12 @@ var submitChannelForm = function (e) {
 
         if (channel_rules.length > 0) {
             console.log("channel_idx:" + prev_channel_idx);
-            // console.table(channel_rules);      
-            console.log(JSON.stringify(channel_rules));
+          //  console.log(JSON.stringify(channel_rules));
         }
 
         alert("Check rules from the javascript console");
     }
 
-    // console.log("form valid: ",$("#chFrm").valid());
     //enable before submit for posting
     let disSels = document.querySelectorAll('select[disabled="disabled"], input[disabled="disabled"]');
     for (var i = 0; i < disSels.length; i++) {
@@ -567,7 +557,6 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
         let div_to_search = "std_" + channel_idx + "_" + cond_idx;
 
         let stmtDivs = document.querySelectorAll("div[id^='" + div_to_search + "']");
-        // console.log("div_to_search:" + div_to_search + ", found: " + stmtDivs.length);
         for (let i = 0; i < stmtDivs.length; i++) {
             fldB = stmtDivs[i].id.split("_");
             stmt_idx = Math.max(parseInt(fldB[3]), stmt_idx);
@@ -578,7 +567,6 @@ function addStmt(elBtn, channel_idx = -1, cond_idx = 1, stmt_idx = -1, stmt = [-
         }
 
         stmt_idx++;
-        // console.log("New stmt_idx:" + stmt_idx);
     }
 
     suffix = "_" + channel_idx + "_" + cond_idx + "_" + (stmt_idx);
@@ -636,7 +624,6 @@ function _ltext(obj, prop) {
 }
 //called from element, set by addEventlistener
 function templateChangedEVT(evt) {
-    console.log("templateChangedEVT");
     templateChanged(evt.target);
 }
 
@@ -689,7 +676,6 @@ function templateChanged(selEl) {
 }
 
 function deleteStmtsUI(channel_idx) {
-    console.log("deleteStmtsUI");
     selector_str = "div[id^='std_" + channel_idx + "']";
     document.querySelectorAll(selector_str).forEach(e => e.remove());
 
@@ -720,7 +706,6 @@ function setRuleModeEVT(evt) {
     else {
         //back to original
         the_other_cb = document.getElementById("mo_" + channel_idx + "_" + (1 - rule_mode));
-        // console.log("the_other_cb.id", the_other_cb.id);
         evt.target.checked = false;
         the_other_cb.checked = true;
         return false;
@@ -765,7 +750,6 @@ function populateOper(el_oper, var_this, stmt = [-1, -1, 0]) {
 
     el_const = document.getElementById(el_oper.id.replace("op", "const"));
     el_const.value = stmt[2];
-    // console.log("stmt[2]", stmt[2]);
 
     if (el_oper.options.length == 0)
         addOption(el_oper, -1, "select", (stmt[1] == -1));
@@ -879,7 +863,6 @@ function setEnergyMeterFields(emt) { //
 
 // populate rule statements of a channel
 function fillStmtRules(channel_idx, rule_mode, template_id) {
-    console.log("fillStmtRules", channel_idx, rule_mode, "*", template_id);
 
     prev_rule_var_defined = true;
     for (let cond_idx = 0; cond_idx < g_constants.CHANNEL_CONDITIONS_MAX; cond_idx++) {
@@ -894,7 +877,6 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
             template_id = document.getElementById("rts_" + channel_idx).value;
         }
 
-        //  console.log("template_id", template_id);
         if (rule_mode == CHANNEL_CONFIG_MODE_RULE) {
             if (cond_idx == 0)
                 show_rule = true;
@@ -918,7 +900,6 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
 
         if (!first_var_defined && (rule_mode == CHANNEL_CONFIG_MODE_RULE)) {  // advanced more add at least one statement for each rule
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-            //   console.log("addStmt++", channel_idx, cond_idx, 0);
             if (elBtn)
                 addStmt(elBtn, channel_idx, cond_idx, 0);
         }
@@ -930,7 +911,6 @@ function initChannelForm() {
     var chtype;
 
     for (var channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
-        // console.log("channel_idx:" + channel_idx, 'chty_' + channel_idx);
         //TODO: fix if more types coming
         if (document.getElementById('chty_' + channel_idx)) {
             chtype = document.getElementById('chty_' + channel_idx).value;
@@ -940,7 +920,6 @@ function initChannelForm() {
 
     // set rule statements, statements are in hidden fields
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
-    //  console.log("stmts_s.length:" + stmts_s.length);
     for (let i = 0; i < stmts_s.length; i++) {
         if (stmts_s[i].value) {
             fldA = stmts_s[i].id.split("_");
@@ -975,7 +954,6 @@ function initChannelForm() {
         if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) {
             templateSelEl = document.getElementById("rts_" + channel_idx);
             templateSelEl.value = template_id;
-            //    console.log("templateSelEl.value:" + templateSelEl.value);
         }
         setRuleMode(channel_idx, rule_mode, false, template_id);
     }
@@ -1084,7 +1062,6 @@ const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 144
 
 function update_schedule_select_periodical() {
     //remove starts from history
-    //  console.log("update_schedule_select_periodical");
     let selects = document.querySelectorAll("select[id^='fupfrom_']");
     now_ts = Date.now() / 1000;
     for (i = 0; i < selects.length; i++) {
@@ -1230,7 +1207,6 @@ function set_radiob(prefix, value, readonly) {
 
 
 function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
-    console.log("create_channel_config_elements", channel_idx);
     conf_div = createElem("div", null, null, null);
 
     rc0_div = createElem("div", null, null, "secbr"); // first config row
@@ -1358,7 +1334,6 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
 
 function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
     // div envelope for all channel rules
-    console.log("create_channel_rule_elements");
     rules_div = createElem("div", "rd_" + channel_idx, null, null);
     for (condition_idx = 0; condition_idx < g_constants.CHANNEL_CONDITIONS_MAX; condition_idx++) {
         suffix = "_" + channel_idx + '_' + condition_idx;
@@ -1516,91 +1491,6 @@ function init_channel_elements(edit_mode = false) {
             btnSubmit.style.display = "none";
         chlist.insertAdjacentHTML('beforeend', "<br><span>No channels defined. Define them on <a href=\"/channels\">Channels section</a></span>");
     }
-
-    /* OLD, remove when structure above is ok 
-        $.ajax({
-            url: '/export-config',
-            dataType: 'json',
-            async: false,
-            success: function (data) {
-                console.log('/export-config');
-                g_config = data; // set config to a global variable
-                $.each(data.ch, function (i, ch_cur) {
-                    if ((ch_cur.type == CH_TYPE_UNDEFINED) && !edit_mode) {//undefined type 
-                        console.log("Skipping channel " + i);
-                        return;
-                    }
-                    listed_channels++;
-    
-                    chdiv = createElem("div", "chdiv_" + i, null, "hb");
-                    chdiv_head = createElem("div", null, null, "secbr cht");
-                    chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
-                    chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
-    
-                    var svg = document.createElementNS(svgns, "svg");
-                    // svg.viewBox = '0 0 100 100';
-                    svg.setAttribute('viewBox', '0 0 100 100');
-                    svg.classList.add("statusic");
-                    svg.className = "statusic";
-    
-                    var use = document.createElementNS(svgns, "use");
-                    use.id = 'status_' + i;
-                    use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
-    
-                    svg.appendChild(use);
-                    chdiv_head.appendChild(svg);
-    
-                    var span = document.createElement('span');
-                    span.id = 'chid_' + i;
-                    span.innerHTML = ch_cur["id_str"];
-                    $('#chid_' + i).html(ch_cur["id_str"]);
-    
-                    chdiv_head.appendChild(span);
-                    chdiv.appendChild(chdiv_head);
-                    chdiv.appendChild(chdiv_info);
-                    chdiv.appendChild(chdiv_sched);
-                    chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
-    
-                    chlist.appendChild(chdiv);
-    
-                    now_ts = Date.now() / 1000;
-    
-                    if (!edit_mode) { // is dashboard
-                        //Set channel up for next:<br>
-                        current_duration_minute = 0;
-                        current_start_ts = 0;
-                        has_forced_setting = false;
-                        if ((ch_cur.force_up_until > now_ts)) {
-                            has_forced_setting = true;
-                        }
-    
-                        if ((ch_cur.force_up_from > now_ts)) {
-                            current_start_ts = ch_cur.force_up_from;
-                        }
-    
-                        for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
-                            hour_cur = force_up_hours[hour_idx];
-                            // new test
-                            update_fup_duration_element(i, current_duration_minute, has_forced_setting);
-                            update_fup_schedule_element(i, current_start_ts);
-    
-                        }
-                    }
-                    if (edit_mode) {
-                        create_channel_config_elements(chdiv, i, ch_cur);
-                        create_channel_rule_elements(chdiv, i, ch_cur);
-                    }
-                });
-                if (listed_channels == 0) {
-                    btnSubmit = document.getElementById("btnSubmit");
-                    if (btnSubmit)
-                        btnSubmit.style.display = "none";
-                    chlist.insertAdjacentHTML('beforeend', "<br><span>No channels defined. Define them on <a href=\"/channels\">Channels section</a></span>");
-                }
-            }
-        });
-        */
-
 
 }
 
@@ -1774,8 +1664,9 @@ function initForm(url) {
     if (footerdiv) {
         footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + g_constants.VERSION + " (" + g_constants.HWID + "),   Filesystem version: " + g_constants.version_fs + "</i></div>";
     }
-  //  setTimeout(function () { updateStatus(true,true); }, 100);  // first, could be synchronous
-    updateStatus(true,true);
+    updateStatus(true);
+     //show page when fully loaded
+    $("#cover").fadeOut(200);//.hide(); 
 }
 
 // for sorting wifis by signal strength
