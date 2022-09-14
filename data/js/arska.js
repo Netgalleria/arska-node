@@ -325,6 +325,7 @@ function updateStatus(repeat) {
     }
 
     );
+    ;
     if (repeat)
         setTimeout(function () { updateStatus(true); }, 30000);
 }
@@ -1051,7 +1052,6 @@ function initUrlBar(url) {
             headdiv.appendChild(sepa);
         }
     });
-    // <a href="/">Dashboard</a> | <span> <b>Admin</b> </span>
 }
 
 //TODO: get from main.cpp
@@ -1495,11 +1495,22 @@ function init_channel_elements(edit_mode = false) {
 }
 
 function initWifiForm() {
-    if (!wifis) {
+    var wifisp = null;
+        $.ajax({
+            url: '/data/wifis.json',
+            dataType: 'json',
+            async: false,
+            success: function (data) { wifisp = data; console.log("got wifis"); },
+            error: function (jqXHR, textStatus, errorThrown) {
+                console.log("Cannot get wifis", textStatus, jqXHR.status);
+            }
+        });
+    
+    if (!wifisp) {
         console.log("initWifiForm: No wifis.");
         return;
     }
-    wifisp = JSON.parse(wifis);
+  //  wifisp = JSON.parse(wifis);
 
 
     wifisp.sort(compare_wifis);
@@ -1536,8 +1547,10 @@ function initWifiForm() {
 
 //
 function initForm(url) {
+    // uncover main screen, just in case if there is an error
+    setTimeout(function () { $("#cover").fadeOut(200) }, 10000);
+    
     initUrlBar(url);
- 
 
     //constants generated from 
     $.ajax({
@@ -1732,10 +1745,11 @@ function checkAdminForm() {
         alert('Passwords do not match!');
         return false;
     }
+    /*
     var op_test_gpio = document.getElementById("op_test_gpio");
     if (op_test_gpio.checked) {
         document.querySelector('#test_gpio').value = prompt("GPIO to test", "-1");
-    }
+    }*/
     return true;
 }
 

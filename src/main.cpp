@@ -86,7 +86,7 @@ const char *required_fs_version PROGMEM = "0.92.530";
 const char *price_data_filename PROGMEM = "/data/price-data.json";
 const char *variables_filename PROGMEM = "/data/variables.json";
 const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
-const char *wifis_filename PROGMEM = "/wifis.json";
+const char *wifis_filename PROGMEM = "/data/wifis.json";
 const char *template_filename PROGMEM = "/data/templates.json";
 const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
 
@@ -1464,35 +1464,66 @@ int network_count = 0;
 void scan_and_store_wifis(bool print_out)
 {
   network_count = WiFi.scanNetworks();
-
-  LittleFS.remove(wifis_filename);                      // Delete existing file, otherwise the configuration is appended to the file
-  File wifis_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
-  wifis_file.printf("wifis = '[");
-
   int good_wifi_count = 0;
+  StaticJsonDocument<1248> doc;
 
   if (print_out)
     Serial.println("Available WiFi networks:\n");
+
   for (int i = 0; i < network_count; ++i)
   {
     if (WiFi.RSSI(i) < -80) // too weak signals not listed, could be actually -75
       continue;
     good_wifi_count++;
-    wifis_file.print("{\"id\":\"");
-    wifis_file.print(WiFi.SSID(i));
-    wifis_file.print("\",\"rssi\":");
-    wifis_file.print(WiFi.RSSI(i));
-    wifis_file.print("},");
+    JsonObject json_wifi = doc.createNestedObject();
+    json_wifi["id"] = WiFi.SSID(i);
+    json_wifi["rssi"] = WiFi.RSSI(i);
+
     if (print_out)
       Serial.printf("%d - %s (%ld)\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
   }
-  wifis_file.printf("{}]';");
-  wifis_file.close();
+
   if (print_out)
   {
     Serial.println("-");
     Serial.flush();
   }
+
+  File wifi_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
+  serializeJson(doc, wifi_file);
+  wifi_file.close();
+
+  /*
+
+    LittleFS.remove(wifis_filename);                      // Delete existing file, otherwise the configuration is appended to the file
+    File wifis_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
+    wifis_file.printf("wifis = '[");
+
+    int good_wifi_count = 0;
+
+    if (print_out)
+      Serial.println("Available WiFi networks:\n");
+    for (int i = 0; i < network_count; ++i)
+    {
+      if (WiFi.RSSI(i) < -80) // too weak signals not listed, could be actually -75
+        continue;
+      good_wifi_count++;
+      wifis_file.print("{\"id\":\"");
+      wifis_file.print(WiFi.SSID(i).replace(('\'',' ')); //single quote
+
+      wifis_file.print("\",\"rssi\":");
+      wifis_file.print(WiFi.RSSI(i));
+      wifis_file.print("},");
+      if (print_out)
+        Serial.printf("%d - %s (%ld)\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+    }
+    wifis_file.printf("{}]';");
+    wifis_file.close();
+    if (print_out)
+    {
+      Serial.println("-");
+      Serial.flush();
+    }*/
 }
 
 #define CONFIG_JSON_SIZE_MAX 6144
@@ -3156,7 +3187,7 @@ String inputs_form_processor(const String &var)
 {
   // Serial.println(var);
 
-  
+
     if (var == F("emt_options"))
     {
       char out[200];
@@ -3223,7 +3254,7 @@ String inputs_form_processor(const String &var)
     if (var == F("influx_bucket"))
       return String(s_influx.bucket);
   #endif
-  
+
   return String();
 }
 */
@@ -4044,7 +4075,6 @@ void reset_config(bool full_reset)
 
   bool reset_wifi_settings = false;
 
-  //  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n", s.wifi_ssid[0], s.wifi_ssid[1], s.wifi_ssid[2], s.wifi_password[0], s.wifi_password[1], s.wifi_password[2]);
   if ((strlen(s.wifi_ssid) > sizeof(s.wifi_ssid) - 1) || (strlen(s.wifi_password) > sizeof(s.wifi_password) - 1))
     reset_wifi_settings = true;
 
@@ -4517,8 +4547,8 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
  */
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
-  //sendForm(request, "/admin_template.html", admin_form_processor);
-    if (!request->authenticate(s.http_username, s.http_password))
+  // sendForm(request, "/admin_template.html", admin_form_processor);
+  if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   request->send(LittleFS, "/admin.html", "text/html");
 }
@@ -4880,8 +4910,13 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     strncpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str(), sizeof(s.wifi_ssid));
     strncpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str(), sizeof(s.wifi_password));
+  //  Serial.printf("Updated wifi ssid and password %s/%s\n", s.wifi_ssid, s.wifi_password);
+
     todo_in_loop_restart_local = true;
   }
+ /* else {
+    Serial.println("Wifi info not updated.");
+  }*/
 
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
@@ -5505,8 +5540,8 @@ void setup()
                 { request->send(LittleFS, price_data_filename, F("text/plain")); }); // "/price_data.json"
 
   // debug
-  server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/wifis.json", "text/json"); });
+  server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, wifis_filename, "text/json"); });
 
   server_web.onNotFound(notFound);
   // TODO: remove force create
@@ -5782,7 +5817,7 @@ void loop()
     //   Serial.printf("next_query_price_data now: %ld \n", now);
     got_external_data_ok = get_price_data();
     todo_in_loop_update_price_rank_variables = got_external_data_ok;
-    next_query_price_data = now + (got_external_data_ok ? 1200 : 120);
+    next_query_price_data = now + (got_external_data_ok ? 1200 : 600);
     Serial.printf("next_query_price_data: %ld \n", next_query_price_data);
   }
 
