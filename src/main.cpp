@@ -2646,9 +2646,13 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
  */
 bool is_garbage_line(String line)
 {
-  if (line.length() == 4 && line.startsWith("5"))
-  { // TODO: what creates this, is 5.. really a http code or some kind of counter
-    Serial.printf(PSTR("Garbage removed [%s]\n"), line.c_str());
+  if (line.length() == 4 && (line.startsWith("4") || line.startsWith("5")))
+  { // TODO: what creates this, is this really a http code (4xx, 5xx)
+    char error_msg[ERROR_MSG_LEN];
+    snprintf(error_msg, ERROR_MSG_LEN, PSTR("Garbage removed from downloaded price data [%s]"), line.c_str());
+    Serial.println(error_msg);
+    log_msg(MSG_TYPE_WARN, error_msg);
+
     return true;
   }
   else

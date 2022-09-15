@@ -314,8 +314,8 @@ function updateStatus(repeat) {
           
             if (jqXHR.status === 401) {
                 // or just location.reload();
-                href_a = window.location.href;
-                window.location.href=href_a[0] + "?rnd="+Math.floor(Math.random() * 1000);
+                href_a = window.location.href.split("?");
+                window.location.href = href_a[0] + "?rnd=" + Math.floor(Math.random() * 1000);
                 return;
             }
         }/*,
