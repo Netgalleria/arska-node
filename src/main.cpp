@@ -2910,7 +2910,8 @@ bool get_price_data()
     else
     {
       Serial.println("No zero prices.");
-      doc["expires"] = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+      //doc["expires"] = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+      doc["expires"] = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); //expire in 18 hours or 11 hour before price data end, which comes first
     }
 
     File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
