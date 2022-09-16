@@ -146,15 +146,26 @@ h3 {
     margin-left:2em;
     clear:left;
     float:left;
+    height: 44px;
 }
 .schedsel {
     margin-left:1em;
     float:left;
     clear:right;
+    height: 44px;
+}
+.shedupdv {
+    float:left;
+    margin-left:1em;
+}
+.fupbtn {
+    width:fit-content;
+    background-color: #404040;
+    height: 44px;
+    font-size: 1.6em;
 }
 
-
-a:any-link {
+a:any-link, .chlink {
     cursor:pointer; 
     border-bottom: 4px solid #f3f300;
 }

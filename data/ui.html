@@ -1,0 +1,458 @@
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Arska Node | Admin</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body onload="init_sections();">
+    <script src="js/jquery-3.6.0.min.js"></script>
+    <script src="js/arska.js"></script>
+    <div id="cover"></div>
+    <div class="secbr" id="headdiv">
+    </div>
+    <div id="headinfod" class="hb">
+        <div class="secbr" id="keyfd"></div>
+        <div class="secbr"></div>
+        <div id="msgdiv">
+        </div>
+    </div>
+    <div id="section_dashboard">
+        <div id="dashboard_chlist"></div>
+    <!--    <form action="/" method="post" onsubmit="setFormSubmitting()">
+            <input name="ui_ver" type="hidden" value="2">
+            <input name="source" type="hidden" value="dashboard">
+            <div id="dashboard_chlist"></div>
+            
+            <br><input id="dashboard_btnSubmit" type="submit" value="Save" ;>
+           
+        </form> -->
+    </div>
+    <div id="section_services">
+        <form action="/inputs" method="post" id="inpFrm" onsubmit="return submitInputsForm(event)""> 
+            <input name="ui_ver" type="hidden" value="2">
+            <input name=" source" type="hidden" value="inputs">
+            <div class='secbr'>
+                <h3>Energy meter</h3>
+            </div>
+            <div class="indent">
+                <div class='fld'><select name='emt' id='emt'
+                        onchange='setEnergyMeterFields(this.value)'>
+                        <option value='0'>none</option>
+                        <option value='1'>Shelly 3EM</option>
+                        <option value='2'>Fronius Solar API</option>
+                        <option value='3'>SMA Modbus TCP</option>
+                    </select>
+                </div>
+                <div id='emhd' class='fld'>
+                    <div class='fldlong'>host:<input name='emh' id='emh' type='text'></div>
+                    <div id='empd' class='fldtiny'>port:<input name='emp' id='emp' type='text'></div>
+                    <div id='emidd' class='fldtiny'>unit:<input name='emid' id='emid' type='text'></div>
+                </div>
+            </div>
+    
+            <div class="fldshort" id="baseld">base load (W):<input id="baseload" name="baseload" class="inpnum" type="text"></div>
+    
+            <div class="secbr">
+                <h3>Data sources</h3>
+            </div>
+            <div class="secbr" style="display:none;"><input type="radio" id="variable_mode_0" name="variable_mode" value="0"
+                    onchange="setVariableMode(this.value)"><label for='vm0'>Source - calculate variables based on
+                    market
+                    and forecast info</label></div>
+            <div class="indent">
+                <div class="secbr">EntsoE API key:<br><input class="fldlong" id="entsoe_api_key" name="entsoe_api_key"
+                        type="text" value="" maxlength='36'></div>
+    
+    
+                <div class="secbr">
+                    Price area:
+                    <br><select id="entsoe_area_code" name="entsoe_area_code">
+                        <option value="#">not in use</option>
+                        <option value='10YAT-APG------L'>Austria, APG 🇦🇹</option>
+                        <option value='10YBE----------2'>Belgium, Elia 🇧🇪</option>
+                        <option value='10YCA-BULGARIA-R'>Bulgaria, ESO 🇧🇬</option>
+                        <option value='10YHR-HEP------M'>Croatia, HOPS 🇭🇷</option>
+                        <option value='10YCZ-CEPS-----N'>Czech Republic, CEPS 🇨🇿</option>
+                        <option value='10Y1001A1001A82H'>DE-LU 🇩🇪</option>
+                        <option value='10YDK-1--------W'>DK1 🇩🇰</option>
+                        <option value='10YDK-2--------M'>DK2 🇩🇰</option>
+                        <option value='10Y1001A1001A39I'>Estonia, Elering 🇪🇪</option>
+                        <option value='10YFI-1--------U'>Finland, Fingrid 🇫🇮</option>
+                        <option value='10YFR-RTE------C'>France, RTE 🇫🇷</option>
+                        <option value='10YGR-HTSO-----Y'>Greece, IPTO 🇬🇷</option>
+                        <option value='10YHU-MAVIR----U'>Hungary, MAVIR 🇭🇺</option>
+                        <option value='10Y1001A1001A59C'>Ireland (SEM) 🇮🇪</option>
+                        <option value='10Y1001A1001A885'>Italy_Saco_AC 🇮🇹</option>
+                        <option value='10Y1001A1001A893'>Italy_Saco_DC 🇮🇹</option>
+                        <option value='10Y1001C--00096J'>IT-Calabria 🇮🇹</option>
+                        <option value='10Y1001A1001A70O'>IT-Centre-North 🇮🇹</option>
+                        <option value='10Y1001A1001A71M'>IT-Centre-South 🇮🇹</option>
+                        <option value='10Y1001A1001A73I'>IT-North 🇮🇹</option>
+                        <option value='10Y1001A1001A74G'>IT-Sardinia 🇮🇹</option>
+                        <option value='10Y1001A1001A75E'>IT-Sicily 🇮🇹</option>
+                        <option value='10Y1001A1001A788'>IT-South 🇮🇹</option>
+                        <option value='10YLV-1001A00074'>Latvia, AST 🇱🇻</option>
+                        <option value='10YLT-1001A0008Q'>Lithuania, Litgrid 🇱🇹</option>
+                        <option value='10YNL----------L'>Netherlands, TenneT NL 🇳🇱</option>
+                        <option value='10YNO-1--------2'>NO1 🇳🇴</option>
+                        <option value='10YNO-2--------T'>NO2 🇳🇴</option>
+                        <option value='10YNO-3--------J'>NO3 🇳🇴</option>
+                        <option value='10YNO-4--------9'>NO4 🇳🇴</option>
+                        <option value='10Y1001A1001A48H'>NO5 🇳🇴</option>
+                        <option value='50Y0JVU59B4JWQCU'>NO2NSL 🇳🇴</option>
+                        <option value='10YPL-AREA-----S'>Poland, PSE SA 🇵🇱</option>
+                        <option value='10YPT-REN------W'>Portugal, REN 🇵🇹</option>
+                        <option value='10YRO-TEL------P'>Romania, Transelectrica 🇷🇴</option>
+                        <option value='10Y1001A1001A44P'>SE1 🇸🇪</option>
+                        <option value='10Y1001A1001A45N'>SE2 🇸🇪</option>
+                        <option value='10Y1001A1001A46L'>SE3 🇸🇪</option>
+                        <option value='10Y1001A1001A47J'>SE4 🇸🇪</option>
+                        <option value='10YCS-SERBIATSOV'>Serbia, EMS 🇷🇸</option>
+                        <option value='10YSK-SEPS-----K'>Slovakia, SEPS 🇸🇰</option>
+                        <option value='10YSI-ELES-----O'>Slovenia, ELES 🇸🇮</option>
+                        <option value='10YES-REE------0'>Spain, REE 🇪🇸</option>
+                        <option value='10YCH-SWISSGRIDZ'>Switzerland, Swissgrid 🇨🇭</option>
+                    </select>
+                </div>
+    
+                <div class="secbr">
+                    Forecast location (only Finland supported):<br><select id="forecast_loc" name="forecast_loc">
+                        <option value="#">not in use</option>
+                        <option>Akaa</option>
+                        <option>Alajärvi</option>
+                        <option>Alavus</option>
+                        <option>Espoo</option>
+                        <option>Forssa</option>
+                        <option>Haapajärvi</option>
+                        <option>Haapavesi</option>
+                        <option>Hamina</option>
+                        <option>Hanko</option>
+                        <option>Harjavalta</option>
+                        <option>Heinola</option>
+                        <option>Helsinki</option>
+                        <option>Hetta</option>
+                        <option>Huittinen</option>
+                        <option>Hyvinkää</option>
+                        <option>Hämeenlinna</option>
+                        <option>Iisalmi</option>
+                        <option>Ikaalinen</option>
+                        <option>Imatra</option>
+                        <option>Inari</option>
+                        <option>Jakobstad</option>
+                        <option>Joensuu</option>
+                        <option>Juankoski</option>
+                        <option>Jyväskylä</option>
+                        <option>Jämsä</option>
+                        <option>Järvenpää</option>
+                        <option>Kaarina</option>
+                        <option>Kajaani</option>
+                        <option>Kalajoki</option>
+                        <option>Kankaanpää</option>
+                        <option>Kannus</option>
+                        <option>Karkkila</option>
+                        <option>Kaskinen</option>
+                        <option>Kauhajoki</option>
+                        <option>Kauhava</option>
+                        <option>Kauniainen</option>
+                        <option>Kemi</option>
+                        <option>Kemijärvi</option>
+                        <option>Kerava</option>
+                        <option>Keuruu</option>
+                        <option>Kilpisjärvi</option>
+                        <option>Kitee</option>
+                        <option>Kittilä</option>
+                        <option>Kiuruvesi</option>
+                        <option>Kokemäki</option>
+                        <option>Kokkola</option>
+                        <option>Kotka</option>
+                        <option>Kouvola</option>
+                        <option>Kristinestad</option>
+                        <option>Kuhmo</option>
+                        <option>Kuopio</option>
+                        <option>Kurikka</option>
+                        <option>Kuusamo</option>
+                        <option>Lahti</option>
+                        <option>Laitila</option>
+                        <option>Lappeenranta</option>
+                        <option>Lapua</option>
+                        <option>Lieksa</option>
+                        <option>Lohja</option>
+                        <option>Loimaa</option>
+                        <option>Loviisa</option>
+                        <option>Mariehamn</option>
+                        <option>Mikkeli</option>
+                        <option>Muonio</option>
+                        <option>Mänttä-Vilppula</option>
+                        <option>Naantali</option>
+                        <option>Nilsiä</option>
+                        <option>Nivala</option>
+                        <option>Nokia</option>
+                        <option>Nurmes</option>
+                        <option>Nykarleby</option>
+                        <option>Närpes</option>
+                        <option>Orimattila</option>
+                        <option>Orivesi</option>
+                        <option>Oulainen</option>
+                        <option>Oulu</option>
+                        <option>Outokumpu</option>
+                        <option>Paimio</option>
+                        <option>Pargas</option>
+                        <option>Parkano</option>
+                        <option>Pello</option>
+                        <option>Pieksämäki</option>
+                        <option>Pori</option>
+                        <option>Porvoo</option>
+                        <option>Pudasjärvi</option>
+                        <option>Pyhäjärvi</option>
+                        <option>Raahe</option>
+                        <option>Raisio</option>
+                        <option>Raseborg</option>
+                        <option>Rauma</option>
+                        <option>Riihimäki</option>
+                        <option>Rovaniemi</option>
+                        <option>Saarijärvi</option>
+                        <option>Saariselkä</option>
+                        <option>Salla</option>
+                        <option>Salo</option>
+                        <option>Sastamala</option>
+                        <option>Savonlinna</option>
+                        <option>Seinäjoki</option>
+                        <option>Sodankylä</option>
+                        <option>Somero</option>
+                        <option>Suonenjoki</option>
+                        <option>Tampere</option>
+                        <option>Tornio</option>
+                        <option>Turku</option>
+                        <option>Ulvila</option>
+                        <option>Utsjoki</option>
+                        <option>Uusikaupunki</option>
+                        <option>Vaasa</option>
+                        <option>Valkeakoski</option>
+                        <option>Vantaa</option>
+                        <option>Varkaus</option>
+                        <option>Viitasaari</option>
+                        <option>Vilppula</option>
+                        <option>Virrat</option>
+                        <option>Ylivieska</option>
+                        <option>Ylöjärvi</option>
+                        <option>Ähtäri</option>
+                        <option>Äänekoski</option>
+                    </select>
+                </div>
+            </div>
+            <div class="secbr"  style="display:none;">
+                <input type="radio" id="variable_mode_1" name="variable_mode" value="1"
+                    onchange="setVariableMode(this.value)"><label for='vm1'>Replica - get variables from another Arska
+                    device</label>
+            </div>
+            <div class="indent"  style="display:none;">
+                <div class="secbr">Variable source:<br><input class="fldlong" id="variable_server_not_in_use" name="variable_server"
+                        type="text" maxlength='29'></div>
+            </div>
+            <div class="influx_div">
+                <div class="secbr">
+                    <h3>InfluxDb Server<span><a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/InfluxDB-settings">ℹ</a></span></h3>
+                </div>
+                <div class="indent">
+                    <input type="hidden" id="INFLUX_REPORT_ENABLED">
+                    <div class="secbr">Server URL:<br><input id="influx_url" name="influx_url" type="text" maxlength='69'></div>
+                    <div class="secbr">Token:<br><input id="influx_token" name="influx_token" type="text" maxlength='99'></div>
+                    <div class="secbr">Org:<br><input id="influx_org" name="influx_org" type="text" maxlength='30'></div>
+                    <div class="secbr">Bucket:<br><input id="influx_bucket" name="influx_bucket" type="text" maxlength='19'></div>
+                </div>
+            </div>
+            <br><input id="services_btnSubmit" type="submit" value="Save">
+        </form>
+    </div>
+    <div id="section_channels">
+   
+        <div id="variables" class="hb" style="display:none;">
+            <table id="tblVariables">
+                <thead>
+                    <tr>
+                      <th>Variable</th>
+                      <th>Value</th>
+                    </tr>
+                  </thead>
+                <tbody id="tblVariables_tb">
+                </tbody>
+                </table>
+        </div>
+        <div class="secbr">
+        </div>  
+
+        <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)">
+            <input name="ui_ver" type="hidden" value="2">
+            <input type="checkbox" id="statusauto"  onclick="statusCBClicked(this)"><label for='statusauto'>Show variable details</label> 
+            <input name="source" type="hidden" value="channels">
+            <div id="channels_chlist"></div>
+            <br><input id="channels_btnSubmit" type="submit" value="Save">
+         
+        </form>
+    </div>
+    <div id="section_admin">
+        <form id="save_form" action="/admin" method="post" onsubmit="setFormSubmitting()">
+            <input name="ui_ver" type="hidden" value="2">
+            <input name="source" type="hidden" value="admin">
+            <div id="wifid">
+                <div class="secbr">
+                    <h3>WiFi settings</h3>
+                </div>
+                <div class="indent">
+                    <div class="fld">
+                        <div>Wifi ssid</div>
+                        <div class="fldh"><select name='wifi_ssid' id='wifi_ssid'>
+                                <option value="NA">Select WiFi</option>
+                            </select>
+    
+                        </div>
+                        <div class="fld">
+                            <div>Wifi password</div>
+                            <div class="fldh"><input id="wifi_password"  name="wifi_password" type="password"</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="fld">
+                <h3>Admin access</h3>
+            </div>
+            <div class="indent">
+                <div class="fld warn" id="password_note">
+                </div>
+                <div class="fldh">
+                    <div>Change password for 'admin'</div>
+                    <div><input name="http_password" id="http_password" type="password"></div>
+                </div>
+                <div class="fldh">
+                    <div>Rewrite to change</div>
+                    <div><input name="http_password2" id="http_password2" type="password"></div>
+                </div>
+            </div>
+            <div class="fld">
+                <br />
+            </div>
+            <div class="fld">
+                <h3>Localization</h3>
+            </div>
+            <div class="secbr indent">
+                <br><select id="timezone" name="timezone">
+                    <option value="EET">EET</option>
+                    <option value="CET">CET</option>
+                </select>
+            </div>
+            <div class="secbr indent">
+                Preferred language (mostly still only English texts
+                available):
+                <br><select id="lang" name="lang">
+                    <option value="en">English</option>
+                    <option value="fi">Finnish</option>
+                </select>
+            </div>
+            <div class="fld">
+                <br />
+            </div>
+            
+                <h3>Hardware template</h3>
+            
+            <div class="secbr indent">
+               
+                <br><select id="hw_template_id" name="hw_template_id">
+                    <option value="0">manual</option>
+                    <option value="1">esp32lilygo-4ch</option>
+                    <option value="2">esp32wroom-4ch-a</option>
+                </select>
+            </div>
+            <div class="fld">
+                <br />
+            </div>
+    
+            <input type="hidden" id="ts" name="ts">
+            <input type="hidden" id="action" name="action">
+            <br><input id="admin_btnSubmit" type="submit" value="Save" onclick="checkAdminForm()">
+            <input type="hidden" id="test_gpio" name="test_gpio" value="-1">
+    
+        </form>
+        <div id="actiond">
+            <div class="secbr">
+                <h3>Maintenance actions</h3>
+            </div>
+            <div class="indent">
+                <button id="act_ts" class="actBtn" onclick="return doAction('ts')">Sync with workstation time</button>
+                <button id="act_scan_wifis" class="actBtn" onclick="return doAction('scan_wifis')">Rescan WiFis</button>
+                <button id="act_scan_sensors" class="actBtn" onclick="return doAction('scan_sensors')">Scan sensors</button>
+                <button id="act_ota" class="actBtn" onclick="return doAction('ota')">Firmware update</button>
+                <button id="act_test_gpio" class="actBtn" onclick="return doAction('test_gpio')">Test GPIO</button>
+                <button id="act_reboot" class="actBtn" onclick="return doAction('reboot')">Restart</button>
+                <button id="act_reset" class="actBtn" onclick="return doAction('reset')">Reset settings</button>
+                <h4>Backup and restore</h4>
+                <form id="file_form" method="POST" action="/upload-config" enctype="multipart/form-data">
+                    <a id="act_backup_config" class="actBtn" href="/export-config?format=file">Backup configuration</a>
+                    <input type="button" class="actBtn" id="loadfile" value="Restore configuration"
+                        onclick="document.getElementById('file_upload').click();" />
+                    <input type="file" style="display:none;" id="file_upload" name="file"
+                        onchange="document.getElementById('file_form').submit();" />
+                </form>
+            </div>
+        </div>
+        <div>
+            <h3>Open source licenses:</h3>
+            ESPAsyncWebServer, bblanchon/ArduinoJson, NTPClient, emelianov/modbus-esp8266 adafruit/RTClib, SPI,
+            tobiasschuerg/ESP8266 Influxdb, milesburton/DallasTemperature, paulstoffregen/OneWire, 
+            marian-craciunescu/ESP32Ping
+        </div>
+      
+    </div>
+    <div class="secbr" id="footerdiv">
+    </div>
+    <svg>
+        <symbol id="red" transform="translate(-197.5 -37.72)">
+            <g stroke-linecap="round">
+                <circle cx="50" cy="49.5" r="49" fill="#ec0600" stroke="#fff" stroke-width="1.8"
+                    style="paint-order:normal" />
+                    <path
+                    d="m70.51 26.68a30 30 0 0 1 7.155 33.06 30 30 0 0 1-28.18 18.71 30 30 0 0 1-27.69-19.42 30 30 0 0 1 7.992-32.87"
+                    fill="none" stroke="#fff" stroke-width="8" />
+                <path d="m52.63 16.35v24.31" fill="#ffffd7" stop-color="#000000" stroke="#fff" stroke-width="8"
+                    style="font-variation-settings:normal" />
+            </g>
+            <text transform="scale(.9607 1.041)" x="35.378014" y="60.869041" fill="#ffffff" font-family="sans-serif"
+                font-size="16.17px" stroke="#ffffff" stroke-width=".3032" word-spacing="0px" style="line-height:1.25"
+                xml:space="preserve">
+                <tspan x="35.378014" y="60.869041" fill="#ffffff" font-size="16.17px" stroke="#ffffff"
+                    stroke-width=".3032">OFF</tspan>
+            </text>
+        </symbol>
+        <symbol id="green" transform="translate(-197.5 -37.72)">
+
+            <g stroke-linecap="round">
+                <circle cx="50" cy="49.5" r="49" fill="#3db600" stroke="#fff" stroke-width="1.8"
+                    style="paint-order:normal" />
+                <path
+                    d="m70.51 26.68a30 30 0 0 1 7.155 33.06 30 30 0 0 1-28.18 18.71 30 30 0 0 1-27.69-19.42 30 30 0 0 1 7.992-32.87"
+                    fill="none" stroke="#fff" stroke-width="8" />
+                <path d="m52.63 16.35v24.31" fill="#ffffd7" stop-color="#000000" stroke="#fff" stroke-width="8"
+                    style="font-variation-settings:normal" />
+            </g>
+            <text transform="scale(.9607 1.041)" x="35.378014" y="60.869041" fill="#ffffff" font-family="sans-serif"
+                font-size="16.17px" stroke="#ffffff" stroke-width=".3032" word-spacing="0px" style="line-height:1.25"
+                xml:space="preserve">
+                <tspan x="38.378014" y="60.869041" fill="#ffffff" font-size="16.17px" stroke="#ffffff"
+                    stroke-width=".3032">ON</tspan>
+            </text>
+        </symbol>
+        <symbol id="arskalogo"">
+                <text xml:space=" preserve" id="text1904" fill="#f3f300"
+            style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:22.5778px;font-family:'Myriad Pro', Arial, Helvetica, sans-serif;stroke-width:0.264583"
+            x="1" y="22.84">arska</text>
+            <path style="opacity:1;fill:#f3f300;fill-opacity:1;stroke:#f3f300;stroke-width:2.05828"
+                d="M 0,29.15 66.4,29.36" id="path68229" />
+            <circle
+                style="fill:#f3f300;fill-opacity:1;stroke:#000000;stroke-width:0.0;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:0"
+                id="path69265" cx="60.4" cy="7.257835" r="3" />
+        </symbol>
+    </svg>
+</body>
+
+</html>

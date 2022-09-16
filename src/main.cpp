@@ -4,6 +4,7 @@
 Resource files (see data subfolder):
 - arska.js - web UI Javascript routines
 - style.css - web UI styles
+- ui.html - replaces dashboard.html, inputs.html, channels.html, admin.html
 - admin.html - html template file for admin web UI
 - channels.html - template file for channel configuration
 - dashboard.html - html template file for dashboard UI
@@ -28,7 +29,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 10093
+#define EEPROM_CHECK_VALUE 10094
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -829,378 +830,6 @@ int sensor_count = 0;
 bool sensor_ds18b20_enabled = false;
 #endif
 
-#ifdef INFLUX_REPORT_ENABLED
-#include <InfluxDbClient.h>
-const char *influx_device_id_prefix PROGMEM = "arska-";
-String wifi_mac_short;
-
-typedef struct
-{
-  bool state;
-  time_t this_state_started;
-  int on_time;
-  int off_time;
-} channel_log_struct;
-
-// Point state_stats("state_stats");
-Point point_sensor_values("sensors");
-Point point_period_avg("period_avg"); //!< Influx buffer
-
-/**
- * @brief Handling channel utilization (uptime/downtime) statistics
- *
- */
-class ChannelCounters
-{
-public:
-  ChannelCounters()
-  {
-    init();
-  }
-  void init();
-  void new_log_period(time_t ts_report);
-  void set_state(int channel_idx, bool new_state);
-
-private:
-  channel_log_struct channel_logs[CHANNEL_COUNT];
-};
-void ChannelCounters::init()
-{
-  time_t now_l;
-  time(&now_l);
-  for (int i = 0; i < CHANNEL_COUNT; i++)
-  {
-    channel_logs[i].off_time = 0;
-    channel_logs[i].on_time = 0;
-    channel_logs[i].state = false;
-    channel_logs[i].this_state_started = now_l;
-  }
-}
-void ChannelCounters::new_log_period(time_t ts_report)
-{
-  time_t now_l;
-  float utilization;
-  time(&now_l);
-
-  // influx buffer
-  if (!point_period_avg.hasTime())
-    point_period_avg.setTime(ts_report);
-  char field_name[10];
-  for (int i = 0; i < CHANNEL_COUNT; i++)
-  {
-    set_state(i, channel_logs[i].state); // this will update counters without changing state
-    if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
-      utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
-    else
-      utilization = 0;
-    snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
-    point_period_avg.addField(field_name, utilization);
-  }
-  // then reset
-  for (int i = 0; i < CHANNEL_COUNT; i++)
-  {
-    channel_logs[i].off_time = 0;
-    channel_logs[i].on_time = 0;
-    channel_logs[i].this_state_started = now_l;
-  }
-  // write buffer
-}
-
-void ChannelCounters::set_state(int channel_idx, bool new_state)
-{
-  time_t now_l;
-  time(&now_l);
-  int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started);
-  if (channel_logs[channel_idx].state)
-    channel_logs[channel_idx].on_time += previous_state_duration;
-  else
-    channel_logs[channel_idx].off_time += previous_state_duration;
-
-  float utilization; // FOR DEBUG
-  if ((channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time) > 0)
-  {
-    utilization = (float)channel_logs[channel_idx].on_time / (float)(channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time);
-  }
-  else
-  {
-    utilization = 0;
-  }
-  Serial.printf("set_state, channel: %d, on: %d , off: %d, utilization: %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
-
-  channel_logs[channel_idx].state = new_state;
-  channel_logs[channel_idx].this_state_started = now_l;
-}
-
-ChannelCounters ch_counters;
-
-typedef struct
-{
-  char url[70];
-  char token[100];
-  char org[30];
-  char bucket[20];
-} influx_settings_struct;
-
-influx_settings_struct s_influx;
-
-/**
- * @brief Add time-series point values to buffer for later database insert
- *
- * @param ts timestamp written to buffer point
- */
-// TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
-void add_period_variables_to_influx_buffer(time_t ts_report)
-{
-  point_period_avg.setTime(ts_report);
-
-  // prices are batch updated in function update_prices_to_influx
-
-  if (vars.is_set(VARIABLE_PRODUCTION_POWER))
-    point_period_avg.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
-
-  if (vars.is_set(VARIABLE_SELLING_POWER))
-    point_period_avg.addField("sellingW", vars.get_f(VARIABLE_SELLING_POWER));
-
-  if (vars.is_set(VARIABLE_SELLING_ENERGY))
-    point_period_avg.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
-}
-
-bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer)
-{
-  Serial.println(F("Starting write_point_buffer_influx"));
-  bool write_ok = true;
-  if (!point_buffer->hasTime())
-  {
-    time_t now_in_func;
-    time(&now_in_func);
-    point_buffer->setTime(now_in_func);
-  }
-
-  if (point_buffer->hasFields())
-  {
-    if (!point_buffer->hasTags())
-      point_buffer->addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
-
-    Serial.print("Writing: ");
-    Serial.println(ifclient->pointToLineProtocol(*point_buffer));
-
-    // Write point
-    write_ok = ifclient->writePoint(*point_buffer);
-    if (!write_ok)
-    {
-      Serial.print(F("InfluxDB write failed: "));
-      Serial.println(ifclient->getLastErrorMessage());
-    }
-    // else {
-    //     Serial.println("Write ok");
-    // }
-    point_buffer->clearFields();
-    //  Serial.println("clearFields ok");
-  }
-  return write_ok;
-}
-
-/**
- * @brief Writes Influx buffer to specified server
- *
- * @return true if successful
- * @return false if not successful
- */
-
-bool write_buffer_to_influx()
-{
-
-  // probably invalid parameters
-  if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
-  {
-    Serial.println(F("Skipping influx write: invalid or missing parameters."));
-    return false;
-  }
-
-  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
-  ifclient.setInsecure(true); // TODO: cert handling
-
-  // ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S)); // set time precision to seconds
-  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(2).bufferSize(2));
-
-  ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
-
-  bool influx_write_ok = write_point_buffer_influx(&ifclient, &point_period_avg);
-  if (!influx_write_ok)
-    return false;
-
-// add current debug and sensor values to the buffer and write later them
-#ifdef DEBUG_MODE
-  point_sensor_values.addField("uptime", (long)(millis() / 1000));
-#endif
-
-// add sensor values to influx update
-#ifdef SENSOR_DS18B20_ENABLED
-  char field_name[10];
-  for (int j = 0; j < sensor_count; j++)
-  {
-    if (vars.is_set(VARIABLE_SENSOR_1 + j))
-    {
-      snprintf(field_name, sizeof(field_name), "sensor%i", j + 1);
-      point_sensor_values.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
-    }
-  }
-#endif
-  influx_write_ok = write_point_buffer_influx(&ifclient, &point_sensor_values);
-
-  ifclient.flushBuffer();
-  // Serial.println(F("Ending write_buffer_to_influx"));
-  return influx_write_ok; //
-}
-
-// under contruction
-/*TODO before production
-- check what we have in the db, write only new prices, max price, see https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/QueryAggregated/QueryAggregated.ino
-    - done...
-- batch processing could be faster, write only in the end, https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
-- start as "low priority" task in the loop
-*/
-bool update_prices_to_influx()
-{
-  time_t record_start = 0;
-  time_t current_period_start_ts;
-  long current_price;
-  int resolution_secs;
-  bool write_ok;
-  time_t last_price_in_file_ts;
-  String last_price_in_db;
-  bool db_price_found;
-  char datebuff[30];
-  tm tm2;
-
-  // Missing or invalid parameters
-  if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
-  {
-    Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
-    return false;
-  }
-
-  String query = "from(bucket: \"" + String(s_influx.bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"period_price\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
-  query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
-
-  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
-  ifclient.setInsecure(true); // TODO: cert handling
-
-  Serial.println(query);
-  // Send query to the server and get result
-  FluxQueryResult result = ifclient.query(query);
-  if (result.next())
-  {
-    FluxDateTime max_price_time = result.getValueByName("_time").getDateTime();
-    Serial.print("max_price_time:");
-    Serial.println(max_price_time.getRawValue());
-    last_price_in_db = max_price_time.getRawValue();
-    db_price_found = true;
-  }
-  else
-  {
-    Serial.println("no result.next()");
-    db_price_found = false;
-  }
-
-  File price_file = LittleFS.open(price_data_filename, "r");
-  if (!price_file)
-  {
-    Serial.println(F("Failed to open price file. "));
-    return false;
-  }
-
-  // see also update_price_rank_variables
-  StaticJsonDocument<2024> doc;
-  DeserializationError error = deserializeJson(doc, price_file);
-
-  if (error)
-  {
-    Serial.print(F("update_prices_to_influx deserializeJson() failed: "));
-    Serial.println(error.c_str());
-    return false;
-  }
-
-  record_start = doc["record_start"];
-  resolution_secs = ((int)doc["resolution_m"]) * 60;
-  JsonArray prices_array = doc["prices"];
-
-  last_price_in_file_ts = record_start + (resolution_secs * (prices_array.size() - 1));
-  ts_to_date_str(&last_price_in_file_ts, datebuff);
-
-  Serial.print("Last ts in the file");
-  Serial.println(datebuff);
-
-  if (db_price_found)
-  {
-    if (last_price_in_db.equals(datebuff))
-    {
-      Serial.print("Last ts in the file equal one in the influxdb");
-      return false;
-    }
-    if (last_price_in_db > String(datebuff))
-    {
-      // Serial.print("Newer price in the influxDb - SHOULD NOT END UP HERE");
-      return false;
-    }
-    else
-    {
-      Serial.print("We have new prices to write to influx db. ");
-    }
-  }
-
-  // return false; // just testing  the first part
-
-  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(12).bufferSize(24));
-  ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
-
-  if (ifclient.isBufferEmpty())
-    Serial.print("isBufferEmpty yes ");
-  else
-    Serial.print("isBufferEmpty no ");
-
-  Point point_period_price("period_price");
-  // point_period_price.addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
-
-  for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
-  {
-    current_period_start_ts = record_start + resolution_secs * i;
-    // TODO: half period... record_start + resolution_secs * i + (resolution_secs/2)
-    ts_to_date_str(&current_period_start_ts, datebuff);
-    if (!(last_price_in_db < String(datebuff))) // already in the influxDb
-      continue;
-
-    current_price = (long)prices_array[i];
-    Serial.println(current_price);
-    point_period_price.addField("price", (float)(current_price / 1000.0));
-    point_period_price.setTime(current_period_start_ts);                         // set the time, muuta
-    point_period_price.setTime(current_period_start_ts + (resolution_secs / 2)); // middle of the period
-    Serial.print("Writing: ");
-    Serial.println(ifclient.pointToLineProtocol(point_period_price));
-    // Write point
-
-    write_ok = ifclient.writePoint(point_period_price);
-    Serial.println(write_ok ? "write_ok" : "write not ok");
-
-    point_period_price.clearFields();
-  }
-  ifclient.flushBuffer();
-  delay(100);
-
-  struct tm timeinfo;
-  getLocalTime(&timeinfo); // update from NTP?
-  if (!ifclient.flushBuffer())
-  {
-    Serial.print("InfluxDB flush failed: ");
-    Serial.println(ifclient.getLastErrorMessage());
-    Serial.print("Full buffer: ");
-    Serial.println(ifclient.isBufferFull() ? "Yes" : "No");
-    return false;
-  }
-  return true;
-}
-#endif // inlflux
-
 // Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
 #ifdef INVERTER_SMA_MODBUS_ENABLED
 #include <ModbusIP_ESP8266.h>
@@ -1234,6 +863,7 @@ bool todo_in_loop_scan_wifis = false;
 bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
 bool todo_in_loop_discover_devices = false;
+bool todo_in_loop_write_to_eeprom = false;
 
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
@@ -1373,10 +1003,388 @@ typedef struct
   IPAddress switch_subnet_wifi; //!< not currently in use, set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
   int hw_template_id;           //!< hardware template defining channel gpios, see hw_templates
   bool mdns_activated;          //!< is mDSN device discovery active, currently deactivatated due to stability concerns
+#ifdef INFLUX_REPORT_ENABLED
+  char influx_url[70];
+  char influx_token[100];
+  char influx_org[30];
+  char influx_bucket[20];
+#endif
 } settings_struct;
 
 // this stores settings also to eeprom
 settings_struct s;
+
+#ifdef INFLUX_REPORT_ENABLED
+#include <InfluxDbClient.h>
+const char *influx_device_id_prefix PROGMEM = "arska-";
+String wifi_mac_short;
+
+typedef struct
+{
+  bool state;
+  time_t this_state_started;
+  int on_time;
+  int off_time;
+} channel_log_struct;
+
+// Point state_stats("state_stats");
+Point point_sensor_values("sensors");
+Point point_period_avg("period_avg"); //!< Influx buffer
+
+/**
+ * @brief Handling channel utilization (uptime/downtime) statistics
+ *
+ */
+class ChannelCounters
+{
+public:
+  ChannelCounters()
+  {
+    init();
+  }
+  void init();
+  void new_log_period(time_t ts_report);
+  void set_state(int channel_idx, bool new_state);
+
+private:
+  channel_log_struct channel_logs[CHANNEL_COUNT];
+};
+void ChannelCounters::init()
+{
+  time_t now_l;
+  time(&now_l);
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    channel_logs[i].off_time = 0;
+    channel_logs[i].on_time = 0;
+    channel_logs[i].state = false;
+    channel_logs[i].this_state_started = now_l;
+  }
+}
+void ChannelCounters::new_log_period(time_t ts_report)
+{
+  time_t now_l;
+  float utilization;
+  time(&now_l);
+
+  // influx buffer
+  if (!point_period_avg.hasTime())
+    point_period_avg.setTime(ts_report);
+  char field_name[10];
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    set_state(i, channel_logs[i].state); // this will update counters without changing state
+    if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
+      utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
+    else
+      utilization = 0;
+    snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
+    point_period_avg.addField(field_name, utilization);
+  }
+  // then reset
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    channel_logs[i].off_time = 0;
+    channel_logs[i].on_time = 0;
+    channel_logs[i].this_state_started = now_l;
+  }
+  // write buffer
+}
+
+void ChannelCounters::set_state(int channel_idx, bool new_state)
+{
+  time_t now_l;
+  time(&now_l);
+  int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started);
+  if (channel_logs[channel_idx].state)
+    channel_logs[channel_idx].on_time += previous_state_duration;
+  else
+    channel_logs[channel_idx].off_time += previous_state_duration;
+
+  float utilization; // FOR DEBUG
+  if ((channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time) > 0)
+  {
+    utilization = (float)channel_logs[channel_idx].on_time / (float)(channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time);
+  }
+  else
+  {
+    utilization = 0;
+  }
+  Serial.printf("set_state, channel: %d, on: %d , off: %d, utilization: %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
+
+  channel_logs[channel_idx].state = new_state;
+  channel_logs[channel_idx].this_state_started = now_l;
+}
+
+ChannelCounters ch_counters;
+/*
+typedef struct
+{
+  char url[70];
+  char token[100];
+  char org[30];
+  char bucket[20];
+} influx_settings_struct;
+
+influx_settings_struct s_influx; */
+
+/**
+ * @brief Add time-series point values to buffer for later database insert
+ *
+ * @param ts timestamp written to buffer point
+ */
+// TODO: split to two part, sensors and debug values in th ebeginning and accumulated in the end, or something else
+void add_period_variables_to_influx_buffer(time_t ts_report)
+{
+  point_period_avg.setTime(ts_report);
+
+  // prices are batch updated in function update_prices_to_influx
+
+  if (vars.is_set(VARIABLE_PRODUCTION_POWER))
+    point_period_avg.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
+
+  if (vars.is_set(VARIABLE_SELLING_POWER))
+    point_period_avg.addField("sellingW", vars.get_f(VARIABLE_SELLING_POWER));
+
+  if (vars.is_set(VARIABLE_SELLING_ENERGY))
+    point_period_avg.addField("sellingWh", vars.get_f(VARIABLE_SELLING_ENERGY));
+}
+
+bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer)
+{
+  Serial.println(F("Starting write_point_buffer_influx"));
+  bool write_ok = true;
+  if (!point_buffer->hasTime())
+  {
+    time_t now_in_func;
+    time(&now_in_func);
+    point_buffer->setTime(now_in_func);
+  }
+
+  if (point_buffer->hasFields())
+  {
+    if (!point_buffer->hasTags())
+      point_buffer->addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
+
+    Serial.print("Writing: ");
+    Serial.println(ifclient->pointToLineProtocol(*point_buffer));
+
+    // Write point
+    write_ok = ifclient->writePoint(*point_buffer);
+    if (!write_ok)
+    {
+      Serial.print(F("InfluxDB write failed: "));
+      Serial.println(ifclient->getLastErrorMessage());
+    }
+    // else {
+    //     Serial.println("Write ok");
+    // }
+    point_buffer->clearFields();
+    //  Serial.println("clearFields ok");
+  }
+  return write_ok;
+}
+
+/**
+ * @brief Writes Influx buffer to specified server
+ *
+ * @return true if successful
+ * @return false if not successful
+ */
+
+bool write_buffer_to_influx()
+{
+
+  // probably invalid parameters
+  if (((strstr(s.influx_url, "http") - s.influx_url) != 0) || strlen(s.influx_org) < 5 || strlen(s.influx_token) < 5 || strlen(s.influx_bucket) < 1)
+  {
+    Serial.println(F("Skipping influx write: invalid or missing parameters."));
+    return false;
+  }
+
+  InfluxDBClient ifclient(s.influx_url, s.influx_org, s.influx_bucket, s.influx_token);
+  ifclient.setInsecure(true); // TODO: cert handling
+
+  // ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S)); // set time precision to seconds
+  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(2).bufferSize(2));
+
+  ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
+
+  bool influx_write_ok = write_point_buffer_influx(&ifclient, &point_period_avg);
+  if (!influx_write_ok)
+    return false;
+
+// add current debug and sensor values to the buffer and write later them
+#ifdef DEBUG_MODE
+  point_sensor_values.addField("uptime", (long)(millis() / 1000));
+#endif
+
+// add sensor values to influx update
+#ifdef SENSOR_DS18B20_ENABLED
+  char field_name[10];
+  for (int j = 0; j < sensor_count; j++)
+  {
+    if (vars.is_set(VARIABLE_SENSOR_1 + j))
+    {
+      snprintf(field_name, sizeof(field_name), "sensor%i", j + 1);
+      point_sensor_values.addField(field_name, vars.get_f(VARIABLE_SENSOR_1 + j));
+    }
+  }
+#endif
+  influx_write_ok = write_point_buffer_influx(&ifclient, &point_sensor_values);
+
+  ifclient.flushBuffer();
+  // Serial.println(F("Ending write_buffer_to_influx"));
+  return influx_write_ok; //
+}
+
+// under contruction
+/*TODO before production
+- check what we have in the db, write only new prices, max price, see https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/QueryAggregated/QueryAggregated.ino
+    - done...
+- batch processing could be faster, write only in the end, https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
+- start as "low priority" task in the loop
+*/
+bool update_prices_to_influx()
+{
+  time_t record_start = 0;
+  time_t current_period_start_ts;
+  long current_price;
+  int resolution_secs;
+  bool write_ok;
+  time_t last_price_in_file_ts;
+  String last_price_in_db;
+  bool db_price_found;
+  char datebuff[30];
+  tm tm2;
+
+  // Missing or invalid parameters
+  if (((strstr(s.influx_url, "http") - s.influx_url) != 0) || strlen(s.influx_org) < 5 || strlen(s.influx_token) < 5 || strlen(s.influx_bucket) < 1)
+  {
+    Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
+    return false;
+  }
+
+  String query = "from(bucket: \"" + String(s.influx_bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"period_price\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
+  query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
+
+  InfluxDBClient ifclient(s.influx_url, s.influx_org, s.influx_bucket, s.influx_token);
+  ifclient.setInsecure(true); // TODO: cert handling
+
+  Serial.println(query);
+  // Send query to the server and get result
+  FluxQueryResult result = ifclient.query(query);
+  if (result.next())
+  {
+    FluxDateTime max_price_time = result.getValueByName("_time").getDateTime();
+    Serial.print("max_price_time:");
+    Serial.println(max_price_time.getRawValue());
+    last_price_in_db = max_price_time.getRawValue();
+    db_price_found = true;
+  }
+  else
+  {
+    Serial.println("no result.next()");
+    db_price_found = false;
+  }
+
+  File price_file = LittleFS.open(price_data_filename, "r");
+  if (!price_file)
+  {
+    Serial.println(F("Failed to open price file. "));
+    return false;
+  }
+
+  // see also update_price_rank_variables
+  StaticJsonDocument<2024> doc;
+  DeserializationError error = deserializeJson(doc, price_file);
+
+  if (error)
+  {
+    Serial.print(F("update_prices_to_influx deserializeJson() failed: "));
+    Serial.println(error.c_str());
+    return false;
+  }
+
+  record_start = doc["record_start"];
+  resolution_secs = ((int)doc["resolution_m"]) * 60;
+  JsonArray prices_array = doc["prices"];
+
+  last_price_in_file_ts = record_start + (resolution_secs * (prices_array.size() - 1));
+  ts_to_date_str(&last_price_in_file_ts, datebuff);
+
+  Serial.print("Last ts in the file");
+  Serial.println(datebuff);
+
+  if (db_price_found)
+  {
+    if (last_price_in_db.equals(datebuff))
+    {
+      Serial.print("Last ts in the file equal one in the influxdb");
+      return false;
+    }
+    if (last_price_in_db > String(datebuff))
+    {
+      // Serial.print("Newer price in the influxDb - SHOULD NOT END UP HERE");
+      return false;
+    }
+    else
+    {
+      Serial.print("We have new prices to write to influx db. ");
+    }
+  }
+
+  // return false; // just testing  the first part
+
+  ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S).batchSize(12).bufferSize(24));
+  ifclient.setHTTPOptions(HTTPOptions().connectionReuse(true));
+
+  if (ifclient.isBufferEmpty())
+    Serial.print("isBufferEmpty yes ");
+  else
+    Serial.print("isBufferEmpty no ");
+
+  Point point_period_price("period_price");
+  // point_period_price.addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
+
+  for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
+  {
+    current_period_start_ts = record_start + resolution_secs * i;
+    // TODO: half period... record_start + resolution_secs * i + (resolution_secs/2)
+    ts_to_date_str(&current_period_start_ts, datebuff);
+    if (!(last_price_in_db < String(datebuff))) // already in the influxDb
+      continue;
+
+    current_price = (long)prices_array[i];
+    Serial.println(current_price);
+    point_period_price.addField("price", (float)(current_price / 1000.0));
+    point_period_price.setTime(current_period_start_ts);                         // set the time, muuta
+    point_period_price.setTime(current_period_start_ts + (resolution_secs / 2)); // middle of the period
+    Serial.print("Writing: ");
+    Serial.println(ifclient.pointToLineProtocol(point_period_price));
+    // Write point
+
+    write_ok = ifclient.writePoint(point_period_price);
+    Serial.println(write_ok ? "write_ok" : "write not ok");
+
+    point_period_price.clearFields();
+  }
+  ifclient.flushBuffer();
+  delay(100);
+
+  struct tm timeinfo;
+  getLocalTime(&timeinfo); // update from NTP?
+  if (!ifclient.flushBuffer())
+  {
+    Serial.print("InfluxDB flush failed: ");
+    Serial.println(ifclient.getLastErrorMessage());
+    Serial.print("Full buffer: ");
+    Serial.println(ifclient.isBufferFull() ? "Yes" : "No");
+    return false;
+  }
+  return true;
+}
+#endif // inlflux
 
 #define MAX_SPLIT_ARRAY_SIZE 10 // TODO: check if we do still need fixed array here
 
@@ -1573,33 +1581,32 @@ long get_doc_long(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, const char *key
  */
 void readFromEEPROM()
 {
+  int eeprom_used_size = sizeof(s);
+  EEPROM.begin(eeprom_used_size); // TODO:
   EEPROM.get(eepromaddr, s);
-  int used_size = sizeof(s);
-#ifdef INFLUX_REPORT_ENABLED
-  EEPROM.get(eepromaddr + used_size, s_influx);
-  // Serial.printf("readFromEEPROM influx_url:%s\n", s_influx.url);
-  used_size += sizeof(s_influx);
-#endif
-  Serial.print(F("readFromEEPROM: Reading settings from eeprom, Size: "));
-  Serial.println(used_size);
+  Serial.printf(PSTR("readFromEEPROM: Reading settings from eeprom, Size: %d\n"), eeprom_used_size);
+  EEPROM.end();
 }
 
 /**
  * @brief Writes settings to eeprom
  *
  */
-void writeToEEPROM()
+void writeToEEPROM(bool instant_write)
 {
-  int used_size = sizeof(s);
+  // loop write disabled
+  /* if (!instant_write) {
+     todo_in_loop_write_to_eeprom = true;
+     return;
+   }
+   */
+
+  int eeprom_used_size = sizeof(s);
+  EEPROM.begin(eeprom_used_size);
   EEPROM.put(eepromaddr, s); // write data to array in ram
-#ifdef INFLUX_REPORT_ENABLED
-  EEPROM.put(eepromaddr + used_size, s_influx);
-  used_size += sizeof(s_influx);
-  // Serial.printf("writeToEEPROM influx_url:%s\n", s_influx.url);
-#endif
-  EEPROM.commit();
+  bool commit_ok = EEPROM.commit();
+  Serial.printf(PSTR("writeToEEPROM: Writing %d bytes to eeprom. Result %s\n"), eeprom_used_size, commit_ok ? "OK" : "FAILED");
   EEPROM.end();
-  Serial.print(F("writeToEEPROM: Writing settings to eeprom."));
 }
 
 void notFound(AsyncWebServerRequest *request)
@@ -2677,9 +2684,11 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
  */
 bool is_garbage_line(String line)
 {
-  if (line.length() == 4 && line.startsWith("5"))
-  { // TODO: what creates this, is 5.. really a http code or some kind of counter
-    Serial.printf(PSTR("Garbage removed [%s]\n"), line.c_str());
+  if (line.charAt(line.length() - 1) != 13) // garbage line ends with cr
+    return false;
+  if (line.length() < 6 )
+  {  // It is probably buffer length in the beginning of chunk
+    Serial.printf(PSTR("Garbage removed [%s] (%d)\n"), line.substring(0, line.length()-1).c_str(),line.length());
     return true;
   }
   else
@@ -2699,7 +2708,7 @@ bool get_price_data()
 {
   if (is_cache_file_valid(price_data_filename) && prices_initiated) // "/price_data.json"
   {
-    Serial.println(F("Price cache file %s was not expired, returning"));
+    Serial.println(F("Price cache file was not expired, returning"));
     return true;
   }
   if (strlen(s.entsoe_api_key) < 36 || strlen(s.entsoe_area_code) < 5)
@@ -2725,8 +2734,14 @@ bool get_price_data()
 
   time(&now_infunc);
   start_ts = now_infunc - (3600 * 18); // no previous day after 18h, assume we have data ready for next day
-
   end_ts = start_ts + SECONDS_IN_DAY * 2;
+
+  /*
+  //Simulated start times for testing
+  start_ts = 1663239600 - (3600 * 18)+SECONDS_IN_DAY*-15 ;
+  end_ts = start_ts + SECONDS_IN_DAY * 3;
+  log_msg(MSG_TYPE_WARN, PSTR("Simulated price interval"));
+  */
 
   DynamicJsonDocument doc(3072);
   JsonArray price_array = doc.createNestedArray("prices");
@@ -2822,7 +2837,7 @@ bool get_price_data()
 
       if (line.charAt(line.length() - 1) == 13)
       {
-        if (is_garbage_line(line)) // skip error status "garbage" line
+        if (is_garbage_line(line)) // skip error status "garbage" line, probably chuck size to read
           continue;
         line.trim();            // remove cr and mark line incomplete
         line_incomplete = true; // we do not have whole line yet
@@ -2936,8 +2951,10 @@ bool get_price_data()
     }
     else
     {
-      Serial.println("No zero prices.");
-      doc["expires"] = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+      time_t doc_expires  = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+      //time_t doc_expires = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); // expire in 18 hours or 11 hour before price data end, which comes first
+      doc["expires"] = doc_expires;
+      Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
 
     File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
@@ -3244,15 +3261,15 @@ String inputs_form_processor(const String &var)
   #endif
   #ifdef INFLUX_REPORT_ENABLED
     if (var == F("influx_url"))
-      return String(s_influx.url);
+      return String(s.influx_url);
     if (var == F("influx_token"))
     {
-      return String(s_influx.token);
+      return String(s.influx_token);
     }
     if (var == F("influx_org"))
-      return String(s_influx.org);
+      return String(s.influx_org);
     if (var == F("influx_bucket"))
-      return String(s_influx.bucket);
+      return String(s.influx_bucket);
   #endif
 
   return String();
@@ -3948,7 +3965,7 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
         ajax.send(formdata);\
     }\
     function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total;  var percent = (event.loaded / event.total) * 100;  _('progressBar').value = Math.round(percent);_('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; }\
-    function reloadAdmin() { window.location.href = '/admin';}\
+    function reloadAdmin() { window.location.href = '/#admin';}\
     function completeHandler(event) {_('status').innerHTML = event.target.responseText; _('progressBar').value = 0;setTimeout(reloadAdmin, 20000);}\
     function errorHandler(event) { _('status').innerHTML = 'Upload Failed';}\
     function abortHandler(event) {   _('status').innerHTML = 'Upload Aborted';}\
@@ -4029,10 +4046,9 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
   if (final)
   {
     AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", PSTR("Please wait while the device reboots"));
-    // response->addHeader("Refresh", "20");
-    // response->addHeader("Location", "/");
 
-    response->addHeader("REFRESH", "15;URL=/admin");
+    response->addHeader("REFRESH", "15;URL=/#admin");
+
     request->send(response);
     if (!Update.end(true))
     {
@@ -4098,7 +4114,7 @@ void reset_config(bool full_reset)
   }
 
   memset(&s, 0, sizeof(s));
-  memset(&s_influx, 0, sizeof(s_influx));
+  // memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
   strncpy(s.http_username, "admin", sizeof(s.http_username)); // admin id is fixed
@@ -4226,10 +4242,10 @@ void export_config(AsyncWebServerRequest *request)
   doc["hw_template_id"] = s.hw_template_id;
 
 #ifdef INFLUX_REPORT_ENABLED
-  doc["influx_url"] = s_influx.url;
-  doc["influx_token"] = s_influx.token;
-  doc["influx_org"] = s_influx.org;
-  doc["influx_bucket"] = s_influx.bucket;
+  doc["influx_url"] = s.influx_url;
+  doc["influx_token"] = s.influx_token;
+  doc["influx_org"] = s.influx_org;
+  doc["influx_bucket"] = s.influx_bucket;
 #endif
 
   int rule_idx_output;
@@ -4378,10 +4394,10 @@ bool import_config(const char *config_file_name)
   s.energy_meter_id = get_doc_long(doc, "energy_meter_id", s.energy_meter_id);
 
 #ifdef INFLUX_REPORT_ENABLED
-  copy_doc_str(doc, (char *)"influx_url", s_influx.url, sizeof(s_influx.url));
-  copy_doc_str(doc, (char *)"influx_token", s_influx.token, sizeof(s_influx.token));
-  copy_doc_str(doc, (char *)"influx_org", s_influx.org, sizeof(s_influx.org));
-  copy_doc_str(doc, (char *)"influx_bucket", s_influx.bucket, sizeof(s_influx.bucket));
+  copy_doc_str(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
+  copy_doc_str(doc, (char *)"influx_token", s.influx_token, sizeof(s.influx_token));
+  copy_doc_str(doc, (char *)"influx_org", s.influx_org, sizeof(s.influx_org));
+  copy_doc_str(doc, (char *)"influx_bucket", s.influx_bucket, sizeof(s.influx_bucket));
 #endif
 
   int channel_idx = 0;
@@ -4432,7 +4448,7 @@ bool import_config(const char *config_file_name)
     channel_idx++;
   }
 
-  writeToEEPROM();
+  writeToEEPROM(false);
 
   return true;
 }
@@ -4490,13 +4506,14 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
  *
  * @param request
  */
+/*
 void onWebDashboardGet(AsyncWebServerRequest *request)
 {
 
   if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
   {
     Serial.println("DEBUG: onWebDashboardGet redirect /admin");
-    request->redirect("/admin");
+    request->redirect("/#admin");
     return;
   }
   // sendForm(request, "/dashboard_template.html", setup_form_processor);
@@ -4506,11 +4523,29 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, "/dashboard.html", "text/html");
 }
+*/
+
+void onWebUIGet(AsyncWebServerRequest *request)
+{
+  //TODO: prevent redirect loop
+/* if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
+  {
+    
+   // Serial.println("DEBUG: onWebUIGet redirect /#admin");
+   // request->redirect("/#admin");
+   // return;
+  }  */
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
+  request->send(LittleFS, "/ui.html", "text/html");
+}
 /**
  * @brief Returns services (inputs) form
  *
  * @param request
  */
+/*
 void onWebInputsGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -4518,7 +4553,7 @@ void onWebInputsGet(AsyncWebServerRequest *request)
   request->send(LittleFS, "/inputs.html", "text/html");
   //  sendForm(request, "/inputs_template.html", inputs_form_processor);
 }
-
+*/
 /**
  * @brief Returns channel config form
  *
@@ -4531,6 +4566,7 @@ void onWebChannelsGet_old(AsyncWebServerRequest *request)
 }
 // devel
 */
+/*
 void onWebChannelsGet(AsyncWebServerRequest *request)
 {
   // sendForm(request, "/channels_template.html", setup_form_processor);
@@ -4539,12 +4575,14 @@ void onWebChannelsGet(AsyncWebServerRequest *request)
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, "/channels.html", "text/html");
 }
+*/
 
 /**
  * @brief Returns admin form
  *
  * @param request
  */
+/*
 void onWebAdminGet(AsyncWebServerRequest *request)
 {
   // sendForm(request, "/admin_template.html", admin_form_processor);
@@ -4552,7 +4590,7 @@ void onWebAdminGet(AsyncWebServerRequest *request)
     return request->requestAuthentication();
   request->send(LittleFS, "/admin.html", "text/html");
 }
-
+*/
 /**
  * @brief Get individual rule template by id
  *
@@ -4592,6 +4630,7 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
  *
  * @param request
  */
+/*
 void onWebDashboardPost(AsyncWebServerRequest *request)
 {
   time(&now);
@@ -4651,10 +4690,90 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   if (force_up_changes)
   {
     todo_in_loop_set_relays = true;
-    writeToEEPROM();
+    writeToEEPROM(false);
+  }
+  // use during transition when 2 ui versions
+  if (request->hasParam("ui_ver", true) && request->getParam("ui_ver", true)->value().toInt() == 2)
+  {
+    ui_ver = request->getParam("ui_ver", true)->value().toInt(); // upgrade it
+    request->redirect("/#dashboard");
+  }
+  else
+    request->redirect("/");
+}
+*/
+/**
+ * @brief Process dashboard form, forcing channels up, JSON update, work in progress
+ *
+ * @param request
+ */
+void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+{
+  Serial.println("len/total:");
+  Serial.println(len);
+  Serial.println(total);
+  time(&now);
+  int params = request->params();
+  int channel_idx;
+  bool force_up_changes = false;
+  bool channel_already_forced;
+  long force_up_minutes;
+  time_t force_up_from = 0;
+  time_t force_up_until;
+
+  StaticJsonDocument<2048> doc; //
+  Serial.println((const char *)data);
+  DeserializationError error = deserializeJson(doc, (const char *)data);
+  if (error)
+  {
+    Serial.print(F("onWebChannelsPost deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    request->send(200, "application/json", "{\"status\":\"error\"}");
   }
 
-  request->redirect("/");
+  for (JsonObject schedule : doc["schedules"].as<JsonArray>())
+  {
+
+    channel_idx = schedule["ch_idx"];
+    int duration = schedule["duration"];
+    time_t from = schedule["from"];
+    Serial.printf("%d %d %d\n", channel_idx, duration, from);
+
+    if (duration == -1)
+      continue; // no selection
+
+    channel_already_forced = is_force_up_valid(channel_idx);
+    force_up_minutes = duration;
+
+    if (from == 0)
+      force_up_from = now;
+    else
+      force_up_from = max(now, from); // absolute unix ts is waited
+
+    Serial.printf("channel_idx: %d, force_up_minutes: %ld , force_up_from %ld\n", channel_idx, force_up_minutes, force_up_from);
+
+    if (force_up_minutes > 0)
+    {
+      force_up_until = force_up_from + force_up_minutes * 60; //-1;
+      s.ch[channel_idx].force_up_from = force_up_from;
+      s.ch[channel_idx].force_up_until = force_up_until;
+      if (is_force_up_valid(channel_idx))
+        s.ch[channel_idx].wanna_be_up = true;
+    }
+    else
+    {
+      s.ch[channel_idx].force_up_from = -1;  // forced down
+      s.ch[channel_idx].force_up_until = -1; // forced down
+      s.ch[channel_idx].wanna_be_up = false;
+    }
+    force_up_changes = true;
+  }
+  if (force_up_changes)
+  {
+    todo_in_loop_set_relays = true;
+    writeToEEPROM(false);
+  }
+  request->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 /**
@@ -4715,22 +4834,26 @@ void onWebInputsPost(AsyncWebServerRequest *request)
      strncpy(s.variable_server, request->getParam("variable_server", true)->value().c_str(),sizeof(variable_server));
    }*/
 #ifdef INFLUX_REPORT_ENABLED
-  strncpy(s_influx.url, request->getParam("influx_url", true)->value().c_str(), sizeof(s_influx.url));
-  // Serial.printf("influx_url:%s\n", s_influx.url);
-  strncpy(s_influx.token, request->getParam("influx_token", true)->value().c_str(), sizeof(s_influx.token));
-  strncpy(s_influx.org, request->getParam("influx_org", true)->value().c_str(), sizeof(s_influx.org));
-  strncpy(s_influx.bucket, request->getParam("influx_bucket", true)->value().c_str(), sizeof(s_influx.bucket));
+  strncpy(s.influx_url, request->getParam("influx_url", true)->value().c_str(), sizeof(s.influx_url));
+  // Serial.printf("influx_url:%s\n", s.influx_url);
+  strncpy(s.influx_token, request->getParam("influx_token", true)->value().c_str(), sizeof(s.influx_token));
+  strncpy(s.influx_org, request->getParam("influx_org", true)->value().c_str(), sizeof(s.influx_org));
+  strncpy(s.influx_bucket, request->getParam("influx_bucket", true)->value().c_str(), sizeof(s.influx_bucket));
 #endif
 
   // END OF INPUTS
-  writeToEEPROM();
+  writeToEEPROM(false);
 
   todo_in_loop_restart = todo_in_loop_restart_local;
 
   if (todo_in_loop_restart)
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
+  {
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/#services' /></head><body>restarting...wait...</body></html>");
+  }
   else
-    request->redirect("/inputs");
+  {
+    request->redirect("/#services");
+  }
 }
 
 // TODO: refaktoroi, myös intille oma
@@ -4839,6 +4962,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
+        Serial.println(stmts_fld);
+        Serial.println(request->getParam(stmts_fld, true)->value());
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
         {
@@ -4853,7 +4978,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
             int var_index;
             for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), RULE_STATEMENTS_MAX); stmt_idx++)
             {
-              Serial.printf("Saving %d %d %d : %d, %d \n", channel_idx, condition_idx, stmt_idx, (int)stmts_json[stmt_idx][0], (int)stmts_json[stmt_idx][1]);
+              Serial.printf("Saving (%s)%d %d %d : [%d, %d, %d]\n", stmts_fld, channel_idx, condition_idx, stmt_idx, (int)stmts_json[stmt_idx][0], (int)stmts_json[stmt_idx][1], (int)stmts_json[stmt_idx][2]);
               var_index = vars.get_variable_by_id((int)stmts_json[stmt_idx][0], &var_this);
               if (var_index != -1)
               {
@@ -4887,8 +5012,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     }
   }
 
-  writeToEEPROM();
-  request->redirect("/channels");
+  writeToEEPROM(false);
+  request->redirect("/#channels");
 }
 
 /**
@@ -4910,13 +5035,13 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     strncpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str(), sizeof(s.wifi_ssid));
     strncpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str(), sizeof(s.wifi_password));
-  //  Serial.printf("Updated wifi ssid and password %s/%s\n", s.wifi_ssid, s.wifi_password);
+    //  Serial.printf("Updated wifi ssid and password %s/%s\n", s.wifi_ssid, s.wifi_password);
 
     todo_in_loop_restart_local = true;
   }
- /* else {
-    Serial.println("Wifi info not updated.");
-  }*/
+  /* else {
+     Serial.println("Wifi info not updated.");
+   }*/
 
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
@@ -4975,14 +5100,15 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   if (request->getParam("action", true)->value().equals("scan_wifis"))
   {
     todo_in_loop_scan_wifis = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
+
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/#admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
 
   if (request->getParam("action", true)->value().equals("scan_sensors"))
   {
     todo_in_loop_scan_sensors = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/#admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
 
@@ -4990,7 +5116,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     gpio_to_test_in_loop = request->getParam("test_gpio", true)->value().toInt();
     todo_in_loop_test_gpio = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/admin' /></head><body>GPIO testing</body></html>");
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/#admin' /></head><body>GPIO testing</body></html>");
     return;
   }
 
@@ -5000,14 +5126,18 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     reset_config(false);
     todo_in_loop_restart_local = true;
   }
-  writeToEEPROM();
+  writeToEEPROM(false);
 
   todo_in_loop_restart = todo_in_loop_restart_local;
 
   if (todo_in_loop_restart)
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body>restarting...wait...</body></html>");
+  {
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/' /></head><body>restarting...wait...</body></html>");
+  }
   else
-    request->redirect("/admin");
+  {
+    request->redirect("/#admin");
+  }
 }
 
 #ifdef MDNS_ENABLED
@@ -5327,12 +5457,9 @@ void setup()
   else
     Serial.println(F("Filesystem is too old."));
 */
-  // initiate EEPROM with correct size
-  int eeprom_used_size = sizeof(s);
-#ifdef INFLUX_REPORT_ENABLED
-  eeprom_used_size += sizeof(s_influx);
-#endif
-  EEPROM.begin(eeprom_used_size);
+  /*#ifdef INFLUX_REPORT_ENABLED
+    eeprom_used_size += sizeof(s_influx);
+  #endif */
   readFromEEPROM();
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
@@ -5480,26 +5607,50 @@ void setup()
       { request->send(200); },
       onWebUploadConfig);
 
-  server_web.on("/", HTTP_GET, onWebDashboardGet);
-  server_web.on("/", HTTP_POST, onWebDashboardPost);
+  // experimental
+  /*
+  if (ui_ver == 2)
+    server_web.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+                  { request->send(LittleFS, "/ui.html", "text/html"); });
+  else
+    server_web.on("/", HTTP_GET, onWebDashboardGet);
+    */
 
-  server_web.on("/inputs", HTTP_GET, onWebInputsGet);
+  server_web.on("/", HTTP_GET, onWebUIGet);
+
+  server_web.on(
+      "/update.schedule", HTTP_POST,
+      [](AsyncWebServerRequest *request) {},
+      [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
+         size_t len, bool final) {},
+      onScheduleUpdate);
+
+  // server_web.on("/", HTTP_POST, onWebDashboardPost);
+
+  // server_web.on("/inputs", HTTP_GET, onWebInputsGet);
+  server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/#services"); });
+
   server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
-  // server_web.on("/channels", HTTP_GET, onWebChannelsGet_old);
-  server_web.on("/channels", HTTP_GET, onWebChannelsGet);
+  // server_web.on("/channels", HTTP_GET, onWebChannelsGet);
+    server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/#channels"); });
   server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
-  server_web.on("/admin", HTTP_GET, onWebAdminGet);
+  // server_web.on("/admin", HTTP_GET, onWebAdminGet);
+     server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/#admin"); });
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
   // server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
-  server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->redirect("/"); }); // redirect url, if called from OTA
+  //server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+  //              { request->redirect("/"); }); // redirect url, if called from OTA
 
   server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/style.css", "text/css"); });
+
   /*  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
                   { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
   */
@@ -5542,6 +5693,10 @@ void setup()
   // debug
   server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, wifis_filename, "text/json"); });
+
+  // experimental
+  server_web.on("/ui.html", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/ui.html", "text/html"); });
 
   server_web.onNotFound(notFound);
   // TODO: remove force create
@@ -5678,10 +5833,15 @@ void loop()
       Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
       Serial.println();
       Serial.flush();
-      writeToEEPROM();
+      writeToEEPROM(false);
       delay(1000);
       ESP.restart();
     }
+  }
+  if (todo_in_loop_write_to_eeprom)
+  {
+    todo_in_loop_write_to_eeprom = false;
+    writeToEEPROM(true); // instant write
   }
 
 #ifdef DEBUG_MODE
@@ -5728,7 +5888,7 @@ void loop()
   {
     todo_in_loop_scan_sensors = false;
     if (scan_sensors())
-      writeToEEPROM();
+      writeToEEPROM(false);
   }
 
   // if in Wifi AP Mode (192.168.4.1), no other operations allowed
@@ -5759,6 +5919,8 @@ void loop()
 
     set_time_settings(); // set tz info
     ch_counters.init();
+    next_query_price_data = now;
+    next_query_fcst_data = now;
   }
 
   // set relays, if forced from dashboard
@@ -5817,7 +5979,7 @@ void loop()
     //   Serial.printf("next_query_price_data now: %ld \n", now);
     got_external_data_ok = get_price_data();
     todo_in_loop_update_price_rank_variables = got_external_data_ok;
-    next_query_price_data = now + (got_external_data_ok ? 1200 : 600);
+    next_query_price_data = now + (got_external_data_ok ? (1200 + random(0, 300)) : (120 + random(0, 60))); // random, to prevent query peak
     Serial.printf("next_query_price_data: %ld \n", next_query_price_data);
   }
 

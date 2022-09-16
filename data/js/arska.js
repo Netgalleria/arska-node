@@ -1,8 +1,16 @@
 /*
 Copyright, Netgalleria Oy, Olli Rinne 2021-2022
 */
-const sections = [{ "url": "/", "en": "Dashboard", "wiki": "Dashboard" }, { "url": "/inputs", "en": "Services", "wiki": "Edit-Services" }
-    , { "url": "/channels", "en": "Channels", "wiki": "Edit-Channels" }, { "url": "/admin", "en": "Admin", "wiki": "Edit-Admin" }];
+sections = [{ "url": "/", "en": "Dashboard", "wiki": "Dashboard" }, { "url": "/inputs", "en": "Services", "wiki": "Edit-Services" }
+    , { "url": "/channels", "id": "channels", "en": "Channels", "wiki": "Edit-Channels" }, { "url": "/admin", "en": "Admin", "wiki": "Edit-Admin" }];
+
+let active_section_id = '';
+sections_new = [
+    { "id": "dashboard", "en": "Dashboard", "wiki": "Dashboard" }, { "id": "services", "en": "Services", "wiki": "Edit-Services" }
+    , { "id": "channels", "en": "Channels", "wiki": "Edit-Channels" }, { "id": "admin", "en": "Admin", "wiki": "Edit-Admin" }
+];
+const ui_ver = 2; //transition from multi html page to 1 page ui
+
 //constants start
 //const opers = JSON.parse('%OPERS%');
 //const variables = JSON.parse('%VARIABLES%');
@@ -62,7 +70,7 @@ function setVariableMode(variable_mode) {
     document.getElementById("entsoe_api_key").disabled = (variable_mode != 0);
     document.getElementById("entsoe_area_code").disabled = (variable_mode != 0);
     document.getElementById("forecast_loc").disabled = (variable_mode != 0);
-   // document.getElementById("variable_server").disabled = (variable_mode != 1);
+    // document.getElementById("variable_server").disabled = (variable_mode != 1);
 }
 
 
@@ -278,10 +286,10 @@ function updateStatus(repeat) {
                     price_text = 'not available';
                 }
                 else {
-                    price_text = ' ' + price;
+                    price_text = ' ' + price + ' ¢/kWh ';
                 }
 
-                keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + ' ¢/kWh </span>' + sensor_text;
+                keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + '</span>' + sensor_text;
             }
             if (show_variables) {
                 document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
@@ -307,6 +315,7 @@ function updateStatus(repeat) {
 
             $.each(data.ch, function (i, ch) {
                 show_channel_status(i, ch)
+
             });
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -341,15 +350,20 @@ function show_channel_status(channel_idx, ch) {
 
     info_text = "";
 
+    if (ui_ver == 2)
+        rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
+    else
+        rule_link_a = " href='/channels#c" + channel_idx + "r" + ch.active_condition + "'";
+
     if (ch.is_up) {
         if (ch.force_up)
             info_text += "Up based on manual schedule: " + get_time_string_from_ts(ch.force_up_from, false, true) + " --> " + get_time_string_from_ts(ch.force_up_until, false, true) + ". ";
         else if (ch.active_condition > -1)
-            info_text += "Up based on <a class='chlink'  href='/channels#c" + channel_idx + "r" + ch.active_condition + "'>rule " + (ch.active_condition + 1) + "</a>. ";
+            info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
     }
     else {
         if ((ch.active_condition > -1))
-            info_text += "Down based on <a class='chlink' href='/channels#c" + channel_idx + "r" + ch.active_condition + "'>rule " + (ch.active_condition + 1) + "</a>. ";
+            info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
         if ((ch.active_condition == -1))
             info_text += "Down, no matching rules. ";
     }
@@ -364,8 +378,8 @@ function show_channel_status(channel_idx, ch) {
     // chdiv_info.insertAdjacentHTML('beforeend', "<br><span>" + info_text + "</span>");
     if (chdiv_info)
         chdiv_info.innerHTML = info_text;
-
 }
+
 // before submitting input admin form
 var submitInputsForm = function (e) {
     if (!confirm("Save and restart."))
@@ -379,24 +393,33 @@ var submitChannelForm = function (e) {
     //e.preventDefault();
     if (!confirm("Save channel settings?"))
         return false;
+    
 
-    // set name attributes to inputs to post (not coming from server to save space)
+
+    /*
     //TODO: in new UI model we could have names set by js element creation 
     let inputs = document.querySelectorAll("input[id^='t_'], input[id^='chty_']");
+  
     for (let i = 0; i < inputs.length; i++) {
         if (inputs[i].id != inputs[i].name) {
             inputs[i].name = inputs[i].id;
+            console.log("Adding name", inputs[i].name);
+            names_added++;
         }
     }
-
+    */
+    
     // statements from input fields 
     // clean first storage input values
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     for (let i = 0; i < stmts_s.length; i++) {
         stmts_s[i].value = '[]';
-        if (i == 0)
+     /*   if (i == 0) {
+            console.log(stmts_s[i].id,"-->",stmts_s[i].name)
             stmts_s[i].name = stmts_s[i].id; //send at least one field even if empty
+        } */
     }
+    
 
     // then save new values to be saved on the server
     let stmtDivs = document.querySelectorAll("div[id^='std_']");
@@ -415,8 +438,6 @@ var submitChannelForm = function (e) {
 
             //todo decimal, test  that number valid
             const const_val = parseFloat(document.getElementById("const" + suffix).value);
-            // console.log("const_val", const_val);
-            // alert(const_val);
             saveStoreId = "stmts_" + fldA[1] + "_" + fldA[2];
 
             saveStoreEl = document.getElementById(saveStoreId);
@@ -426,10 +447,16 @@ var submitChannelForm = function (e) {
             }
             stmt_list.push([var_val, op_val, const_val]);
             saveStoreEl.value = JSON.stringify(stmt_list);
-
-            saveStoreEl.name = saveStoreEl.id; // only fields with a name are posted 
+            /* name should be there already
+            if (saveStoreEl.name != saveStoreEl.id) {
+                saveStoreEl.name = saveStoreEl.id; // only fields with a name are posted 
+                console.log("Adding name", saveStoreEl.name);
+                names_added++;
+            }
+            */
         }
     }
+
     // with this piece code you can capture code snipped for rulle templates
     if (window.location.search.includes("devel=1")) {
         let stmts_s = document.querySelectorAll("input[id^='stmts_']");
@@ -444,11 +471,6 @@ var submitChannelForm = function (e) {
             channel_rules.push({ "on": target_up, "statements": [stmts_s[i].value] });
 
             if (prev_channel_idx != channel_idx) {
-            /*    if (channel_rules.length > 0) {
-                    //    console.log("channel_idx:" + prev_channel_idx);
-                    // console.table(channel_rules);      
-                    console.log(JSON.stringify(channel_rules));
-                }*/
                 prev_channel_idx = channel_idx;
                 channel_rules = [];
             }
@@ -456,7 +478,7 @@ var submitChannelForm = function (e) {
 
         if (channel_rules.length > 0) {
             console.log("channel_idx:" + prev_channel_idx);
-          //  console.log(JSON.stringify(channel_rules));
+            //  console.log(JSON.stringify(channel_rules));
         }
 
         alert("Check rules from the javascript console");
@@ -467,6 +489,9 @@ var submitChannelForm = function (e) {
     for (var i = 0; i < disSels.length; i++) {
         disSels[i].disabled = false;
     }
+    
+    
+    
     formSubmitting = true;
     return true;
 };
@@ -909,15 +934,21 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
 
 function initChannelForm() {
     console.log("initChannelForm");
+    /*
     var chtype;
 
+    let count = 0;
     for (var channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
         //TODO: fix if more types coming
         if (document.getElementById('chty_' + channel_idx)) {
+            count++;
             chtype = document.getElementById('chty_' + channel_idx).value;
             setChannelFieldsByType(channel_idx, chtype);
+            console.log("calling  setChannelFieldsByType");
         }
     }
+    alert("setChannelFieldsByType calls " + count);
+    */
 
     // set rule statements, statements are in hidden fields
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
@@ -1022,11 +1053,43 @@ function setChannelFieldsByType(channel_idx, chtype_in) {
     }
 }
 
+function set_url_bar(section_id) {
+    var headdiv = document.getElementById("headdiv");
+    headdiv.innerHTML = ""; // clear div first
+    var hdspan = document.createElement('div');
+    hdspan.innerHTML = "<svg viewBox='0 0 70 30' class='headlogo'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='#arskalogo' id='logo' /></svg><br>";
+    hdspan.classList.add("cht");
+    headdiv.appendChild(hdspan);
 
+    sections_new.forEach((sect, idx) => {
+        var a = document.createElement('a');
+        var link = document.createTextNode(sect.en);
+        a.appendChild(link);
+        a.title = sect.en;
+        if (section_id == sect.id) {
+            a.className = "actUrl";
+        }
+        // a.href = sect.url;
+        a.setAttribute("onclick", "activate_section('" + sect.id + "');");
+
+        headdiv.appendChild(a);
+
+        if (section_id == sect.id && sect.wiki) {
+            var span = document.createElement('span');
+            span.innerHTML = link_to_wiki(sect.wiki);
+            headdiv.appendChild(span);
+        }
+        //}
+        if (idx < sections.length - 1) {
+            var sepa = document.createTextNode(" | ");
+            headdiv.appendChild(sepa);
+        }
+    });
+}
 function initUrlBar(url) {
     var headdiv = document.getElementById("headdiv");
+    // headdiv.innerHTML = ""; // clear div first
     var hdspan = document.createElement('div');
-    //  hdspan.innerHTML = "Arska<br>";
     hdspan.innerHTML = "<svg viewBox='0 0 70 30' class='headlogo'><use xmlns:xlink='http://www.w3.org/1999/xlink' xlink:href='#arskalogo' id='logo' /></svg><br>";
     hdspan.classList.add("cht");
     headdiv.appendChild(hdspan);
@@ -1061,7 +1124,7 @@ const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 144
 
 
 function update_schedule_select_periodical() {
-    //remove starts from history
+    //remove schedule start times from history
     let selects = document.querySelectorAll("select[id^='fupfrom_']");
     now_ts = Date.now() / 1000;
     for (i = 0; i < selects.length; i++) {
@@ -1075,31 +1138,48 @@ function update_schedule_select_periodical() {
 }
 
 
-
 function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     //dropdown, TODO: recalculate when new hour 
     now_ts = Date.now() / 1000;
     sel_fup_from = document.getElementById("fupfrom_" + channel_idx);
+
+    chdiv_sched = document.getElementById("chdsched_" + channel_idx);  
+    if (!chdiv_sched) //undefined, not on dashboard
+        return;
+   
     if (!sel_fup_from) {
         prev_selected = current_start_ts;
-        chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
         sdiv = createElem("div", null, null, "schedsel", null);
         sel_fup_from = createElem("select", "fupfrom_" + channel_idx, null, null, null);
         sel_fup_from.name = "fupfrom_" + channel_idx;
         sdiv.insertAdjacentHTML('beforeend', 'Schedule:<br>');
         sdiv.appendChild(sel_fup_from);
-        chdiv_sched.appendChild(sdiv);
+
+        // update button
+        sdiv_btn = createElem("div", null, null, "shedupdv", null);
+        fup_btn = createElem("input", "fupbtn" + channel_idx, "💾", "fupbtn", "button");
+        fup_btn.setAttribute("onclick", "schedule_update('" + channel_idx + "');");
+        fup_btn.disabled = true; //wait for changes
+
+        sdiv_btn.insertAdjacentHTML('beforeend', ' <br>');
+        sdiv_btn.appendChild(fup_btn);
+
+       // console.log("chdsched_" + channel_idx);
+        if (chdiv_sched) {
+            chdiv_sched.appendChild(sdiv);
+            chdiv_sched.appendChild(sdiv_btn);
+        }
     }
     else
         prev_selected = sel_fup_from.value;
 
     //TODO: price and so on
     $("#fupfrom_" + channel_idx).empty();
-    fups_sel = document.getElementById("fups_" + channel_idx);
-    duration_selected = fups_sel.value;
+    fupdur_sel = document.getElementById("fupdur_" + channel_idx);
+
+    duration_selected = fupdur_sel.value;
 
     if (duration_selected <= 0) {
-        //  addOption(sel_fup_from, -1, "select duration", true);
         addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
         sel_fup_from.disabled = true;
         return;
@@ -1140,36 +1220,51 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
 
 function duration_changed(evt) {
     const fldA = evt.target.id.split("_");
-    update_fup_schedule_element(fldA[1]);
+    channel_idx = fldA[1];
+    update_fup_schedule_element(channel_idx);
+    document.getElementById("fupbtn" + channel_idx).disabled = false;
+    
 }
 
+//TODO: refaktoroi myös muut
+function remove_select_options(select_element) {
+    for(i = select_element.options.length - 1; i >= 0; i--) {
+        select_element.remove(i);
+     }
+}
 function update_fup_duration_element(channel_idx, selected_duration_min = 60, setting_exists) {
     chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
+    if (!chdiv_sched)
+        return;
 
-    fups_sel = document.getElementById("fups_" + channel_idx);
+    fupdur_sel = document.getElementById("fupdur_" + channel_idx);
     fups_val_prev = -1;
-    if (fups_sel) {
-        fups_val_prev = fups_sel.value;
+    if (fupdur_sel) {
+        fups_val_prev = fupdur_sel.value;
+        remove_select_options(fupdur_sel);
     }
     else {
         sdiv = createElem("div", null, null, "durationsel", null);
-        fups_sel = createElem("select", "fups_" + channel_idx, null, null, null);
-        fups_sel.name = "fups_" + channel_idx;
-        fups_sel.addEventListener("change", duration_changed);
-
-        addOption(fups_sel, -1, "select", true); //check checked
-        if (setting_exists)
-            addOption(fups_sel, 0, "unschedule", false); //check checked
-        for (i = 0; i < force_up_mins.length; i++) {
-            min_cur = force_up_mins[i];
-            duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
-            addOption(fups_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
-        }
+        fupdur_sel = createElem("select", "fupdur_" + channel_idx, null, null, null);
+        fupdur_sel.name = "fupdur_" + channel_idx;
+        fupdur_sel.addEventListener("change", duration_changed);
         sdiv.insertAdjacentHTML('beforeend', 'Duration:<br>');
-        sdiv.appendChild(fups_sel);
-        chdiv_sched.appendChild(sdiv);
-
+        sdiv.appendChild(fupdur_sel);
+    //    console.log("chdsched_" + channel_idx);
+        if (chdiv_sched)
+            chdiv_sched.appendChild(sdiv);
+//select population was here
+        
     }
+    addOption(fupdur_sel, -1, "select", true); //check checked
+    if (setting_exists)
+        addOption(fupdur_sel, 0, "unschedule", false); //check checked
+    for (i = 0; i < force_up_mins.length; i++) {
+        min_cur = force_up_mins[i];
+        duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+        addOption(fupdur_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
+    }
+
     // now initiate value
 }
 
@@ -1345,7 +1440,6 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
         match_text = "";
 
         anchor = createElem("a", 'c' + channel_idx + 'r' + condition_idx);
-        //  anchor.setAttribute('href', '#c'+channel_idx+'r'+condition_idx);
 
         anchor.insertAdjacentText('beforeend', "Rule " + (condition_idx + 1) + ":");
 
@@ -1374,7 +1468,8 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
             }
         }
 
-        stmt_hidden = createElem("input", 'stmts' + suffix, JSON.stringify(statements), "addstmtb", "hidden");
+        stmt_hidden = createElem("input", "stmts" + suffix, JSON.stringify(statements), "addstmtb", "hidden");
+        stmt_hidden.name = "stmts" + suffix;// experimental
         add_btn.addEventListener("click", addStmtEVT);
         ruled_div.appendChild(add_btn);
         ruled_div.appendChild(stmt_hidden);
@@ -1415,8 +1510,17 @@ function create_channel_rule_elements(envelope_div, channel_idx, ch_cur) {
 function init_channel_elements(edit_mode = false) {
     var svgns = "http://www.w3.org/2000/svg";
     var xlinkns = "http://www.w3.org/1999/xlink";
+    // id namespace to prevent id duplicates
+    var idns = edit_mode ? "e" : "d";
 
-    chlist = document.getElementById("chlist");
+    // new and old mixed
+    if (edit_mode)
+        chlist = document.getElementById("channels_chlist");
+    else
+        chlist = document.getElementById("dashboard_chlist");
+    if (!chlist) // old ui
+        chlist = document.getElementById("chlist");
+
     listed_channels = 0;
 
     $.each(g_config.ch, function (i, ch_cur) {
@@ -1426,33 +1530,41 @@ function init_channel_elements(edit_mode = false) {
         }
         listed_channels++;
 
-        chdiv = createElem("div", "chdiv_" + i, null, "hb");
+        chdiv = createElem("div", idns + "chdiv_" + i, null, "hb");
         chdiv_head = createElem("div", null, null, "secbr cht");
-        chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
-        chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
 
-        var svg = document.createElementNS(svgns, "svg");
-        // svg.viewBox = '0 0 100 100';
-        svg.setAttribute('viewBox', '0 0 100 100');
-        svg.classList.add("statusic");
-        svg.className = "statusic";
+        if (!edit_mode) { //experimental
+            chdiv_sched = createElem("div", "chdsched_" + i, null, "secbr", null);
+            chdiv_info = createElem("div", "chdinfo_" + i, null, "secbr", null);
+            var svg = document.createElementNS(svgns, "svg");
+            svg.setAttribute('viewBox', '0 0 100 100');
+            svg.classList.add("statusic");
+            svg.className = "statusic";
+            var use = document.createElementNS(svgns, "use");
+            use.id = 'status_' + i;
+            use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
+            svg.appendChild(use);
+            chdiv_head.appendChild(svg);
+        }
+        else {
+            chdiv_info = null;
+            chdiv_sched = null;
+        }
 
-        var use = document.createElementNS(svgns, "use");
-        use.id = 'status_' + i;
-        use.setAttributeNS(xlinkns, "href", ch_cur.is_up ? "#green" : "#red");
-
-        svg.appendChild(use);
-        chdiv_head.appendChild(svg);
-
+        // namespace?
         var span = document.createElement('span');
-        span.id = 'chid_' + i;
+        span.id = idns + 'chid_' + i;
+        // idns, id, naspace
         span.innerHTML = ch_cur["id_str"];
-        $('#chid_' + i).html(ch_cur["id_str"]);
-
+        // $('#'+idns+'chid_' + i).html(ch_cur["id_str"]);
         chdiv_head.appendChild(span);
+
         chdiv.appendChild(chdiv_head);
-        chdiv.appendChild(chdiv_info);
-        chdiv.appendChild(chdiv_sched);
+        if (chdiv_info)
+            chdiv.appendChild(chdiv_info);
+        if (chdiv_sched)
+            chdiv.appendChild(chdiv_sched);
+
         chdiv.appendChild(createElem("div", null, null, "secbr", null));//bottom div
 
         chlist.appendChild(chdiv);
@@ -1472,13 +1584,15 @@ function init_channel_elements(edit_mode = false) {
                 current_start_ts = ch_cur.force_up_from;
             }
 
-            for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
-                hour_cur = force_up_hours[hour_idx];
-                // new test
+            //experimental, is this enough or do we need loop
+            update_fup_duration_element(i, current_duration_minute, has_forced_setting);
+            update_fup_schedule_element(i, current_start_ts);
+
+           /* for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
                 update_fup_duration_element(i, current_duration_minute, has_forced_setting);
                 update_fup_schedule_element(i, current_start_ts);
-
-            }
+                ;
+            } */
         }
         if (edit_mode) {
             create_channel_config_elements(chdiv, i, ch_cur);
@@ -1496,23 +1610,21 @@ function init_channel_elements(edit_mode = false) {
 
 function initWifiForm() {
     var wifisp = null;
-        $.ajax({
-            url: '/data/wifis.json',
-            dataType: 'json',
-            async: false,
-            success: function (data) { wifisp = data; console.log("got wifis"); },
-            error: function (jqXHR, textStatus, errorThrown) {
-                console.log("Cannot get wifis", textStatus, jqXHR.status);
-            }
-        });
-    
+    $.ajax({
+        url: '/data/wifis.json',
+        dataType: 'json',
+        async: false,
+        success: function (data) { wifisp = data; console.log("got wifis"); },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get wifis", textStatus, jqXHR.status);
+        }
+    });
+
     if (!wifisp) {
         console.log("initWifiForm: No wifis.");
         return;
     }
-  //  wifisp = JSON.parse(wifis);
-
-
+    //  wifisp = JSON.parse(wifis);
     wifisp.sort(compare_wifis);
     var wifi_sel = document.getElementById("wifi_ssid");
     var wifi_ssid_db = g_config.wifi_ssid;// document.getElementById("wifi_ssid_db");
@@ -1532,24 +1644,221 @@ function initWifiForm() {
             wifi_sel.appendChild(opt);
         }
     });
+}
+function post_schedule_update(channel_idx = -1) {
+    console.log("post_schedule_update");
+    var scheds = [];
 
-    /*
-        wifisp.forEach(wifi => {
-            if (wifi.id) {
-                var opt = document.createElement("option");
-                opt.value = wifi.id;
-                opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
-                wifi_sel.appendChild(opt);
-            }
-        }); */
+    for (i = 0; i < g_constants.CHANNEL_COUNT; i++) {
+        if (channel_idx != -1 && i != channel_idx)
+            continue;
+        sel1 = document.getElementById("fupdur_" + i);
+        if (sel1) {
+            sel2 = document.getElementById("fupfrom_" + i);
+            if (sel1.value > -1)
+                scheds.push({ "ch_idx": i, "duration": sel1.value, "from": sel2.value });
+        }
+
+    }
+    console.log(scheds);
+    console.log(JSON.stringify(scheds));
+    $.ajax({
+        type: "POST",
+        url: "/update.schedule",
+        async : "false",
+        data: JSON.stringify({ schedules: scheds }),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: function (data) { console.log("success", data); },
+        error: function (errMsg) {
+            console.log(errMsg);
+        }
+    });
+}
+// single channel schedule iupdate
+function schedule_update(channel_idx = -1) {
+    post_schedule_update(channel_idx);
+    console.log("next update_fup_duration_element");
+    // update select list
+    duration = document.getElementById("fupdur_" + channel_idx).value;
+    update_fup_duration_element(channel_idx, 0, (duration>0)); //oletuksilla katso parametrit
+    update_fup_schedule_element(channel_idx);
+    document.getElementById("fupbtn" + channel_idx).disabled = true;
+
+    setTimeout(function () { updateStatus(false); }, 500);
 
 }
 
+function init_dashboard_section() {
+    get_price_data(); // price data for manual scheduling / price hints
+    init_channel_elements(false); //dashboard, no edit
+}
+
+function activate_section(section_id_full) {
+    url_a = section_id_full.split("_");
+    section_id = url_a[0];
+
+    set_url_bar(section_id);
+    active_section_id = section_id;
+
+    // show new section div….
+    let section_divs = document.querySelectorAll("div[id^='section_']");
+    for (i = 0; i < section_divs.length; i++) {
+        is_active_div = section_divs[i].id == "section_" + section_id;
+        section_divs[i].style.display = is_active_div ? "block" : "none";
+    }
+    if (section_id == "channels" && url_a.length == 2) {
+        var scroll_element = document.getElementById(url_a[1]);
+        console.log("Try to scroll", section_id_full, url_a[1]);
+        if (scroll_element)
+            scroll_element.scrollIntoView();
+    }
+    //  else
+    //      console.log("No scroll", section_id_full);
+}
+
+
+function init_services_section() {
+    var variable_mode;
+    // replicat mode disabled
+    /*  if (document.getElementById("VARIABLE_SOURCE_ENABLED").value == 0) {
+          variable_mode = 1;
+          document.getElementById("variable_mode_0").disabled = true;
+      }
+      else {
+          variable_mode = g_config.variable_mode; //document.getElementById("variable_mode_db").value;
+      }*/
+    // variable_mode = g_config.variable_mode; //should be 0 
+    variable_mode = 0
+    setVariableMode(variable_mode);
+    document.getElementById("variable_mode_" + variable_mode).checked = true;
+
+    document.getElementById("emt").value = g_config.energy_meter_type;
+    setEnergyMeterFields(g_config.energy_meter_type);
+    document.getElementById("emh").value = g_config.energy_meter_host;
+    document.getElementById("emp").value = g_config.energy_meter_port;
+    document.getElementById("emid").value = g_config.energy_meter_id;
+    document.getElementById("emid").value = g_config.energy_meter_id;
+    document.getElementById("baseload").value = g_config.baseload;
+    document.getElementById("entsoe_api_key").value = g_config.entsoe_api_key;
+
+    setEnergyMeterFields(g_config.energy_meter_type);
+
+    //set forecast location select element
+    var location = g_config.forecast_loc; //foredocument.getElementById("forecast_loc_db").value;
+    $('#forecast_loc option').filter(function () {
+        return this.value.indexOf(location) > -1;
+    }).prop('selected', true);
+
+    //set forecast location select element
+    var area_code = g_config.entsoe_area_code; //document.getElementById("entsoe_area_code_db").value;
+    if (!(area_code))
+        area_code = "#";
+    $('#entsoe_area_code option').filter(function () {
+        return this.value.indexOf(area_code) > -1;
+    }).prop('selected', true);
+
+    // show influx definations only if enbaled by server
+    if (g_constants.INFLUX_REPORT_ENABLED) {
+        document.getElementById("influx_url").value = g_config.influx_url;
+        document.getElementById("influx_token").value = g_config.influx_token;
+        document.getElementById("influx_org").value = g_config.influx_org;
+        document.getElementById("influx_bucket").value = g_config.influx_bucket;
+    }
+    else {
+        document.getElementById("influx_div").style.display = "none";
+    }
+}
+function init_channels_section() {
+    init_channel_elements(true);
+    getVariableList();
+    initChannelForm();
+    // update_discovered_devices(); //disabled, stability problems?
+    //scroll to anchor, done after page is created
+    url_a = window.location.href.split("#");
+    if (url_a.length == 2) {
+        var element = document.getElementById(url_a[1]);
+        if (element)
+            element.scrollIntoView();
+    }
+}
+
+function init_admin_section() {
+    initWifiForm();
+    if (g_config.using_default_password) {
+        document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
+    }
+    document.getElementById("wifi_password").value = g_config.wifi_password;
+    //set timezone select element 
+    var timezone = g_config.timezone;// document.getElementById("timezone_db").value;
+    $('#timezone option').filter(function () {
+        return this.value.indexOf(timezone) > -1;
+    }).prop('selected', true);
+
+    // set language select element
+    var lang = g_config.lang; //document.getElementById("lang_db").value;
+    $('#lang option').filter(function () {
+        return this.value.indexOf(lang) > -1;
+    }).prop('selected', true);
+
+    //set hw_template select list
+    var hw_template_id = g_config.hw_template_id;// document.getElementById("hw_template_id_db").value;
+    $('#hw_template_id option').filter(function () {
+        return this.value.indexOf(hw_template_id) > -1;
+    }).prop('selected', true);
+}
+
+// new experimental for one page ui
+function init_sections() {
+    setTimeout(function () { $("#cover").fadeOut(200) }, 10000); // uncover main screen, just in case if there is an error
+
+    //constants generated from 
+    $.ajax({
+        url: '/data/ui-constants.json',
+        dataType: 'json',
+        async: false,
+        success: function (data) { g_constants = data; console.log("got g_constants"); },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get g_constants", textStatus, jqXHR.status);
+        }
+    });
+
+
+    //current config
+    $.ajax({
+        url: '/export-config',
+        dataType: 'json',
+        async: false,
+        success: function (data) { g_config = data; console.log("got g_config"); },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get g_config", textStatus, jqXHR.status);
+        }
+    });
+
+    init_dashboard_section();
+    init_services_section();
+    init_channels_section();
+    init_admin_section();
+
+    // activate requested section
+    url_a = window.location.href.split("#");
+    if (url_a.length == 2)
+        activate_section(url_a[1]);
+    else
+        activate_section("dashboard");
+
+    var footerdiv = document.getElementById("footerdiv");
+    if (footerdiv) {
+        footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + g_constants.VERSION + " (" + g_constants.HWID + "),   Filesystem version: " + g_constants.version_fs + "</i></div>";
+    }
+    updateStatus(true);
+    //show page when fully loaded
+    $("#cover").fadeOut(200);//.hide(); 
+
+}
 //
-function initForm(url) {
-    // uncover main screen, just in case if there is an error
-    setTimeout(function () { $("#cover").fadeOut(200) }, 10000);
-    
+function initForm(url) { // called from html onload
+    setTimeout(function () { $("#cover").fadeOut(200) }, 10000); // uncover main screen, just in case if there is an error
     initUrlBar(url);
 
     //constants generated from 
@@ -1562,8 +1871,8 @@ function initForm(url) {
             console.log("Cannot get g_constants", textStatus, jqXHR.status);
         }
     });
- 
-    
+
+
     //current config
     $.ajax({
         url: '/export-config',
@@ -1574,111 +1883,28 @@ function initForm(url) {
             console.log("Cannot get g_config", textStatus, jqXHR.status);
         }
     });
-  
+
 
     if (url == '/admin') {
-        initWifiForm();
-        if (g_config.using_default_password) {
-            document.getElementById("password_note").innerHTML = "Change your password - now using default password!"
-        }
-
-        document.getElementById("wifi_password").value = g_config.wifi_password;
-        //set timezone select element 
-        var timezone = g_config.timezone;// document.getElementById("timezone_db").value;
-        $('#timezone option').filter(function () {
-            return this.value.indexOf(timezone) > -1;
-        }).prop('selected', true);
-
-        // set language select element
-        var lang = g_config.lang; //document.getElementById("lang_db").value;
-        $('#lang option').filter(function () {
-            return this.value.indexOf(lang) > -1;
-        }).prop('selected', true);
-
-        //set hw_template select list
-        var hw_template_id = g_config.hw_template_id;// document.getElementById("hw_template_id_db").value;
-        $('#hw_template_id option').filter(function () {
-            return this.value.indexOf(hw_template_id) > -1;
-        }).prop('selected', true);
+        init_admin_section();
     }
     else if (url == '/channels') {
-        init_channel_elements(true);
-        getVariableList();
-        initChannelForm();
-        // update_discovered_devices(); //CHECK THIS
-        //scroll to anchor, done after page is created
-        url_a = window.location.href.split("#");
-        if (url_a.length == 2) {
-            var element = document.getElementById(url_a[1]);
-            if (element)
-                element.scrollIntoView();
-        }
+        init_channels_section();
     }
-
     else if (url == '/') {
-        get_price_data(); // price data for manual scheduling / price hints
-        init_channel_elements(false); //dashboard, no edit
+        init_dashboard_section();
     }
 
     else if (url == '/inputs') {
-        var variable_mode;
-        // replicat mode disabled
-      /*  if (document.getElementById("VARIABLE_SOURCE_ENABLED").value == 0) {
-            variable_mode = 1;
-            document.getElementById("variable_mode_0").disabled = true;
-        }
-        else {
-            variable_mode = g_config.variable_mode; //document.getElementById("variable_mode_db").value;
-        }*/
-        variable_mode = g_config.variable_mode; //should be 0 
-        setVariableMode(variable_mode);
-        document.getElementById("variable_mode_" + variable_mode).checked = true;
-
-        document.getElementById("emt").value = g_config.energy_meter_type;
-        setEnergyMeterFields(g_config.energy_meter_type);
-        document.getElementById("emh").value = g_config.energy_meter_host;
-        document.getElementById("emp").value = g_config.energy_meter_port;
-        document.getElementById("emid").value = g_config.energy_meter_id;
-        document.getElementById("emid").value = g_config.energy_meter_id;
-        document.getElementById("baseload").value = g_config.baseload;
-        document.getElementById("entsoe_api_key").value = g_config.entsoe_api_key;
-
-        setEnergyMeterFields(g_config.energy_meter_type);
-
-        //set forecast location select element
-        var location = g_config.forecast_loc; //foredocument.getElementById("forecast_loc_db").value;
-        $('#forecast_loc option').filter(function () {
-            return this.value.indexOf(location) > -1;
-        }).prop('selected', true);
-
-        //set forecast location select element
-        var area_code = g_config.entsoe_area_code; //document.getElementById("entsoe_area_code_db").value;
-        if (!(area_code))
-            area_code = "#";
-        $('#entsoe_area_code option').filter(function () {
-            return this.value.indexOf(area_code) > -1;
-        }).prop('selected', true);
-
-        // show influx definations only if enbaled by server
-        if (g_constants.INFLUX_REPORT_ENABLED)
-        { 
-            document.getElementById("influx_url").value = g_config.influx_url;
-            document.getElementById("influx_token").value = g_config.influx_token;
-            document.getElementById("influx_org").value = g_config.influx_org;
-            document.getElementById("influx_bucket").value = g_config.influx_bucket;
-        }
-        else {
-            document.getElementById("influx_div").style.display = "none";
-        }
+        init_services_section();
     }
 
-   
     var footerdiv = document.getElementById("footerdiv");
     if (footerdiv) {
         footerdiv.innerHTML = "<br><div class='secbr'><a href='https://github.com/Netgalleria/arska-node/wiki' target='arskaw'>Arska Wiki</a> </div><div class='secbr'><i>Program version: " + g_constants.VERSION + " (" + g_constants.HWID + "),   Filesystem version: " + g_constants.version_fs + "</i></div>";
     }
     updateStatus(true);
-     //show page when fully loaded
+    //show page when fully loaded
     $("#cover").fadeOut(200);//.hide(); 
 }
 
@@ -1745,11 +1971,7 @@ function checkAdminForm() {
         alert('Passwords do not match!');
         return false;
     }
-    /*
-    var op_test_gpio = document.getElementById("op_test_gpio");
-    if (op_test_gpio.checked) {
-        document.querySelector('#test_gpio').value = prompt("GPIO to test", "-1");
-    }*/
+  
     return true;
 }
 

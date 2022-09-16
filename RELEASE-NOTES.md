@@ -1,5 +1,5 @@
 # Arska release notes
-## Arska 0.92 (updated 2022-09-09)
+## Arska 0.92 (updated 2022-09-15)
 
 ### Upgrade Steps
 * Prepare to rewrite device configuration when upgrading from version 0.91. Configuration backup in older version does not necessarily create complete backup file.
@@ -14,11 +14,15 @@
 ### Bug Fixes
 * Fixed memory allocation error in channel rule configuration. Caused sproratic errors in saving channel rules.
 * Configuration backup and restore now functional.
+* Fixed sporatic error in saving settings in non-volatile memory
 
 ### Other Changes
 * Multiple binary (firmware.bin) builds (esp32doit-devkit-v1, esp32lilygo-4ch, esp32wroom-4ch-a) replaced with one generic version (build: esp32-generic-6ch). Relay GPIO numbers are now defined in hardware templates (select at admin page) and channel configuration. In earlier versions GPIO numbers were harcoded in binary versions.
-* New internal storage format. Prepare to rewrite device configuration when upgrading from version 0.91.
+* New internal storage format-> causes configuration reset when updagrading from earlier versions. Prepare to rewrite device configuration when upgrading from version 0.91.
 * Relay device network discovery (mDNS) evaluated, but disabled due to stability concerns.
+* Changing price query timing (random element, additional requery in the morning), garbage line detection.
+* User interface (UI) tranformed to one html-document. No page loading when moving from section to another
+* UI/Dashboard, updating channel schedule now from update button (earlier save and reload of whole dashbord). 
 * More documentation
 
 

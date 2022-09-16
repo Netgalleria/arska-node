@@ -161,5 +161,43 @@
                 ]
             }
         ]
+    },
+    "4": {
+        "id": 1,
+        "name": "On on during cheapest hours (24h, rank+limit)",
+        "name_fi": "Käytä vain  halvimpina tunteina (24h, rank+limit)",
+        "desc": "On only during cheapest hours with next 24 hours. You can define number of cheapest hours (rank) and max price.",
+        "desc_fi": "Päällä ainoastaan halvimpina tunteina, voit määrittää päällä olevien tuntien määrän (rank) ja hintarajan.",
+        "uptime_minimum": 300,
+        "conditions": [
+            {
+                "on": true,
+                "statements": [
+                    {
+                        "values": [
+                            2,
+                            4,
+                            6
+                        ],
+                        "const_prompt": "How many hours up, cheapest hours within next 24h.",
+                        "const_prompt_fi": "Montako tuntia päällä seuraavan 24 tunnin aikana"
+                    }
+                ]
+            },
+            {
+                "on": true,
+                "statements": [
+                    {
+                        "values": [
+                            0,
+                            4,
+                            "3.0"
+                        ],
+                        "const_prompt": "Up also if the price max X ¢/kWh",
+                        "const_prompt_fi": "Päällä myös jos hinta korkeintaan X ¢/kWh"
+                    }
+                ]
+            }
+        ]
     }
 }
