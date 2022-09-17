@@ -1992,6 +1992,7 @@ function doAction(action) {
         if (confirm('Backup configuration always before update! \nMove to firmware update? ')) {
             //save_form.submit();
             window.location.href = '/update';
+            return false;
         }
     }
     else if (action == 'reboot') {
