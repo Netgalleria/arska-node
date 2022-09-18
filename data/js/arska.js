@@ -75,11 +75,18 @@ function setVariableMode(variable_mode) {
 
 
 function statusCBClicked(elCb) {
-    if (elCb.checked) {
-        setTimeout(function () { updateStatus(false); }, 300);
+    if (elCb.id == 'statusauto') {
+        if (elCb.checked) {
+            setTimeout(function () { updateStatus(false); }, 300);
+        }
+        document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
     }
-    document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+    else if (elCb.id == 'cbShowPrices') {
+        setCookie("show_price_graph", elCb.checked ? 1 : 0);
+        update_price_chart();
+    }
 }
+
 
 function link_to_wiki(article_name) {
     return '<a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/' + article_name + '">ℹ</a>';
@@ -99,6 +106,115 @@ var prices_expires = 0;
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+function ts_date_time(ts) {
+    date = new Date(ts * 1000);
+    return pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '.' + date.getFullYear() + ' ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes());
+}
+
+function update_price_chart() {
+    if (!document.getElementById("cbShowPrices").checked) {
+        document.getElementById("chart_container").style.display = "none";
+        return;
+    }
+
+    let price_data = null;
+    $.ajax({
+        url: 'data/price-data.json',
+        dataType: 'json',
+        async: false,
+        success: function (data, textStatus, jqXHR) {
+            console.log('got data/price-data.json', textStatus, jqXHR.status);
+            price_data = data;
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get prices", textStatus, jqXHR.status);
+            document.getElementById("chart_container").style.display = "none";
+
+        }
+
+    });
+    if (!price_data)
+        return false;
+
+    const ctx = document.getElementById('day_ahead_chart').getContext('2d');
+
+    let date;
+    let time_labels = [];
+    let prices_out = [];
+    let idx = 0;
+    let now_idx = 0;
+    now_ts = (Date.now() / 1000);
+    start_date_str = ts_date_time(price_data.record_start) + '-' + ts_date_time(price_data.record_end_excl);
+
+    for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += (price_data.resolution_m * 60)) {
+        if (ts > now_ts && now_idx == 0)
+            now_idx = idx - 1;
+        date = new Date(ts * 1000);
+        time_labels.push(pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '. ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes()));
+        prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
+        idx++;
+    }
+    var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
+    if (chartExist != undefined)
+        chartExist.destroy();
+
+    const day_ahead_chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: time_labels,
+            datasets: [{
+                label: 'price ¢/kWh',
+                data: prices_out,
+                borderColor: ['#f3f300'
+                ],
+                pointStyle: 'circle',
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                fill: false,
+                stepped: true,
+                borderWidth: 2
+            }]
+        },
+        options: {
+
+            responsive: true,
+            scales: {
+                y: {
+                    ticks: {
+                        color: 'white',
+                        font: { size: 17, }
+                    },
+                    position: { x: now_idx }, grid: {
+                        lineWidth: 1, color: "#f7f7e6", borderWidth: 2, borderColor: '#f7f7e6'
+                    }
+                }, x: { grid: { lineWidth: 0.5, display: true, color: "#f7f7e6" } }
+            },
+            interaction: {
+                intersect: false,
+                axis: 'x'
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: (ctx) => 'Day-ahead prices ' + start_date_str,
+                    font: {
+                        size: 24,
+                        weight: "normal"
+                    }
+                },
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+    Chart.defaults.color = '#f7f7e6';
+    Chart.defaults.scales.borderColor = '#f7f7e6';
+    document.getElementById("chart_container").style.display = "block";
+    return true;
+}
+
 
 function get_price_data() {
     now_ts = Date.now() / 1000;
@@ -235,14 +351,26 @@ function update_discovered_devices() {
 
 }
 
+let last_status_update = 0;
+
 // update variables and channels statuses to channels form
 function updateStatus(repeat) {
     if (document.getElementById("statusauto"))
         show_variables = document.getElementById("statusauto").checked;
     else
         show_variables = false;
+    const interval_s = 30;
+    const process_time_s = 5;
+    let next_query_in = interval_s;
 
-    update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
+    now_ts = Date.now() / 1000;
+    if (Math.floor(now_ts / 3600) != Math.floor(last_status_update / 3600)) {
+        console.log("Interval changed in updateStatus");
+        update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
+        price_chart_ok = update_price_chart();
+        if (price_chart_ok)
+            last_status_update = now_ts;
+    }
 
     var jqxhr_obj = $.ajax({
         url: '/status',
@@ -252,6 +380,9 @@ function updateStatus(repeat) {
             console.log("got status data", textStatus, jqXHR.status);
             msgdiv = document.getElementById("msgdiv");
             keyfd = document.getElementById("keyfd");
+            if (data.hasOwnProperty('next_process_in'))
+            next_query_in = data.next_process_in + process_time_s;
+            
             if (msgdiv) {
                 if (data.last_msg_ts > getCookie("msg_read")) {
                     msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
@@ -334,9 +465,12 @@ function updateStatus(repeat) {
     }
 
     );
-    ;
-    if (repeat)
-        setTimeout(function () { updateStatus(true); }, 30000);
+    
+    
+    if (repeat) {
+        setTimeout(function () { updateStatus(true); }, next_query_in * 1000);
+        console.log("next_query_in",next_query_in)
+    }
 }
 
 
@@ -368,7 +502,7 @@ function show_channel_status(channel_idx, ch) {
             info_text += "Down, no matching rules. ";
     }
 
-    if (ch.force_up_from > now_ts - 100) { //leave some margin
+    if (ch.force_up_from > now_ts - 30) { //leave some margin
         if (info_text)
             info_text += "<br>";
         info_text += "Scheduled: " + get_time_string_from_ts(ch.force_up_from, false, true) + " --> " + get_time_string_from_ts(ch.force_up_until, false, true);
@@ -393,7 +527,7 @@ var submitChannelForm = function (e) {
     //e.preventDefault();
     if (!confirm("Save channel settings?"))
         return false;
-    
+
 
 
     /*
@@ -408,18 +542,18 @@ var submitChannelForm = function (e) {
         }
     }
     */
-    
+
     // statements from input fields 
     // clean first storage input values
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
     for (let i = 0; i < stmts_s.length; i++) {
         stmts_s[i].value = '[]';
-     /*   if (i == 0) {
-            console.log(stmts_s[i].id,"-->",stmts_s[i].name)
-            stmts_s[i].name = stmts_s[i].id; //send at least one field even if empty
-        } */
+        /*   if (i == 0) {
+               console.log(stmts_s[i].id,"-->",stmts_s[i].name)
+               stmts_s[i].name = stmts_s[i].id; //send at least one field even if empty
+           } */
     }
-    
+
 
     // then save new values to be saved on the server
     let stmtDivs = document.querySelectorAll("div[id^='std_']");
@@ -489,9 +623,9 @@ var submitChannelForm = function (e) {
     for (var i = 0; i < disSels.length; i++) {
         disSels[i].disabled = false;
     }
-    
-    
-    
+
+
+
     formSubmitting = true;
     return true;
 };
@@ -1143,10 +1277,10 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     now_ts = Date.now() / 1000;
     sel_fup_from = document.getElementById("fupfrom_" + channel_idx);
 
-    chdiv_sched = document.getElementById("chdsched_" + channel_idx);  
+    chdiv_sched = document.getElementById("chdsched_" + channel_idx);
     if (!chdiv_sched) //undefined, not on dashboard
         return;
-   
+
     if (!sel_fup_from) {
         prev_selected = current_start_ts;
         sdiv = createElem("div", null, null, "schedsel", null);
@@ -1164,7 +1298,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         sdiv_btn.insertAdjacentHTML('beforeend', ' <br>');
         sdiv_btn.appendChild(fup_btn);
 
-       // console.log("chdsched_" + channel_idx);
+        // console.log("chdsched_" + channel_idx);
         if (chdiv_sched) {
             chdiv_sched.appendChild(sdiv);
             chdiv_sched.appendChild(sdiv_btn);
@@ -1223,14 +1357,13 @@ function duration_changed(evt) {
     channel_idx = fldA[1];
     update_fup_schedule_element(channel_idx);
     document.getElementById("fupbtn" + channel_idx).disabled = false;
-    
 }
 
 //TODO: refaktoroi myös muut
 function remove_select_options(select_element) {
-    for(i = select_element.options.length - 1; i >= 0; i--) {
+    for (i = select_element.options.length - 1; i >= 0; i--) {
         select_element.remove(i);
-     }
+    }
 }
 function update_fup_duration_element(channel_idx, selected_duration_min = 60, setting_exists) {
     chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
@@ -1250,11 +1383,9 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60, se
         fupdur_sel.addEventListener("change", duration_changed);
         sdiv.insertAdjacentHTML('beforeend', 'Duration:<br>');
         sdiv.appendChild(fupdur_sel);
-    //    console.log("chdsched_" + channel_idx);
+        //    console.log("chdsched_" + channel_idx);
         if (chdiv_sched)
             chdiv_sched.appendChild(sdiv);
-//select population was here
-        
     }
     addOption(fupdur_sel, -1, "select", true); //check checked
     if (setting_exists)
@@ -1264,7 +1395,6 @@ function update_fup_duration_element(channel_idx, selected_duration_min = 60, se
         duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
         addOption(fupdur_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
     }
-
     // now initiate value
 }
 
@@ -1587,13 +1717,8 @@ function init_channel_elements(edit_mode = false) {
             //experimental, is this enough or do we need loop
             update_fup_duration_element(i, current_duration_minute, has_forced_setting);
             update_fup_schedule_element(i, current_start_ts);
-
-           /* for (hour_idx = 0; hour_idx < force_up_hours.length; hour_idx++) {
-                update_fup_duration_element(i, current_duration_minute, has_forced_setting);
-                update_fup_schedule_element(i, current_start_ts);
-                ;
-            } */
         }
+
         if (edit_mode) {
             create_channel_config_elements(chdiv, i, ch_cur);
             create_channel_rule_elements(chdiv, i, ch_cur);
@@ -1665,7 +1790,7 @@ function post_schedule_update(channel_idx = -1) {
     $.ajax({
         type: "POST",
         url: "/update.schedule",
-        async : "false",
+        async: "false",
         data: JSON.stringify({ schedules: scheds }),
         contentType: "application/json; charset=utf-8",
         dataType: "json",
@@ -1675,23 +1800,33 @@ function post_schedule_update(channel_idx = -1) {
         }
     });
 }
-// single channel schedule iupdate
+// single channel schedule update
 function schedule_update(channel_idx = -1) {
     post_schedule_update(channel_idx);
     console.log("next update_fup_duration_element");
     // update select list
     duration = document.getElementById("fupdur_" + channel_idx).value;
-    update_fup_duration_element(channel_idx, 0, (duration>0)); //oletuksilla katso parametrit
+    schedule_el = document.getElementById("fupbtn" + channel_idx);
+    scheduled_ts = schedule_el.value;
+    update_fup_duration_element(channel_idx, 0, (duration > 0));
     update_fup_schedule_element(channel_idx);
-    document.getElementById("fupbtn" + channel_idx).disabled = true;
 
-    setTimeout(function () { updateStatus(false); }, 500);
-
+    schedule_el.disabled = true;
+   // if (duration == 0 || scheduled_ts == 0)
+        setTimeout(function () { updateStatus(false); }, 5000); //update UI
 }
+
 
 function init_dashboard_section() {
     get_price_data(); // price data for manual scheduling / price hints
     init_channel_elements(false); //dashboard, no edit
+
+    if (getCookie("show_price_graph") == "")
+        document.getElementById("cbShowPrices").checked = true; //default if no cookie
+    else
+        document.getElementById("cbShowPrices").checked = (getCookie("show_price_graph") == "1")
+
+    update_price_chart();
 }
 
 function activate_section(section_id_full) {
@@ -1971,7 +2106,7 @@ function checkAdminForm() {
         alert('Passwords do not match!');
         return false;
     }
-  
+
     return true;
 }
 

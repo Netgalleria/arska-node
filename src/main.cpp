@@ -2686,9 +2686,9 @@ bool is_garbage_line(String line)
 {
   if (line.charAt(line.length() - 1) != 13) // garbage line ends with cr
     return false;
-  if (line.length() < 6 )
-  {  // It is probably buffer length in the beginning of chunk
-    Serial.printf(PSTR("Garbage removed [%s] (%d)\n"), line.substring(0, line.length()-1).c_str(),line.length());
+  if (line.length() < 6)
+  { // It is probably buffer length in the beginning of chunk
+    Serial.printf(PSTR("Garbage removed [%s] (%d)\n"), line.substring(0, line.length() - 1).c_str(), line.length());
     return true;
   }
   else
@@ -2951,8 +2951,8 @@ bool get_price_data()
     }
     else
     {
-      time_t doc_expires  = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
-      //time_t doc_expires = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); // expire in 18 hours or 11 hour before price data end, which comes first
+      time_t doc_expires = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+      // time_t doc_expires = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); // expire in 18 hours or 11 hour before price data end, which comes first
       doc["expires"] = doc_expires;
       Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
@@ -3148,7 +3148,7 @@ bool is_force_up_valid(int channel_idx)
   time(&now_in_func);
   // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
 
-  bool is_valid = ((s.ch[channel_idx].force_up_from < now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
+  bool is_valid = ((s.ch[channel_idx].force_up_from <= now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
   return is_valid;
 }
 
@@ -4527,14 +4527,14 @@ void onWebDashboardGet(AsyncWebServerRequest *request)
 
 void onWebUIGet(AsyncWebServerRequest *request)
 {
-  //TODO: prevent redirect loop
-/* if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
-  {
-    
-   // Serial.println("DEBUG: onWebUIGet redirect /#admin");
-   // request->redirect("/#admin");
-   // return;
-  }  */
+  // TODO: prevent redirect loop
+  /* if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
+    {
+
+     // Serial.println("DEBUG: onWebUIGet redirect /#admin");
+     // request->redirect("/#admin");
+     // return;
+    }  */
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
@@ -4733,7 +4733,6 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
 
   for (JsonObject schedule : doc["schedules"].as<JsonArray>())
   {
-
     channel_idx = schedule["ch_idx"];
     int duration = schedule["duration"];
     time_t from = schedule["from"];
@@ -5263,14 +5262,9 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
   {
-    /*   Serial.println("onWebStatusGet  requestAuthentication");
-        Serial.printf("Does not match %s/%s\n", s.http_username, s.http_password);
-        for (int i = 0; i<request->headers();i++)
-          Serial.print(request->getHeader(i)->toString());*/
     return request->requestAuthentication();
   }
-  /*   for (int i = 0; i<request->headers();i++)
-       Serial.print(request->getHeader(i)->toString());*/
+
 
   StaticJsonDocument<2048> doc; //
   String output;
@@ -5278,14 +5272,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   JsonObject var_obj = doc.createNestedObject("variables");
 
   /*
-  #ifdef METER_SHELLY3EM_ENABLED
-    float netEnergyInPeriod;
-    float netPowerInPeriod;
-    get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-    variables["netEnergyInPeriod"] = netEnergyInPeriod;
-    variables["netPowerInPeriod"] = netPowerInPeriod;
-  #endif
-
   #ifdef INVERTER_FRONIUS_SOLARAPI_ENABLED
     variables["energyProducedPeriod"] = energy_produced_period;
     variables["powerProducedPeriodAvg"] = power_produced_period_avg;
@@ -5333,6 +5319,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
   doc["energym_read_last"] = energym_read_last;
+  doc["next_process_in"] = max((long)0,(long)next_process_ts-current_time);
 
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -5634,19 +5621,19 @@ void setup()
   server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
   // server_web.on("/channels", HTTP_GET, onWebChannelsGet);
-    server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
+  server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->redirect("/#channels"); });
   server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
   // server_web.on("/admin", HTTP_GET, onWebAdminGet);
-     server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
+  server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->redirect("/#admin"); });
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
   // server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
-  //server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-  //              { request->redirect("/"); }); // redirect url, if called from OTA
+  // server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
+  //               { request->redirect("/"); }); // redirect url, if called from OTA
 
   server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/style.css", "text/css"); });
@@ -5668,6 +5655,8 @@ void setup()
 
   server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
+  server_web.on("/js/chart.min.3.9.1.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, F("/js/chart.min.3.9.1.js"), F("text/javascript")); });
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
