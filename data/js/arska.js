@@ -381,8 +381,8 @@ function updateStatus(repeat) {
             msgdiv = document.getElementById("msgdiv");
             keyfd = document.getElementById("keyfd");
             if (data.hasOwnProperty('next_process_in'))
-            next_query_in = data.next_process_in + process_time_s;
-            
+                next_query_in = data.next_process_in + process_time_s;
+
             if (msgdiv) {
                 if (data.last_msg_ts > getCookie("msg_read")) {
                     msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
@@ -465,11 +465,11 @@ function updateStatus(repeat) {
     }
 
     );
-    
-    
+
+
     if (repeat) {
         setTimeout(function () { updateStatus(true); }, next_query_in * 1000);
-        console.log("next_query_in",next_query_in)
+        console.log("next_query_in", next_query_in)
     }
 }
 
@@ -1812,8 +1812,8 @@ function schedule_update(channel_idx = -1) {
     update_fup_schedule_element(channel_idx);
 
     schedule_el.disabled = true;
-   // if (duration == 0 || scheduled_ts == 0)
-        setTimeout(function () { updateStatus(false); }, 5000); //update UI
+    // if (duration == 0 || scheduled_ts == 0)
+    setTimeout(function () { updateStatus(false); }, 5000); //update UI
 }
 
 
