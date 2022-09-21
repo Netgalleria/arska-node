@@ -1117,16 +1117,7 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
 }
 
 ChannelCounters ch_counters;
-/*
-typedef struct
-{
-  char url[70];
-  char token[100];
-  char org[30];
-  char bucket[20];
-} influx_settings_struct;
 
-influx_settings_struct s_influx; */
 
 /**
  * @brief Add time-series point values to buffer for later database insert
@@ -1243,7 +1234,7 @@ bool write_buffer_to_influx()
 - check what we have in the db, write only new prices, max price, see https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/QueryAggregated/QueryAggregated.ino
     - done...
 - batch processing could be faster, write only in the end, https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
-- start as "low priority" task in the loop
+
 */
 bool update_prices_to_influx()
 {
@@ -1405,8 +1396,6 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SI
   }
   while (ptr)
   {
-    /* Serial.print(atol(ptr));
-     Serial.print(","); */
     array_out[i] = atol(ptr);
     ptr = strtok(NULL, separator);
     i++;
@@ -1501,37 +1490,7 @@ void scan_and_store_wifis(bool print_out)
   serializeJson(doc, wifi_file);
   wifi_file.close();
 
-  /*
-
-    LittleFS.remove(wifis_filename);                      // Delete existing file, otherwise the configuration is appended to the file
-    File wifis_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
-    wifis_file.printf("wifis = '[");
-
-    int good_wifi_count = 0;
-
-    if (print_out)
-      Serial.println("Available WiFi networks:\n");
-    for (int i = 0; i < network_count; ++i)
-    {
-      if (WiFi.RSSI(i) < -80) // too weak signals not listed, could be actually -75
-        continue;
-      good_wifi_count++;
-      wifis_file.print("{\"id\":\"");
-      wifis_file.print(WiFi.SSID(i).replace(('\'',' ')); //single quote
-
-      wifis_file.print("\",\"rssi\":");
-      wifis_file.print(WiFi.RSSI(i));
-      wifis_file.print("},");
-      if (print_out)
-        Serial.printf("%d - %s (%ld)\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
-    }
-    wifis_file.printf("{}]';");
-    wifis_file.close();
-    if (print_out)
-    {
-      Serial.println("-");
-      Serial.flush();
-    }*/
+ 
 }
 
 #define CONFIG_JSON_SIZE_MAX 6144
@@ -1594,7 +1553,7 @@ void readFromEEPROM()
  */
 void writeToEEPROM(bool instant_write)
 {
-  // loop write disabled
+  // delayd loop write disabled
   /* if (!instant_write) {
      todo_in_loop_write_to_eeprom = true;
      return;
@@ -2466,7 +2425,7 @@ bool get_solar_forecast()
   DeserializationError error = deserializeJson(doc, client_http.getStream());
   if (error)
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy forecast data"));
+    log_msg(MSG_TYPE_WARN, PSTR("Failed to read energy forecast data"));
     Serial.println(error.c_str());
     return false;
   }
@@ -4501,96 +4460,17 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
     request->redirect("/");
   }
 }
-/**
- * @brief Return dashboard form
- *
- * @param request
- */
-/*
-void onWebDashboardGet(AsyncWebServerRequest *request)
-{
 
-  if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
-  {
-    Serial.println("DEBUG: onWebDashboardGet redirect /admin");
-    request->redirect("/#admin");
-    return;
-  }
-  // sendForm(request, "/dashboard_template.html", setup_form_processor);
-
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
-  request->send(LittleFS, "/dashboard.html", "text/html");
-}
-*/
 
 void onWebUIGet(AsyncWebServerRequest *request)
 {
-  // TODO: prevent redirect loop
-  /* if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
-    {
-
-     // Serial.println("DEBUG: onWebUIGet redirect /#admin");
-     // request->redirect("/#admin");
-     // return;
-    }  */
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, "/ui.html", "text/html");
 }
-/**
- * @brief Returns services (inputs) form
- *
- * @param request
- */
-/*
-void onWebInputsGet(AsyncWebServerRequest *request)
-{
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-  request->send(LittleFS, "/inputs.html", "text/html");
-  //  sendForm(request, "/inputs_template.html", inputs_form_processor);
-}
-*/
-/**
- * @brief Returns channel config form
- *
- * @param request
- */
-/*
-void onWebChannelsGet_old(AsyncWebServerRequest *request)
-{
-  sendForm(request, "/channels_template_old.html", setup_form_processor);
-}
-// devel
-*/
-/*
-void onWebChannelsGet(AsyncWebServerRequest *request)
-{
-  // sendForm(request, "/channels_template.html", setup_form_processor);
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
-  request->send(LittleFS, "/channels.html", "text/html");
-}
-*/
 
-/**
- * @brief Returns admin form
- *
- * @param request
- */
-/*
-void onWebAdminGet(AsyncWebServerRequest *request)
-{
-  // sendForm(request, "/admin_template.html", admin_form_processor);
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-  request->send(LittleFS, "/admin.html", "text/html");
-}
-*/
+
 /**
  * @brief Get individual rule template by id
  *
@@ -5594,14 +5474,6 @@ void setup()
       { request->send(200); },
       onWebUploadConfig);
 
-  // experimental
-  /*
-  if (ui_ver == 2)
-    server_web.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/ui.html", "text/html"); });
-  else
-    server_web.on("/", HTTP_GET, onWebDashboardGet);
-    */
 
   server_web.on("/", HTTP_GET, onWebUIGet);
 
@@ -5630,43 +5502,35 @@ void setup()
                 { request->redirect("/#admin"); });
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-  // server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
-  // server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-  //               { request->redirect("/"); }); // redirect url, if called from OTA
 
   server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/style.css", "text/css"); });
 
-  /*  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
-  */
 
-  /*
-    server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });*/
-
+/*
   server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/js/arska.js", "text/html"); });
+
+  server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
+  server_web.on("/js/chart.min.3.9.1.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, F("/js/chart.min.3.9.1.js"), F("text/javascript")); });*/
+
+  server_web.serveStatic("/js/", LittleFS, "/js/");
 
   //  /data/ui-constants.json
   server_web.on(ui_constants_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, ui_constants_filename, F("application/json")); });
 
-  server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
-  server_web.on("/js/chart.min.3.9.1.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/js/chart.min.3.9.1.js"), F("text/javascript")); });
+
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
+
   // TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
 
-  // just for debugging
-  /* server_web.on("/data/config_in.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                 { request->send(LittleFS, F("/data/config_in.json"), F("application/json")); });
-                 */
 
   // no authenticatipn
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
@@ -5920,7 +5784,7 @@ void loop()
     set_relays();
   }
 
-  // just in case check the wifi and reconnect/restart if neede
+  // just in case check the wifi and reconnect/restart if needed
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
     for (int wait_loop = 0; wait_loop < 10; wait_loop++)

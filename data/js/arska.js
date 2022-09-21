@@ -469,7 +469,7 @@ function updateStatus(repeat) {
 
     if (repeat) {
         setTimeout(function () { updateStatus(true); }, next_query_in * 1000);
-        console.log("next_query_in", next_query_in)
+     //   console.log("next_query_in", next_query_in)
     }
 }
 
