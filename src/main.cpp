@@ -4,11 +4,12 @@
 Resource files (see data subfolder):
 - arska.js - web UI Javascript routines
 - style.css - web UI styles
-- admin_template.html - html template file for admin web UI
-- channels_template.html - template file for channel configuration
-- dashboard_template.html - html template file for dashboard UI
-- inputs_template.htm - htmll template for services configuration UI
-- js/arska_tmpl-js - main javascript code template //TODO:separate variable(constant) and code
+- ui.html - replaces dashboard.html, inputs.html, channels.html, admin.html
+- admin.html - html template file for admin web UI
+- channels.html - template file for channel configuration
+- dashboard.html - html template file for dashboard UI
+- inputs.htm - htmll template for services configuration UI
+- js/arska.js - main javascript code template //TODO:separate variable(constant) and code
 - js/jquery-3.6.0.min.js - jquery library
 - data/version.txt - file system version info
 - data/template-list.json - list of rule templates
@@ -28,7 +29,7 @@ Resource files (see data subfolder):
 branch devel 21.8.2022
 */
 
-#define EEPROM_CHECK_VALUE 10093
+#define EEPROM_CHECK_VALUE 10094
 #define DEBUG_MODE
 
 // #include <improv.h> // testing improv for wifi settings
@@ -86,8 +87,9 @@ const char *required_fs_version PROGMEM = "0.92.530";
 const char *price_data_filename PROGMEM = "/data/price-data.json";
 const char *variables_filename PROGMEM = "/data/variables.json";
 const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
-const char *wifis_filename PROGMEM = "/wifis.json";
+const char *wifis_filename PROGMEM = "/data/wifis.json";
 const char *template_filename PROGMEM = "/data/templates.json";
+const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
 
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
@@ -828,6 +830,190 @@ int sensor_count = 0;
 bool sensor_ds18b20_enabled = false;
 #endif
 
+// Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
+#ifdef INVERTER_SMA_MODBUS_ENABLED
+#include <ModbusIP_ESP8266.h>
+// Modbus registry offsets
+#define SMA_DAYENERGY_OFFSET 30535
+#define SMA_TOTALENERGY_OFFSET 30529
+#define SMA_POWER_OFFSET 30775
+#endif
+
+#define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
+
+#define PROCESS_INTERVAL_SECS 60 // process interval
+// unsigned long last_process_ts = -PROCESS_INTERVAL_SECS * 1000; // start reading as soon as you get to first loop
+time_t next_process_ts = 0; // start reading as soon as you get to first loop
+
+time_t recording_period_start = 0; // first period: boot time, later period starts
+time_t current_period_start = 0;
+time_t previous_period_start = 0;
+time_t energym_read_last = 0;
+time_t started = 0;
+bool period_changed = true;
+
+// task requests to be fullfilled in loop asyncronously
+bool todo_in_loop_update_price_rank_variables = false;
+bool todo_in_loop_influx_write = false;
+bool todo_in_loop_restart = false;
+
+bool todo_in_loop_test_gpio = false; //!< gpio should be tested in loop
+int gpio_to_test_in_loop = -1;       //!< if not -1 then gpio should be tested in loop
+bool todo_in_loop_scan_wifis = false;
+bool todo_in_loop_scan_sensors = false;
+bool todo_in_loop_set_relays = false;
+bool todo_in_loop_discover_devices = false;
+bool todo_in_loop_write_to_eeprom = false;
+
+#define CH_TYPE_UNDEFINED 0
+#define CH_TYPE_GPIO_FIXED 1
+#define CH_TYPE_GPIO_USER_DEF 3
+#define CH_TYPE_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
+#define CH_TYPE_SHELLY_2GEN 4 //
+#define CH_TYPE_TASMOTA 5     //
+#define CH_TYPE_MODBUS_RTU 20 // RFU
+#define CH_TYPE_DISABLED 255  // RFU, we could have disabled, but allocated channels (binary )
+
+struct channel_type_st
+{
+  byte id;
+  const char *name;
+};
+//#define CH_TYPE_SHELLY_ONOFF 2  -> 10
+//#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
+
+#define CHANNEL_TYPE_COUNT 6
+
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user def."}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}};
+// later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
+
+struct device_db_struct
+{
+  const char *app;
+  byte switch_type;
+  byte outputs;
+};
+
+device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
+
+#define HW_TEMPLATE_COUNT 3
+#define HW_TEMPLATE_GPIO_COUNT 4
+struct hw_template_st
+{
+  int id;
+  const char *name;
+  byte gpios[HW_TEMPLATE_GPIO_COUNT];
+};
+
+hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 255}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}};
+
+// #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
+#define CHANNEL_STATES_MAX 10
+#define RULE_STATEMENTS_MAX 5
+#define MAX_CHANNELS_SWITCHED_AT_TIME 1
+
+#define MAX_CH_ID_STR_LENGTH 10
+#define MAX_ID_STR_LENGTH 30
+#define MAX_URL_STR_LENGTH 70
+
+// Energy metering types
+#define ENERGYM_NONE 0
+#define ENERGYM_SHELLY3EM 1
+#define ENERGYM_FRONIUS_SOLAR 2
+#define ENERGYM_SMA_MODBUS_TCP 3
+#define ENERGYM_MAX 3
+
+// Type texts for config ui - now hardcoded in html
+// const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
+
+#if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
+// inverter productuction info fields
+unsigned long inverter_total_period_init = 0;
+bool inverter_total_period_init_ok = false;
+unsigned long energy_produced_period = 0;
+unsigned long power_produced_period_avg = 0;
+#endif
+
+// Target/condition row stucture, elements of target array in channel, stored in non-volatile memory
+typedef struct
+{
+  statement_st statements[RULE_STATEMENTS_MAX];
+  float target_val; // TODO: remove
+  bool on;
+  bool condition_active; // for showing if the condition is currently active, for tracing
+} condition_struct;      // size 88
+
+#define CHANNEL_CONFIG_MODE_RULE 0
+#define CHANNEL_CONFIG_MODE_TEMPLATE 1
+// Channel stucture, elements of channel array in setting, stored in non-volatile memory
+typedef struct
+{
+  condition_struct conditions[CHANNEL_CONDITIONS_MAX];
+  char id_str[MAX_CH_ID_STR_LENGTH];
+  uint8_t relay_id;       //!< relay id, eg. number modbus server id
+  uint8_t relay_unit_id;  //!<  unit id, eg. port in a relay
+  uint8_t relay_iface_id; // RFU, interface, eg eth, wifi
+  IPAddress relay_ip;     //!< relay ip address
+  bool is_up;             //!< is channel currently up
+  bool wanna_be_up;       //!< should channel be switched up (when the time is right)
+  byte type;              //!< channel type, for values see constants CH_TYPE_...
+  time_t uptime_minimum;  //!< minimum time channel should be up
+  time_t toggle_last;     //!< last toggle time
+  time_t force_up_from;   //<! force channel up starting from
+  time_t force_up_until;  //<! force channel up until
+  byte config_mode;       //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
+  int template_id;        //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
+} channel_struct;
+
+#ifdef SENSOR_DS18B20_ENABLED
+typedef struct
+{
+  DeviceAddress address;             //!< 1-wire hardware address of the sensor device
+  char id_str[MAX_CH_ID_STR_LENGTH]; //!< sensor id string, RFU
+} sensor_struct;
+#endif
+
+// TODO: add fixed ip, subnet?
+// Setting stucture, stored in non-volatile memory
+typedef struct
+{
+  int check_value;                       //!< version number of memory struct, if equals one in the eeprom, stored data can be directly used
+  char wifi_ssid[MAX_ID_STR_LENGTH];     //!< WiFi SSID
+  char wifi_password[MAX_ID_STR_LENGTH]; //!< WiFi password
+  char http_username[MAX_ID_STR_LENGTH];
+  char http_password[MAX_ID_STR_LENGTH];
+  channel_struct ch[CHANNEL_COUNT];
+  char variable_server[MAX_ID_STR_LENGTH];    //!< projected to be used in replica mode, RFU
+  char entsoe_api_key[37];                    //!< EntsoE API key
+  char entsoe_area_code[17];                  //!< Price area code in day ahead market
+  char custom_ntp_server[35];                 //!< RFU, TODO:UI to set up
+  char timezone[4];                           //!< EET,CET supported
+  uint32_t baseload;                          //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
+  bool next_boot_ota_update;                  //!< not currently in use
+  byte energy_meter_type;                     //!< energy metering type, see constants: ENERGYM_
+  char energy_meter_host[MAX_URL_STR_LENGTH]; //!< enerygy meter address string
+  unsigned int energy_meter_port;             //!< energy meter port,  tcp port if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
+  byte energy_meter_id;                       //!< energy meter id,  uinid if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
+  char forecast_loc[MAX_ID_STR_LENGTH];       //!< Energy forecast location, BCDC-energy location
+  byte variable_mode;                         // VARIABLE_MODE_SOURCE (currently only supported), VARIABLE_MODE_REPLICA (not implemented)
+  char lang[3];                               //<! preferred language
+#ifdef SENSOR_DS18B20_ENABLED
+  sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
+#endif
+  IPAddress switch_subnet_wifi; //!< not currently in use, set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
+  int hw_template_id;           //!< hardware template defining channel gpios, see hw_templates
+  bool mdns_activated;          //!< is mDSN device discovery active, currently deactivatated due to stability concerns
+#ifdef INFLUX_REPORT_ENABLED
+  char influx_url[70];
+  char influx_token[100];
+  char influx_org[30];
+  char influx_bucket[20];
+#endif
+} settings_struct;
+
+// this stores settings also to eeprom
+settings_struct s;
+
 #ifdef INFLUX_REPORT_ENABLED
 #include <InfluxDbClient.h>
 const char *influx_device_id_prefix PROGMEM = "arska-";
@@ -932,15 +1118,6 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
 
 ChannelCounters ch_counters;
 
-typedef struct
-{
-  char url[70];
-  char token[100];
-  char org[30];
-  char bucket[20];
-} influx_settings_struct;
-
-influx_settings_struct s_influx;
 
 /**
  * @brief Add time-series point values to buffer for later database insert
@@ -1010,13 +1187,13 @@ bool write_buffer_to_influx()
 {
 
   // probably invalid parameters
-  if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
+  if (((strstr(s.influx_url, "http") - s.influx_url) != 0) || strlen(s.influx_org) < 5 || strlen(s.influx_token) < 5 || strlen(s.influx_bucket) < 1)
   {
     Serial.println(F("Skipping influx write: invalid or missing parameters."));
     return false;
   }
 
-  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
+  InfluxDBClient ifclient(s.influx_url, s.influx_org, s.influx_bucket, s.influx_token);
   ifclient.setInsecure(true); // TODO: cert handling
 
   // ifclient.setWriteOptions(WriteOptions().writePrecision(WritePrecision::S)); // set time precision to seconds
@@ -1057,7 +1234,7 @@ bool write_buffer_to_influx()
 - check what we have in the db, write only new prices, max price, see https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/QueryAggregated/QueryAggregated.ino
     - done...
 - batch processing could be faster, write only in the end, https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino/blob/master/examples/SecureBatchWrite/SecureBatchWrite.ino
-- start as "low priority" task in the loop
+
 */
 bool update_prices_to_influx()
 {
@@ -1073,16 +1250,16 @@ bool update_prices_to_influx()
   tm tm2;
 
   // Missing or invalid parameters
-  if (((strstr(s_influx.url, "http") - s_influx.url) != 0) || strlen(s_influx.org) < 5 || strlen(s_influx.token) < 5 || strlen(s_influx.bucket) < 1)
+  if (((strstr(s.influx_url, "http") - s.influx_url) != 0) || strlen(s.influx_org) < 5 || strlen(s.influx_token) < 5 || strlen(s.influx_bucket) < 1)
   {
     Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
     return false;
   }
 
-  String query = "from(bucket: \"" + String(s_influx.bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"period_price\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
+  String query = "from(bucket: \"" + String(s.influx_bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"period_price\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
   query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
 
-  InfluxDBClient ifclient(s_influx.url, s_influx.org, s_influx.bucket, s_influx.token);
+  InfluxDBClient ifclient(s.influx_url, s.influx_org, s.influx_bucket, s.influx_token);
   ifclient.setInsecure(true); // TODO: cert handling
 
   Serial.println(query);
@@ -1200,183 +1377,6 @@ bool update_prices_to_influx()
 }
 #endif // inlflux
 
-// Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
-#ifdef INVERTER_SMA_MODBUS_ENABLED
-#include <ModbusIP_ESP8266.h>
-// Modbus registry offsets
-#define SMA_DAYENERGY_OFFSET 30535
-#define SMA_TOTALENERGY_OFFSET 30529
-#define SMA_POWER_OFFSET 30775
-#endif
-
-#define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
-
-#define PROCESS_INTERVAL_SECS 60 // process interval
-// unsigned long last_process_ts = -PROCESS_INTERVAL_SECS * 1000; // start reading as soon as you get to first loop
-time_t next_process_ts = 0; // start reading as soon as you get to first loop
-
-time_t recording_period_start = 0; // first period: boot time, later period starts
-time_t current_period_start = 0;
-time_t previous_period_start = 0;
-time_t energym_read_last = 0;
-time_t started = 0;
-bool period_changed = true;
-
-// task requests to be fullfilled in loop asyncronously
-bool todo_in_loop_update_price_rank_variables = false;
-bool todo_in_loop_influx_write = false;
-bool todo_in_loop_restart = false;
-
-bool todo_in_loop_test_gpio = false; //!< gpio should be tested in loop
-int gpio_to_test_in_loop = -1;       //!< if not -1 then gpio should be tested in loop
-bool todo_in_loop_scan_wifis = false;
-bool todo_in_loop_scan_sensors = false;
-bool todo_in_loop_set_relays = false;
-bool todo_in_loop_discover_devices = false;
-
-#define CH_TYPE_UNDEFINED 0
-#define CH_TYPE_GPIO_FIXED 1
-#define CH_TYPE_GPIO_USER_DEF 3
-#define CH_TYPE_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
-#define CH_TYPE_SHELLY_2GEN 4 //
-#define CH_TYPE_TASMOTA 5     //
-#define CH_TYPE_MODBUS_RTU 20 // RFU
-#define CH_TYPE_DISABLED 255  // RFU, we could have disabled, but allocated channels (binary )
-
-struct channel_type_st
-{
-  byte id;
-  const char *name;
-};
-//#define CH_TYPE_SHELLY_ONOFF 2  -> 10
-//#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
-
-#define CHANNEL_TYPE_COUNT 6
-
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user def."}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}};
-// later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
-
-struct device_db_struct
-{
-  const char *app;
-  byte switch_type;
-  byte outputs;
-};
-
-device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
-
-#define HW_TEMPLATE_COUNT 3
-#define HW_TEMPLATE_GPIO_COUNT 4
-struct hw_template_st
-{
-  int id;
-  const char *name;
-  byte gpios[HW_TEMPLATE_GPIO_COUNT];
-};
-
-hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 255}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}};
-
-// #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
-#define CHANNEL_STATES_MAX 10
-#define RULE_STATEMENTS_MAX 5
-#define MAX_CHANNELS_SWITCHED_AT_TIME 1
-
-#define MAX_CH_ID_STR_LENGTH 10
-#define MAX_ID_STR_LENGTH 30
-#define MAX_URL_STR_LENGTH 70
-
-// Energy metering types
-#define ENERGYM_NONE 0
-#define ENERGYM_SHELLY3EM 1
-#define ENERGYM_FRONIUS_SOLAR 2
-#define ENERGYM_SMA_MODBUS_TCP 3
-#define ENERGYM_MAX 3
-
-// Type texts for config ui
-const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
-
-#if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-// inverter productuction info fields
-unsigned long inverter_total_period_init = 0;
-bool inverter_total_period_init_ok = false;
-unsigned long energy_produced_period = 0;
-unsigned long power_produced_period_avg = 0;
-#endif
-
-// Target/condition row stucture, elements of target array in channel, stored in non-volatile memory
-typedef struct
-{
-  statement_st statements[RULE_STATEMENTS_MAX];
-  float target_val; // TODO: remove
-  bool on;
-  bool condition_active; // for showing if the condition is currently active, for tracing
-} condition_struct;      // size 88
-
-#define CHANNEL_CONFIG_MODE_RULE 0
-#define CHANNEL_CONFIG_MODE_TEMPLATE 1
-// Channel stucture, elements of channel array in setting, stored in non-volatile memory
-typedef struct
-{
-  condition_struct conditions[CHANNEL_CONDITIONS_MAX];
-  char id_str[MAX_CH_ID_STR_LENGTH];
-  uint8_t relay_id;       //!< relay id, eg. number modbus server id
-  uint8_t relay_unit_id;  //!<  unit id, eg. port in a relay
-  uint8_t relay_iface_id; // RFU, interface, eg eth, wifi
-  IPAddress relay_ip;     //!< relay ip address
-  bool is_up;             //!< is channel currently up
-  bool wanna_be_up;       //!< should channel be switched up (when the time is right)
-  byte type;              //!< channel type, for values see constants CH_TYPE_...
-  time_t uptime_minimum;  //!< minimum time channel should be up
-  time_t toggle_last;     //!< last toggle time
-  time_t force_up_from;   //<! force channel up starting from
-  time_t force_up_until;  //<! force channel up until
-  byte config_mode;       //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
-  int template_id;        //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
-} channel_struct;
-
-#ifdef SENSOR_DS18B20_ENABLED
-typedef struct
-{
-  DeviceAddress address;             //!< 1-wire hardware address of the sensor device
-  char id_str[MAX_CH_ID_STR_LENGTH]; //!< sensor id string, RFU
-} sensor_struct;
-#endif
-
-// TODO: add fixed ip, subnet?
-// Setting stucture, stored in non-volatile memory
-typedef struct
-{
-  int check_value;                       //!< version number of memory struct, if equals one in the eeprom, stored data can be directly used
-  char wifi_ssid[MAX_ID_STR_LENGTH];     //!< WiFi SSID
-  char wifi_password[MAX_ID_STR_LENGTH]; //!< WiFi password
-  char http_username[MAX_ID_STR_LENGTH];
-  char http_password[MAX_ID_STR_LENGTH];
-  channel_struct ch[CHANNEL_COUNT];
-  char variable_server[MAX_ID_STR_LENGTH];    //!< projected to be used in replica mode, RFU
-  char entsoe_api_key[37];                    //!< EntsoE API key
-  char entsoe_area_code[17];                  //!< Price area code in day ahead market
-  char custom_ntp_server[35];                 //!< RFU, TODO:UI to set up
-  char timezone[4];                           //!< EET,CET supported
-  uint32_t baseload;                          //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
-  bool next_boot_ota_update;                  //!< not currently in use
-  byte energy_meter_type;                     //!< energy metering type, see constants: ENERGYM_
-  char energy_meter_host[MAX_URL_STR_LENGTH]; //!< enerygy meter address string
-  unsigned int energy_meter_port;             //!< energy meter port,  tcp port if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
-  byte energy_meter_id;                       //!< energy meter id,  uinid if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
-  char forecast_loc[MAX_ID_STR_LENGTH];       //!< Energy forecast location, BCDC-energy location
-  byte variable_mode;                         // VARIABLE_MODE_SOURCE (currently only supported), VARIABLE_MODE_REPLICA (not implemented)
-  char lang[3];                               //<! preferred language
-#ifdef SENSOR_DS18B20_ENABLED
-  sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
-#endif
-  IPAddress switch_subnet_wifi; //!< not currently in use, set in automatically in wifi connection setup, if several nw interfaces (wifi+eth), manual setup possibly needed
-  int hw_template_id;           //!< hardware template defining channel gpios, see hw_templates
-  bool mdns_activated;          //!< is mDSN device discovery active, currently deactivatated due to stability concerns
-} settings_struct;
-
-// this stores settings also to eeprom
-settings_struct s;
-
 #define MAX_SPLIT_ARRAY_SIZE 10 // TODO: check if we do still need fixed array here
 
 /**
@@ -1396,8 +1396,6 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SI
   }
   while (ptr)
   {
-    /* Serial.print(atol(ptr));
-     Serial.print(","); */
     array_out[i] = atol(ptr);
     ptr = strtok(NULL, separator);
     i++;
@@ -1431,7 +1429,6 @@ bool is_cache_file_valid(const char *cache_file_name)
     return false;
   }
   StaticJsonDocument<16> filter;
-  // filter["ts"] = true; // first get timestamp field, old way
   filter["expires"] = true; // first check expires timestamp field
 
   StaticJsonDocument<50> doc_ts;
@@ -1464,35 +1461,36 @@ int network_count = 0;
 void scan_and_store_wifis(bool print_out)
 {
   network_count = WiFi.scanNetworks();
-
-  LittleFS.remove(wifis_filename);                      // Delete existing file, otherwise the configuration is appended to the file
-  File wifis_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
-  wifis_file.printf("wifis = '[");
-
   int good_wifi_count = 0;
+  StaticJsonDocument<1248> doc;
 
   if (print_out)
     Serial.println("Available WiFi networks:\n");
+
   for (int i = 0; i < network_count; ++i)
   {
     if (WiFi.RSSI(i) < -80) // too weak signals not listed, could be actually -75
       continue;
     good_wifi_count++;
-    wifis_file.print("{\"id\":\"");
-    wifis_file.print(WiFi.SSID(i));
-    wifis_file.print("\",\"rssi\":");
-    wifis_file.print(WiFi.RSSI(i));
-    wifis_file.print("},");
+    JsonObject json_wifi = doc.createNestedObject();
+    json_wifi["id"] = WiFi.SSID(i);
+    json_wifi["rssi"] = WiFi.RSSI(i);
+
     if (print_out)
       Serial.printf("%d - %s (%ld)\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
   }
-  wifis_file.printf("{}]';");
-  wifis_file.close();
+
   if (print_out)
   {
     Serial.println("-");
     Serial.flush();
   }
+
+  File wifi_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
+  serializeJson(doc, wifi_file);
+  wifi_file.close();
+
+ 
 }
 
 #define CONFIG_JSON_SIZE_MAX 6144
@@ -1542,33 +1540,32 @@ long get_doc_long(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, const char *key
  */
 void readFromEEPROM()
 {
+  int eeprom_used_size = sizeof(s);
+  EEPROM.begin(eeprom_used_size); // TODO:
   EEPROM.get(eepromaddr, s);
-  int used_size = sizeof(s);
-#ifdef INFLUX_REPORT_ENABLED
-  EEPROM.get(eepromaddr + used_size, s_influx);
-  // Serial.printf("readFromEEPROM influx_url:%s\n", s_influx.url);
-  used_size += sizeof(s_influx);
-#endif
-  Serial.print(F("readFromEEPROM: Reading settings from eeprom, Size: "));
-  Serial.println(used_size);
+  Serial.printf(PSTR("readFromEEPROM: Reading settings from eeprom, Size: %d\n"), eeprom_used_size);
+  EEPROM.end();
 }
 
 /**
  * @brief Writes settings to eeprom
  *
  */
-void writeToEEPROM()
+void writeToEEPROM(bool instant_write)
 {
-  int used_size = sizeof(s);
+  // delayd loop write disabled
+  /* if (!instant_write) {
+     todo_in_loop_write_to_eeprom = true;
+     return;
+   }
+   */
+
+  int eeprom_used_size = sizeof(s);
+  EEPROM.begin(eeprom_used_size);
   EEPROM.put(eepromaddr, s); // write data to array in ram
-#ifdef INFLUX_REPORT_ENABLED
-  EEPROM.put(eepromaddr + used_size, s_influx);
-  used_size += sizeof(s_influx);
-  // Serial.printf("writeToEEPROM influx_url:%s\n", s_influx.url);
-#endif
-  EEPROM.commit();
+  bool commit_ok = EEPROM.commit();
+  Serial.printf(PSTR("writeToEEPROM: Writing %d bytes to eeprom. Result %s\n"), eeprom_used_size, commit_ok ? "OK" : "FAILED");
   EEPROM.end();
-  Serial.print(F("writeToEEPROM: Writing settings to eeprom."));
 }
 
 void notFound(AsyncWebServerRequest *request)
@@ -2428,7 +2425,7 @@ bool get_solar_forecast()
   DeserializationError error = deserializeJson(doc, client_http.getStream());
   if (error)
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy forecast data"));
+    log_msg(MSG_TYPE_WARN, PSTR("Failed to read energy forecast data"));
     Serial.println(error.c_str());
     return false;
   }
@@ -2646,13 +2643,11 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
  */
 bool is_garbage_line(String line)
 {
-  if (line.length() == 4 && (line.startsWith("4") || line.startsWith("5")))
-  { // TODO: what creates this, is this really a http code (4xx, 5xx)
-    char error_msg[ERROR_MSG_LEN];
-    snprintf(error_msg, ERROR_MSG_LEN, PSTR("Garbage removed from downloaded price data [%s]"), line.c_str());
-    Serial.println(error_msg);
-    log_msg(MSG_TYPE_WARN, error_msg);
-
+  if (line.charAt(line.length() - 1) != 13) // garbage line ends with cr
+    return false;
+  if (line.length() < 6)
+  { // It is probably buffer length in the beginning of chunk
+    Serial.printf(PSTR("Garbage removed [%s] (%d)\n"), line.substring(0, line.length() - 1).c_str(), line.length());
     return true;
   }
   else
@@ -2672,7 +2667,7 @@ bool get_price_data()
 {
   if (is_cache_file_valid(price_data_filename) && prices_initiated) // "/price_data.json"
   {
-    Serial.println(F("Price cache file %s was not expired, returning"));
+    Serial.println(F("Price cache file was not expired, returning"));
     return true;
   }
   if (strlen(s.entsoe_api_key) < 36 || strlen(s.entsoe_area_code) < 5)
@@ -2698,8 +2693,14 @@ bool get_price_data()
 
   time(&now_infunc);
   start_ts = now_infunc - (3600 * 18); // no previous day after 18h, assume we have data ready for next day
-
   end_ts = start_ts + SECONDS_IN_DAY * 2;
+
+  /*
+  //Simulated start times for testing
+  start_ts = 1663239600 - (3600 * 18)+SECONDS_IN_DAY*-15 ;
+  end_ts = start_ts + SECONDS_IN_DAY * 3;
+  log_msg(MSG_TYPE_WARN, PSTR("Simulated price interval"));
+  */
 
   DynamicJsonDocument doc(3072);
   JsonArray price_array = doc.createNestedArray("prices");
@@ -2795,7 +2796,7 @@ bool get_price_data()
 
       if (line.charAt(line.length() - 1) == 13)
       {
-        if (is_garbage_line(line)) // skip error status "garbage" line
+        if (is_garbage_line(line)) // skip error status "garbage" line, probably chuck size to read
           continue;
         line.trim();            // remove cr and mark line incomplete
         line_incomplete = true; // we do not have whole line yet
@@ -2909,9 +2910,10 @@ bool get_price_data()
     }
     else
     {
-      Serial.println("No zero prices.");
-      //doc["expires"] = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
-      doc["expires"] = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); //expire in 18 hours or 11 hour before price data end, which comes first
+      time_t doc_expires = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+      // time_t doc_expires = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); // expire in 18 hours or 11 hour before price data end, which comes first
+      doc["expires"] = doc_expires;
+      Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
 
     File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
@@ -3105,7 +3107,7 @@ bool is_force_up_valid(int channel_idx)
   time(&now_in_func);
   // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
 
-  bool is_valid = ((s.ch[channel_idx].force_up_from < now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
+  bool is_valid = ((s.ch[channel_idx].force_up_from <= now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
   return is_valid;
 }
 
@@ -3125,6 +3127,7 @@ int active_condition(int channel_idx)
  * @param var
  * @return String
  */
+/*
 String admin_form_processor(const String &var)
 {
   if (var == "wifi_ssid")
@@ -3148,86 +3151,89 @@ String admin_form_processor(const String &var)
 
   return String();
 }
-
+*/
 /**
  * @brief Template processor for the service (inputs) form
  *
  * @param var
  * @return String
  */
+/*
 String inputs_form_processor(const String &var)
 {
   // Serial.println(var);
-  if (var == F("emt"))
-    return String(s.energy_meter_type);
 
-  if (var == F("emt_options"))
-  {
-    char out[200];
-    char buff[50];
-    for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
+
+    if (var == F("emt_options"))
     {
-      snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
-      strcat(out, buff);
+      char out[200];
+      char buff[50];
+      for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
+      {
+        snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
+        strcat(out, buff);
+      }
+      return String(out);
     }
-    return String(out);
-  }
-  if (var == F("VARIABLE_SOURCE_ENABLED"))
-#ifdef VARIABLE_SOURCE_ENABLED
-    return String(1);
-#else
-    return String(0);
-#endif
 
-  if (var == F("emh"))
-    return String(s.energy_meter_host);
-  if (var == F("emh"))
-    return String(s.energy_meter_host);
-  if (var == F("emp"))
-    return String(s.energy_meter_port);
-  if (var == F("emid"))
-    return String(s.energy_meter_id);
+      if (var == F("emt"))
+      return String(s.energy_meter_type);
+    if (var == F("VARIABLE_SOURCE_ENABLED"))
+  #ifdef VARIABLE_SOURCE_ENABLED
+      return String(1);
+  #else
+      return String(0);
+  #endif
 
-  if (var == F("baseload"))
-    return String(s.baseload);
+    if (var == F("emh"))
+      return String(s.energy_meter_host);
+    if (var == F("emh"))
+      return String(s.energy_meter_host);
+    if (var == F("emp"))
+      return String(s.energy_meter_port);
+    if (var == F("emid"))
+      return String(s.energy_meter_id);
 
-  if (var == F("variable_mode"))
-    return String((VARIABLE_MODE_SOURCE)); // removed selection
+    if (var == F("baseload"))
+      return String(s.baseload);
 
-  if (var == F("entsoe_api_key"))
-    return String(s.entsoe_api_key);
+    if (var == F("variable_mode"))
+      return String((VARIABLE_MODE_SOURCE)); // removed selection
 
-  if (var == F("entsoe_area_code"))
-    return String(s.entsoe_area_code);
+    if (var == F("entsoe_api_key"))
+      return String(s.entsoe_api_key);
 
-  if (var == F("variable_server"))
-    return String(s.variable_server);
-  if (var == F("forecast_loc"))
-    return String(s.forecast_loc);
+    if (var == F("entsoe_area_code"))
+      return String(s.entsoe_area_code);
 
-  // influx
-  if (var == F("INFLUX_REPORT_ENABLED"))
-#ifdef INFLUX_REPORT_ENABLED
-    return String(1);
-#else
-    return String(0);
-#endif
-#ifdef INFLUX_REPORT_ENABLED
-  if (var == F("influx_url"))
-    return String(s_influx.url);
-  if (var == F("influx_token"))
-  {
-    return String(s_influx.token);
-  }
-  if (var == F("influx_org"))
-    return String(s_influx.org);
-  if (var == F("influx_bucket"))
-    return String(s_influx.bucket);
-#endif
+    if (var == F("variable_server"))
+      return String(s.variable_server);
+    if (var == F("forecast_loc"))
+      return String(s.forecast_loc);
+
+    // influx
+    if (var == F("INFLUX_REPORT_ENABLED"))
+  #ifdef INFLUX_REPORT_ENABLED
+      return String(1);
+  #else
+      return String(0);
+  #endif
+  #ifdef INFLUX_REPORT_ENABLED
+    if (var == F("influx_url"))
+      return String(s.influx_url);
+    if (var == F("influx_token"))
+    {
+      return String(s.influx_token);
+    }
+    if (var == F("influx_org"))
+      return String(s.influx_org);
+    if (var == F("influx_bucket"))
+      return String(s.influx_bucket);
+  #endif
 
   return String();
 }
-
+*/
 /**
  * @brief Template processor for the javascript code.
  *
@@ -3236,124 +3242,283 @@ String inputs_form_processor(const String &var)
  */
 String jscode_form_processor(const String &var)
 {
+  // %VERSION% (%HWID%), Filesystem %version_fs%
+
   // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
-  char out[1000]; // depends on VARIABLE_COUNT
-  char buff[70];
-  if (var == F("compile_date"))
-    return String(compile_date);
-  if (var == F("HWID"))
-    return String(HWID);
 
   if (var == F("VERSION"))
     return String(VERSION);
-  if (var == F("VERSION_SHORT"))
-    return String(VERSION_SHORT);
 
+  if (var == F("HWID"))
+    return String(HWID);
   if (var == F("version_fs"))
     return String(version_fs);
+  /*
+    char out[1000]; // depends on VARIABLE_COUNT
+    char buff[70];
 
-  if (var == F("switch_subnet_wifi"))
-    return s.switch_subnet_wifi.toString();
 
-  if (var == F("RULE_STATEMENTS_MAX"))
-    return String(RULE_STATEMENTS_MAX);
-  if (var == "CHANNEL_COUNT")
-    return String(CHANNEL_COUNT);
-  if (var == F("CHANNEL_CONDITIONS_MAX"))
-    return String(CHANNEL_CONDITIONS_MAX);
-  if (var == F("OPERS"))
-  {
-    strcpy(out, "[");
-    for (int i = 0; i < OPER_COUNT; i++)
+    if (var == F("compile_date"))
+      return String(compile_date);
+
+    if (var == F("VERSION_SHORT"))
+      return String(VERSION_SHORT);
+
+
+    if (var == F("switch_subnet_wifi"))
+      return s.switch_subnet_wifi.toString();
+
+    if (var == F("RULE_STATEMENTS_MAX"))
+      return String(RULE_STATEMENTS_MAX);
+    if (var == "CHANNEL_COUNT")
+      return String(CHANNEL_COUNT);
+    if (var == F("CHANNEL_CONDITIONS_MAX"))
+      return String(CHANNEL_CONDITIONS_MAX);
+    if (var == F("OPERS"))
     {
-      snprintf(buff, sizeof(buff), "[%d, \"%s\", %s, %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false", opers[i].has_value ? "true" : "false");
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (i < OPER_COUNT - 1)
-        strcat(out, ", "); // TODO: memory safe strncat
+      strcpy(out, "[");
+      for (int i = 0; i < OPER_COUNT; i++)
+      {
+        snprintf(buff, sizeof(buff), "[%d, \"%s\", %s, %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false", opers[i].has_value ? "true" : "false");
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (i < OPER_COUNT - 1)
+          strcat(out, ", "); // TODO: memory safe strncat
+      }
+      strcat(out, "]"); // TODO: memory safe strncat
+      return out;
     }
-    strcat(out, "]"); // TODO: memory safe strncat
-    return out;
-  }
-  if (var == F("channels"))
-  { // used by Javascript
-    strcpy(out, "[");
-    channel_struct *chp;
-    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+    if (var == F("channels"))
+    { // used by Javascript
+      strcpy(out, "[");
+      channel_struct *chp;
+      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+      {
+        chp = &s.ch[channel_idx];
+        snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (channel_idx < CHANNEL_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+    if (var == F("channel_types"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+    // TODO: currently unused when coded in html template
+    if (var == F("hw_templates"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+    if (var == F("VARIABLES")) // used by Javascript
     {
-      chp = &s.ch[channel_idx];
-      snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (channel_idx < CHANNEL_COUNT - 1)
-        strcat(out, ", ");
-    }
-    strcat(out, "]");
-    return out;
-  }
+      strcpy(out, "[");
+      int variable_count = vars.get_variable_count();
+      variable_st variable;
+      for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
+      {
+        // Serial.println(variable.code);
+        //  YYY
+        vars.get_variable_by_idx(variable_idx, &variable);
+        snprintf(buff, sizeof(buff), "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
+        strcat(out, buff); // TODO: memory safe strncat
+        if (variable_idx < variable_count - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    };
+    if (var == "lang")
+      return s.lang;
 
-  if (var == F("channel_types"))
-  { // used by Javascript
-    strcpy(out, "[");
-    for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
-    {
-      snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
-        strcat(out, ", ");
-    }
-    strcat(out, "]");
-    return out;
-  }
-
-  // TODO: currently unused when coded in html template
-  if (var == F("hw_templates"))
-  { // used by Javascript
-    strcpy(out, "[");
-    for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
-    {
-      snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
-      // TODO: memory safe strncat
-      strcat(out, buff);
-      if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
-        strcat(out, ", ");
-    }
-    strcat(out, "]");
-    return out;
-  }
-
-  if (var == F("VARIABLES")) // used by Javascript
-  {
-    strcpy(out, "[");
-    int variable_count = vars.get_variable_count();
-    variable_st variable;
-    for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
-    {
-      // Serial.println(variable.code);
-      //  YYY
-      vars.get_variable_by_idx(variable_idx, &variable);
-      snprintf(buff, sizeof(buff), "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
-      strcat(out, buff); // TODO: memory safe strncat
-      if (variable_idx < variable_count - 1)
-        strcat(out, ", ");
-    }
-    strcat(out, "]");
-    return out;
-  };
-  if (var == "lang")
-    return s.lang;
-
-  if (var == F("using_default_password"))
-    return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
-  if (var == F("DEBUG_MODE"))
-#ifdef DEBUG_MODE
-    return "true";
-#endif
-  if (var == "wifi_in_setup_mode")
-    return String(wifi_in_setup_mode ? "true" : "false");
-
+    if (var == F("using_default_password"))
+      return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
+    if (var == F("DEBUG_MODE"))
+  #ifdef DEBUG_MODE
+      return "true";
+  #endif
+    if (var == "wifi_in_setup_mode")
+      return String(wifi_in_setup_mode ? "true" : "false");
+  */
   return String();
+}
+// Work in progress....
+
+bool generate_ui_constants(bool force_create = false) // true if exist or generated ok
+{
+  File constant_file;
+  if (!force_create && LittleFS.exists(ui_constants_filename))
+  {
+    constant_file = LittleFS.open(ui_constants_filename, "r");
+    if (constant_file)
+    {
+      StaticJsonDocument<24> filter;
+      filter["VERSION_SHORT"] = true; // first check expires timestamp field
+      StaticJsonDocument<50> doc_ts;
+
+      DeserializationError error = deserializeJson(doc_ts, constant_file, DeserializationOption::Filter(filter));
+      constant_file.close();
+      if (error)
+      {
+        Serial.printf(PSTR("Constant file deserializeJson() failed: %s\n"), error.f_str());
+        return false;
+      }
+      else
+      {
+        String cached_version_short = doc_ts["VERSION_SHORT"];
+        if (String(VERSION_SHORT).equals(cached_version_short))
+          return true;
+      }
+    }
+  }
+
+  // No up-to-date json cache file, let's create one
+  DynamicJsonDocument doc(8192);
+  doc["compile_date"] = compile_date;
+  doc["HWID"] = HWID;
+
+  doc["VERSION"] = VERSION;
+  doc["VERSION_SHORT"] = VERSION_SHORT;
+  doc["version_fs"] = version_fs;
+  doc["RULE_STATEMENTS_MAX"] = RULE_STATEMENTS_MAX;
+  doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
+  doc["CHANNEL_CONDITIONS_MAX"] = CHANNEL_CONDITIONS_MAX;
+
+#ifdef INFLUX_REPORT_ENABLED
+  doc["INFLUX_REPORT_ENABLED"] = true;
+#else
+  doc["INFLUX_REPORT_ENABLED"] = false;
+#endif
+
+#ifdef DEBUG_MODE
+  doc["DEBUG_MODE"] = true;
+#else
+  doc["DEBUG_MODE"] = false;
+#endif
+
+  JsonArray json_opers = doc.createNestedArray("opers");
+  for (int i = 0; i < OPER_COUNT; i++)
+  {
+    JsonArray json_oper = json_opers.createNestedArray();
+    json_oper.add(opers[i].id);
+
+    json_oper.add(opers[i].code);
+    json_oper.add(opers[i].gt);
+    json_oper.add(opers[i].eq);
+    json_oper.add(opers[i].reverse);
+    json_oper.add(opers[i].boolean_only);
+    json_oper.add(opers[i].has_value);
+  }
+
+  int variable_count = vars.get_variable_count();
+  variable_st variable;
+
+  JsonArray json_variables = doc.createNestedArray("variables");
+  for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
+  {
+    JsonArray json_variable = json_variables.createNestedArray();
+    vars.get_variable_by_idx(variable_idx, &variable);
+    json_variable.add(variable.id);
+    json_variable.add(variable.code);
+    json_variable.add(variable.type);
+    vars.get_variable_by_idx(variable_idx, &variable);
+  }
+
+  JsonArray json_channel_types = doc.createNestedArray("channel_types");
+  for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+  {
+    JsonObject json_channel_type = json_channel_types.createNestedObject();
+    json_channel_type["id"] = (int)channel_types[channel_type_idx].id;
+    json_channel_type["name"] = channel_types[channel_type_idx].name;
+  }
+
+  JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
+  for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
+  {
+    JsonObject json_hs_template = json_hs_templates.createNestedObject();
+    json_hs_template["id"] = (int)hw_templates[hw_template_idx].id;
+    json_hs_template["name"] = hw_templates[hw_template_idx].name;
+  }
+
+  constant_file = LittleFS.open(ui_constants_filename, "w"); // Open file for writing
+  serializeJson(doc, constant_file);
+
+  constant_file.close();
+  /*
+
+
+
+
+    if (var == F("channel_types"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+    // TODO: currently unused when coded in html template
+    if (var == F("hw_templates"))
+    { // used by Javascript
+      strcpy(out, "[");
+      for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
+      {
+        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
+        // TODO: memory safe strncat
+        strcat(out, buff);
+        if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
+          strcat(out, ", ");
+      }
+      strcat(out, "]");
+      return out;
+    }
+
+
+
+    if (var == F("DEBUG_MODE"))
+  #ifdef DEBUG_MODE
+      return "true";
+  #endif
+    if (var == "wifi_in_setup_mode")
+      return String(wifi_in_setup_mode ? "true" : "false");
+
+    return String();
+
+    */
+  return true;
 }
 
 // variables for the admin form
@@ -3363,6 +3528,7 @@ String jscode_form_processor(const String &var)
  * @param var
  * @return String
  */
+/*
 String setup_form_processor(const String &var)
 {
   // Serial.printf("Debug setup_form_processor: %s\n", var.c_str());
@@ -3373,7 +3539,7 @@ String setup_form_processor(const String &var)
     return String(wifi_in_setup_mode ? 1 : 0);
   return String("");
 }
-
+*/
 /**
  * @brief Read grid or production info from energy meter/inverter
  *
@@ -3414,7 +3580,7 @@ void read_energy_meter()
     if (internet_connection_ok)
       log_msg(MSG_TYPE_FATAL, PSTR("Internet connection ok, but cannot read energy meter. Check the meter."));
     else if ((energym_read_last + RESTART_AFTER_LAST_OK_METER_READ < now_in_func) && (energym_read_last > 0))
-    { //connected earlier, but now many unsuccesfull reads
+    { // connected earlier, but now many unsuccesfull reads
       WiFi.disconnect();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter connections."), true);
       delay(2000);
@@ -3758,7 +3924,7 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
         ajax.send(formdata);\
     }\
     function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total;  var percent = (event.loaded / event.total) * 100;  _('progressBar').value = Math.round(percent);_('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; }\
-    function reloadAdmin() { window.location.href = '/admin';}\
+    function reloadAdmin() { window.location.href = '/#admin';}\
     function completeHandler(event) {_('status').innerHTML = event.target.responseText; _('progressBar').value = 0;setTimeout(reloadAdmin, 20000);}\
     function errorHandler(event) { _('status').innerHTML = 'Upload Failed';}\
     function abortHandler(event) {   _('status').innerHTML = 'Upload Aborted';}\
@@ -3839,10 +4005,9 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
   if (final)
   {
     AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", PSTR("Please wait while the device reboots"));
-    // response->addHeader("Refresh", "20");
-    // response->addHeader("Location", "/");
 
-    response->addHeader("REFRESH", "15;URL=/admin");
+    response->addHeader("REFRESH", "15;URL=/#admin");
+
     request->send(response);
     if (!Update.end(true))
     {
@@ -3885,7 +4050,6 @@ void reset_config(bool full_reset)
 
   bool reset_wifi_settings = false;
 
-  //  Serial.printf("s.wifi_ssid %d %d %d , s.wifi_password %d %d %d\n", s.wifi_ssid[0], s.wifi_ssid[1], s.wifi_ssid[2], s.wifi_password[0], s.wifi_password[1], s.wifi_password[2]);
   if ((strlen(s.wifi_ssid) > sizeof(s.wifi_ssid) - 1) || (strlen(s.wifi_password) > sizeof(s.wifi_password) - 1))
     reset_wifi_settings = true;
 
@@ -3909,7 +4073,7 @@ void reset_config(bool full_reset)
   }
 
   memset(&s, 0, sizeof(s));
-  memset(&s_influx, 0, sizeof(s_influx));
+  // memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
   strncpy(s.http_username, "admin", sizeof(s.http_username)); // admin id is fixed
@@ -4008,6 +4172,12 @@ void export_config(AsyncWebServerRequest *request)
   doc["wifi_password"] = s.wifi_password; // TODO: maybe not here
   doc["http_username"] = s.http_username;
   // doc["http_password"] = s.http_password; // TODO: maybe not here
+
+  // current status, do not import
+  doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
+  doc["using_default_password"] = String(s.http_password).equals(default_http_password);
+  //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
+
   doc["variable_mode"] = VARIABLE_MODE_SOURCE; // no selection
 
   doc["entsoe_api_key"] = s.entsoe_api_key;
@@ -4031,10 +4201,10 @@ void export_config(AsyncWebServerRequest *request)
   doc["hw_template_id"] = s.hw_template_id;
 
 #ifdef INFLUX_REPORT_ENABLED
-  doc["influx_url"] = s_influx.url;
-  doc["influx_token"] = s_influx.token;
-  doc["influx_org"] = s_influx.org;
-  doc["influx_bucket"] = s_influx.bucket;
+  doc["influx_url"] = s.influx_url;
+  doc["influx_token"] = s.influx_token;
+  doc["influx_org"] = s.influx_org;
+  doc["influx_bucket"] = s.influx_bucket;
 #endif
 
   int rule_idx_output;
@@ -4183,10 +4353,10 @@ bool import_config(const char *config_file_name)
   s.energy_meter_id = get_doc_long(doc, "energy_meter_id", s.energy_meter_id);
 
 #ifdef INFLUX_REPORT_ENABLED
-  copy_doc_str(doc, (char *)"influx_url", s_influx.url, sizeof(s_influx.url));
-  copy_doc_str(doc, (char *)"influx_token", s_influx.token, sizeof(s_influx.token));
-  copy_doc_str(doc, (char *)"influx_org", s_influx.org, sizeof(s_influx.org));
-  copy_doc_str(doc, (char *)"influx_bucket", s_influx.bucket, sizeof(s_influx.bucket));
+  copy_doc_str(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
+  copy_doc_str(doc, (char *)"influx_token", s.influx_token, sizeof(s.influx_token));
+  copy_doc_str(doc, (char *)"influx_org", s.influx_org, sizeof(s.influx_org));
+  copy_doc_str(doc, (char *)"influx_bucket", s.influx_bucket, sizeof(s.influx_bucket));
 #endif
 
   int channel_idx = 0;
@@ -4237,7 +4407,7 @@ bool import_config(const char *config_file_name)
     channel_idx++;
   }
 
-  writeToEEPROM();
+  writeToEEPROM(false);
 
   return true;
 }
@@ -4290,59 +4460,16 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
     request->redirect("/");
   }
 }
-/**
- * @brief Return dashboard form
- *
- * @param request
- */
-void onWebDashboardGet(AsyncWebServerRequest *request)
-{
 
-  if ((strcmp(s.http_password, default_http_password) == 0) || wifi_in_setup_mode)
-  {
-    Serial.println("DEBUG: onWebDashboardGet redirect /admin");
-    request->redirect("/admin");
-    return;
-  }
-  sendForm(request, "/dashboard_template.html", setup_form_processor);
-  //  sendForm(request, "/dashboard_template.html");
-}
-/**
- * @brief Returns services (inputs) form
- *
- * @param request
- */
-void onWebInputsGet(AsyncWebServerRequest *request)
+
+void onWebUIGet(AsyncWebServerRequest *request)
 {
-  sendForm(request, "/inputs_template.html", inputs_form_processor);
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
+  request->send(LittleFS, "/ui.html", "text/html");
 }
 
-/**
- * @brief Returns channel config form
- *
- * @param request
- */
-/*
-void onWebChannelsGet_old(AsyncWebServerRequest *request)
-{
-  sendForm(request, "/channels_template_old.html", setup_form_processor);
-}
-// devel
-*/
-void onWebChannelsGet(AsyncWebServerRequest *request)
-{
-  sendForm(request, "/channels_template.html", setup_form_processor);
-}
-
-/**
- * @brief Returns admin form
- *
- * @param request
- */
-void onWebAdminGet(AsyncWebServerRequest *request)
-{
-  sendForm(request, "/admin_template.html", admin_form_processor);
-}
 
 /**
  * @brief Get individual rule template by id
@@ -4383,6 +4510,7 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
  *
  * @param request
  */
+/*
 void onWebDashboardPost(AsyncWebServerRequest *request)
 {
   time(&now);
@@ -4442,10 +4570,89 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
   if (force_up_changes)
   {
     todo_in_loop_set_relays = true;
-    writeToEEPROM();
+    writeToEEPROM(false);
+  }
+  // use during transition when 2 ui versions
+  if (request->hasParam("ui_ver", true) && request->getParam("ui_ver", true)->value().toInt() == 2)
+  {
+    ui_ver = request->getParam("ui_ver", true)->value().toInt(); // upgrade it
+    request->redirect("/#dashboard");
+  }
+  else
+    request->redirect("/");
+}
+*/
+/**
+ * @brief Process dashboard form, forcing channels up, JSON update, work in progress
+ *
+ * @param request
+ */
+void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+{
+  Serial.println("len/total:");
+  Serial.println(len);
+  Serial.println(total);
+  time(&now);
+  int params = request->params();
+  int channel_idx;
+  bool force_up_changes = false;
+  bool channel_already_forced;
+  long force_up_minutes;
+  time_t force_up_from = 0;
+  time_t force_up_until;
+
+  StaticJsonDocument<2048> doc; //
+  Serial.println((const char *)data);
+  DeserializationError error = deserializeJson(doc, (const char *)data);
+  if (error)
+  {
+    Serial.print(F("onWebChannelsPost deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    request->send(200, "application/json", "{\"status\":\"error\"}");
   }
 
-  request->redirect("/");
+  for (JsonObject schedule : doc["schedules"].as<JsonArray>())
+  {
+    channel_idx = schedule["ch_idx"];
+    int duration = schedule["duration"];
+    time_t from = schedule["from"];
+    Serial.printf("%d %d %d\n", channel_idx, duration, from);
+
+    if (duration == -1)
+      continue; // no selection
+
+    channel_already_forced = is_force_up_valid(channel_idx);
+    force_up_minutes = duration;
+
+    if (from == 0)
+      force_up_from = now;
+    else
+      force_up_from = max(now, from); // absolute unix ts is waited
+
+    Serial.printf("channel_idx: %d, force_up_minutes: %ld , force_up_from %ld\n", channel_idx, force_up_minutes, force_up_from);
+
+    if (force_up_minutes > 0)
+    {
+      force_up_until = force_up_from + force_up_minutes * 60; //-1;
+      s.ch[channel_idx].force_up_from = force_up_from;
+      s.ch[channel_idx].force_up_until = force_up_until;
+      if (is_force_up_valid(channel_idx))
+        s.ch[channel_idx].wanna_be_up = true;
+    }
+    else
+    {
+      s.ch[channel_idx].force_up_from = -1;  // forced down
+      s.ch[channel_idx].force_up_until = -1; // forced down
+      s.ch[channel_idx].wanna_be_up = false;
+    }
+    force_up_changes = true;
+  }
+  if (force_up_changes)
+  {
+    todo_in_loop_set_relays = true;
+    writeToEEPROM(false);
+  }
+  request->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 /**
@@ -4506,22 +4713,26 @@ void onWebInputsPost(AsyncWebServerRequest *request)
      strncpy(s.variable_server, request->getParam("variable_server", true)->value().c_str(),sizeof(variable_server));
    }*/
 #ifdef INFLUX_REPORT_ENABLED
-  strncpy(s_influx.url, request->getParam("influx_url", true)->value().c_str(), sizeof(s_influx.url));
-  // Serial.printf("influx_url:%s\n", s_influx.url);
-  strncpy(s_influx.token, request->getParam("influx_token", true)->value().c_str(), sizeof(s_influx.token));
-  strncpy(s_influx.org, request->getParam("influx_org", true)->value().c_str(), sizeof(s_influx.org));
-  strncpy(s_influx.bucket, request->getParam("influx_bucket", true)->value().c_str(), sizeof(s_influx.bucket));
+  strncpy(s.influx_url, request->getParam("influx_url", true)->value().c_str(), sizeof(s.influx_url));
+  // Serial.printf("influx_url:%s\n", s.influx_url);
+  strncpy(s.influx_token, request->getParam("influx_token", true)->value().c_str(), sizeof(s.influx_token));
+  strncpy(s.influx_org, request->getParam("influx_org", true)->value().c_str(), sizeof(s.influx_org));
+  strncpy(s.influx_bucket, request->getParam("influx_bucket", true)->value().c_str(), sizeof(s.influx_bucket));
 #endif
 
   // END OF INPUTS
-  writeToEEPROM();
+  writeToEEPROM(false);
 
   todo_in_loop_restart = todo_in_loop_restart_local;
 
   if (todo_in_loop_restart)
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/inputs' /></head><body>restarting...wait...</body></html>");
+  {
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/#services' /></head><body>restarting...wait...</body></html>");
+  }
   else
-    request->redirect("/inputs");
+  {
+    request->redirect("/#services");
+  }
 }
 
 // TODO: refaktoroi, myös intille oma
@@ -4630,6 +4841,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
+        Serial.println(stmts_fld);
+        Serial.println(request->getParam(stmts_fld, true)->value());
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
         {
@@ -4644,7 +4857,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
             int var_index;
             for (int stmt_idx = 0; stmt_idx < min((int)stmts_json.size(), RULE_STATEMENTS_MAX); stmt_idx++)
             {
-              Serial.printf("Saving %d %d %d : %d, %d \n", channel_idx, condition_idx, stmt_idx, (int)stmts_json[stmt_idx][0], (int)stmts_json[stmt_idx][1]);
+              Serial.printf("Saving (%s)%d %d %d : [%d, %d, %d]\n", stmts_fld, channel_idx, condition_idx, stmt_idx, (int)stmts_json[stmt_idx][0], (int)stmts_json[stmt_idx][1], (int)stmts_json[stmt_idx][2]);
               var_index = vars.get_variable_by_id((int)stmts_json[stmt_idx][0], &var_this);
               if (var_index != -1)
               {
@@ -4678,8 +4891,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     }
   }
 
-  writeToEEPROM();
-  request->redirect("/channels");
+  writeToEEPROM(false);
+  request->redirect("/#channels");
 }
 
 /**
@@ -4701,8 +4914,13 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     strncpy(s.wifi_ssid, request->getParam("wifi_ssid", true)->value().c_str(), sizeof(s.wifi_ssid));
     strncpy(s.wifi_password, request->getParam("wifi_password", true)->value().c_str(), sizeof(s.wifi_password));
+    //  Serial.printf("Updated wifi ssid and password %s/%s\n", s.wifi_ssid, s.wifi_password);
+
     todo_in_loop_restart_local = true;
   }
+  /* else {
+     Serial.println("Wifi info not updated.");
+   }*/
 
   if (request->hasParam("http_password", true) && request->hasParam("http_password2", true))
   {
@@ -4710,6 +4928,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     if (request->getParam("http_password", true)->value().equals(request->getParam("http_password2", true)->value()) && request->getParam("http_password", true)->value().length() >= 5)
     {
       strncpy(s.http_password, request->getParam("http_password", true)->value().c_str(), sizeof(s.http_password));
+      Serial.println(s.http_password);
     }
   }
 
@@ -4760,14 +4979,15 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   if (request->getParam("action", true)->value().equals("scan_wifis"))
   {
     todo_in_loop_scan_wifis = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
+
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/#admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
 
   if (request->getParam("action", true)->value().equals("scan_sensors"))
   {
     todo_in_loop_scan_sensors = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/admin' /></head><body>Scanning, wait a while...</body></html>");
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='5; url=/#admin' /></head><body>Scanning, wait a while...</body></html>");
     return;
   }
 
@@ -4775,7 +4995,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
   {
     gpio_to_test_in_loop = request->getParam("test_gpio", true)->value().toInt();
     todo_in_loop_test_gpio = true;
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/admin' /></head><body>GPIO testing</body></html>");
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1; url=/#admin' /></head><body>GPIO testing</body></html>");
     return;
   }
 
@@ -4785,14 +5005,18 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     reset_config(false);
     todo_in_loop_restart_local = true;
   }
-  writeToEEPROM();
+  writeToEEPROM(false);
 
   todo_in_loop_restart = todo_in_loop_restart_local;
 
   if (todo_in_loop_restart)
-    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=./' /></head><body>restarting...wait...</body></html>");
+  {
+    request->send(200, "text/html", "<html><head><meta http-equiv='refresh' content='10; url=/' /></head><body>restarting...wait...</body></html>");
+  }
   else
-    request->redirect("/admin");
+  {
+    request->redirect("/#admin");
+  }
 }
 
 #ifdef MDNS_ENABLED
@@ -4916,30 +5140,18 @@ void onWebDoGet(AsyncWebServerRequest *request)
  */
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
-  if (!request->authenticate(s.http_username, s.http_password)) {
-/*   Serial.println("onWebStatusGet  requestAuthentication");
-    Serial.printf("Does not match %s/%s\n", s.http_username, s.http_password);
-    for (int i = 0; i<request->headers();i++)
-      Serial.print(request->getHeader(i)->toString());*/
+  if (!request->authenticate(s.http_username, s.http_password))
+  {
     return request->requestAuthentication();
   }
- /*   for (int i = 0; i<request->headers();i++)
-      Serial.print(request->getHeader(i)->toString());*/
-    
+
+
   StaticJsonDocument<2048> doc; //
   String output;
 
   JsonObject var_obj = doc.createNestedObject("variables");
 
   /*
-  #ifdef METER_SHELLY3EM_ENABLED
-    float netEnergyInPeriod;
-    float netPowerInPeriod;
-    get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
-    variables["netEnergyInPeriod"] = netEnergyInPeriod;
-    variables["netPowerInPeriod"] = netPowerInPeriod;
-  #endif
-
   #ifdef INVERTER_FRONIUS_SOLARAPI_ENABLED
     variables["energyProducedPeriod"] = energy_produced_period;
     variables["powerProducedPeriodAvg"] = power_produced_period_avg;
@@ -4987,6 +5199,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
   doc["energym_read_last"] = energym_read_last;
+  doc["next_process_in"] = max((long)0,(long)next_process_ts-current_time);
 
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -5111,12 +5324,9 @@ void setup()
   else
     Serial.println(F("Filesystem is too old."));
 */
-  // initiate EEPROM with correct size
-  int eeprom_used_size = sizeof(s);
-#ifdef INFLUX_REPORT_ENABLED
-  eeprom_used_size += sizeof(s_influx);
-#endif
-  EEPROM.begin(eeprom_used_size);
+  /*#ifdef INFLUX_REPORT_ENABLED
+    eeprom_used_size += sizeof(s_influx);
+  #endif */
   readFromEEPROM();
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
@@ -5264,45 +5474,63 @@ void setup()
       { request->send(200); },
       onWebUploadConfig);
 
-  server_web.on("/", HTTP_GET, onWebDashboardGet);
-  server_web.on("/", HTTP_POST, onWebDashboardPost);
 
-  server_web.on("/inputs", HTTP_GET, onWebInputsGet);
+  server_web.on("/", HTTP_GET, onWebUIGet);
+
+  server_web.on(
+      "/update.schedule", HTTP_POST,
+      [](AsyncWebServerRequest *request) {},
+      [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
+         size_t len, bool final) {},
+      onScheduleUpdate);
+
+  // server_web.on("/", HTTP_POST, onWebDashboardPost);
+
+  // server_web.on("/inputs", HTTP_GET, onWebInputsGet);
+  server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/#services"); });
+
   server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
-  // server_web.on("/channels", HTTP_GET, onWebChannelsGet_old);
-  server_web.on("/channels", HTTP_GET, onWebChannelsGet);
+  // server_web.on("/channels", HTTP_GET, onWebChannelsGet);
+  server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/#channels"); });
   server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
-  server_web.on("/admin", HTTP_GET, onWebAdminGet);
+  // server_web.on("/admin", HTTP_GET, onWebAdminGet);
+  server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->redirect("/#admin"); });
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-  // server_web.on("/update", HTTP_GET, bootInUpdateMode); // now we should restart in update mode
 
-  server_web.on("/restart", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->redirect("/"); }); // redirect url, if called from OTA
 
   server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/style.css", "text/css"); });
-  /*  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                  { request->send(LittleFS, "/js/arska.js", "text/javascript"); });
-  */
 
+
+/*
   server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/arska_tmpl.js", "text/html", false, jscode_form_processor); });
+                { request->send(LittleFS, "/js/arska.js", "text/html"); });
 
   server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
+  server_web.on("/js/chart.min.3.9.1.js", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, F("/js/chart.min.3.9.1.js"), F("text/javascript")); });*/
+
+  server_web.serveStatic("/js/", LittleFS, "/js/");
+
+  //  /data/ui-constants.json
+  server_web.on(ui_constants_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, ui_constants_filename, F("application/json")); });
+
+
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
+
   // TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
 
-  // just for debugging
-  /* server_web.on("/data/config_in.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                 { request->send(LittleFS, F("/data/config_in.json"), F("application/json")); });
-                 */
 
   // no authenticatipn
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
@@ -5316,10 +5544,16 @@ void setup()
                 { request->send(LittleFS, price_data_filename, F("text/plain")); }); // "/price_data.json"
 
   // debug
-  server_web.on("/wifis.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/wifis.json", "text/json"); });
+  server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, wifis_filename, "text/json"); });
+
+  // experimental
+  server_web.on("/ui.html", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/ui.html", "text/html"); });
 
   server_web.onNotFound(notFound);
+  // TODO: remove force create
+  generate_ui_constants(true); // generate ui constant json if needed
   server_web.begin();
 
   if (wifi_in_setup_mode)
@@ -5452,10 +5686,15 @@ void loop()
       Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
       Serial.println();
       Serial.flush();
-      writeToEEPROM();
+      writeToEEPROM(false);
       delay(1000);
       ESP.restart();
     }
+  }
+  if (todo_in_loop_write_to_eeprom)
+  {
+    todo_in_loop_write_to_eeprom = false;
+    writeToEEPROM(true); // instant write
   }
 
 #ifdef DEBUG_MODE
@@ -5502,7 +5741,7 @@ void loop()
   {
     todo_in_loop_scan_sensors = false;
     if (scan_sensors())
-      writeToEEPROM();
+      writeToEEPROM(false);
   }
 
   // if in Wifi AP Mode (192.168.4.1), no other operations allowed
@@ -5533,6 +5772,8 @@ void loop()
 
     set_time_settings(); // set tz info
     ch_counters.init();
+    next_query_price_data = now;
+    next_query_fcst_data = now;
   }
 
   // set relays, if forced from dashboard
@@ -5543,7 +5784,7 @@ void loop()
     set_relays();
   }
 
-  // just in case check the wifi and reconnect/restart if neede
+  // just in case check the wifi and reconnect/restart if needed
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
     for (int wait_loop = 0; wait_loop < 10; wait_loop++)
@@ -5591,7 +5832,7 @@ void loop()
     //   Serial.printf("next_query_price_data now: %ld \n", now);
     got_external_data_ok = get_price_data();
     todo_in_loop_update_price_rank_variables = got_external_data_ok;
-    next_query_price_data = now + (got_external_data_ok ? 1200 : 120);
+    next_query_price_data = now + (got_external_data_ok ? (1200 + random(0, 300)) : (120 + random(0, 60))); // random, to prevent query peak
     Serial.printf("next_query_price_data: %ld \n", next_query_price_data);
   }
 
