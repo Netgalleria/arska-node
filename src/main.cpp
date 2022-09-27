@@ -67,8 +67,8 @@ char version_fs[35];
 #define METER_SHELLY3EM_ENABLED
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
-#define MDNS_ENABLED                      // experimental
-#define PING_ENABLED                      // experimental, for testing if internet connection etc ok
+#define MDNS_ENABLED_NOTENABLED           // experimental, disabled due to stability concerns
+#define PING_ENABLED                      // for testing if internet connection etc ok
 
 // TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
@@ -275,6 +275,7 @@ time_t prices_first_period = 0;
 // API
 const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
+const char *letsencrypt_ca_filename PROGMEM = "/data/lets-encrypt-x3-cross-signed.pem";
 
 const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
 
@@ -989,7 +990,7 @@ typedef struct
   char custom_ntp_server[35];                 //!< RFU, TODO:UI to set up
   char timezone[4];                           //!< EET,CET supported
   uint32_t baseload;                          //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
-  bool next_boot_ota_update;                  //!< not currently in use
+  bool next_boot_ota_update;                  //!< not currently in use, RFU, -> byte
   byte energy_meter_type;                     //!< energy metering type, see constants: ENERGYM_
   char energy_meter_host[MAX_URL_STR_LENGTH]; //!< enerygy meter address string
   unsigned int energy_meter_port;             //!< energy meter port,  tcp port if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
@@ -2733,7 +2734,7 @@ bool get_price_data()
   String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
 
-  client_https.setTimeout(15000); // 15 Seconds
+  client_https.setTimeout(15); // 15 Seconds
   delay(1000);
 
   Serial.println(F("Connecting with CA check."));
@@ -3905,6 +3906,97 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemp
 
 #ifdef OTA_UPDATE_ENABLED
 
+#include <HTTPUpdate.h> // experimental
+
+
+
+// We keep the CA certificate in program code to avoid potential littlefs-hack
+//Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
+
+const char* letsencrypt_ca_certificate = \
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw\n" \
+"TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n" \
+"cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw\n" \
+"WhcNMjUwOTE1MTYwMDAwWjAyMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3Mg\n" \
+"RW5jcnlwdDELMAkGA1UEAxMCUjMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK\n" \
+"AoIBAQC7AhUozPaglNMPEuyNVZLD+ILxmaZ6QoinXSaqtSu5xUyxr45r+XXIo9cP\n" \
+"R5QUVTVXjJ6oojkZ9YI8QqlObvU7wy7bjcCwXPNZOOftz2nwWgsbvsCUJCWH+jdx\n" \
+"sxPnHKzhm+/b5DtFUkWWqcFTzjTIUu61ru2P3mBw4qVUq7ZtDpelQDRrK9O8Zutm\n" \
+"NHz6a4uPVymZ+DAXXbpyb/uBxa3Shlg9F8fnCbvxK/eG3MHacV3URuPMrSXBiLxg\n" \
+"Z3Vms/EY96Jc5lP/Ooi2R6X/ExjqmAl3P51T+c8B5fWmcBcUr2Ok/5mzk53cU6cG\n" \
+"/kiFHaFpriV1uxPMUgP17VGhi9sVAgMBAAGjggEIMIIBBDAOBgNVHQ8BAf8EBAMC\n" \
+"AYYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYB\n" \
+"Af8CAQAwHQYDVR0OBBYEFBQusxe3WFbLrlAJQOYfr52LFMLGMB8GA1UdIwQYMBaA\n" \
+"FHm0WeZ7tuXkAXOACIjIGlj26ZtuMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcw\n" \
+"AoYWaHR0cDovL3gxLmkubGVuY3Iub3JnLzAnBgNVHR8EIDAeMBygGqAYhhZodHRw\n" \
+"Oi8veDEuYy5sZW5jci5vcmcvMCIGA1UdIAQbMBkwCAYGZ4EMAQIBMA0GCysGAQQB\n" \
+"gt8TAQEBMA0GCSqGSIb3DQEBCwUAA4ICAQCFyk5HPqP3hUSFvNVneLKYY611TR6W\n" \
+"PTNlclQtgaDqw+34IL9fzLdwALduO/ZelN7kIJ+m74uyA+eitRY8kc607TkC53wl\n" \
+"ikfmZW4/RvTZ8M6UK+5UzhK8jCdLuMGYL6KvzXGRSgi3yLgjewQtCPkIVz6D2QQz\n" \
+"CkcheAmCJ8MqyJu5zlzyZMjAvnnAT45tRAxekrsu94sQ4egdRCnbWSDtY7kh+BIm\n" \
+"lJNXoB1lBMEKIq4QDUOXoRgffuDghje1WrG9ML+Hbisq/yFOGwXD9RiX8F6sw6W4\n" \
+"avAuvDszue5L3sz85K+EC4Y/wFVDNvZo4TYXao6Z0f+lQKc0t8DQYzk1OXVu8rp2\n" \
+"yJMC6alLbBfODALZvYH7n7do1AZls4I9d1P4jnkDrQoxB3UqQ9hVl3LEKQ73xF1O\n" \
+"yK5GhDDX8oVfGKF5u+decIsH4YaTw7mP3GFxJSqv3+0lUFJoi5Lc5da149p90Ids\n" \
+"hCExroL1+7mryIkXPeFM5TgO9r0rvZaBFOvV2z0gp35Z0+L4WPlbuEjN/lxPFin+\n" \
+"HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv\n" \
+"MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX\n" \
+"nLRbwHOoq7hHwg==\n" \
+"-----END CERTIFICATE-----\n";
+
+t_httpUpdate_return update_program() {
+    WiFiClientSecure client_https;
+    Serial.println("update_program a");
+    client_https.setCACert(letsencrypt_ca_certificate);
+    Serial.println("update_program b");
+    client_https.setTimeout(15); // timeout for SSL fetch
+    // url voisi olla php, ...
+    return httpUpdate.update(client_https, "iot.netgalleria.fi", 443, "/arska-install/koe/firmware.bin");
+}
+t_httpUpdate_return update_fs() {
+   WiFiClient wifi_client;
+   Serial.println("update_fs");
+   // ei mene läpi, koska site saallii nyt vain https:
+   LittleFS.end();
+   t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, "http://iot.netgalleria.fi/arska-install/koe/littlefs.bin", "");
+   if (!LittleFS.begin())
+   {
+     Serial.println(F("Failed to initialize LittleFS library, restarting..."));
+     //TODO: status/phase change
+     delay(5000);
+     ESP.restart();
+  }
+  return update_ok;
+  //  return httpUpdate.updateSpiffs(wifi_client, "http://iot.netgalleria.fi/arska-install/koe/", "");
+}
+
+void update_firmware_partition(bool cmd = U_FLASH) {
+  Serial.println("update_firmware_partition");
+  t_httpUpdate_return update_result;
+  if (cmd ==U_FLASH) {
+    update_result =update_program();
+  }
+  else {
+    update_result = update_fs();
+  }
+   switch (update_result) {
+      case HTTP_UPDATE_FAILED:
+        Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+        break;
+
+      case HTTP_UPDATE_NO_UPDATES:
+        Serial.println("HTTP_UPDATE_NO_UPDATES");  
+        break;
+
+      case HTTP_UPDATE_OK:
+        Serial.println("HTTP_UPDATE_OK");
+        //pitäisikä olla restart, tai menikö flashillä autom, entä littlefs reconnect./begin
+        break;
+    }
+}
+    
+
 // The other templates come from littlefs filesystem, but on update we do not want to be dependant on that
 const char update_page_html[] PROGMEM = "<html><head></head>\
 <!-- https://codewithmark.com/easily-create-file-upload-progress-bar-using-only-javascript -->\
@@ -3949,7 +4041,7 @@ size_t content_len;
 #define U_PART U_SPIFFS
 
 /**
- * @brief Returns update form from memory variable.
+ * @brief Returns update form from memory variable. (no littlefs required)
  *
  * @param request
  */
@@ -4005,9 +4097,7 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
   if (final)
   {
     AsyncWebServerResponse *response = request->beginResponse(302, "text/plain", PSTR("Please wait while the device reboots"));
-
     response->addHeader("REFRESH", "15;URL=/#admin");
-
     request->send(response);
     if (!Update.end(true))
     {
@@ -4025,10 +4115,6 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
   }
 }
 
-void printProgress(size_t prg, size_t sz)
-{
-  Serial.printf("Progress: %d%%\n", (prg * 100) / content_len);
-}
 
 #endif
 
@@ -5318,6 +5404,9 @@ void setup()
 
   // TODO: notify, ota-update
   check_filesystem_version();
+
+
+    
   /*
   if (check_filesystem_version())
     Serial.println(F("Filesystem is up-to-date."));
@@ -5464,7 +5553,9 @@ void setup()
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
 
+#ifdef MDNS_ENABLED
   server_web.on("/discover", HTTP_GET, onWebDiscoverGet);
+#endif
 
   server_web.on("/export-config", HTTP_GET, export_config);
   // run handleUpload function when any file is uploaded
@@ -5508,14 +5599,6 @@ void setup()
                 { request->send(LittleFS, "/style.css", "text/css"); });
 
 
-/*
-  server_web.on("/js/arska.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/js/arska.js", "text/html"); });
-
-  server_web.on("/js/jquery-3.6.0.min.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/js/jquery-3.6.0.min.js"), F("text/javascript")); });
-  server_web.on("/js/chart.min.3.9.1.js", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/js/chart.min.3.9.1.js"), F("text/javascript")); });*/
 
   server_web.serveStatic("/js/", LittleFS, "/js/");
 
@@ -5547,7 +5630,6 @@ void setup()
   server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, wifis_filename, "text/json"); });
 
-  // experimental
   server_web.on("/ui.html", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/ui.html", "text/html"); });
 
@@ -5559,58 +5641,6 @@ void setup()
   if (wifi_in_setup_mode)
     return; // no more setting, just wait for new SSID/password and then restarts
 
-  // configTime ESP32 and ESP8266 libraries differ
-  /* #ifdef ESP32
-   // if (!wifi_in_setup_mode)
-
-    if (wifi_connection_succeeded)
-    {
-      // First connect to NTP server, with 0 TZ offset
-      // TODO: custom ntp server ui admin
-
-      configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
-
-      struct tm timeinfo;
-      if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
-      {
-        //  Serial.println("Failed to obtain time, retrying");
-        log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
-        for (int k = 0; k < 100; k++)
-        {
-          delay(5000);
-          if (getLocalTime(&timeinfo, 10000))
-            break;
-          time(&now_infunc);
-          Serial.printf(PSTR("Setup: %ld"),now_infunc);
-        }
-      }
-      else
-      {
-        setenv("TZ", timezone_info, 1);
-        Serial.printf(PSTR("timezone_info: %s, %s"), timezone_info, s.timezone);
-        tzset();
-        clock_set = true;
-      }
-    }
-    clock_set = (time(nullptr) > ACCEPTED_TIMESTAMP_MINIMUM);
-
-
-  #elif defined(ESP8266)
-    // TODO: prepare for no internet connection? -> channel defaults probably, RTC?
-    // https://werner.rothschopf.net/202011_arduino_esp8266_ntp_en.htm
-    configTime(timezone_info, s.custom_ntp_server);
-  #endif
-  */
-  // init relays
-  //  split comma separated gpio string to an array
-  // TODO: if set in reset, we do not set it here?
-
-  /*
-    uint16_t channel_gpios[CHANNEL_COUNT];
-    char ch_gpios_local[35];
-    strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local));
-    str_to_uint_array(ch_gpios_local, channel_gpios, ","); // ESP32: first param must be locally allocated to avoid memory protection crash
-    */
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     // TODOX: this should be in flash already
@@ -5771,6 +5801,16 @@ void loop()
       log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
 
     set_time_settings(); // set tz info
+
+  //experimental ota update, should be when wifi is up and  time is up-to-date 
+  if (now <1663977599) { // skip it if the code is accidentally not commented out
+    Serial.println("Testing firmware update");
+ //   update_firmware_partition(U_FLASH);//TODO: tsekkaa bootti, meneekö automaattisesti
+  //  update_firmware_partition(U_PART); //TODO:tsekkaa voiko tehdä ilman boottia
+  }
+  
+
+
     ch_counters.init();
     next_query_price_data = now;
     next_query_fcst_data = now;
