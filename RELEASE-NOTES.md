@@ -26,6 +26,7 @@
 * User interface (UI) tranformed to one html-document. No page loading when moving from section to another
 * UI/Dashboard, updating channel schedule now from update button (earlier save and reload of whole dashbord). The save button removed from the dashboard.
 * Dashboard status responds faster to channes status changes. 
+* New versioning system
 * More documentation
 
 

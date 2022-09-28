@@ -26,22 +26,22 @@ Resource files (see data subfolder):
 #define RTC_DS3231_ENABLED //real time clock functionality
 #define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
 
-branch devel 21.8.2022
+
 */
 
 #define EEPROM_CHECK_VALUE 10094
 #define DEBUG_MODE
-
-// #include <improv.h> // testing improv for wifi settings
-#include "version.h"
-const char compile_date[] = __DATE__ " " __TIME__;
-char version_fs[35];
 
 #include <Arduino.h>
 #include <math.h> //round
 #include <EEPROM.h>
 #include <LittleFS.h>
 #include "WebAuthentication.h"
+
+#include "version.h"
+const char compile_date[] = __DATE__ " " __TIME__;
+char version_fs[35];
+String version_fs_base; //= "";
 
 #ifdef ESP32 // latest version tested only with ESP32, code for ESP8266 kept so far for possible reduced ESP8266 version or or MCU
 #include <WiFi.h>
@@ -275,7 +275,7 @@ time_t prices_first_period = 0;
 // API
 const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
-const char *letsencrypt_ca_filename PROGMEM = "/data/lets-encrypt-x3-cross-signed.pem";
+const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
 const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
 
@@ -411,23 +411,26 @@ bool check_filesystem_version()
   bool is_ok;
   String current_version;
   File info_file = LittleFS.open("/data/version.txt", "r");
+  Serial.println(F("check_filesystem_version"));
 
   if (info_file.available())
   {
-    String current_fs_version = info_file.readStringUntil('\n');
+    String current_fs_version = info_file.readStringUntil('\n'); // e.g. 0.92.0-rc1.1102 - 2022-09-28 12:24:56
+    version_fs_base = current_fs_version.substring(0, current_fs_version.lastIndexOf('.'));
+    Serial.printf("version_fs_base: %s , VERSION_BASE %s\n", version_fs_base.c_str(),VERSION_BASE);
     strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
-    is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
-    /*
-    #ifdef DEBUG_MODE
-        if (is_ok)
-          Serial.printf("Current fs version %s is ok.\n", current_fs_version.c_str());
-        else
-          Serial.printf("Current fs version %s is too old.\n", current_fs_version.c_str());
-    #endif
-    */
+ //   is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
+    is_ok = version_fs_base.equals(VERSION_BASE);
+    if (is_ok)
+      Serial.println("No need for filesystem update.");
+    else
+      Serial.println("Filesystem update required.");
   }
-  else
-    is_ok = false;
+  else {
+     is_ok = false;
+     Serial.println(F("Cannot open version.txt for reading."));
+  }
+
   info_file.close();
   return is_ok;
 }
@@ -864,7 +867,9 @@ bool todo_in_loop_scan_wifis = false;
 bool todo_in_loop_scan_sensors = false;
 bool todo_in_loop_set_relays = false;
 bool todo_in_loop_discover_devices = false;
+bool todo_in_loop_get_releases = false;
 bool todo_in_loop_write_to_eeprom = false;
+bool todo_in_loop_update_firmware_partition = false;
 
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
@@ -1118,7 +1123,6 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
 }
 
 ChannelCounters ch_counters;
-
 
 /**
  * @brief Add time-series point values to buffer for later database insert
@@ -1490,8 +1494,6 @@ void scan_and_store_wifis(bool print_out)
   File wifi_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
   serializeJson(doc, wifi_file);
   wifi_file.close();
-
- 
 }
 
 #define CONFIG_JSON_SIZE_MAX 6144
@@ -2411,7 +2413,6 @@ bool get_solar_forecast()
   vars.set(VARIABLE_PVFORECAST_VALUE24, (long)VARIABLE_LONG_UNKNOWN);
   vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (long)VARIABLE_LONG_UNKNOWN);
 
-  // snprintf(fcst_url, sizeof(fcst_url), "%s&loc=%s", fcst_url_base, s.forecast_loc);
   strncpy(fcst_url, fcst_url_base, sizeof(fcst_url));
   client_http.begin(wifi_client, fcst_url);
   Serial.printf("Solar forecast url: %s\n", fcst_url);
@@ -2773,8 +2774,6 @@ bool get_price_data()
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-    //  Serial.println(lineh);
-
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -3908,94 +3907,164 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemp
 
 #include <HTTPUpdate.h> // experimental
 
-
-
 // We keep the CA certificate in program code to avoid potential littlefs-hack
-//Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
+// Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
 
-const char* letsencrypt_ca_certificate = \
-"-----BEGIN CERTIFICATE-----\n" \
-"MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw\n" \
-"TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n" \
-"cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw\n" \
-"WhcNMjUwOTE1MTYwMDAwWjAyMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3Mg\n" \
-"RW5jcnlwdDELMAkGA1UEAxMCUjMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK\n" \
-"AoIBAQC7AhUozPaglNMPEuyNVZLD+ILxmaZ6QoinXSaqtSu5xUyxr45r+XXIo9cP\n" \
-"R5QUVTVXjJ6oojkZ9YI8QqlObvU7wy7bjcCwXPNZOOftz2nwWgsbvsCUJCWH+jdx\n" \
-"sxPnHKzhm+/b5DtFUkWWqcFTzjTIUu61ru2P3mBw4qVUq7ZtDpelQDRrK9O8Zutm\n" \
-"NHz6a4uPVymZ+DAXXbpyb/uBxa3Shlg9F8fnCbvxK/eG3MHacV3URuPMrSXBiLxg\n" \
-"Z3Vms/EY96Jc5lP/Ooi2R6X/ExjqmAl3P51T+c8B5fWmcBcUr2Ok/5mzk53cU6cG\n" \
-"/kiFHaFpriV1uxPMUgP17VGhi9sVAgMBAAGjggEIMIIBBDAOBgNVHQ8BAf8EBAMC\n" \
-"AYYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYB\n" \
-"Af8CAQAwHQYDVR0OBBYEFBQusxe3WFbLrlAJQOYfr52LFMLGMB8GA1UdIwQYMBaA\n" \
-"FHm0WeZ7tuXkAXOACIjIGlj26ZtuMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcw\n" \
-"AoYWaHR0cDovL3gxLmkubGVuY3Iub3JnLzAnBgNVHR8EIDAeMBygGqAYhhZodHRw\n" \
-"Oi8veDEuYy5sZW5jci5vcmcvMCIGA1UdIAQbMBkwCAYGZ4EMAQIBMA0GCysGAQQB\n" \
-"gt8TAQEBMA0GCSqGSIb3DQEBCwUAA4ICAQCFyk5HPqP3hUSFvNVneLKYY611TR6W\n" \
-"PTNlclQtgaDqw+34IL9fzLdwALduO/ZelN7kIJ+m74uyA+eitRY8kc607TkC53wl\n" \
-"ikfmZW4/RvTZ8M6UK+5UzhK8jCdLuMGYL6KvzXGRSgi3yLgjewQtCPkIVz6D2QQz\n" \
-"CkcheAmCJ8MqyJu5zlzyZMjAvnnAT45tRAxekrsu94sQ4egdRCnbWSDtY7kh+BIm\n" \
-"lJNXoB1lBMEKIq4QDUOXoRgffuDghje1WrG9ML+Hbisq/yFOGwXD9RiX8F6sw6W4\n" \
-"avAuvDszue5L3sz85K+EC4Y/wFVDNvZo4TYXao6Z0f+lQKc0t8DQYzk1OXVu8rp2\n" \
-"yJMC6alLbBfODALZvYH7n7do1AZls4I9d1P4jnkDrQoxB3UqQ9hVl3LEKQ73xF1O\n" \
-"yK5GhDDX8oVfGKF5u+decIsH4YaTw7mP3GFxJSqv3+0lUFJoi5Lc5da149p90Ids\n" \
-"hCExroL1+7mryIkXPeFM5TgO9r0rvZaBFOvV2z0gp35Z0+L4WPlbuEjN/lxPFin+\n" \
-"HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv\n" \
-"MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX\n" \
-"nLRbwHOoq7hHwg==\n" \
-"-----END CERTIFICATE-----\n";
+const char *letsencrypt_ca_certificate =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw\n"
+    "TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
+    "cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw\n"
+    "WhcNMjUwOTE1MTYwMDAwWjAyMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3Mg\n"
+    "RW5jcnlwdDELMAkGA1UEAxMCUjMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK\n"
+    "AoIBAQC7AhUozPaglNMPEuyNVZLD+ILxmaZ6QoinXSaqtSu5xUyxr45r+XXIo9cP\n"
+    "R5QUVTVXjJ6oojkZ9YI8QqlObvU7wy7bjcCwXPNZOOftz2nwWgsbvsCUJCWH+jdx\n"
+    "sxPnHKzhm+/b5DtFUkWWqcFTzjTIUu61ru2P3mBw4qVUq7ZtDpelQDRrK9O8Zutm\n"
+    "NHz6a4uPVymZ+DAXXbpyb/uBxa3Shlg9F8fnCbvxK/eG3MHacV3URuPMrSXBiLxg\n"
+    "Z3Vms/EY96Jc5lP/Ooi2R6X/ExjqmAl3P51T+c8B5fWmcBcUr2Ok/5mzk53cU6cG\n"
+    "/kiFHaFpriV1uxPMUgP17VGhi9sVAgMBAAGjggEIMIIBBDAOBgNVHQ8BAf8EBAMC\n"
+    "AYYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYB\n"
+    "Af8CAQAwHQYDVR0OBBYEFBQusxe3WFbLrlAJQOYfr52LFMLGMB8GA1UdIwQYMBaA\n"
+    "FHm0WeZ7tuXkAXOACIjIGlj26ZtuMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcw\n"
+    "AoYWaHR0cDovL3gxLmkubGVuY3Iub3JnLzAnBgNVHR8EIDAeMBygGqAYhhZodHRw\n"
+    "Oi8veDEuYy5sZW5jci5vcmcvMCIGA1UdIAQbMBkwCAYGZ4EMAQIBMA0GCysGAQQB\n"
+    "gt8TAQEBMA0GCSqGSIb3DQEBCwUAA4ICAQCFyk5HPqP3hUSFvNVneLKYY611TR6W\n"
+    "PTNlclQtgaDqw+34IL9fzLdwALduO/ZelN7kIJ+m74uyA+eitRY8kc607TkC53wl\n"
+    "ikfmZW4/RvTZ8M6UK+5UzhK8jCdLuMGYL6KvzXGRSgi3yLgjewQtCPkIVz6D2QQz\n"
+    "CkcheAmCJ8MqyJu5zlzyZMjAvnnAT45tRAxekrsu94sQ4egdRCnbWSDtY7kh+BIm\n"
+    "lJNXoB1lBMEKIq4QDUOXoRgffuDghje1WrG9ML+Hbisq/yFOGwXD9RiX8F6sw6W4\n"
+    "avAuvDszue5L3sz85K+EC4Y/wFVDNvZo4TYXao6Z0f+lQKc0t8DQYzk1OXVu8rp2\n"
+    "yJMC6alLbBfODALZvYH7n7do1AZls4I9d1P4jnkDrQoxB3UqQ9hVl3LEKQ73xF1O\n"
+    "yK5GhDDX8oVfGKF5u+decIsH4YaTw7mP3GFxJSqv3+0lUFJoi5Lc5da149p90Ids\n"
+    "hCExroL1+7mryIkXPeFM5TgO9r0rvZaBFOvV2z0gp35Z0+L4WPlbuEjN/lxPFin+\n"
+    "HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv\n"
+    "MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX\n"
+    "nLRbwHOoq7hHwg==\n"
+    "-----END CERTIFICATE-----\n";
 
-t_httpUpdate_return update_program() {
-    WiFiClientSecure client_https;
-    Serial.println("update_program a");
-    client_https.setCACert(letsencrypt_ca_certificate);
-    Serial.println("update_program b");
-    client_https.setTimeout(15); // timeout for SSL fetch
-    // url voisi olla php, ...
-    return httpUpdate.update(client_https, "iot.netgalleria.fi", 443, "/arska-install/koe/firmware.bin");
-}
-t_httpUpdate_return update_fs() {
-   WiFiClient wifi_client;
-   Serial.println("update_fs");
-   // ei mene läpi, koska site saallii nyt vain https:
-   LittleFS.end();
-   t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, "http://iot.netgalleria.fi/arska-install/koe/littlefs.bin", "");
-   if (!LittleFS.begin())
-   {
-     Serial.println(F("Failed to initialize LittleFS library, restarting..."));
-     //TODO: status/phase change
-     delay(5000);
-     ESP.restart();
+String update_releases = "{}"; // software releases for updates, cached in RAM
+String update_release_selected = "";
+
+bool get_releases()
+{
+  WiFiClientSecure client_https;
+  client_https.setCACert(letsencrypt_ca_certificate);
+  if (!client_https.connect(host_releases, 443))
+  {
+    return false;
   }
-  return update_ok;
-  //  return httpUpdate.updateSpiffs(wifi_client, "http://iot.netgalleria.fi/arska-install/koe/", "");
+  String url = "/arska-install/releases.php?pre_releases=true";
+  client_https.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                     "Host: " + host_releases + "\r\n" +
+                     "User-Agent: ArskaNoderESP\r\n" +
+                     "Connection: close\r\n\r\n");
+
+  while (client_https.connected())
+  {
+    String lineh = client_https.readStringUntil('\n');
+    if (lineh == "\r")
+    {
+      break;
+    }
+  }
+
+  if (client_https.connected())
+  {
+    update_releases = client_https.readString();
+    Serial.println(update_releases);
+  }
+
+  client_https.stop();
+  Serial.println("last");
+  return true;
 }
 
-void update_firmware_partition(bool cmd = U_FLASH) {
-  Serial.println("update_firmware_partition");
-  t_httpUpdate_return update_result;
-  if (cmd ==U_FLASH) {
-    update_result =update_program();
+t_httpUpdate_return update_program()
+{
+  Serial.printf(PSTR("Updating firmware to version %s\n"), update_release_selected.c_str());
+  if (String(VERSION_BASE).equals(update_release_selected))
+  {
+    Serial.println(F("No need for firmware update."));
+    return HTTP_UPDATE_NO_UPDATES;
+  }
+  WiFiClientSecure client_https;
+  Serial.println("update_program");
+  client_https.setCACert(letsencrypt_ca_certificate);
+  client_https.setTimeout(15); // timeout for SSL fetch
+  String file_to_download = "/arska-install/files/" + String(HWID) + "/" + update_release_selected + "/firmware.bin";
+  Serial.println(file_to_download);
+  return httpUpdate.update(client_https, host_releases, 443, file_to_download);
+}
+
+t_httpUpdate_return update_fs()
+{
+  Serial.printf(PSTR("Updating filesystem to version %s\n"), VERSION_BASE);
+  if (String(VERSION_BASE).equals(version_fs_base))
+  {
+    Serial.println(F("No need for filesystem update."));
+    return HTTP_UPDATE_NO_UPDATES;
+  }
+  WiFiClient wifi_client;
+  Serial.println("update_fs");
+  // ei mene läpi, koska site saallii nyt vain https:
+  LittleFS.end();
+  String file_to_download = "http://" + String(host_releases) + "/arska-install/files/" + String(HWID) + "/" + String(VERSION_BASE) + "/littlefs.bin";
+  Serial.println(file_to_download);
+ // client_http.begin(wifi_client, fcst_url);
+
+  t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, file_to_download.c_str(), "");
+  if (update_ok== HTTP_UPDATE_FAILED) {
+    Serial.println(F("LittleFS update failed!"));
+    return update_ok;
+  }
+  if (update_ok== HTTP_UPDATE_OK) {
+    Serial.println(F("Restarting after filesystem update."));
+    ESP.restart(); // Restart creates cache files etc
+  }
+/*
+  if (!LittleFS.begin())
+  {
+    Serial.println(F("Failed to initialize LittleFS library, restarting..."));
+    // TODO: status/phase change
+    delay(5000);
+    ESP.restart();
   }
   else {
+   // check_filesystem_version(); // updates global variables
+    Serial.println(F("LittleFS updated and restarted."));
+  }
+    */
+  return update_ok;
+}
+
+void update_firmware_partition(bool cmd = U_FLASH)
+{
+  Serial.println("update_firmware_partition");
+  t_httpUpdate_return update_result;
+  if (cmd == U_FLASH)
+  {
+    update_result = update_program();
+  }
+  else
+  {
     update_result = update_fs();
   }
-   switch (update_result) {
-      case HTTP_UPDATE_FAILED:
-        Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
-        break;
+  switch (update_result)
+  {
+  case HTTP_UPDATE_FAILED:
+    Serial.printf("HTTP_UPDATE_FAILED Error (%d): %s\n", httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+    break;
 
-      case HTTP_UPDATE_NO_UPDATES:
-        Serial.println("HTTP_UPDATE_NO_UPDATES");  
-        break;
+  case HTTP_UPDATE_NO_UPDATES:
+    Serial.println("HTTP_UPDATE_NO_UPDATES");
+    break;
 
-      case HTTP_UPDATE_OK:
-        Serial.println("HTTP_UPDATE_OK");
-        //pitäisikä olla restart, tai menikö flashillä autom, entä littlefs reconnect./begin
-        break;
-    }
+  case HTTP_UPDATE_OK:
+    Serial.println("HTTP_UPDATE_OK");
+    // pitäisikä olla restart, tai menikö flashillä autom, entä littlefs reconnect./begin
+    break;
+  }
 }
-    
 
 // The other templates come from littlefs filesystem, but on update we do not want to be dependant on that
 const char update_page_html[] PROGMEM = "<html><head></head>\
@@ -4037,8 +4106,16 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
 // https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
 
 #include <Update.h>
-size_t content_len;
 #define U_PART U_SPIFFS
+//
+void onWebUpdatePost(AsyncWebServerRequest *request)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+  todo_in_loop_update_firmware_partition = true;
+  update_release_selected = request->getParam("release", true)->value();
+  Serial.println(update_release_selected);
+}
 
 /**
  * @brief Returns update form from memory variable. (no littlefs required)
@@ -4047,8 +4124,10 @@ size_t content_len;
  */
 void onWebUpdateGet(AsyncWebServerRequest *request)
 {
+
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
+  todo_in_loop_get_releases = true;
   Serial.println("update-form");
   request->send_P(200, "text/html", update_page_html, jscode_form_processor);
 }
@@ -4064,6 +4143,8 @@ void onWebUpdateGet(AsyncWebServerRequest *request)
  */
 void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
+  size_t content_len;
+
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   if (!index)
@@ -4114,7 +4195,6 @@ void handleDoUpdate(AsyncWebServerRequest *request, const String &filename, size
     }
   }
 }
-
 
 #endif
 
@@ -4547,7 +4627,6 @@ void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t i
   }
 }
 
-
 void onWebUIGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -4555,7 +4634,6 @@ void onWebUIGet(AsyncWebServerRequest *request)
   check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
   request->send(LittleFS, "/ui.html", "text/html");
 }
-
 
 /**
  * @brief Get individual rule template by id
@@ -5231,7 +5309,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     return request->requestAuthentication();
   }
 
-
   StaticJsonDocument<2048> doc; //
   String output;
 
@@ -5285,7 +5362,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
   doc["energym_read_last"] = energym_read_last;
-  doc["next_process_in"] = max((long)0,(long)next_process_ts-current_time);
+  doc["next_process_in"] = max((long)0, (long)next_process_ts - current_time);
 
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -5374,7 +5451,7 @@ void setup()
   delay(2000); // wait for console settle - only needed when debugging
 
   randomSeed(analogRead(0)); // initiate random generator
-  Serial.printf(PSTR("Version: %s\n"), compile_date);
+  Serial.printf(PSTR("VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE,VERSION, compile_date);
 
   String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
@@ -5402,17 +5479,10 @@ void setup()
   }
   Serial.println(F("LittleFS initialized"));
 
-  // TODO: notify, ota-update
-  check_filesystem_version();
+  // Check if filesystem update is needed
+  Serial.println(F("Checking filesystem version"));
+  todo_in_loop_update_firmware_partition = !(check_filesystem_version());
 
-
-    
-  /*
-  if (check_filesystem_version())
-    Serial.println(F("Filesystem is up-to-date."));
-  else
-    Serial.println(F("Filesystem is too old."));
-*/
   /*#ifdef INFLUX_REPORT_ENABLED
     eeprom_used_size += sizeof(s_influx);
   #endif */
@@ -5522,6 +5592,17 @@ void setup()
   server_web.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
                 { onWebUpdateGet(request); });
 
+  server_web.on("/update", HTTP_POST, [](AsyncWebServerRequest *request)
+                { onWebUpdatePost(request); });
+  // experimental
+  server_web.on("/update2", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/update2.html", "text/html"); });
+
+  server_web.on(
+      "/releases", HTTP_GET, [](AsyncWebServerRequest *request)
+      { request->send(200,"application/json",update_releases.c_str()); 
+        todo_in_loop_get_releases= true; });
+
   server_web.on(
       "/doUpdate", HTTP_POST,
       [](AsyncWebServerRequest *request) {},
@@ -5565,7 +5646,6 @@ void setup()
       { request->send(200); },
       onWebUploadConfig);
 
-
   server_web.on("/", HTTP_GET, onWebUIGet);
 
   server_web.on(
@@ -5593,12 +5673,8 @@ void setup()
                 { request->redirect("/#admin"); });
   server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
-
-
   server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/style.css", "text/css"); });
-
-
 
   server_web.serveStatic("/js/", LittleFS, "/js/");
 
@@ -5606,14 +5682,11 @@ void setup()
   server_web.on(ui_constants_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, ui_constants_filename, F("application/json")); });
 
-
-
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
 
   // TODO: check authentication or relocate potentially sensitive files
   server_web.serveStatic("/data/", LittleFS, "/data/");
-
 
   // no authenticatipn
   server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
@@ -5758,6 +5831,7 @@ void loop()
     scan_and_store_wifis(false);
   }
 
+
 #ifdef MDNS_ENABLED
   if (todo_in_loop_discover_devices) // TODO: check that stable enough
   {
@@ -5765,6 +5839,12 @@ void loop()
     discover_devices();
   }
 #endif
+  if (todo_in_loop_get_releases)
+  {
+    todo_in_loop_get_releases = false;
+    if (update_releases.length() < 10)
+      get_releases();
+  }
 
   // started from admin UI
   if (todo_in_loop_scan_sensors)
@@ -5802,20 +5882,39 @@ void loop()
 
     set_time_settings(); // set tz info
 
-  //experimental ota update, should be when wifi is up and  time is up-to-date 
-  if (now <1663977599) { // skip it if the code is accidentally not commented out
-    Serial.println("Testing firmware update");
- //   update_firmware_partition(U_FLASH);//TODO: tsekkaa bootti, meneekö automaattisesti
-  //  update_firmware_partition(U_PART); //TODO:tsekkaa voiko tehdä ilman boottia
-  }
-  
-
+    // experimental ota update, should be when wifi is up and  time is up-to-date
+    if (now < 1664446053)
+    { // skip it if the code is accidentally not commented out
+      Serial.println("Testing firmware update");
+      todo_in_loop_update_firmware_partition = true;
+    }
 
     ch_counters.init();
     next_query_price_data = now;
     next_query_fcst_data = now;
   }
 
+#ifdef OTA_UPDATE_ENABLED
+  if (todo_in_loop_update_firmware_partition)
+  {
+    todo_in_loop_update_firmware_partition = false;
+    Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE,version_fs_base.c_str(),update_release_selected.c_str());
+
+    // experimental, we should check the phase or have two different todo_in variables
+    //TODO: check that there is no upload in process at the same time (especially filesystem)
+    if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length()>0) //update firmware if requested and needed
+    {
+      Serial.println(F("Starting firmware update."));
+      update_firmware_partition(U_FLASH);
+    }
+    else
+    {
+      Serial.println(F("Starting filesystem update."));
+      update_firmware_partition(U_PART); // update fs if needed
+      check_filesystem_version(); // update variables to see if  version is updated
+    }
+  }
+#endif
   // set relays, if forced from dashboard
   if (todo_in_loop_set_relays)
   {

@@ -177,7 +177,6 @@ function update_price_chart() {
             }]
         },
         options: {
-
             responsive: true,
             scales: {
                 y: {

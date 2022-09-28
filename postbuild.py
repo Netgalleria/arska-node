@@ -11,18 +11,16 @@ from os import path
 
 # We may need params like PROJECT_BUILD_DIR later
 #from SCons.Script import DefaultEnvironment  # pylint: disable=import-error
-#env = DefaultEnvironment()
+env = DefaultEnvironment()
 #config = env.GetProjectConfig()
 #PROJECT_BUILD_DIR=config.get("platformio", "build_dir")
 #print(PROJECT_BUILD_DIR)
 
-
-if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
-    # No version/build increment for filesystem builds
-    print("Post build. Building filesystem. No new version. BUILD_TARGETS:")
-    print(BUILD_TARGETS)
-else:
-   # print("Post build. Building firmware.  DEFAULT_TARGETS:")
+# we will wait the firmware.bin to be created 
+def before_upload(source, target, env):
+    print("before_upload")
+    # do some actions
+       # print("Post build. Building firmware.  DEFAULT_TARGETS:")
     build_no = 0
     version_base =""
     try:
@@ -37,7 +35,7 @@ else:
             version_base = f.readline().replace("//","").strip()
     except:
         print('Unknown version_base')
-        build_no = 1
+        exit(0)
 
     print ("version_base: [" + version_base + "]")
 
@@ -61,6 +59,19 @@ else:
             if path.exists(manifest_from_path) and not path.exists(manifest_to_path):
                 shutil.copyfile(manifest_from_path, manifest_to_path)
                
+
+
+
+if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
+    # No version/build increment for filesystem builds
+    print("Post build. Building filesystem. No new version. BUILD_TARGETS:")
+    print(BUILD_TARGETS)
+else:
+
+
+    env.AddPreAction("upload", before_upload)
+
+
 
 
             
