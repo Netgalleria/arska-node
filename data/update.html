@@ -1,0 +1,136 @@
+<html>
+<head>
+    <!-- Copyright Netgalleria Oy 2022, Olli Rinne, Unminimized version: /data/update.html -->
+    <title>Arska update</title>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
+    <style>
+        body {
+            background-color: #1a1e15;
+            margin: 1.8em;
+            font-size: 20px;
+            font-family: Helvetica, Arial, sans-serif;
+            color: #f7f7e6;
+        }
+        .indent {
+            margin-left: 2em;
+            clear: left;
+        }
+        a {
+            cursor: pointer;
+            border-bottom: 3px dotted #f3f300;
+            color: white;
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        window.addEventListener('load', (event) => {init_document();}); 
+
+        let hw = '';
+        let load_count = 0;
+        let VERSION_SHORT = '';
+        function init_document() {
+            if (window.jQuery) {
+                document.getElementById('frm2').addEventListener('submit', (event) => {return confirm('Update software, this can take several minutes.');});
+                $.ajax({
+                    url: '/data/ui-constants.json',
+                    dataType: 'json',
+                    async: false,
+                    success: function (data, textStatus, jqXHR) {
+                        VERSION_SHORT = data.VERSION_SHORT;
+                        console.log('got ui-constants.json', VERSION_SHORT);
+                        $('#ver_sw').text(data.VERSION);
+                        $('#ver_fs').text(data.version_fs);
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        console.log('Cannot get ui-constants.json', textStatus, jqXHR.status);
+                    }
+                });
+                load_releases();
+            }
+            else {
+                document.getElementById('div_upd2').style.display = 'none';
+                console.log('Cannot load jQuery library');
+            }
+        }
+
+        function load_releases() {
+            $.ajax({
+                url: '/releases',
+                dataType: 'json',
+                async: false,
+                success: function (data, textStatus, jqXHR) {
+                    load_count++;
+                    console.log('got releases');
+                    hw = data.hw;
+                    if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/
+                        if (load_count < 5)
+                            setTimeout(function () { load_releases(); }, 5000);
+                        else
+                            document.getElementById('div_upd2').style.display = 'none';
+                    }
+                    else {
+                        $.each(data.releases, function (i, release) {
+                            d = new Date(release[1] * 1000);
+                            $('#sel_releases').append($('<option>', {
+                                value: release[0],
+                                text: release[0] + ' ' + d.toLocaleDateString()
+                            }));
+                        });
+                        $('#btn_update').prop('disabled', (!(data.hasOwnProperty('releases'))));
+                        $('#sel_releases').prop('disabled', (!(data.hasOwnProperty('releases'))));
+                        if (VERSION_SHORT) {
+                            version_base = VERSION_SHORT.substring(0, VERSION_SHORT.lastIndexOf('.'));
+                            console.log('version_base', version_base);
+                            $('#sel_releases option:contains(' + version_base + ')').append(' ***');
+                        }
+                        $('#div_upd2').css('opacity', '1');
+                    }
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    console.log('Cannot get releases', textStatus, jqXHR.status);
+                    document.getElementById('div_upd2').style.display = 'none';
+                }
+            });
+        };
+        function _(el) { return document.getElementById(el); }
+        function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); }
+        function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; }
+        function reloadAdmin() { window.location.href = '/#admin'; }
+        function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); }
+        function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; }
+        function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; }    </script>
+    <h1>Firmware and filesystem update</h1>
+    <div class='indent'>
+    <p><a href='/export-config?format=file'>Backup configuration</a> before starting upgrade.</p><br>
+    </div>
+    <div id='div_upd1'>
+        <h2>Upload firmware files</h2>
+        <div class='indent'>
+        <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build
+            from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin)
+            first and filesystem (littlefs.bin) after that. After
+            update check version data
+            from the bottom of the page - update could be succeeded even if you get an error message. </p>
+        <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware'
+                onchange='upload()'><br>
+            <progress id='progressBar' value='0' max='100' style='width:250px;'></progress>
+            <h2 id='status'></h2>
+            <p id='loadedtotal'></p>
+        </form>
+    </div></div>
+    <div id='div_upd2' style='opacity: 0.5;'>
+        <h2>Automatic update - experimental</h2>
+        <div class='indent'>
+        <form method='post' id='frm2' action='/update'> <select name='release'
+                id='sel_releases'>
+                <option value=''>select release</option>
+            </select>
+            <input type='submit' id='btn_update' value='Update'>
+        </form>
+    </div></div>
+    <br>Software: <span id='ver_sw'>*</span>, Filesystem: <span id='ver_fs'>*</span>  -  <a href='/#admin'>Return to Admin</a>
+</body>
+</html>

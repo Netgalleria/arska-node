@@ -25,8 +25,6 @@ Resource files (see data subfolder):
 #define SENSOR_DS18B20_ENABLED // DS18B20 funtionality
 #define RTC_DS3231_ENABLED //real time clock functionality
 #define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
-
-
 */
 
 #define EEPROM_CHECK_VALUE 10094
@@ -40,7 +38,7 @@ Resource files (see data subfolder):
 
 #include "version.h"
 const char compile_date[] = __DATE__ " " __TIME__;
-char version_fs[35];
+char version_fs[40];
 String version_fs_base; //= "";
 
 #ifdef ESP32 // latest version tested only with ESP32, code for ESP8266 kept so far for possible reduced ESP8266 version or or MCU
@@ -75,9 +73,10 @@ String version_fs_base; //= "";
 #define VARIABLE_MODE_SOURCE 0
 #define VARIABLE_MODE_REPLICA 1
 
-#define TARIFF_VARIABLES_FI // add Finnish tarifs (yösähkö,kausisähkö) to variables
+#define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to variables
 
-#define OTA_UPDATE_ENABLED
+#define OTA_UPDATE_ENABLED   // OTA general
+//#define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
 
 #define eepromaddr 0
 #define WATT_EPSILON 50
@@ -417,18 +416,19 @@ bool check_filesystem_version()
   {
     String current_fs_version = info_file.readStringUntil('\n'); // e.g. 0.92.0-rc1.1102 - 2022-09-28 12:24:56
     version_fs_base = current_fs_version.substring(0, current_fs_version.lastIndexOf('.'));
-    Serial.printf("version_fs_base: %s , VERSION_BASE %s\n", version_fs_base.c_str(),VERSION_BASE);
+    Serial.printf("version_fs_base: %s , VERSION_BASE %s\n", version_fs_base.c_str(), VERSION_BASE);
     strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
- //   is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
+    //   is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
     is_ok = version_fs_base.equals(VERSION_BASE);
     if (is_ok)
       Serial.println("No need for filesystem update.");
     else
       Serial.println("Filesystem update required.");
   }
-  else {
-     is_ok = false;
-     Serial.println(F("Cannot open version.txt for reading."));
+  else
+  {
+    is_ok = false;
+    Serial.println(F("Cannot open version.txt for reading."));
   }
 
   info_file.close();
@@ -922,6 +922,10 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 
 #define MAX_ID_STR_LENGTH 30
 #define MAX_URL_STR_LENGTH 70
 
+// Current phase of OTA update, s.ota_update_phase
+#define OTA_PHASE_NONE 0
+#define OTA_PHASE_FWUPDATED_CHECKFS 100
+
 // Energy metering types
 #define ENERGYM_NONE 0
 #define ENERGYM_SHELLY3EM 1
@@ -995,7 +999,7 @@ typedef struct
   char custom_ntp_server[35];                 //!< RFU, TODO:UI to set up
   char timezone[4];                           //!< EET,CET supported
   uint32_t baseload;                          //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
-  bool next_boot_ota_update;                  //!< not currently in use, RFU, -> byte
+  byte ota_update_phase;                      //!< Phase of curent OTA update, if updating
   byte energy_meter_type;                     //!< energy metering type, see constants: ENERGYM_
   char energy_meter_host[MAX_URL_STR_LENGTH]; //!< enerygy meter address string
   unsigned int energy_meter_port;             //!< energy meter port,  tcp port if energy_meter_type == ENERGYM_SMA_MODBUS_TCP
@@ -1016,6 +1020,7 @@ typedef struct
   char influx_bucket[20];
 #endif
 } settings_struct;
+
 
 // this stores settings also to eeprom
 settings_struct s;
@@ -3122,119 +3127,6 @@ int active_condition(int channel_idx)
 }
 
 /**
- * @brief Template processor for the admin form
- *
- * @param var
- * @return String
- */
-/*
-String admin_form_processor(const String &var)
-{
-  if (var == "wifi_ssid")
-    return s.wifi_ssid;
-  if (var == "wifi_ssid_edit")
-  {
-    return "";
-  }
-  if (var == "wifi_password")
-    return s.wifi_password;
-  if (var == "http_username")
-    return s.http_username;
-  if (var == "http_password")
-    return s.http_password;
-  if (var == "lang")
-    return s.lang;
-  if (var == F("timezone"))
-    return String(s.timezone);
-  if (var == F("hw_template_id"))
-    return String(s.hw_template_id);
-
-  return String();
-}
-*/
-/**
- * @brief Template processor for the service (inputs) form
- *
- * @param var
- * @return String
- */
-/*
-String inputs_form_processor(const String &var)
-{
-  // Serial.println(var);
-
-
-    if (var == F("emt_options"))
-    {
-      char out[200];
-      char buff[50];
-      for (int energym_idx = 0; energym_idx <= ENERGYM_MAX; energym_idx++)
-      {
-        snprintf(buff, sizeof(buff), "<option value='%d' %s>%s</>", energym_idx, (s.energy_meter_type == energym_idx) ? "selected" : "", energym_strings[energym_idx]);
-        strcat(out, buff);
-      }
-      return String(out);
-    }
-
-      if (var == F("emt"))
-      return String(s.energy_meter_type);
-    if (var == F("VARIABLE_SOURCE_ENABLED"))
-  #ifdef VARIABLE_SOURCE_ENABLED
-      return String(1);
-  #else
-      return String(0);
-  #endif
-
-    if (var == F("emh"))
-      return String(s.energy_meter_host);
-    if (var == F("emh"))
-      return String(s.energy_meter_host);
-    if (var == F("emp"))
-      return String(s.energy_meter_port);
-    if (var == F("emid"))
-      return String(s.energy_meter_id);
-
-    if (var == F("baseload"))
-      return String(s.baseload);
-
-    if (var == F("variable_mode"))
-      return String((VARIABLE_MODE_SOURCE)); // removed selection
-
-    if (var == F("entsoe_api_key"))
-      return String(s.entsoe_api_key);
-
-    if (var == F("entsoe_area_code"))
-      return String(s.entsoe_area_code);
-
-    if (var == F("variable_server"))
-      return String(s.variable_server);
-    if (var == F("forecast_loc"))
-      return String(s.forecast_loc);
-
-    // influx
-    if (var == F("INFLUX_REPORT_ENABLED"))
-  #ifdef INFLUX_REPORT_ENABLED
-      return String(1);
-  #else
-      return String(0);
-  #endif
-  #ifdef INFLUX_REPORT_ENABLED
-    if (var == F("influx_url"))
-      return String(s.influx_url);
-    if (var == F("influx_token"))
-    {
-      return String(s.influx_token);
-    }
-    if (var == F("influx_org"))
-      return String(s.influx_org);
-    if (var == F("influx_bucket"))
-      return String(s.influx_bucket);
-  #endif
-
-  return String();
-}
-*/
-/**
  * @brief Template processor for the javascript code.
  *
  * @param var
@@ -3253,119 +3145,7 @@ String jscode_form_processor(const String &var)
     return String(HWID);
   if (var == F("version_fs"))
     return String(version_fs);
-  /*
-    char out[1000]; // depends on VARIABLE_COUNT
-    char buff[70];
 
-
-    if (var == F("compile_date"))
-      return String(compile_date);
-
-    if (var == F("VERSION_SHORT"))
-      return String(VERSION_SHORT);
-
-
-    if (var == F("switch_subnet_wifi"))
-      return s.switch_subnet_wifi.toString();
-
-    if (var == F("RULE_STATEMENTS_MAX"))
-      return String(RULE_STATEMENTS_MAX);
-    if (var == "CHANNEL_COUNT")
-      return String(CHANNEL_COUNT);
-    if (var == F("CHANNEL_CONDITIONS_MAX"))
-      return String(CHANNEL_CONDITIONS_MAX);
-    if (var == F("OPERS"))
-    {
-      strcpy(out, "[");
-      for (int i = 0; i < OPER_COUNT; i++)
-      {
-        snprintf(buff, sizeof(buff), "[%d, \"%s\", %s, %s, %s, %s, %s]", opers[i].id, opers[i].code, opers[i].gt ? "true" : "false", opers[i].eq ? "true" : "false", opers[i].reverse ? "true" : "false", opers[i].boolean_only ? "true" : "false", opers[i].has_value ? "true" : "false");
-        // TODO: memory safe strncat
-        strcat(out, buff);
-        if (i < OPER_COUNT - 1)
-          strcat(out, ", "); // TODO: memory safe strncat
-      }
-      strcat(out, "]"); // TODO: memory safe strncat
-      return out;
-    }
-    if (var == F("channels"))
-    { // used by Javascript
-      strcpy(out, "[");
-      channel_struct *chp;
-      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-      {
-        chp = &s.ch[channel_idx];
-        snprintf(buff, 50, "{\"cm\": %d ,\"tid\":%d}", (int)chp->config_mode, (int)chp->template_id);
-        // TODO: memory safe strncat
-        strcat(out, buff);
-        if (channel_idx < CHANNEL_COUNT - 1)
-          strcat(out, ", ");
-      }
-      strcat(out, "]");
-      return out;
-    }
-
-    if (var == F("channel_types"))
-    { // used by Javascript
-      strcpy(out, "[");
-      for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
-      {
-        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
-        // TODO: memory safe strncat
-        strcat(out, buff);
-        if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
-          strcat(out, ", ");
-      }
-      strcat(out, "]");
-      return out;
-    }
-
-    // TODO: currently unused when coded in html template
-    if (var == F("hw_templates"))
-    { // used by Javascript
-      strcpy(out, "[");
-      for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
-      {
-        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
-        // TODO: memory safe strncat
-        strcat(out, buff);
-        if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
-          strcat(out, ", ");
-      }
-      strcat(out, "]");
-      return out;
-    }
-
-    if (var == F("VARIABLES")) // used by Javascript
-    {
-      strcpy(out, "[");
-      int variable_count = vars.get_variable_count();
-      variable_st variable;
-      for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
-      {
-        // Serial.println(variable.code);
-        //  YYY
-        vars.get_variable_by_idx(variable_idx, &variable);
-        snprintf(buff, sizeof(buff), "[%d, \"%s\", %d]", variable.id, variable.code, variable.type);
-        strcat(out, buff); // TODO: memory safe strncat
-        if (variable_idx < variable_count - 1)
-          strcat(out, ", ");
-      }
-      strcat(out, "]");
-      return out;
-    };
-    if (var == "lang")
-      return s.lang;
-
-    if (var == F("using_default_password"))
-      return (strcmp(s.http_password, default_http_password) == 0) ? "true" : "false";
-    if (var == F("DEBUG_MODE"))
-  #ifdef DEBUG_MODE
-      return "true";
-  #endif
-    if (var == "wifi_in_setup_mode")
-      return String(wifi_in_setup_mode ? "true" : "false");
-  */
   return String();
 }
 // Work in progress....
@@ -3903,13 +3683,11 @@ void sendForm(AsyncWebServerRequest *request, const char *template_name, AwsTemp
   request->send(LittleFS, template_name, "text/html", false, processor);
 }
 
-#ifdef OTA_UPDATE_ENABLED
-
-#include <HTTPUpdate.h> // experimental
+#ifdef OTA_DOWNLOAD_ENABLED
+#include <HTTPUpdate.h> //
 
 // We keep the CA certificate in program code to avoid potential littlefs-hack
 // Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
-
 const char *letsencrypt_ca_certificate =
     "-----BEGIN CERTIFICATE-----\n"
     "MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw\n"
@@ -3944,16 +3722,22 @@ const char *letsencrypt_ca_certificate =
 
 String update_releases = "{}"; // software releases for updates, cached in RAM
 String update_release_selected = "";
-
+/**
+ * @brief Get firmware releases from download web server
+ * 
+ * @return true 
+ * @return false 
+ */
 bool get_releases()
 {
   WiFiClientSecure client_https;
   client_https.setCACert(letsencrypt_ca_certificate);
   if (!client_https.connect(host_releases, 443))
   {
+    Serial.println(F("Cannot get release info from the firmware site."));
     return false;
   }
-  String url = "/arska-install/releases.php?pre_releases=true";
+  String url = "/arska-install/releases.php?pre_releases=true"; //TODO: exclude pre-releases or parametrize
   client_https.print(String("GET ") + url + " HTTP/1.1\r\n" +
                      "Host: " + host_releases + "\r\n" +
                      "User-Agent: ArskaNoderESP\r\n" +
@@ -3978,6 +3762,23 @@ bool get_releases()
   Serial.println("last");
   return true;
 }
+/**
+ * @brief // Callback called after succesful flash(program) update 
+ * 
+ */
+void flash_update_ended()
+{
+  Serial.println("CALLBACK:  HTTP update process finished");
+  // set phase to enable fs version check after next boot
+  s.ota_update_phase = OTA_PHASE_FWUPDATED_CHECKFS;
+  writeToEEPROM(true);
+}
+
+/**
+ * @brief Download and update flash(program), restarts the device if successful
+ * 
+ * @return t_httpUpdate_return 
+ */
 
 t_httpUpdate_return update_program()
 {
@@ -3993,9 +3794,29 @@ t_httpUpdate_return update_program()
   client_https.setTimeout(15); // timeout for SSL fetch
   String file_to_download = "/arska-install/files/" + String(HWID) + "/" + update_release_selected + "/firmware.bin";
   Serial.println(file_to_download);
-  return httpUpdate.update(client_https, host_releases, 443, file_to_download);
+
+  httpUpdate.onEnd(flash_update_ended); // change update phase after succesful update but before restart
+  t_httpUpdate_return result = httpUpdate.update(client_https, host_releases, 443, file_to_download);
+
+  return result;
+}
+/**
+ * @brief Callback called after succesfull filesystem update
+ * 
+ */
+void fs_update_ended()
+{
+  Serial.println("CALLBACK:  FS HTTP update process finished");
+  // set phase to none/finished
+  s.ota_update_phase = OTA_PHASE_NONE;
+  writeToEEPROM(true);
 }
 
+/**
+ * @brief Download and update littlefs filesystem 
+ * 
+ * @return t_httpUpdate_return 
+ */
 t_httpUpdate_return update_fs()
 {
   Serial.printf(PSTR("Updating filesystem to version %s\n"), VERSION_BASE);
@@ -4005,38 +3826,29 @@ t_httpUpdate_return update_fs()
     return HTTP_UPDATE_NO_UPDATES;
   }
   WiFiClient wifi_client;
-  Serial.println("update_fs");
-  // ei mene läpi, koska site saallii nyt vain https:
   LittleFS.end();
   String file_to_download = "http://" + String(host_releases) + "/arska-install/files/" + String(HWID) + "/" + String(VERSION_BASE) + "/littlefs.bin";
   Serial.println(file_to_download);
- // client_http.begin(wifi_client, fcst_url);
 
+  httpUpdate.onEnd(fs_update_ended); // change update phase after succesful update but before restart
   t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, file_to_download.c_str(), "");
-  if (update_ok== HTTP_UPDATE_FAILED) {
+  if (update_ok == HTTP_UPDATE_FAILED)
+  {
     Serial.println(F("LittleFS update failed!"));
     return update_ok;
   }
-  if (update_ok== HTTP_UPDATE_OK) {
-    Serial.println(F("Restarting after filesystem update."));
-    ESP.restart(); // Restart creates cache files etc
-  }
-/*
-  if (!LittleFS.begin())
+  if (update_ok == HTTP_UPDATE_OK)
   {
-    Serial.println(F("Failed to initialize LittleFS library, restarting..."));
-    // TODO: status/phase change
-    delay(5000);
-    ESP.restart();
+    Serial.println(F("Restarting after filesystem update."));
+    ESP.restart(); // Restart to recreate cache files etc
   }
-  else {
-   // check_filesystem_version(); // updates global variables
-    Serial.println(F("LittleFS updated and restarted."));
-  }
-    */
   return update_ok;
 }
-
+/**
+ * @brief Update flash(program) or filesystem
+ * 
+ * @param cmd 
+ */
 void update_firmware_partition(bool cmd = U_FLASH)
 {
   Serial.println("update_firmware_partition");
@@ -4047,7 +3859,15 @@ void update_firmware_partition(bool cmd = U_FLASH)
   }
   else
   {
-    update_result = update_fs();
+    if (s.ota_update_phase == OTA_PHASE_FWUPDATED_CHECKFS)
+    {
+      update_result = update_fs();
+    }
+    else
+    {
+      Serial.println(F("Filesystem update requested but phase does not match."));
+      return; // not correct update phase, should not normalyy end up here
+    }
   }
   switch (update_result)
   {
@@ -4061,12 +3881,12 @@ void update_firmware_partition(bool cmd = U_FLASH)
 
   case HTTP_UPDATE_OK:
     Serial.println("HTTP_UPDATE_OK");
-    // pitäisikä olla restart, tai menikö flashillä autom, entä littlefs reconnect./begin
     break;
   }
 }
 
 // The other templates come from littlefs filesystem, but on update we do not want to be dependant on that
+/*
 const char update_page_html[] PROGMEM = "<html><head></head>\
 <!-- https://codewithmark.com/easily-create-file-upload-progress-bar-using-only-javascript -->\
 <body style='background-color: #1a1e15;margin: 1.8em; font-size: 20px;font-family:  Helvetica, Arial, sans-serif;color: #f7f7e6;'>\
@@ -4102,20 +3922,44 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
         <br>Current versions: Program %VERSION% (%HWID%), Filesystem %version_fs%  </i>\
         </ body></ html> \
         ";
+*/
 
-// https://github.com/lbernstone/asyncUpdate/blob/master/AsyncUpdate.ino
+// minimized from/data/update.html with https://www.textfixer.com/html/compress-html-compression.php
+//  no double quotes, no onload etc with strinbg params, no double slash // comments
+const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2022, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #1a1e15; margin: 1.8em; font-size: 20px; font-family: Helvetica, Arial, sans-serif; color: #f7f7e6; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #f3f300; color: white; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => {init_document();}); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { document.getElementById('frm2').addEventListener('submit', (event) => {return confirm('Update software, this can take several minutes.');}); $.ajax({ url: '/data/ui-constants.json', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; console.log('got ui-constants.json', VERSION_SHORT); $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get ui-constants.json', textStatus, jqXHR.status); } }); load_releases(); } else { document.getElementById('div_upd2').style.display = 'none'; console.log('Cannot load jQuery library'); } } function load_releases() { $.ajax({ url: '/releases', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { load_count++; console.log('got releases'); hw = data.hw; if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/ if (load_count < 5) setTimeout(function () { load_releases(); }, 5000); else document.getElementById('div_upd2').style.display = 'none'; } else { $.each(data.releases, function (i, release) { d = new Date(release[1] * 1000); $('#sel_releases').append($('<option>', { value: release[0], text: release[0] + ' ' + d.toLocaleDateString() })); }); $('#btn_update').prop('disabled', (!(data.hasOwnProperty('releases')))); $('#sel_releases').prop('disabled', (!(data.hasOwnProperty('releases')))); if (VERSION_SHORT) { version_base = VERSION_SHORT.substring(0, VERSION_SHORT.lastIndexOf('.')); console.log('version_base', version_base); $('#sel_releases option:contains(' + version_base + ')').append(' ***'); } $('#div_upd2').css('opacity', '1'); } }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get releases', textStatus, jqXHR.status); document.getElementById('div_upd2').style.display = 'none'; } }); }; function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/#admin'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Firmware and filesystem update</h1> <div class='indent'> <p><a href='/export-config?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h2>Upload firmware files</h2> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div></div> <div id='div_upd2' style='opacity: 0.5;'> <h2>Automatic update - experimental</h2> <div class='indent'> <form method='post' id='frm2' action='/update'> <select name='release' id='sel_releases'> <option value=''>select release</option> </select> <input type='submit' id='btn_update' value='Update'> </form> </div></div> <br>Software: <span id='ver_sw'>*</span>, Filesystem: <span id='ver_fs'>*</span> - <a href='/#admin'>Return to Admin</a></body></html>";
+
 
 #include <Update.h>
 #define U_PART U_SPIFFS
-//
-void onWebUpdatePost(AsyncWebServerRequest *request)
+    /**
+     * @brief Sends update form (url: /update)
+     *
+     * @param request
+     */
+    void
+    onWebUpdatePost(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
-  todo_in_loop_update_firmware_partition = true;
+
   update_release_selected = request->getParam("release", true)->value();
-  Serial.println(update_release_selected);
+  if (!(update_release_selected.equals(String(VERSION_BASE))))
+  {
+    todo_in_loop_update_firmware_partition = true;
+    Serial.println(update_release_selected);
+    AsyncWebServerResponse *response = request->beginResponse(302, "text/html", PSTR("<html><body>Please wait while the device updates. This can take several minutes.</body></html>"));
+    request->send(response);
+  }
+  else
+  {
+    request->redirect("/update");
+  }
+
+  // response->addHeader("REFRESH", "15;URL=/");
 }
+
+#endif // OTA_DOWNLOAD_ENABLED
+#ifdef OTA_UPDATE_ENABLED
 
 /**
  * @brief Returns update form from memory variable. (no littlefs required)
@@ -4124,12 +3968,12 @@ void onWebUpdatePost(AsyncWebServerRequest *request)
  */
 void onWebUpdateGet(AsyncWebServerRequest *request)
 {
-
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
   todo_in_loop_get_releases = true;
-  Serial.println("update-form");
-  request->send_P(200, "text/html", update_page_html, jscode_form_processor);
+  // Serial.println("update-form");
+  // request->send_P(200, "text/html", update_page_html, jscode_form_processor);
+  request->send_P(200, "text/html", update_page_html);
 }
 
 /**
@@ -4261,6 +4105,7 @@ void reset_config(bool full_reset)
   strncpy(s.custom_ntp_server, "", sizeof(s.custom_ntp_server));
 
   s.baseload = 0;
+  s.ota_update_phase = OTA_PHASE_NONE;
   s.energy_meter_type = ENERGYM_NONE;
   strcpy(s.forecast_loc, "#");
 
@@ -5450,8 +5295,9 @@ void setup()
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
+  //Serial.prinf("settings_struct: %d,  settings_struct2: %d %d\n", (int)sizeof(settings_struct),(int)sizeof(settings_struct2),(int)sizeof(bool));
   randomSeed(analogRead(0)); // initiate random generator
-  Serial.printf(PSTR("VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE,VERSION, compile_date);
+  Serial.printf(PSTR("VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
   String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
@@ -5595,8 +5441,9 @@ void setup()
   server_web.on("/update", HTTP_POST, [](AsyncWebServerRequest *request)
                 { onWebUpdatePost(request); });
   // experimental
+  // if (!LittleFS.exists("/update.html")) -> we could use in /update
   server_web.on("/update2", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/update2.html", "text/html"); });
+                { request->send(LittleFS, "/update.html", "text/html"); });
 
   server_web.on(
       "/releases", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -5679,7 +5526,7 @@ void setup()
   server_web.serveStatic("/js/", LittleFS, "/js/");
 
   //  /data/ui-constants.json
-  server_web.on(ui_constants_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+  server_web.on("/ui-constants.json", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, ui_constants_filename, F("application/json")); });
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -5831,7 +5678,6 @@ void loop()
     scan_and_store_wifis(false);
   }
 
-
 #ifdef MDNS_ENABLED
   if (todo_in_loop_discover_devices) // TODO: check that stable enough
   {
@@ -5839,12 +5685,16 @@ void loop()
     discover_devices();
   }
 #endif
+
+#ifdef OTA_DOWNLOAD_ENABLED
   if (todo_in_loop_get_releases)
   {
     todo_in_loop_get_releases = false;
-    if (update_releases.length() < 10)
-      get_releases();
+    if (update_releases.length() < 10) {
+      bool got_releases = get_releases();
+    }
   }
+#endif
 
   // started from admin UI
   if (todo_in_loop_scan_sensors)
@@ -5898,11 +5748,11 @@ void loop()
   if (todo_in_loop_update_firmware_partition)
   {
     todo_in_loop_update_firmware_partition = false;
-    Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE,version_fs_base.c_str(),update_release_selected.c_str());
+    Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE, version_fs_base.c_str(), update_release_selected.c_str());
 
     // experimental, we should check the phase or have two different todo_in variables
-    //TODO: check that there is no upload in process at the same time (especially filesystem)
-    if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length()>0) //update firmware if requested and needed
+    // TODO: check that there is no upload in process at the same time (especially filesystem)
+    if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length() > 0) // update firmware if requested and needed
     {
       Serial.println(F("Starting firmware update."));
       update_firmware_partition(U_FLASH);
@@ -5911,7 +5761,7 @@ void loop()
     {
       Serial.println(F("Starting filesystem update."));
       update_firmware_partition(U_PART); // update fs if needed
-      check_filesystem_version(); // update variables to see if  version is updated
+      check_filesystem_version();        // update variables to see if  version is updated
     }
   }
 #endif
