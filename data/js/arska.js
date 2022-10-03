@@ -179,13 +179,13 @@ function update_price_chart() {
         options: {
             responsive: true,
             scales: {
-                y: {
+                y: { beginAtZero:true,
                     ticks: {
                         color: 'white',
                         font: { size: 17, }
                     },
                     position: { x: now_idx }, grid: {
-                        lineWidth: 1, color: "#f7f7e6", borderWidth: 2, borderColor: '#f7f7e6'
+                        lineWidth: 1, color: "#f7f7e6", borderWidth: 1, borderColor: '#f7f7e6'
                     }
                 }, x: { grid: { lineWidth: 0.5, display: true, color: "#f7f7e6" } }
             },
