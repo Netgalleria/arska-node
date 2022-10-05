@@ -10,7 +10,6 @@ body {
 }
 
 p {
-    font-size: 1.8em;
     color: #b8b89d
 }
 
@@ -167,7 +166,7 @@ h3 {
 
 a:any-link, .chlink {
     cursor:pointer; 
-    border-bottom: 4px solid #f3f300;
+    border-bottom: 3px dotted #f3f300;
 }
 a {
     text-decoration:none;
