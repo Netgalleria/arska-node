@@ -49,6 +49,8 @@ const CH_TYPE_SHELLY_1GEN = 2;
 const CH_TYPE_GPIO_USER_DEF = 3;
 const CH_TYPE_SHELLY_2GEN = 4;
 const CH_TYPE_TASMOTA = 5;
+const CH_TYPE_GPIO_USR_INVERSED = 10;
+
 const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
 const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
@@ -1126,7 +1128,7 @@ function initChannelForm() {
 }
 
 function is_relay_id_used(channel_type) { // id required
-    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
+    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF,CH_TYPE_GPIO_USR_INVERSED, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
 }
 function is_relay_ip_used(channel_type) { //ip required
     return [CH_TYPE_SHELLY_1GEN, CH_TYPE_SHELLY_2GEN, CH_TYPE_TASMOTA].includes(parseInt(channel_type));
@@ -1144,7 +1146,7 @@ function set_relay_field_visibility(channel_idx, chtype) {
     relay_id_caption_span = document.getElementById("ch_ridcap_" + channel_idx);
 
     if (is_relay_id_used(chtype)) {
-        max_rid = (chtype == (CH_TYPE_GPIO_USER_DEF) ? 39 : 255); //GPIO max 39
+        max_rid = ([CH_TYPE_GPIO_USER_DEF,CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype)) ? 39 : 255); //GPIO max 39
         document.getElementById("ch_rid_" + channel_idx).setAttribute("max", max_rid);
     }
     if (is_relay_uid_used(chtype)) {
@@ -1154,7 +1156,7 @@ function set_relay_field_visibility(channel_idx, chtype) {
         document.getElementById("ch_ruid_" + channel_idx).value = Math.max(min_ruid, cur_ruid); //for min value
     }
 
-    if (chtype == CH_TYPE_GPIO_USER_DEF) {
+    if ([CH_TYPE_GPIO_USER_DEF,CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype))) {
         relay_id_caption_span.innerHTML = "gpio:<br>";
     }
     else if (chtype == CH_TYPE_GPIO_FIXED) {

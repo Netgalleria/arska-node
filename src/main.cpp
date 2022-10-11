@@ -75,7 +75,7 @@ String version_fs_base; //= "";
 
 #define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to variables
 
-#define OTA_UPDATE_ENABLED   // OTA general
+#define OTA_UPDATE_ENABLED // OTA general
 //#define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
 
 #define eepromaddr 0
@@ -410,7 +410,6 @@ bool check_filesystem_version()
   bool is_ok;
   String current_version;
   File info_file = LittleFS.open("/data/version.txt", "r");
-  Serial.println(F("check_filesystem_version"));
 
   if (info_file.available())
   {
@@ -871,14 +870,18 @@ bool todo_in_loop_get_releases = false;
 bool todo_in_loop_write_to_eeprom = false;
 bool todo_in_loop_update_firmware_partition = false;
 
+bool todo_in_loop_reapply_relay_states = false;
+bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters have been changed and r
+
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
 #define CH_TYPE_GPIO_USER_DEF 3
-#define CH_TYPE_SHELLY_1GEN 2 // new, was CH_TYPE_SHELLY_ONOFF
-#define CH_TYPE_SHELLY_2GEN 4 //
-#define CH_TYPE_TASMOTA 5     //
-#define CH_TYPE_MODBUS_RTU 20 // RFU
-#define CH_TYPE_DISABLED 255  // RFU, we could have disabled, but allocated channels (binary )
+#define CH_TYPE_SHELLY_1GEN 2        // new, was CH_TYPE_SHELLY_ONOFF
+#define CH_TYPE_SHELLY_2GEN 4        //
+#define CH_TYPE_TASMOTA 5            //
+#define CH_TYPE_GPIO_USR_INVERSED 10 // RFU
+#define CH_TYPE_MODBUS_RTU 20        // RFU
+#define CH_TYPE_DISABLED 255         // RFU, we could have disabled, but allocated channels (binary )
 
 struct channel_type_st
 {
@@ -888,9 +891,10 @@ struct channel_type_st
 //#define CH_TYPE_SHELLY_ONOFF 2  -> 10
 //#define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
-#define CHANNEL_TYPE_COUNT 6
+#define CHANNEL_TYPE_COUNT 7
 
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO"}, {CH_TYPE_GPIO_USER_DEF, "GPIO, user def."}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}};
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO fixed"}, {CH_TYPE_GPIO_USER_DEF, "GPIO"}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed"}};
+// , rename gpio->gpio, fixed
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
 struct device_db_struct
@@ -1021,7 +1025,6 @@ typedef struct
 #endif
 } settings_struct;
 
-
 // this stores settings also to eeprom
 settings_struct s;
 
@@ -1121,7 +1124,7 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
   {
     utilization = 0;
   }
-  Serial.printf("set_state, channel: %d, on: %d , off: %d, utilization: %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
+  Serial.printf("%d, (on: %d / off: %d ) = %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
 
   channel_logs[channel_idx].state = new_state;
   channel_logs[channel_idx].this_state_started = now_l;
@@ -2560,7 +2563,7 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   else
     *price_ratio_avg = VARIABLE_LONG_UNKNOWN;
 
-  Serial.printf("get_period_price_rank_in_window %d in [%d - %d[  --> rank: %d, price ratio %ld\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg);
+  Serial.printf("price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg);
   return rank;
 }
 
@@ -2601,7 +2604,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
     localtime_r(&time, &tm_struct_g);
 
     Serial.printf("time: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, ", time, time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
-    Serial.printf("energyPriceSpot: %f \n", energyPriceSpot);
+    Serial.printf("price: %f \n", energyPriceSpot);
 
     int price_block_count = (int)(sizeof(price_variable_blocks) / sizeof(*price_variable_blocks));
     for (int block_idx = 0; block_idx < price_block_count; block_idx++)
@@ -3250,54 +3253,7 @@ bool generate_ui_constants(bool force_create = false) // true if exist or genera
   serializeJson(doc, constant_file);
 
   constant_file.close();
-  /*
 
-
-
-
-    if (var == F("channel_types"))
-    { // used by Javascript
-      strcpy(out, "[");
-      for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
-      {
-        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)channel_types[channel_type_idx].id, channel_types[channel_type_idx].name);
-        // TODO: memory safe strncat
-        strcat(out, buff);
-        if (channel_type_idx < CHANNEL_TYPE_COUNT - 1)
-          strcat(out, ", ");
-      }
-      strcat(out, "]");
-      return out;
-    }
-
-    // TODO: currently unused when coded in html template
-    if (var == F("hw_templates"))
-    { // used by Javascript
-      strcpy(out, "[");
-      for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
-      {
-        snprintf(buff, 50, "{\"id\": %d ,\"name\":\"%s\"}", (int)hw_templates[hw_template_idx].id, hw_templates[hw_template_idx].name);
-        // TODO: memory safe strncat
-        strcat(out, buff);
-        if (hw_template_idx < HW_TEMPLATE_COUNT - 1)
-          strcat(out, ", ");
-      }
-      strcat(out, "]");
-      return out;
-    }
-
-
-
-    if (var == F("DEBUG_MODE"))
-  #ifdef DEBUG_MODE
-      return "true";
-  #endif
-    if (var == "wifi_in_setup_mode")
-      return String(wifi_in_setup_mode ? "true" : "false");
-
-    return String();
-
-    */
   return true;
 }
 
@@ -3401,11 +3357,27 @@ int get_channel_to_switch(bool is_rise, int switch_count)
   }
   return -1; // we should not end up here
 }
+/*
+//WiP
+void set_and_write_gpio(uint8_t gpio, uint8_t new_pin_value) {
+   digitalWrite(gpio, new_pin_value);
+   pinMode(gpio, OUTPUT);
+}
+*/
 
-bool set_gpio_pinmode_output(int channel_idx)
+
+/**
+ * @brief Test gpio and optionally set pin mode for gpio switches
+ *
+ * @param channel_idx
+ * @param set_pinmode
+ * @return true
+ * @return false
+ */
+
+bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode = true)
 {
-  // set pin mode for gpio switches
-  if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED || s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF)
+  if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED || s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF || s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED)
   {
     uint8_t gpio = s.ch[channel_idx].relay_id;
     if ((gpio == 20) || (gpio == 24) || (gpio >= 28 && gpio <= 31) || (gpio > 39))
@@ -3413,12 +3385,13 @@ bool set_gpio_pinmode_output(int channel_idx)
       Serial.printf("Channel %d, invalid output gpio %d\n", channel_idx, (int)gpio);
       return false;
     }
-    pinMode(gpio, OUTPUT);
+    if (set_pinmode)
+      pinMode(gpio, OUTPUT);
     return true;
   }
   return false;
 }
-// TODO: tee loppuun ja testaa
+
 /**
  * @brief Switch http get relays
  *
@@ -3505,25 +3478,34 @@ bool switch_http_relay(int channel_idx, bool up)
  * @return true
  * @return false
  */
-bool set_channel_relay(int channel_idx, bool up)
+bool apply_relay_state(int channel_idx, bool init_relay)
 {
+  relay_state_reapply_required[channel_idx] = false;
   char error_msg[ERROR_MSG_LEN];
   if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     return false;
 
+  bool up = s.ch[channel_idx].is_up;
+
+  Serial.printf("ch%d ->%s", channel_idx,up?"HIGH  ":"LOW  ");
+
   ch_counters.set_state(channel_idx, up); // counters
-  if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF))
+  if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
   {
-    if (set_gpio_pinmode_output(channel_idx))
+    if (test_set_gpio_pinmode(channel_idx, init_relay)) 
     {
-      // TODO: check if this can do always in this cases before
-      digitalWrite(s.ch[channel_idx].relay_id, (up ? HIGH : LOW));
+      uint8_t pin_val;
+      if ((s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
+        pin_val = (up ? LOW : HIGH);
+      else
+        pin_val = (up ? HIGH : LOW);
+      digitalWrite(s.ch[channel_idx].relay_id, pin_val);
       return true;
     }
     else
       return false; // invalid gpio
   }
-  else if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN || s.ch[channel_idx].type == CH_TYPE_TASMOTA)
+  else if (wifi_connection_succeeded && (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN || s.ch[channel_idx].type == CH_TYPE_TASMOTA))
     switch_http_relay(channel_idx, up);
 
   return false;
@@ -3533,7 +3515,7 @@ bool set_channel_relay(int channel_idx, bool up)
  * @brief Check which channels can be raised /dropped
  *
  */
-void update_relay_states()
+void update_channel_states()
 {
   time_t now_in_func;
   bool forced_up;
@@ -3556,7 +3538,7 @@ void update_relay_states()
       s.ch[channel_idx].force_up_until = 0;
       wait_minimum_uptime = false;
     }
-    // forced_up = (s.ch[channel_idx].force_up_until > now_in_func); // signal to keep it up
+
     forced_up = (is_force_up_valid(channel_idx));
 
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
@@ -3575,10 +3557,10 @@ void update_relay_states()
     { // the channel is now down but should be forced up
       s.ch[channel_idx].wanna_be_up = true;
       Serial.println("forcing up");
-      continue;
+      continue; // forced, not checking channel rules
     }
 
-    // now checking normal state based conditions
+    // Now checking normal state based conditions
     s.ch[channel_idx].wanna_be_up = false;
     // loop channel targets until there is match (or no more targets)
     bool statement_true;
@@ -3594,11 +3576,10 @@ void update_relay_states()
       for (int statement_idx = 0; statement_idx < RULE_STATEMENTS_MAX; statement_idx++)
       {
         statement_st *statement = &s.ch[channel_idx].conditions[condition_idx].statements[statement_idx];
-        if (statement->variable_id != -1)
+        if (statement->variable_id != -1) // statement defined
         {
           nof_valid_statements++;
-
-          //   Serial.printf("update_relay_states statement.variable_id: %d\n", statement->variable_id);
+          //   Serial.printf("update_channel_states statement.variable_id: %d\n", statement->variable_id);
           statement_true = vars.is_statement_true(statement);
           if (!statement_true)
           {
@@ -3606,7 +3587,7 @@ void update_relay_states()
             break;
           }
         }
-      }
+      } // statement loop
 
       if (!(nof_valid_statements == 0) && !one_or_more_failed)
       {
@@ -3619,7 +3600,6 @@ void update_relay_states()
         s.ch[channel_idx].conditions[condition_idx].condition_active = true;
         break;
       }
-
     } // conditions loop
   }   // channel loop
 }
@@ -3651,7 +3631,7 @@ void set_relays()
   int oper_count;
 
   for (int drop_rise = 0; drop_rise < 2; drop_rise++)
-  { // first round drops, second rises
+  { // first round drops, second round rises
     is_rise = (drop_rise == 1);
     oper_count = is_rise ? rise_count : drop_count;
     switchings_to_todo = min(oper_count, MAX_CHANNELS_SWITCHED_AT_TIME);
@@ -3662,7 +3642,7 @@ void set_relays()
       s.ch[ch_to_switch].is_up = is_rise;
       s.ch[ch_to_switch].toggle_last = now;
 
-      set_channel_relay(ch_to_switch, s.ch[ch_to_switch].is_up);
+      apply_relay_state(ch_to_switch,false);
     }
   }
 }
@@ -3724,9 +3704,9 @@ String update_releases = "{}"; // software releases for updates, cached in RAM
 String update_release_selected = "";
 /**
  * @brief Get firmware releases from download web server
- * 
- * @return true 
- * @return false 
+ *
+ * @return true
+ * @return false
  */
 bool get_releases()
 {
@@ -3737,7 +3717,7 @@ bool get_releases()
     Serial.println(F("Cannot get release info from the firmware site."));
     return false;
   }
-  String url = "/arska-install/releases.php?pre_releases=true"; //TODO: exclude pre-releases or parametrize
+  String url = "/arska-install/releases.php?pre_releases=true"; // TODO: exclude pre-releases or parametrize
   client_https.print(String("GET ") + url + " HTTP/1.1\r\n" +
                      "Host: " + host_releases + "\r\n" +
                      "User-Agent: ArskaNoderESP\r\n" +
@@ -3763,8 +3743,8 @@ bool get_releases()
   return true;
 }
 /**
- * @brief // Callback called after succesful flash(program) update 
- * 
+ * @brief // Callback called after succesful flash(program) update
+ *
  */
 void flash_update_ended()
 {
@@ -3776,8 +3756,8 @@ void flash_update_ended()
 
 /**
  * @brief Download and update flash(program), restarts the device if successful
- * 
- * @return t_httpUpdate_return 
+ *
+ * @return t_httpUpdate_return
  */
 
 t_httpUpdate_return update_program()
@@ -3802,7 +3782,7 @@ t_httpUpdate_return update_program()
 }
 /**
  * @brief Callback called after succesfull filesystem update
- * 
+ *
  */
 void fs_update_ended()
 {
@@ -3813,9 +3793,9 @@ void fs_update_ended()
 }
 
 /**
- * @brief Download and update littlefs filesystem 
- * 
- * @return t_httpUpdate_return 
+ * @brief Download and update littlefs filesystem
+ *
+ * @return t_httpUpdate_return
  */
 t_httpUpdate_return update_fs()
 {
@@ -3846,8 +3826,8 @@ t_httpUpdate_return update_fs()
 }
 /**
  * @brief Update flash(program) or filesystem
- * 
- * @param cmd 
+ *
+ * @param cmd
  */
 void update_firmware_partition(bool cmd = U_FLASH)
 {
@@ -3928,16 +3908,14 @@ const char update_page_html[] PROGMEM = "<html><head></head>\
 //  no double quotes, no onload etc with strinbg params, no double slash // comments
 const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2022, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #1a1e15; margin: 1.8em; font-size: 20px; font-family: Helvetica, Arial, sans-serif; color: #f7f7e6; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #f3f300; color: white; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => {init_document();}); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { document.getElementById('frm2').addEventListener('submit', (event) => {return confirm('Update software, this can take several minutes.');}); $.ajax({ url: '/data/ui-constants.json', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; console.log('got ui-constants.json', VERSION_SHORT); $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get ui-constants.json', textStatus, jqXHR.status); } }); load_releases(); } else { document.getElementById('div_upd2').style.display = 'none'; console.log('Cannot load jQuery library'); } } function load_releases() { $.ajax({ url: '/releases', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { load_count++; console.log('got releases'); hw = data.hw; if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/ if (load_count < 5) setTimeout(function () { load_releases(); }, 5000); else document.getElementById('div_upd2').style.display = 'none'; } else { $.each(data.releases, function (i, release) { d = new Date(release[1] * 1000); $('#sel_releases').append($('<option>', { value: release[0], text: release[0] + ' ' + d.toLocaleDateString() })); }); $('#btn_update').prop('disabled', (!(data.hasOwnProperty('releases')))); $('#sel_releases').prop('disabled', (!(data.hasOwnProperty('releases')))); if (VERSION_SHORT) { version_base = VERSION_SHORT.substring(0, VERSION_SHORT.lastIndexOf('.')); console.log('version_base', version_base); $('#sel_releases option:contains(' + version_base + ')').append(' ***'); } $('#div_upd2').css('opacity', '1'); } }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get releases', textStatus, jqXHR.status); document.getElementById('div_upd2').style.display = 'none'; } }); }; function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/#admin'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Firmware and filesystem update</h1> <div class='indent'> <p><a href='/export-config?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h2>Upload firmware files</h2> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div></div> <div id='div_upd2' style='opacity: 0.5;'> <h2>Automatic update - experimental</h2> <div class='indent'> <form method='post' id='frm2' action='/update'> <select name='release' id='sel_releases'> <option value=''>select release</option> </select> <input type='submit' id='btn_update' value='Update'> </form> </div></div> <br>Software: <span id='ver_sw'>*</span>, Filesystem: <span id='ver_fs'>*</span> - <a href='/#admin'>Return to Admin</a></body></html>";
 
-
 #include <Update.h>
 #define U_PART U_SPIFFS
-    /**
-     * @brief Sends update form (url: /update)
-     *
-     * @param request
-     */
-    void
-    onWebUpdatePost(AsyncWebServerRequest *request)
+/**
+ * @brief Sends update form (url: /update)
+ *
+ * @param request
+ */
+void onWebUpdatePost(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
@@ -4132,7 +4110,6 @@ void reset_config(bool full_reset)
 
     s.ch[channel_idx].type = (s.ch[channel_idx].relay_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
 
-    // set_gpio_pinmode_output(channel_idx); // do before switch
 
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
@@ -4598,9 +4575,9 @@ void onWebDashboardPost(AsyncWebServerRequest *request)
  */
 void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
 {
-  Serial.println("len/total:");
+  /*Serial.println("len/total:");
   Serial.println(len);
-  Serial.println(total);
+  Serial.println(total);*/
   time(&now);
   int params = request->params();
   int channel_idx;
@@ -4611,7 +4588,7 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
   time_t force_up_until;
 
   StaticJsonDocument<2048> doc; //
-  Serial.println((const char *)data);
+  //Serial.println((const char *)data);
   DeserializationError error = deserializeJson(doc, (const char *)data);
   if (error)
   {
@@ -4774,10 +4751,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
   StaticJsonDocument<1024> stmts_json;
 
-  // bool stmts_emptied = false;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-
     snprintf(ch_fld, 20, "id_ch_%i", channel_idx); // channel id
     if (request->hasParam(ch_fld, true))
       strncpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str(), sizeof(s.ch[channel_idx].id_str));
@@ -4785,15 +4760,21 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     snprintf(ch_fld, 20, "rtype_%i", channel_idx); // channel type
     if (request->hasParam(ch_fld, true))
     {
-      if (request->getParam(ch_fld, true)->value().startsWith("1000_"))
+      if (request->getParam(ch_fld, true)->value().startsWith("1000_")) // discovered, not in use
       {
         String ch_type_str = request->getParam(ch_fld, true)->value().substring(5, request->getParam(ch_fld, true)->value().indexOf("_", 6));
-        // Serial.println("ch_type_str");
-        // Serial.println(ch_type_str);
         s.ch[channel_idx].type = ch_type_str.toInt();
+        if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED)
+        { // change fixed to user defined
+          s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
+        }
       }
-      else
+      else {
+        if (s.ch[channel_idx].type !=request->getParam(ch_fld, true)->value().toInt())
+          relay_state_reapply_required[channel_idx] = true; //type changed
         s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
+      }
+        
     }
 
     snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
@@ -4805,23 +4786,27 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     snprintf(ch_fld, 20, "ch_rid_%i", channel_idx);
     if (request->hasParam(ch_fld, true))
     {
-      //    Serial.println(ch_fld);
+       if (s.ch[channel_idx].relay_id !=request->getParam(ch_fld, true)->value().toInt())
+          relay_state_reapply_required[channel_idx] = true; //relay id changed
       s.ch[channel_idx].relay_id = request->getParam(ch_fld, true)->value().toInt();
-      // set_gpio_pinmode_output(channel_idx); // do before switch
     }
 
     if (update_channel_field_str(request, ip_buff, channel_idx, "ch_rip_%i", 15))
     {
-      //     Serial.println(ip_buff);
-      s.ch[channel_idx].relay_ip.fromString(ip_buff);
-    }
+      IPAddress newIP;
+      newIP.fromString(ip_buff);
+      if (!(s.ch[channel_idx].relay_ip ==newIP))
+          relay_state_reapply_required[channel_idx] = true; //relay id changed
 
-    // bool update_channel_field_str(AsyncWebServerRequest *request,char *target_str, int channel_idx,const char *field_format,size_t max_length) {
+     // s.ch[channel_idx].relay_ip.fromString(ip_buff);
+      s.ch[channel_idx].relay_ip = newIP;
+    }
 
     snprintf(ch_fld, 20, "ch_ruid_%i", channel_idx);
     if (request->hasParam(ch_fld, true))
     {
-      //   Serial.println(ch_fld);
+      if (s.ch[channel_idx].relay_unit_id !=request->getParam(ch_fld, true)->value().toInt())
+          relay_state_reapply_required[channel_idx] = true; //relay unit id changed
       s.ch[channel_idx].relay_unit_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
@@ -4829,7 +4814,7 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     if (request->hasParam(ch_fld, true))
       s.ch[channel_idx].config_mode = request->getParam(ch_fld, true)->value().toInt();
 
-    snprintf(ch_fld, 20, "rts_%i", channel_idx); // channe rule template
+    snprintf(ch_fld, 20, "rts_%i", channel_idx); // channel rule template
     if (request->hasParam(ch_fld, true))
     {
       s.ch[channel_idx].template_id = request->getParam(ch_fld, true)->value().toInt();
@@ -4850,8 +4835,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
 
       if (request->hasParam(stmts_fld, true) && !request->getParam(stmts_fld, true)->value().isEmpty())
       {
-        Serial.println(stmts_fld);
-        Serial.println(request->getParam(stmts_fld, true)->value());
+        // Serial.println(stmts_fld);
+        // Serial.println(request->getParam(stmts_fld, true)->value());
         DeserializationError error = deserializeJson(stmts_json, request->getParam(stmts_fld, true)->value());
         if (error)
         {
@@ -4889,7 +4874,6 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       }
 
       snprintf(ctrb_fld, 20, "ctrb_%i_%i", channel_idx, condition_idx);
-
       if (request->hasParam(ctrb_fld, true))
       {
         s.ch[channel_idx].conditions[condition_idx].on = (request->getParam(ctrb_fld, true)->value().toInt() == (int)1);
@@ -4898,9 +4882,11 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
       else
         Serial.printf("Field %s not found in the form.\n", ctrb_fld);
     }
-  }
+
+  } //channel loop
 
   writeToEEPROM(false);
+  todo_in_loop_reapply_relay_states = true;
   request->redirect("/#channels");
 }
 
@@ -4956,11 +4942,11 @@ void onWebAdminPost(AsyncWebServerRequest *request)
         { // touch only channel which could have gpio definitions
           if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255)
           {
-            s.ch[channel_idx].type = CH_TYPE_GPIO_FIXED;
+            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF; // was CH_TYPE_GPIO_FIXED;
             s.ch[channel_idx].relay_id = hw_templates[s.hw_template_id].gpios[channel_idx];
           }
           else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED)
-          { // fixed gpio -> user defined
+          { // fixed gpio -> user defined, new way
             s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
           }
         }
@@ -5295,7 +5281,7 @@ void setup()
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
-  //Serial.prinf("settings_struct: %d,  settings_struct2: %d %d\n", (int)sizeof(settings_struct),(int)sizeof(settings_struct2),(int)sizeof(bool));
+  // Serial.prinf("settings_struct: %d,  settings_struct2: %d %d\n", (int)sizeof(settings_struct),(int)sizeof(settings_struct2),(int)sizeof(bool));
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
@@ -5329,9 +5315,6 @@ void setup()
   Serial.println(F("Checking filesystem version"));
   todo_in_loop_update_firmware_partition = !(check_filesystem_version());
 
-  /*#ifdef INFLUX_REPORT_ENABLED
-    eeprom_used_size += sizeof(s_influx);
-  #endif */
   readFromEEPROM();
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
@@ -5340,8 +5323,18 @@ void setup()
     config_resetted = true;
   }
 
-  s.mdns_activated = false; // TODO: test if stable, if ok add activation to admin or channles view
-  Serial.println("mDNS not activated");
+  // Channel init with state DOWN/failsafe
+  Serial.println(F("Setting relays default/failsafe."));
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    s.ch[channel_idx].toggle_last = now;
+    // reset values from eeprom
+    s.ch[channel_idx].wanna_be_up = false;
+    s.ch[channel_idx].is_up = false;
+    apply_relay_state(channel_idx,true);
+    relay_state_reapply_required[channel_idx] = false;
+  }
+
   Serial.println("Starting wifi");
   scan_and_store_wifis(true); // testing this in the beginning
 
@@ -5361,9 +5354,7 @@ void setup()
   if ((strlen(s.wifi_ssid) == 0) || WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
   {
     Serial.println(F("WiFi Failed!"));
-
     delay(1000);
-
     WiFi.disconnect();
     delay(3000);
     wifi_in_setup_mode = true;
@@ -5378,7 +5369,6 @@ void setup()
     s.switch_subnet_wifi = WiFi.localIP();
     s.switch_subnet_wifi[3] = 0; // assume 24 bit subnet
     wifi_connection_succeeded = true;
-
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
 
@@ -5475,15 +5465,15 @@ void setup()
   {
     Serial.println("mDNS service not activated.");
   }
+
+  server_web.on("/discover", HTTP_GET, onWebDiscoverGet);
 #endif
 
   server_web.on("/do", HTTP_GET, onWebDoGet); // action queueu
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
 
-#ifdef MDNS_ENABLED
-  server_web.on("/discover", HTTP_GET, onWebDiscoverGet);
-#endif
+
 
   server_web.on("/export-config", HTTP_GET, export_config);
   // run handleUpload function when any file is uploaded
@@ -5561,19 +5551,7 @@ void setup()
   if (wifi_in_setup_mode)
     return; // no more setting, just wait for new SSID/password and then restarts
 
-  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {
-    // TODOX: this should be in flash already
-    // s.ch[channel_idx].relay_id = channel_gpios[channel_idx];
 
-    s.ch[channel_idx].toggle_last = now;
-    // reset values from eeprom
-    s.ch[channel_idx].wanna_be_up = false;
-    s.ch[channel_idx].is_up = false;
-    // set_gpio_pinmode_output(channel_idx); // do before switch
-
-    set_channel_relay(channel_idx, s.ch[channel_idx].is_up);
-  }
   if (!wifi_in_setup_mode)
     Serial.printf("\nArska dashboard url: http://%s/\n", WiFi.localIP().toString().c_str());
 
@@ -5690,7 +5668,8 @@ void loop()
   if (todo_in_loop_get_releases)
   {
     todo_in_loop_get_releases = false;
-    if (update_releases.length() < 10) {
+    if (update_releases.length() < 10)
+    {
       bool got_releases = get_releases();
     }
   }
@@ -5765,11 +5744,26 @@ void loop()
     }
   }
 #endif
-  // set relays, if forced from dashboard
+  // reapply current relay states (if relay parameters are changed)
+  if (todo_in_loop_reapply_relay_states)
+  {
+    Serial.println("queue task todo_in_loop_reapply_relay_states");
+    todo_in_loop_reapply_relay_states = false;
+    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+    {
+      if (relay_state_reapply_required[channel_idx]) {
+        Serial.printf("Reapply relay %d\n",channel_idx);
+        apply_relay_state(channel_idx,true);
+      }
+        
+    }
+  }
+  // recalculate channel states and set relays, if forced from dashboard
   if (todo_in_loop_set_relays)
   {
+    Serial.println("queue task todo_in_loop_set_relays");
     todo_in_loop_set_relays = false;
-    update_relay_states(); // new
+    update_channel_states();
     set_relays();
   }
 
@@ -5857,7 +5851,7 @@ void loop()
 
     time(&now);
     next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
-    update_relay_states();
+    update_channel_states();
     set_relays();
   }
 
