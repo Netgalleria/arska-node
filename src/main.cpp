@@ -14,7 +14,7 @@ Resource files (see data subfolder):
 - data/version.txt - file system version info
 - data/template-list.json - list of rule templates
 - data/templates.json - rule template definitions
-
+DEVEL BRANCH
 
  build options defined in platform.ini
 #define ESP32 //if ESP32 platform
