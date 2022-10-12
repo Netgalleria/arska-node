@@ -47,9 +47,9 @@ String version_fs_base; //= "";
 #include <HTTPClient.h>
 #elif defined(ESP8266) // not fully tested with ESP8266
 //#pragma message("ESP8266 version")
-#include <ESP8266WiFi.h>
-#include <ESPAsyncTCP.h>
-#include <ESP8266HTTPClient.h>
+//#include <ESP8266WiFi.h>
+//#include <ESPAsyncTCP.h>
+//#include <ESP8266HTTPClient.h>
 #endif
 
 #include <ESPAsyncWebServer.h>
