@@ -5270,7 +5270,7 @@ void wifi_event_handler(WiFiEvent_t event)
 }
 
 /**
- * @brief Arduino framwork function.  Everything starts from here while starting the controller.
+ * @brief Arduino framework function.  Everything starts from here while starting the controller.
  *
  */
 
