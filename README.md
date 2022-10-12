@@ -1,4 +1,4 @@
-***Development branch merged 2022-09-21 into main branch. Firmware you can directly install from [the installation page](https://iot.netgalleria.fi/arska-install/).*** 
+***Feeling brave? Latest development version you can find in the development branch [devel](https://github.com/Netgalleria/arska-node/tree/devel) . Development branch merged 2022-09-21 into main branch. Firmware you can directly install from [the installation page](https://iot.netgalleria.fi/arska-install/).*** 
 
 # Arska
 Arska makes your energy purchases greener and saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest and lower carbon intensive hours.
