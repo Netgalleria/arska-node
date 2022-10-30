@@ -2597,6 +2597,15 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   return rank;
 }
 
+
+long round_divide(long lval, long divider)
+{
+    long  add_in_round = lval < 0 ? -divider/2 : divider/2;
+    return (lval + add_in_round) / divider;
+}
+
+
+
 /**
  * @brief Get price ranks to current and future periods for defined windows/blocks
 //  * @details Price ranks tells how good is the price compared to other prices within window of periods \n
@@ -2649,12 +2658,13 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
         json_obj[var_code] = rank;
       }
       snprintf(var_code, sizeof(var_code), "pa%d", price_variable_blocks[block_idx]);
-      // json_obj[var_code] = window_price_avg / 100;
-      json_obj[var_code] = (window_price_avg + 50) / 100; // round
+     // json_obj[var_code] = (window_price_avg + 50) / 100; // round
+      json_obj[var_code] = round_divide(window_price_avg, 100);
 
       snprintf(var_code, sizeof(var_code), "pd%d", price_variable_blocks[block_idx]);
-      json_obj[var_code] = (price_differs_avg + 50) / 100; // round
-
+     // json_obj[var_code] = (price_differs_avg + 50) / 100; // round
+      json_obj[var_code] = round_divide(price_differs_avg, 100);
+      
       // price ratio
       snprintf(var_code, sizeof(var_code), "prr%d", price_variable_blocks[block_idx]);
       json_obj[var_code] = price_ratio_avg;
@@ -2967,13 +2977,14 @@ bool get_price_data()
   }
   else
   {
-    Serial.printf("Prices are not saved, end_reached %d, price_rows %d \n", end_reached, price_rows);
+    Serial.printf("ENTSO-E price data missing future prices, end_reached %d, price_rows %d \n", end_reached, price_rows);
+    log_msg(MSG_TYPE_WARN, PSTR("ENTSO-E price data missing future prices."));
   }
 
   Serial.println(read_ok ? F("Price query OK") : F("Price query failed"));
 
   if (!read_ok)
-    log_msg(MSG_TYPE_ERROR, PSTR("Failed to get price data."));
+    log_msg(MSG_TYPE_ERROR, PSTR("Failed to get price data from ENTSO-E."));
 
   return read_ok;
 }
@@ -4237,7 +4248,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
     doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
     doc["ch"][channel_idx]["uptime_minimum"] = s.ch[channel_idx].uptime_minimum;
-    doc["ch"][channel_idx]["up_last)"] = s.ch[channel_idx].up_last;
+    doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;

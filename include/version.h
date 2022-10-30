@@ -1,14 +1,14 @@
-//0.92.0-rc3
+//0.92.0-rc4
   #ifndef VERSION_BASE
-    #define VERSION_BASE "0.92.0-rc3"
+    #define VERSION_BASE "0.92.0-rc4"
   #endif
   #ifndef BUILD_NUMBER
-    #define BUILD_NUMBER "1326"
+    #define BUILD_NUMBER "1351"
   #endif
   #ifndef VERSION
-    #define VERSION "0.92.0-rc3.1326 - 2022-10-18 09:55:35"
+    #define VERSION "0.92.0-rc4.1351 - 2022-10-30 16:02:17"
   #endif
   #ifndef VERSION_SHORT
-    #define VERSION_SHORT "0.92.0-rc3.1326"
+    #define VERSION_SHORT "0.92.0-rc4.1351"
   #endif
   
