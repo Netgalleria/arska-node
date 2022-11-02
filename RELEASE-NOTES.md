@@ -1,5 +1,6 @@
 # Arska release notes
-## Arska 0.92 (updated 2022-10-12)
+## Arska 0.92 (updated 2022-11-02)
+* 0.92.0-stable released 2022-11-02
 
 ### Upgrade Steps
 * Prepare to rewrite device configuration when upgrading from version 0.91. Configuration backup in older version does not necessarily create complete backup file. If you are using an earliar build of 0.92, backup the configuration and restore it after upgrade.
