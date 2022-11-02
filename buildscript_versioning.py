@@ -4,12 +4,12 @@ FILENAME_BUILDNO = 'versioning'
 FILENAME_VERSION_H = 'include/version.h'
 # main version, ends with . (point) , build added automatically to the end
 # phases alpha, beta, rc, stable,  
-# e.g. 0.93.0-alpha1,  0.93.0-beta1,  0.93.0-rc1,  0.93.0-stable
+# e.g. 0.93.0-alpha1,  0.93.0-beta1,  0.93.0-rc1,  0.93.0-stable, 0.93.1-stable  
 
 #version = '0.92.0-beta1'
-#version = '0.92.0-beta2'
-version = '0.92.0-rc2'
 #version = '0.92.0-rc2'
+version = '0.92.0-stable'
+
 if version[-1]==".":
   version_base = version[:len(version)-1]
 else:

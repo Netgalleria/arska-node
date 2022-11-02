@@ -82,7 +82,6 @@ String version_fs_base; //= "";
 #define WATT_EPSILON 50
 
 const char *default_http_password PROGMEM = "arska";
-const char *required_fs_version PROGMEM = "0.92.530";
 const char *price_data_filename PROGMEM = "/data/price-data.json";
 const char *variables_filename PROGMEM = "/data/variables.json";
 const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
@@ -417,7 +416,6 @@ bool check_filesystem_version()
     version_fs_base = current_fs_version.substring(0, current_fs_version.lastIndexOf('.'));
     Serial.printf("version_fs_base: %s , VERSION_BASE %s\n", version_fs_base.c_str(), VERSION_BASE);
     strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
-    //   is_ok = (current_fs_version.compareTo(required_fs_version) <= 0);
     is_ok = version_fs_base.equals(VERSION_BASE);
     if (is_ok)
       Serial.println("No need for filesystem update.");
@@ -491,7 +489,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 29
+#define VARIABLE_COUNT 30
 
 #define VARIABLE_PRICE 0        //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1  //!< price rank within 9 hours window
@@ -521,6 +519,7 @@ struct statement_st
 #define VARIABLE_DAYENERGY_FI 130 //!< true if day, (07:00-22:00 Finnish tariffs), logical
 #define VARIABLE_WINTERDAY_FI 140 //!< true if winterday, (Finnish tariffs), logical
 #define VARIABLE_SENSOR_1 201     //!< sensor1 value, float, 1 decimal
+#define VARIABLE_BEEN_UP_AGO_HOURS_0 170 //RFU
 #define VARIABLE_LOCALTIME_TS 1001
 
 // variable dependency bitmask
@@ -566,7 +565,8 @@ public:
   int get_variable_count() { return VARIABLE_COUNT; };
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_FIXED_24, "p %% fixed 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+ // experimental , { VARIABLE_BEEN_UP_AGO_HOURS_0, "ch 1, up x h ago", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_UNDEFINED }};
   int get_variable_index(int id);
 };
 
@@ -845,8 +845,7 @@ bool sensor_ds18b20_enabled = false;
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
 #define PROCESS_INTERVAL_SECS 60 // process interval
-// unsigned long last_process_ts = -PROCESS_INTERVAL_SECS * 1000; // start reading as soon as you get to first loop
-time_t next_process_ts = 0; // start reading as soon as you get to first loop
+time_t next_process_ts = 0;      // start reading as soon as you get to first loop
 
 time_t recording_period_start = 0; // first period: boot time, later period starts
 time_t current_period_start = 0;
@@ -972,7 +971,7 @@ typedef struct
   bool wanna_be_up;       //!< should channel be switched up (when the time is right)
   byte type;              //!< channel type, for values see constants CH_TYPE_...
   time_t uptime_minimum;  //!< minimum time channel should be up
-  time_t toggle_last;     //!< last toggle time
+  time_t up_last;         //!< last last time up time
   time_t force_up_from;   //<! force channel up starting from
   time_t force_up_until;  //<! force channel up until
   byte config_mode;       //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
@@ -1036,7 +1035,8 @@ String wifi_mac_short;
 typedef struct
 {
   bool state;
-  time_t this_state_started;
+  time_t this_state_started_period;
+  time_t this_state_started_epoch;
   int on_time;
   int off_time;
 } channel_log_struct;
@@ -1059,10 +1059,12 @@ public:
   void init();
   void new_log_period(time_t ts_report);
   void set_state(int channel_idx, bool new_state);
+  time_t get_duration_in_this_state(int channel_idx);
 
 private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
 };
+
 void ChannelCounters::init()
 {
   time_t now_l;
@@ -1072,9 +1074,18 @@ void ChannelCounters::init()
     channel_logs[i].off_time = 0;
     channel_logs[i].on_time = 0;
     channel_logs[i].state = false;
-    channel_logs[i].this_state_started = now_l;
+    channel_logs[i].this_state_started_period = now_l;
+    channel_logs[i].this_state_started_epoch = now_l;
   }
 }
+
+time_t ChannelCounters::get_duration_in_this_state(int channel_idx)
+{
+  time_t now_l;
+  time(&now_l);
+  return (now_l - channel_logs[channel_idx].this_state_started_epoch);
+};
+
 void ChannelCounters::new_log_period(time_t ts_report)
 {
   time_t now_l;
@@ -1100,7 +1111,7 @@ void ChannelCounters::new_log_period(time_t ts_report)
   {
     channel_logs[i].off_time = 0;
     channel_logs[i].on_time = 0;
-    channel_logs[i].this_state_started = now_l;
+    channel_logs[i].this_state_started_period = now_l;
   }
   // write buffer
 }
@@ -1109,7 +1120,7 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
 {
   time_t now_l;
   time(&now_l);
-  int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started);
+  int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started_period);
   if (channel_logs[channel_idx].state)
     channel_logs[channel_idx].on_time += previous_state_duration;
   else
@@ -1126,8 +1137,11 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
   }
   Serial.printf("%d, (on: %d / off: %d ) = %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
 
+  bool old_state = channel_logs[channel_idx].state;
   channel_logs[channel_idx].state = new_state;
-  channel_logs[channel_idx].this_state_started = now_l;
+  channel_logs[channel_idx].this_state_started_period = now_l;
+  if (old_state != new_state)
+    channel_logs[channel_idx].this_state_started_epoch = now_l;
 }
 
 ChannelCounters ch_counters;
@@ -1558,18 +1572,21 @@ void readFromEEPROM()
   EEPROM.end();
 }
 
+time_t last_eeprom_write = 0;
+bool eeprom_noncritical_cache_dirty = false;
+#define EEPROM_CACHE_TIME_CONDITIONAL (15 * 60) // max interval of non-critical writes to eeprom
+
 /**
  * @brief Writes settings to eeprom
  *
  */
-void writeToEEPROM(bool instant_write)
+void writeToEEPROM()
 {
-  // delayd loop write disabled
-  /* if (!instant_write) {
-     todo_in_loop_write_to_eeprom = true;
-     return;
-   }
-   */
+  // is directly called for critical update
+  time_t now_infunc;
+  time(&now_infunc);
+  last_eeprom_write = now_infunc;
+  eeprom_noncritical_cache_dirty = false;
 
   int eeprom_used_size = sizeof(s);
   EEPROM.begin(eeprom_used_size);
@@ -1577,6 +1594,19 @@ void writeToEEPROM(bool instant_write)
   bool commit_ok = EEPROM.commit();
   Serial.printf(PSTR("writeToEEPROM: Writing %d bytes to eeprom. Result %s\n"), eeprom_used_size, commit_ok ? "OK" : "FAILED");
   EEPROM.end();
+}
+
+void flush_noncritical_eeprom_cache()
+{
+  time_t now_infunc;
+  time(&now_infunc);
+  if (((last_eeprom_write + EEPROM_CACHE_TIME_CONDITIONAL) < now_infunc) && eeprom_noncritical_cache_dirty)
+    writeToEEPROM();
+}
+
+void mark_noncritical_eeprom_cache_dirty()
+{
+  eeprom_noncritical_cache_dirty = true;
 }
 
 void notFound(AsyncWebServerRequest *request)
@@ -2563,9 +2593,18 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   else
     *price_ratio_avg = VARIABLE_LONG_UNKNOWN;
 
-  Serial.printf("price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg);
+  Serial.printf("price %ld, price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_price_idx], time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg,*window_price_avg,*price_differs_avg);
   return rank;
 }
+
+
+long round_divide(long lval, long divider)
+{
+    long  add_in_round = lval < 0 ? -divider/2 : divider/2;
+    return (lval + add_in_round) / divider;
+}
+
+
 
 /**
  * @brief Get price ranks to current and future periods for defined windows/blocks
@@ -2619,11 +2658,12 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
         json_obj[var_code] = rank;
       }
       snprintf(var_code, sizeof(var_code), "pa%d", price_variable_blocks[block_idx]);
-      // json_obj[var_code] = window_price_avg / 100;
-      json_obj[var_code] = (window_price_avg + 50) / 100; // round
+     // json_obj[var_code] = (window_price_avg + 50) / 100; // round
+      json_obj[var_code] = round_divide(window_price_avg, 100);
 
       snprintf(var_code, sizeof(var_code), "pd%d", price_variable_blocks[block_idx]);
-      json_obj[var_code] = (price_differs_avg + 50) / 100; // round
+     // json_obj[var_code] = (price_differs_avg + 50) / 100; // round
+      json_obj[var_code] = round_divide(price_differs_avg, 100);
 
       // price ratio
       snprintf(var_code, sizeof(var_code), "prr%d", price_variable_blocks[block_idx]);
@@ -2937,13 +2977,14 @@ bool get_price_data()
   }
   else
   {
-    Serial.printf("Prices are not saved, end_reached %d, price_rows %d \n", end_reached, price_rows);
+    Serial.printf("ENTSO-E price data missing future prices, end_reached %d, price_rows %d \n", end_reached, price_rows);
+    log_msg(MSG_TYPE_WARN, PSTR("ENTSO-E price data missing future prices."));
   }
 
   Serial.println(read_ok ? F("Price query OK") : F("Price query failed"));
 
   if (!read_ok)
-    log_msg(MSG_TYPE_ERROR, PSTR("Failed to get price data."));
+    log_msg(MSG_TYPE_ERROR, PSTR("Failed to get price data from ENTSO-E."));
 
   return read_ok;
 }
@@ -3113,8 +3154,6 @@ bool is_force_up_valid(int channel_idx)
 {
   time_t now_in_func;
   time(&now_in_func);
-  // Serial.printf("force_up_from %ld < %ld < %ld , onko", s.ch[channel_idx].force_up_from, now_in_func, s.ch[channel_idx].force_up_until);
-
   bool is_valid = ((s.ch[channel_idx].force_up_from <= now_in_func) && (now_in_func < s.ch[channel_idx].force_up_until));
   return is_valid;
 }
@@ -3137,10 +3176,7 @@ int active_condition(int channel_idx)
  */
 String jscode_form_processor(const String &var)
 {
-  // %VERSION% (%HWID%), Filesystem %version_fs%
-
-  // Serial.printf("jscode_form_processor starting processing %s\n", var.c_str());
-
+  
   if (var == F("VERSION"))
     return String(VERSION);
 
@@ -3257,25 +3293,7 @@ bool generate_ui_constants(bool force_create = false) // true if exist or genera
   return true;
 }
 
-// variables for the admin form
-/**
- * @brief Template processor for the admin form
- *
- * @param var
- * @return String
- */
-/*
-String setup_form_processor(const String &var)
-{
-  // Serial.printf("Debug setup_form_processor: %s\n", var.c_str());
-  // Javascript replacements
-  if (var == "CHANNEL_CONDITIONS_MAX")
-    return String(CHANNEL_CONDITIONS_MAX);
-  if (var == "wifi_in_setup_mode")
-    return String(wifi_in_setup_mode ? 1 : 0);
-  return String("");
-}
-*/
+
 /**
  * @brief Read grid or production info from energy meter/inverter
  *
@@ -3364,7 +3382,6 @@ void set_and_write_gpio(uint8_t gpio, uint8_t new_pin_value) {
    pinMode(gpio, OUTPUT);
 }
 */
-
 
 /**
  * @brief Test gpio and optionally set pin mode for gpio switches
@@ -3457,7 +3474,7 @@ bool switch_http_relay(int channel_idx, bool up)
       }
       else
       {
-        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
+        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
         log_msg(MSG_TYPE_WARN, error_msg, false);
       }
     }
@@ -3480,6 +3497,9 @@ bool switch_http_relay(int channel_idx, bool up)
  */
 bool apply_relay_state(int channel_idx, bool init_relay)
 {
+  time_t now_in_func;
+  time(&now_in_func);
+
   relay_state_reapply_required[channel_idx] = false;
   char error_msg[ERROR_MSG_LEN];
   if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
@@ -3487,12 +3507,18 @@ bool apply_relay_state(int channel_idx, bool init_relay)
 
   bool up = s.ch[channel_idx].is_up;
 
-  Serial.printf("ch%d ->%s", channel_idx,up?"HIGH  ":"LOW  ");
+  if (!init_relay && !up)
+  { // channel goes normally down, record last time seen up and queue for delayd eeprom write
+    s.ch[channel_idx].up_last = now_in_func;
+    mark_noncritical_eeprom_cache_dirty();
+    Serial.printf("Channel %d seen up now at %ld \n", channel_idx, (long)s.ch[channel_idx].up_last);
+  }
+  Serial.printf("ch%d ->%s", channel_idx, up ? "HIGH  " : "LOW  ");
 
   ch_counters.set_state(channel_idx, up); // counters
   if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
   {
-    if (test_set_gpio_pinmode(channel_idx, init_relay)) 
+    if (test_set_gpio_pinmode(channel_idx, init_relay))
     {
       uint8_t pin_val;
       if ((s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
@@ -3532,7 +3558,11 @@ void update_channel_states()
     }
 
     // reset condition_active variable
-    bool wait_minimum_uptime = ((now_in_func - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+    //  bool wait_minimum_uptime = ((now_in_func - s.ch[channel_idx].toggle_last) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+    bool wait_minimum_uptime = (ch_counters.get_duration_in_this_state(channel_idx) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
+
+    // debug / development:
+    //Serial.printf("DEBUG: Channel %d has been %s %d secs, waiting minimum uptime %d - %s\n", channel_idx, s.ch[channel_idx].is_up ? "UP" : "DOWN", (int)ch_counters.get_duration_in_this_state(channel_idx), s.ch[channel_idx].uptime_minimum, wait_minimum_uptime ? "YES" : "NO");
 
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down
@@ -3544,7 +3574,7 @@ void update_channel_states()
 
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
-      //  Serial.printf("Not yet time to drop channel %d . Since last toggle %d, force_up_until: %ld .\n", channel_idx, (int)(now_in_func - s.ch[channel_idx].toggle_last), s.ch[channel_idx].force_up_until);
+      //  Not yet time to drop channel
       s.ch[channel_idx].wanna_be_up = true;
       continue;
     }
@@ -3603,6 +3633,18 @@ void update_channel_states()
       }
     } // conditions loop
   }   // channel loop
+
+  /* experimental
+  // first test, move to channel loop when ready
+  time_t since_last_up_secs = now_in_func - s.ch[0].up_last;
+  if (since_last_up_secs<0 || since_last_up_secs> (SECONDS_IN_DAY*30)) {
+    Serial.printf("Not valid since_last_up_secs %ld\nn",(long)since_last_up_secs);
+    vars.set_NA(VARIABLE_BEEN_UP_AGO_HOURS_0);
+  }
+  else {
+     vars.set(VARIABLE_BEEN_UP_AGO_HOURS_0, (long)(round(since_last_up_secs / 360))); //1 decimal
+  }
+   */
 }
 
 /**
@@ -3641,9 +3683,9 @@ void set_relays()
       int ch_to_switch = get_channel_to_switch(is_rise, oper_count--);
       Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
       s.ch[ch_to_switch].is_up = is_rise;
-      s.ch[ch_to_switch].toggle_last = now;
+      //   s.ch[ch_to_switch].toggle_last = now;
 
-      apply_relay_state(ch_to_switch,false);
+      apply_relay_state(ch_to_switch, false);
     }
   }
 }
@@ -3752,7 +3794,7 @@ void flash_update_ended()
   Serial.println("CALLBACK:  HTTP update process finished");
   // set phase to enable fs version check after next boot
   s.ota_update_phase = OTA_PHASE_FWUPDATED_CHECKFS;
-  writeToEEPROM(true);
+  writeToEEPROM();
 }
 
 /**
@@ -3790,7 +3832,7 @@ void fs_update_ended()
   Serial.println("CALLBACK:  FS HTTP update process finished");
   // set phase to none/finished
   s.ota_update_phase = OTA_PHASE_NONE;
-  writeToEEPROM(true);
+  writeToEEPROM();
 }
 
 /**
@@ -4111,10 +4153,10 @@ void reset_config(bool full_reset)
 
     s.ch[channel_idx].type = (s.ch[channel_idx].relay_id < 255) ? CH_TYPE_GPIO_FIXED : CH_TYPE_UNDEFINED;
 
-
     s.ch[channel_idx].uptime_minimum = 60;
     s.ch[channel_idx].force_up_from = 0;
     s.ch[channel_idx].force_up_until = 0;
+    s.ch[channel_idx].up_last = 0;
     s.ch[channel_idx].config_mode = CHANNEL_CONFIG_MODE_RULE;
     s.ch[channel_idx].template_id = -1;
 
@@ -4206,7 +4248,7 @@ void export_config(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
     doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
     doc["ch"][channel_idx]["uptime_minimum"] = s.ch[channel_idx].uptime_minimum;
-    doc["ch"][channel_idx]["toggle_last"] = s.ch[channel_idx].toggle_last;
+    doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
@@ -4396,7 +4438,7 @@ bool import_config(const char *config_file_name)
     channel_idx++;
   }
 
-  writeToEEPROM(false);
+  writeToEEPROM();
 
   return true;
 }
@@ -4491,84 +4533,6 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
   serializeJson(root, output);
   request->send(200, "application/json", output);
 }
-
-/**
- * @brief Process dashboard form, forcing channels up
- *
- * @param request
- */
-/*
-void onWebDashboardPost(AsyncWebServerRequest *request)
-{
-  time(&now);
-  int params = request->params();
-  int channel_idx;
-  bool force_up_changes = false;
-  bool channel_already_forced;
-  long force_up_minutes;
-  time_t force_up_from = 0;
-  time_t force_up_until;
-  char force_up_from_fld[15];
-  char duration_fld[15];
-
-  for (channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {
-    snprintf(force_up_from_fld, sizeof(force_up_from_fld), "fupfrom_%d", channel_idx);
-    snprintf(duration_fld, sizeof(duration_fld), "fups_%d", channel_idx);
-
-    if (request->hasParam(duration_fld, true))
-    {
-      if (request->getParam(duration_fld, true)->value().toInt() == -1)
-        continue; // no selection
-      channel_already_forced = is_force_up_valid(channel_idx);
-      force_up_minutes = request->getParam(duration_fld, true)->value().toInt();
-
-      if (request->hasParam(force_up_from_fld, true))
-      {
-        //  Serial.printf("%s: %d\n", force_up_from_fld, (int)request->getParam(force_up_from_fld, true)->value().toInt());
-        if (request->getParam(force_up_from_fld, true)->value().toInt() == 0)
-          force_up_from = now;
-        else
-          force_up_from = max(now, request->getParam(force_up_from_fld, true)->value().toInt()); // absolute unix ts is waited
-      }
-
-      Serial.printf("channel_idx: %d, force_up_minutes: %ld , force_up_from %ld\n", channel_idx, force_up_minutes, force_up_from);
-
-      // if ((force_up_minutes != -1) && (channel_already_forced || force_up_minutes > 0))
-
-      if (force_up_minutes > 0)
-      {
-        force_up_until = force_up_from + force_up_minutes * 60; //-1;
-        s.ch[channel_idx].force_up_from = force_up_from;
-        s.ch[channel_idx].force_up_until = force_up_until;
-        if (is_force_up_valid(channel_idx))
-          s.ch[channel_idx].wanna_be_up = true;
-      }
-      else
-      {
-        s.ch[channel_idx].force_up_from = -1;  // forced down
-        s.ch[channel_idx].force_up_until = -1; // forced down
-        s.ch[channel_idx].wanna_be_up = false;
-      }
-      force_up_changes = true;
-    }
-  }
-
-  if (force_up_changes)
-  {
-    todo_in_loop_set_relays = true;
-    writeToEEPROM(false);
-  }
-  // use during transition when 2 ui versions
-  if (request->hasParam("ui_ver", true) && request->getParam("ui_ver", true)->value().toInt() == 2)
-  {
-    ui_ver = request->getParam("ui_ver", true)->value().toInt(); // upgrade it
-    request->redirect("/#dashboard");
-  }
-  else
-    request->redirect("/");
-}
-*/
 /**
  * @brief Process dashboard form, forcing channels up, JSON update, work in progress
  *
@@ -4589,7 +4553,7 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
   time_t force_up_until;
 
   StaticJsonDocument<2048> doc; //
-  //Serial.println((const char *)data);
+  // Serial.println((const char *)data);
   DeserializationError error = deserializeJson(doc, (const char *)data);
   if (error)
   {
@@ -4637,7 +4601,7 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
   if (force_up_changes)
   {
     todo_in_loop_set_relays = true;
-    writeToEEPROM(false);
+    writeToEEPROM();
   }
   request->send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -4708,7 +4672,7 @@ void onWebInputsPost(AsyncWebServerRequest *request)
 #endif
 
   // END OF INPUTS
-  writeToEEPROM(false);
+  writeToEEPROM();
 
   todo_in_loop_restart = todo_in_loop_restart_local;
 
@@ -4770,12 +4734,12 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
           s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
         }
       }
-      else {
-        if (s.ch[channel_idx].type !=request->getParam(ch_fld, true)->value().toInt())
-          relay_state_reapply_required[channel_idx] = true; //type changed
+      else
+      {
+        if (s.ch[channel_idx].type != request->getParam(ch_fld, true)->value().toInt())
+          relay_state_reapply_required[channel_idx] = true; // type changed
         s.ch[channel_idx].type = request->getParam(ch_fld, true)->value().toInt();
       }
-        
     }
 
     snprintf(ch_fld, 20, "ch_uptimem_%i", channel_idx);
@@ -4787,8 +4751,8 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     snprintf(ch_fld, 20, "ch_rid_%i", channel_idx);
     if (request->hasParam(ch_fld, true))
     {
-       if (s.ch[channel_idx].relay_id !=request->getParam(ch_fld, true)->value().toInt())
-          relay_state_reapply_required[channel_idx] = true; //relay id changed
+      if (s.ch[channel_idx].relay_id != request->getParam(ch_fld, true)->value().toInt())
+        relay_state_reapply_required[channel_idx] = true; // relay id changed
       s.ch[channel_idx].relay_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
@@ -4796,18 +4760,18 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
     {
       IPAddress newIP;
       newIP.fromString(ip_buff);
-      if (!(s.ch[channel_idx].relay_ip ==newIP))
-          relay_state_reapply_required[channel_idx] = true; //relay id changed
+      if (!(s.ch[channel_idx].relay_ip == newIP))
+        relay_state_reapply_required[channel_idx] = true; // relay id changed
 
-     // s.ch[channel_idx].relay_ip.fromString(ip_buff);
+      // s.ch[channel_idx].relay_ip.fromString(ip_buff);
       s.ch[channel_idx].relay_ip = newIP;
     }
 
     snprintf(ch_fld, 20, "ch_ruid_%i", channel_idx);
     if (request->hasParam(ch_fld, true))
     {
-      if (s.ch[channel_idx].relay_unit_id !=request->getParam(ch_fld, true)->value().toInt())
-          relay_state_reapply_required[channel_idx] = true; //relay unit id changed
+      if (s.ch[channel_idx].relay_unit_id != request->getParam(ch_fld, true)->value().toInt())
+        relay_state_reapply_required[channel_idx] = true; // relay unit id changed
       s.ch[channel_idx].relay_unit_id = request->getParam(ch_fld, true)->value().toInt();
     }
 
@@ -4884,9 +4848,9 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
         Serial.printf("Field %s not found in the form.\n", ctrb_fld);
     }
 
-  } //channel loop
+  } // channel loop
 
-  writeToEEPROM(false);
+  writeToEEPROM();
   todo_in_loop_reapply_relay_states = true;
   request->redirect("/#channels");
 }
@@ -5001,7 +4965,7 @@ void onWebAdminPost(AsyncWebServerRequest *request)
     reset_config(false);
     todo_in_loop_restart_local = true;
   }
-  writeToEEPROM(false);
+  writeToEEPROM();
 
   todo_in_loop_restart = todo_in_loop_restart_local;
 
@@ -5182,6 +5146,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
+    
+    doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
   }
 
   time_t current_time;
@@ -5328,11 +5294,11 @@ void setup()
   Serial.println(F("Setting relays default/failsafe."));
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    s.ch[channel_idx].toggle_last = now;
-    // reset values from eeprom
+    // s.ch[channel_idx].toggle_last = now; //TODO: remove this? , we want to know intentional toggless only
+    //  reset values from eeprom
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
-    apply_relay_state(channel_idx,true);
+    apply_relay_state(channel_idx, true);
     relay_state_reapply_required[channel_idx] = false;
   }
 
@@ -5474,8 +5440,6 @@ void setup()
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
 
-
-
   server_web.on("/export-config", HTTP_GET, export_config);
   // run handleUpload function when any file is uploaded
 
@@ -5552,7 +5516,6 @@ void setup()
   if (wifi_in_setup_mode)
     return; // no more setting, just wait for new SSID/password and then restarts
 
-
   if (!wifi_in_setup_mode)
     Serial.printf("\nArska dashboard url: http://%s/\n", WiFi.localIP().toString().c_str());
 
@@ -5615,7 +5578,7 @@ void loop()
       Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
       Serial.println();
       Serial.flush();
-      writeToEEPROM(false);
+      writeToEEPROM();
       delay(1000);
       ESP.restart();
     }
@@ -5623,7 +5586,7 @@ void loop()
   if (todo_in_loop_write_to_eeprom)
   {
     todo_in_loop_write_to_eeprom = false;
-    writeToEEPROM(true); // instant write
+    writeToEEPROM();
   }
 
 #ifdef DEBUG_MODE
@@ -5681,7 +5644,7 @@ void loop()
   {
     todo_in_loop_scan_sensors = false;
     if (scan_sensors())
-      writeToEEPROM(false);
+      writeToEEPROM();
   }
 
   // if in Wifi AP Mode (192.168.4.1), no other operations allowed
@@ -5752,11 +5715,11 @@ void loop()
     todo_in_loop_reapply_relay_states = false;
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
-      if (relay_state_reapply_required[channel_idx]) {
-        Serial.printf("Reapply relay %d\n",channel_idx);
-        apply_relay_state(channel_idx,true);
+      if (relay_state_reapply_required[channel_idx])
+      {
+        Serial.printf("Reapply relay %d\n", channel_idx);
+        apply_relay_state(channel_idx, true);
       }
-        
     }
   }
   // recalculate channel states and set relays, if forced from dashboard
@@ -5848,12 +5811,11 @@ void loop()
     update_meter_based_variables(); // TODO: if period change we could set write influx buffer after this?
     update_price_variables(current_period_start);
 
-    // last_process_ts = millis();
-
     time(&now);
     next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_channel_states();
     set_relays();
+    flush_noncritical_eeprom_cache();
   }
 
   if (period_changed)

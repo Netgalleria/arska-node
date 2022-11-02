@@ -1,5 +1,5 @@
 # Arska release notes
-## Arska 0.92 (updated 2022-09-18)
+## Arska 0.92 (updated 2022-10-12)
 
 ### Upgrade Steps
 * Prepare to rewrite device configuration when upgrading from version 0.91. Configuration backup in older version does not necessarily create complete backup file. If you are using an earliar build of 0.92, backup the configuration and restore it after upgrade.
@@ -10,6 +10,7 @@
 * New variables for channel rules: current price ratio %, compared with 9/24 hours average, variable id:s 13,14 and 15
 * Variable operators/functions "defined" and  "undefined" in rule definitions.
 * Price graph of last know 48 hours added to the dashboard.
+* New Relay type "GPIO inversed" can be used e.g. for failsafe dry contacs. If channel is DOWN gpio pin is HIGH and  vice versa.
 
 
 ### Bug Fixes
@@ -26,6 +27,7 @@
 * User interface (UI) tranformed to one html-document. No page loading when moving from section to another
 * UI/Dashboard, updating channel schedule now from update button (earlier save and reload of whole dashbord). The save button removed from the dashboard.
 * Dashboard status responds faster to channes status changes. 
+* GPIO relays are initiated with channel DOWN (-> LOW for normal gpio, -> HIGH for inversed GPIO) before wifi connect. pinMode is set only when needed (earlier always when switched)
 * New versioning system
 * More documentation
 
