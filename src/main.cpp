@@ -2593,7 +2593,7 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   else
     *price_ratio_avg = VARIABLE_LONG_UNKNOWN;
 
-  Serial.printf("price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld\n", time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg);
+  Serial.printf("price %ld, price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_price_idx], time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg,*window_price_avg,*price_differs_avg);
   return rank;
 }
 
@@ -2664,7 +2664,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
       snprintf(var_code, sizeof(var_code), "pd%d", price_variable_blocks[block_idx]);
      // json_obj[var_code] = (price_differs_avg + 50) / 100; // round
       json_obj[var_code] = round_divide(price_differs_avg, 100);
-      
+
       // price ratio
       snprintf(var_code, sizeof(var_code), "prr%d", price_variable_blocks[block_idx]);
       json_obj[var_code] = price_ratio_avg;
@@ -3474,7 +3474,7 @@ bool switch_http_relay(int channel_idx, bool up)
       }
       else
       {
-        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel  %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
+        snprintf(error_msg, ERROR_MSG_LEN, PSTR("Switch for channel %d switch at %s not timely set."), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
         log_msg(MSG_TYPE_WARN, error_msg, false);
       }
     }
