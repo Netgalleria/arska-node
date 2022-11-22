@@ -6,7 +6,7 @@
 </head>
 <body onload="init_sections();">
     <script src="js/jquery-3.6.0.min.js"></script>
-    <script src="js/arska.js"></script>
+    <script src="js/arska.js" ></script>
     <script src="js/chart.min.3.9.1.js"></script>
     <div id="cover"></div>
     <div class="secbr" id="headdiv">
@@ -27,7 +27,7 @@
         <div id="dashboard_chlist"></div>
     </div>
     <div id="section_services">
-        <form action="/inputs" method="post" id="inpFrm" onsubmit="return submitInputsForm(event)""> 
+        <form action="/inputs" method="post" id="inpFrm" onsubmit="return submitInputsForm(event)" accept-charset="ISO-8859-1"> 
             <input name="ui_ver" type="hidden" value="2">
             <input name=" source" type="hidden" value="inputs">
             <div class='secbr'>
@@ -280,7 +280,7 @@
         <div class="secbr">
         </div>  
 
-        <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)">
+        <form method="post" action="/channels" id="chFrm" onsubmit="return submitChannelForm(event)" accept-charset="ISO-8859-1">
             <input name="ui_ver" type="hidden" value="2">
             <input type="checkbox" id="statusauto"  onclick="statusCBClicked(this)"><label for='statusauto'>Show variable details</label> 
             <input name="source" type="hidden" value="channels">
@@ -290,7 +290,7 @@
         </form>
     </div>
     <div id="section_admin">
-        <form id="save_form" action="/admin" method="post" onsubmit="setFormSubmitting()">
+        <form id="save_form" action="/admin" method="post" onsubmit="setFormSubmitting()" accept-charset="ISO-8859-1">
             <input name="ui_ver" type="hidden" value="2">
             <input name="source" type="hidden" value="admin">
             <div id="wifid">

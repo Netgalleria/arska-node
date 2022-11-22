@@ -15,6 +15,10 @@
         "id": "price rank 24h",
         "en": "price rank in 24 hours, fixed nychthemeron, 1 if now lowest price, 24 if highest"
     },
+    "4": {
+        "id": "rank in 8 h block",
+        "en": "price rank in fixed 8 hour block"
+    },
     "5": {
         "id": "price average 9h",
         "en": "average price in 9 hours sliding window"
@@ -22,6 +26,10 @@
     "6": {
         "id": "price average 24h",
         "en": "average price in 24 hours sliding window"
+    },
+    "7": {
+        "id": "8 h block id",
+        "en": "current 8 hour block id, 23:00-06:59 -> 1 , 07:00-14:59 -> 2, 15:00-22:59 -> 3"
     },
     "9": {
         "id": "price diff to average 9h",

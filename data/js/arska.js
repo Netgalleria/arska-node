@@ -1967,7 +1967,7 @@ function init_sections() {
         async: false,
         success: function (data) { g_config = data; console.log("got g_config"); },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_config", textStatus, jqXHR.status);
+            console.log("Cannot get g_config", textStatus, jqXHR.status,errorThrown);
         }
     });
 
@@ -2016,7 +2016,7 @@ function initForm(url) { // called from html onload
         async: false,
         success: function (data) { g_config = data; console.log("got g_config"); },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_config", textStatus, jqXHR.status);
+            console.log("Cannot get g_config", textStatus, jqXHR.status,errorThrown);
         }
     });
 

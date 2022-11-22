@@ -1,6 +1,19 @@
 # Arska release notes
+
+## Arska 0.93 
+
+### New features
+* New variables for fixed 8 hours blocks (23-06,07-14,15-22): VARIABLE_PRICERANK_FIXED_8, VARIABLE_PRICERANK_FIXED_8_BLOCKID
+
+### Bug Fixes
+* Special character including Scandinavian characters did not work in channel id or forecast location. Fixed. Stores now characters in ISO-8859-1 .
+
+### Other Changes
+* Code cleanup: Removed outdated ESP8266 code, documentation, removed unused variables and functions
+
 ## Arska 0.92 (updated 2022-11-02)
 * 0.92.0-stable released 2022-11-02
+
 
 ### Upgrade Steps
 * Prepare to rewrite device configuration when upgrading from version 0.91. Configuration backup in older version does not necessarily create complete backup file. If you are using an earliar build of 0.92, backup the configuration and restore it after upgrade.
