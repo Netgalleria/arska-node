@@ -37,6 +37,8 @@ DEVEL BRANCH
 #include <LittleFS.h>
 #include "WebAuthentication.h"
 
+#include "ArskaGeneric.h"
+
 #include "version.h"
 const char compile_date[] = __DATE__ " " __TIME__;
 char version_fs[40];
@@ -246,19 +248,6 @@ AsyncWebServer server_web(80);
 // Clock functions, supports optional DS3231 RTC
 bool rtc_found = false;
 
-/**
- * @brief Set the internal clock from RTC or browser
- *
- * @param epoch  epoch (seconds in GMT)
- * @param microseconds
- */
-void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
-{
-  struct timeval tv;
-  tv.tv_sec = epoch;
-  tv.tv_usec = us;
-  settimeofday(&tv, NULL);
-}
 
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
@@ -305,15 +294,35 @@ const int httpsPort = 443;
  * @param sec
  * @return int64_t
  */
+/*
 int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
 {
-  const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                /* Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag */
-  int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; /* Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr) */
+  const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                // Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag 
+  int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; // Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr) 
   int64_t days_since_1970 = (year - 1970) * 365 + leapyears + ytd[mon - 1] + mday - 1;
   if ((mon > 2) && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
-    days_since_1970 += 1; /* +Schalttag, wenn Jahr Schaltjahr ist */
+    days_since_1970 += 1; // +Schalttag, wenn Jahr Schaltjahr ist 
   return sec + 60 * (min + 60 * (hour + 24 * days_since_1970));
 }
+
+
+*/
+
+/**
+ * @brief Set the internal clock from RTC or browser
+ *
+ * @param epoch  epoch (seconds in GMT)
+ * @param microseconds
+ */
+/*
+void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
+{
+  struct timeval tv;
+  tv.tv_sec = epoch;
+  tv.tv_usec = us;
+  settimeofday(&tv, NULL);
+}
+*/
 
 #ifdef RTC_DS3231_ENABLED
 
@@ -513,7 +522,7 @@ struct statement_st
 #define VARIABLE_PRICERANK_9 1               //!< price rank within 9 hours window
 #define VARIABLE_PRICERANK_24 2              //!< price rank within 24 hours window
 #define VARIABLE_PRICERANK_FIXED_24 3        //!< price rank within 24 hours (day) fixed 00-23
-#define VARIABLE_PRICERANK_FIXED_8 4         //!< price rank within 8 hours fixed blocks 23-06,07-14,15-22
+#define VARIABLE_PRICERANK_FIXED_8 4         //!< price rank within 8 hours fixed blocks 1)23-06, 2) 07-14, 3)15-22
 #define VARIABLE_PRICEAVG_9 5                //!< average price of 9 hours sliding windows
 #define VARIABLE_PRICEAVG_24 6               //!< average price of 24 hours sliding windows
 #define VARIABLE_PRICERANK_FIXED_8_BLOCKID 7 //!< block id of 8 hours block, 0-indexed 0-2
@@ -867,6 +876,10 @@ bool sensor_ds18b20_enabled = false;
 
 #define PROCESS_INTERVAL_SECS 60 // process interval
 time_t next_process_ts = 0;      // start reading as soon as you get to first loop
+
+// experimental 0.93
+int grid_protection_delay_max = 0; // TODO: still disabled (=0),later set to admin parameters
+int grid_protection_delay_interval;  // random, init in setup()
 
 time_t recording_period_start = 0; // first period: boot time, later period starts
 time_t current_period_start = 0;
@@ -1867,7 +1880,7 @@ bool read_ds18b20_sensors()
 
 #endif
 
-#define RESTART_AFTER_LAST_OK_METER_READ 1800 //!< If all energy meter readings are failed within this period, restart the device
+#define RESTART_AFTER_LAST_OK_METER_READ 18000 //!< If all energy meter readings are failed within this period, restart the device
 
 #ifdef METER_SHELLY3EM_ENABLED
 unsigned shelly3em_last_period = 0;
@@ -2729,25 +2742,7 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
   // Serial.println("calculate_price_ranks finished");
   return;
 }
-/**
- * @brief Return true if line is chunk size line in the http response
- *
- * @param line
- * @return true
- * @return false
- */
-bool is_chunksize_line(String line)
-{
-  if (line.charAt(line.length() - 1) != 13) // garbage line ends with cr
-    return false;
-  if (line.length() < 6)
-  { // It is probably buffer length in the beginning of chunk
-    Serial.printf(PSTR("Garbage removed [%s] (%d)\n"), line.substring(0, line.length() - 1).c_str(), line.length());
-    return true;
-  }
-  else
-    return false;
-}
+
 //
 //
 // TODO:ssl
@@ -2917,7 +2912,6 @@ bool get_price_data()
       Serial.println(line);
     }
 
-    //   Serial.println(line);
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
@@ -3637,10 +3631,17 @@ void update_channel_states()
  *
  *
  */
-void set_relays()
+void set_relays(bool grid_protection_delay_used)
 {
-  //
-  // random
+  // check if random delay is used (optional way:we could also limit rise_count?)
+  time_t now_infunc;
+  time(&now_infunc);
+  if (grid_protection_delay_used && (now_infunc < (current_period_start + grid_protection_delay_interval)))
+  {
+    Serial.printf(PSTR("Grid protection delay %ld of %d secs, %ld left\n"), grid_protection_delay_interval, (current_period_start + grid_protection_delay_interval - now));
+    return;
+  }
+
   int rise_count = 0;
   int drop_count = 0;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -3664,7 +3665,7 @@ void set_relays()
     switchings_to_todo = min(oper_count, MAX_CHANNELS_SWITCHED_AT_TIME);
     for (int i = 0; i < switchings_to_todo; i++)
     {
-      int ch_to_switch = get_channel_to_switch(is_rise, oper_count--);
+      int ch_to_switch = get_channel_to_switch(is_rise, oper_count--); // return in random order if many
       Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
       s.ch[ch_to_switch].is_up = is_rise;
       //   s.ch[ch_to_switch].toggle_last = now;
@@ -3880,7 +3881,7 @@ void update_firmware_partition(bool cmd = U_FLASH)
 
 // minimized from/data/update.html with https://www.textfixer.com/html/compress-html-compression.php
 //  no double quotes, no onload etc with strinbg params, no double slash // comments
-const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2022, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #1a1e15; margin: 1.8em; font-size: 20px; font-family: Helvetica, Arial, sans-serif; color: #f7f7e6; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #f3f300; color: white; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => {init_document();}); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { document.getElementById('frm2').addEventListener('submit', (event) => {return confirm('Update software, this can take several minutes.');}); $.ajax({ url: '/data/ui-constants.json', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; console.log('got ui-constants.json', VERSION_SHORT); $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get ui-constants.json', textStatus, jqXHR.status); } }); load_releases(); } else { document.getElementById('div_upd2').style.display = 'none'; console.log('Cannot load jQuery library'); } } function load_releases() { $.ajax({ url: '/releases', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { load_count++; console.log('got releases'); hw = data.hw; if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/ if (load_count < 5) setTimeout(function () { load_releases(); }, 5000); else document.getElementById('div_upd2').style.display = 'none'; } else { $.each(data.releases, function (i, release) { d = new Date(release[1] * 1000); $('#sel_releases').append($('<option>', { value: release[0], text: release[0] + ' ' + d.toLocaleDateString() })); }); $('#btn_update').prop('disabled', (!(data.hasOwnProperty('releases')))); $('#sel_releases').prop('disabled', (!(data.hasOwnProperty('releases')))); if (VERSION_SHORT) { version_base = VERSION_SHORT.substring(0, VERSION_SHORT.lastIndexOf('.')); console.log('version_base', version_base); $('#sel_releases option:contains(' + version_base + ')').append(' ***'); } $('#div_upd2').css('opacity', '1'); } }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get releases', textStatus, jqXHR.status); document.getElementById('div_upd2').style.display = 'none'; } }); }; function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/#admin'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Firmware and filesystem update</h1> <div class='indent'> <p><a href='/export-config?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h2>Upload firmware files</h2> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div></div> <div id='div_upd2' style='opacity: 0.5;'> <h2>Automatic update - experimental</h2> <div class='indent'> <form method='post' id='frm2' action='/update'> <select name='release' id='sel_releases'> <option value=''>select release</option> </select> <input type='submit' id='btn_update' value='Update'> </form> </div></div> <br>Software: <span id='ver_sw'>*</span>, Filesystem: <span id='ver_fs'>*</span> - <a href='/#admin'>Return to Admin</a></body></html>";
+const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2022, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #1a1e15; margin: 1.8em; font-size: 20px; font-family: Helvetica, Arial, sans-serif; color: #f7f7e6; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #f3f300; color: white; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => {init_document();}); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { document.getElementById('frm2').addEventListener('submit', (event) => {return confirm('Update software. This can take 5-10 minutes. Patience is a Virtue');}); $.ajax({ url: '/data/ui-constants.json', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; console.log('got ui-constants.json', VERSION_SHORT); $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get ui-constants.json', textStatus, jqXHR.status); } }); load_releases(); } else { document.getElementById('div_upd2').style.display = 'none'; console.log('Cannot load jQuery library'); } } function load_releases() { $.ajax({ url: '/releases', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { load_count++; console.log('got releases'); hw = data.hw; if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/ if (load_count < 5) setTimeout(function () { load_releases(); }, 5000); else document.getElementById('div_upd2').style.display = 'none'; } else { $.each(data.releases, function (i, release) { d = new Date(release[1] * 1000); $('#sel_releases').append($('<option>', { value: release[0], text: release[0] + ' ' + d.toLocaleDateString() })); }); $('#btn_update').prop('disabled', (!(data.hasOwnProperty('releases')))); $('#sel_releases').prop('disabled', (!(data.hasOwnProperty('releases')))); if (VERSION_SHORT) { version_base = VERSION_SHORT.substring(0, VERSION_SHORT.lastIndexOf('.')); console.log('version_base', version_base); $('#sel_releases option:contains(' + version_base + ')').append(' ***'); } $('#div_upd2').css('opacity', '1'); } }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get releases', textStatus, jqXHR.status); document.getElementById('div_upd2').style.display = 'none'; } }); }; function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/#admin'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Firmware and filesystem update</h1> <div class='indent'> <p><a href='/export-config?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h2>Upload firmware files</h2> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div></div> <div id='div_upd2' style='opacity: 0.5;'> <h2>Automatic update - experimental</h2> <div class='indent'> <form method='post' id='frm2' action='/update'> <select name='release' id='sel_releases'> <option value=''>select release</option> </select> <input type='submit' id='btn_update' value='Update'> </form> </div></div> <br>Software: <span id='ver_sw'>*</span>, Filesystem: <span id='ver_fs'>*</span> - <a href='/#admin'>Return to Admin</a></body></html>";
 
 #include <Update.h>
 #define U_PART U_SPIFFS
@@ -4173,15 +4174,16 @@ void export_config(AsyncWebServerRequest *request)
 
     doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
     // Debug
+    /*
     Serial.println(s.ch[channel_idx].id_str);
     clean_str(s.ch[channel_idx].id_str);
     Serial.println(s.ch[channel_idx].id_str);
-     for (int j = 0; j < strlen(s.ch[channel_idx].id_str); j++)
+    for (int j = 0; j < strlen(s.ch[channel_idx].id_str); j++)
     {
-      Serial.printf("%c (%x) ", s.ch[channel_idx].id_str[j],  s.ch[channel_idx].id_str[j]);
+      Serial.printf("%c (%x) ", s.ch[channel_idx].id_str[j], s.ch[channel_idx].id_str[j]);
     }
     Serial.println();
-
+    */
 
     doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
@@ -4252,12 +4254,9 @@ void export_config(AsyncWebServerRequest *request)
       format = 1;
   }
 
-  if (format == 0) {
+  if (format == 0)
+  {
     request->send(200, "application/json; charset=iso-8859-1", output);
-   /*  AsyncWebServerResponse *response = request->beginResponse(200, "application/octet-stream", output); // file
-    response->addHeader("Content-Disposition", Content_Disposition);
-    response->
-    request->send(response);*/
   }
   else
   {
@@ -4657,14 +4656,17 @@ void onWebChannelsPost(AsyncWebServerRequest *request)
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     snprintf(ch_fld, 20, "id_ch_%i", channel_idx); // channel id
-    if (request->hasParam(ch_fld, true)) {
-      strncpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str(), sizeof(s.ch[channel_idx].id_str));
-      Serial.printf("Debug %s: %s\n", ch_fld, request->getParam(ch_fld, true)->value().c_str());
-    for (int j = 0; j < strlen(s.ch[channel_idx].id_str); j++)
+    if (request->hasParam(ch_fld, true))
     {
-      Serial.printf("%c (%x) ", s.ch[channel_idx].id_str[j],  s.ch[channel_idx].id_str[j]);
-    }
-    Serial.println();
+      strncpy(s.ch[channel_idx].id_str, request->getParam(ch_fld, true)->value().c_str(), sizeof(s.ch[channel_idx].id_str));
+      /*
+      Serial.printf("Debug %s: %s\n", ch_fld, request->getParam(ch_fld, true)->value().c_str());
+      for (int j = 0; j < strlen(s.ch[channel_idx].id_str); j++)
+      {
+        Serial.printf("%c (%x) ", s.ch[channel_idx].id_str[j], s.ch[channel_idx].id_str[j]);
+      }
+      Serial.println();
+      */
     }
 
     snprintf(ch_fld, 20, "rtype_%i", channel_idx); // channel type
@@ -5199,6 +5201,11 @@ void setup()
   String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
 
+  //Experimental
+  grid_protection_delay_interval = random(0, grid_protection_delay_max/PROCESS_INTERVAL_SECS)*PROCESS_INTERVAL_SECS;
+  Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
+
+
   for (int i = 14; i > 0; i -= 3)
   {
     wifi_mac_short.remove(i, 1);
@@ -5274,8 +5281,8 @@ void setup()
   }
   else
   {
-    Serial.printf(PSTR("Connected to wifi [%s] with IP Address:"), s.wifi_ssid);
-    Serial.println(WiFi.localIP());
+    Serial.printf(PSTR("Connected to wifi [%s] with IP Address: %s, gateway: %s \n"), s.wifi_ssid, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str());
+
     s.switch_subnet_wifi = WiFi.localIP();
     s.switch_subnet_wifi[3] = 0; // assume 24 bit subnet
     wifi_connection_succeeded = true;
@@ -5671,7 +5678,7 @@ void loop()
     Serial.println("queue task todo_in_loop_set_relays");
     todo_in_loop_set_relays = false;
     update_channel_states();
-    set_relays();
+    set_relays(false);
   }
 
   // just in case check the wifi and reconnect/restart if needed
@@ -5703,7 +5710,7 @@ void loop()
   // new period
   if (previous_period_start != current_period_start)
   {
-    Serial.printf("\nPeriod changed %ld -> %ld\n", previous_period_start, current_period_start);
+    Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start, grid_protection_delay_interval);
     period_changed = true;
     next_process_ts = now; // process now if new period
     update_time_based_variables();
@@ -5757,7 +5764,7 @@ void loop()
     time(&now);
     next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_channel_states();
-    set_relays();
+    set_relays(true); //grid protection delay active
     flush_noncritical_eeprom_cache();
   }
 
