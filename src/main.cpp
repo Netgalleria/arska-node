@@ -61,8 +61,10 @@ String version_fs_base; //= "";
 #define METER_SHELLY3EM_ENABLED           //!< Shelly 3EM functionality enabled
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
-#define MDNS_ENABLED_NOTENABLED           // experimental, disabled due to stability concerns
-#define PING_ENABLED                      // for testing if internet connection etc ok
+#define METER_HAN_ENABLED 1
+
+#define MDNS_ENABLED_NOTENABLED // experimental, disabled due to stability concerns
+#define PING_ENABLED            // for testing if internet connection etc ok
 
 // TODO: replica mode will be probably removed later
 #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
@@ -80,7 +82,7 @@ String version_fs_base; //= "";
 const char *default_http_password PROGMEM = "arska";
 const char *price_data_filename PROGMEM = "/data/price-data.json";
 const char *variables_filename PROGMEM = "/data/variables.json";
-const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
+// const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
 const char *wifis_filename PROGMEM = "/data/wifis.json";
 const char *template_filename PROGMEM = "/data/templates.json";
 const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
@@ -248,7 +250,6 @@ AsyncWebServer server_web(80);
 // Clock functions, supports optional DS3231 RTC
 bool rtc_found = false;
 
-
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
@@ -271,9 +272,13 @@ const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reportin
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
+#define RELEASES_HOST "iot.netgalleria.fi"
+#define RELEASES_URL "/arska-install/releases.php?pre_releases=true"
+
 const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
 
-String url_base = "/api?documentType=A44&processType=A16";
+// String url_base = "/api?documentType=A44&processType=A16";
+const char *url_base PROGMEM = "/api?documentType=A44&processType=A16";
 // API documents: https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_areas
 
 time_t next_query_price_data = 0;
@@ -297,11 +302,11 @@ const int httpsPort = 443;
 /*
 int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
 {
-  const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                // Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag 
-  int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; // Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr) 
+  const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                // Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag
+  int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; // Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr)
   int64_t days_since_1970 = (year - 1970) * 365 + leapyears + ytd[mon - 1] + mday - 1;
   if ((mon > 2) && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
-    days_since_1970 += 1; // +Schalttag, wenn Jahr Schaltjahr ist 
+    days_since_1970 += 1; // +Schalttag, wenn Jahr Schaltjahr ist
   return sec + 60 * (min + 60 * (hour + 24 * days_since_1970));
 }
 
@@ -878,8 +883,8 @@ bool sensor_ds18b20_enabled = false;
 time_t next_process_ts = 0;      // start reading as soon as you get to first loop
 
 // experimental 0.93
-int grid_protection_delay_max = 0; // TODO: still disabled (=0),later set to admin parameters
-int grid_protection_delay_interval;  // random, init in setup()
+int grid_protection_delay_max = 0;  // TODO: still disabled (=0),later set to admin parameters
+int grid_protection_delay_interval; // random, init in setup()
 
 time_t recording_period_start = 0; // first period: boot time, later period starts
 time_t current_period_start = 0;
@@ -939,7 +944,7 @@ struct device_db_struct
 
 device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
 
-#define HW_TEMPLATE_COUNT 3
+#define HW_TEMPLATE_COUNT 4
 #define HW_TEMPLATE_GPIO_COUNT 4
 struct hw_template_st
 {
@@ -948,7 +953,7 @@ struct hw_template_st
   byte gpios[HW_TEMPLATE_GPIO_COUNT];
 };
 
-hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 255}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}};
+hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 255}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -968,7 +973,8 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 
 #define ENERGYM_SHELLY3EM 1
 #define ENERGYM_FRONIUS_SOLAR 2
 #define ENERGYM_SMA_MODBUS_TCP 3
-#define ENERGYM_MAX 3
+#define ENERGYM_HAN_WIFI 4
+#define ENERGYM_MAX 4
 
 // Type texts for config ui - now hardcoded in html
 // const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
@@ -1396,7 +1402,6 @@ bool update_prices_to_influx()
     Serial.print("isBufferEmpty no ");
 
   Point point_period_price("period_price");
-  // point_period_price.addTag("device", String(influx_device_id_prefix) + wifi_mac_short);
 
   for (unsigned int i = 0; (i < prices_array.size() && i < MAX_PRICE_PERIODS); i++)
   {
@@ -1423,8 +1428,9 @@ bool update_prices_to_influx()
   ifclient.flushBuffer();
   delay(100);
 
-  struct tm timeinfo;
-  getLocalTime(&timeinfo); // update from NTP?
+  // removed from 0.93
+  // struct tm timeinfo;
+  // getLocalTime(&timeinfo); // update from NTP?
   if (!ifclient.flushBuffer())
   {
     Serial.print("InfluxDB flush failed: ");
@@ -1882,17 +1888,20 @@ bool read_ds18b20_sensors()
 
 #define RESTART_AFTER_LAST_OK_METER_READ 18000 //!< If all energy meter readings are failed within this period, restart the device
 
-#ifdef METER_SHELLY3EM_ENABLED
-unsigned shelly3em_last_period = 0;
-long shelly3em_period_first_read_ts = 0;
-long shelly3em_meter_read_ts = 0; //!< Last time meter was read successfully
-long shelly3em_read_count = 0;
-float shelly3em_e_in_prev = 0;
-float shelly3em_e_out_prev = 0;
-float shelly3em_e_in = 0;
-float shelly3em_e_out = 0;
-float shelly3em_power_in = 0;
-int shelly3em_period_read_count = 0;
+#ifdef METER_HAN_ENABLED
+
+#endif
+
+unsigned energym_last_period = 0;
+long energym_period_first_read_ts = 0;
+long energym_meter_read_ts = 0; //!< Last time meter was read successfully
+long energym_read_count = 0;
+double energym_e_in_prev = 0;
+double energym_e_out_prev = 0;
+double energym_e_in = 0;
+double energym_e_out = 0;
+float energym_power_in = 0;
+int energym_period_read_count = 0;
 
 /**
  * @brief Get earlier read energy values
@@ -1900,25 +1909,25 @@ int shelly3em_period_read_count = 0;
  * @param netEnergyInPeriod
  * @param netPowerInPeriod
  */
-void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
+void get_values_energym(float &netEnergyInPeriod, float &netPowerInPeriod)
 {
-  if (shelly3em_read_count < 2)
+  if (energym_read_count < 2)
   {
-    netPowerInPeriod = shelly3em_power_in; // short/no history, using momentary value
+    netPowerInPeriod = energym_power_in; // short/no history, using momentary value
     netEnergyInPeriod = 0;
-    //  Serial.printf("get_values_shelly3m  shelly3em_read_count: %ld, netPowerInPeriod: %f, netEnergyInPeriod: %f\n", shelly3em_read_count, netPowerInPeriod, netEnergyInPeriod);
+    //  Serial.printf("get_values_energym  energym_read_count: %ld, netPowerInPeriod: %f, netEnergyInPeriod: %f\n", energym_read_count, netPowerInPeriod, netEnergyInPeriod);
   }
   else
   {
-    netEnergyInPeriod = (shelly3em_e_in - shelly3em_e_out - shelly3em_e_in_prev + shelly3em_e_out_prev);
+    netEnergyInPeriod = (energym_e_in - energym_e_out - energym_e_in_prev + energym_e_out_prev);
 #ifdef DEBUG_MODE
-    Serial.printf("get_values_shelly3m netEnergyInPeriod (%.1f) = (shelly3em_e_in (%.1f) - shelly3em_e_out (%.1f) - shelly3em_e_in_prev (%.1f) + shelly3em_e_out_prev (%.1f))\n", netEnergyInPeriod, shelly3em_e_in, shelly3em_e_out, shelly3em_e_in_prev, shelly3em_e_out_prev);
+    Serial.printf("get_values_energym netEnergyInPeriod (%.1f) = (energym_e_in (%.1f) - energym_e_out (%.1f) - energym_e_in_prev (%.1f) + energym_e_out_prev (%.1f))\n", netEnergyInPeriod, energym_e_in, energym_e_out, energym_e_in_prev, energym_e_out_prev);
 #endif
-    if ((shelly3em_meter_read_ts - shelly3em_period_first_read_ts) != 0)
+    if ((energym_meter_read_ts - energym_period_first_read_ts) != 0)
     {
-      netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((shelly3em_meter_read_ts - shelly3em_period_first_read_ts)));
+      netPowerInPeriod = round(netEnergyInPeriod * 3600.0 / ((energym_meter_read_ts - energym_period_first_read_ts)));
 #ifdef DEBUG_MODE
-      Serial.printf("get_values_shelly3m netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( shelly3em_meter_read_ts (%ld) - shelly3em_period_first_read_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, shelly3em_meter_read_ts, shelly3em_period_first_read_ts, (shelly3em_meter_read_ts - shelly3em_period_first_read_ts));
+      Serial.printf("get_values_energym netPowerInPeriod (%.1f) = round(netEnergyInPeriod (%.1f) * 3600.0 / (( energym_meter_read_ts (%ld) - energym_period_first_read_ts (%ld) )))  --- time %ld\n", netPowerInPeriod, netEnergyInPeriod, energym_meter_read_ts, energym_period_first_read_ts, (energym_meter_read_ts - energym_period_first_read_ts));
 #endif
     }
     else // Do we ever get here with counter check
@@ -1927,6 +1936,152 @@ void get_values_shelly3m(float &netEnergyInPeriod, float &netPowerInPeriod)
     }
   }
 }
+
+#ifdef METER_HAN_ENABLED
+/**
+ *
+ */
+bool read_meter_han()
+{
+  char url[90];
+  // snprintf(url, sizeof(url), "http://%s/api/v1/telegram", s.energy_meter_host);
+  snprintf(url, sizeof(url), "http://%s/api/v1/telegram/index.txt", s.energy_meter_host);
+  Serial.println(url);
+  String telegram = httpGETRequest(url, "");
+
+  time_t now_in_func;
+  time(&now_in_func);
+
+  int s_idx = 0, e_idx;
+  int vs_idx, ve_idx, va_idx;
+  int len = telegram.length();
+  int i = 0;
+  energym_read_count++; // global
+  unsigned now_period = int(now_in_func / (NETTING_PERIOD_SEC));
+  energym_meter_read_ts = now_in_func;
+
+  float netEnergyInPeriod;
+  float netPowerInPeriod;
+  if (energym_last_period != now_period)
+  {
+    energym_period_read_count = 0;
+  }
+
+  if ((energym_last_period > 0) && energym_period_read_count == 1)
+  { // new period
+    ESP_LOGI(TAG, "****HAN - new period counter reset");
+    // from this call
+    energym_e_in_prev = energym_e_in;
+    energym_e_out_prev = energym_e_out;
+  }
+
+  // read
+  double power_tot = 0;
+  int idx = 0;
+  energym_e_in = 0;
+  energym_e_out = 0;
+
+  double power_in = 0;
+  double power_out = 0;
+
+  while (s_idx <= len)
+  {
+    e_idx = telegram.indexOf('\n', s_idx);
+    if (e_idx == -1)
+      break;
+
+    vs_idx = telegram.indexOf('(', s_idx);
+    if ((vs_idx == -1) || (vs_idx > e_idx))
+    { // no '(' on the line
+      s_idx = e_idx + 1;
+      continue;
+    }
+    ve_idx = telegram.indexOf(')', vs_idx);
+    if ((ve_idx == -1) || (ve_idx > e_idx))
+    { // no ')' on the line
+      s_idx = e_idx + 1;
+      continue;
+    }
+
+    va_idx = telegram.indexOf('*', vs_idx);
+    if ((va_idx == -1) || (va_idx > e_idx))
+    { // no '*' on the line, no unit
+      s_idx = e_idx + 1;
+      continue;
+    }
+
+    Serial.print(telegram.substring(s_idx, vs_idx)); // OBIS code
+    Serial.print("|value");
+    Serial.print(telegram.substring(vs_idx + 1, va_idx)); // Value
+    Serial.print("|unit:");
+    Serial.print(telegram.substring(va_idx + 1, ve_idx)); // unit
+    Serial.println("|");
+
+    if (telegram.substring(s_idx, vs_idx).startsWith("1-0:1.7.0"))
+    {
+      power_in = telegram.substring(vs_idx + 1, va_idx).toDouble();
+      if (telegram.substring(va_idx + 1, ve_idx).startsWith("kW"))
+        power_in = power_in * 1000;
+    }
+
+    if (telegram.substring(s_idx, vs_idx).startsWith("1-0:2.7.0"))
+    {
+      power_out = telegram.substring(vs_idx + 1, va_idx).toDouble();
+      if (telegram.substring(va_idx + 1, ve_idx).startsWith("kW"))
+        power_out = power_out * 1000;
+    }
+    power_tot = power_in - power_out;
+    if (telegram.substring(s_idx, vs_idx).startsWith("1-0:1.8.0"))
+    {
+      energym_e_in = telegram.substring(vs_idx + 1, va_idx).toDouble();
+      if (telegram.substring(va_idx + 1, ve_idx).startsWith("kWh"))
+        energym_e_in = energym_e_in * 1000;
+    }
+    if (telegram.substring(s_idx, vs_idx).startsWith("1-0:2.8.0"))
+    {
+      energym_e_out = telegram.substring(vs_idx + 1, va_idx).toDouble();
+      if (telegram.substring(va_idx + 1, ve_idx).startsWith("kWh"))
+        energym_e_out = energym_e_out * 1000;
+    }
+
+    s_idx = e_idx + 1;
+    i++;
+  }
+
+  Serial.printf("HAN readings: power_in %f, power_out %f, energym_e_in %f, energym_e_out %f", power_in, power_out, energym_e_in, energym_e_out);
+
+  energym_power_in = power_tot;
+  energym_period_read_count++;
+  // read done
+
+  // first query since boot
+  if (energym_last_period == 0)
+  {
+    ESP_LOGI(TAG, "HAN - first query since startup");
+    energym_last_period = now_period;
+    energym_period_first_read_ts = energym_meter_read_ts;
+    energym_e_in_prev = energym_e_in;
+    energym_e_out_prev = energym_e_out;
+  }
+
+  get_values_energym(netEnergyInPeriod, netPowerInPeriod);
+  vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
+  vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
+  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
+  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energym_power_in)); // momentary
+
+  if (energym_last_period != now_period)
+  {
+    energym_period_first_read_ts = energym_meter_read_ts;
+    energym_last_period = now_period;
+  }
+
+  return true;
+}
+
+#endif
+
+#ifdef METER_SHELLY3EM_ENABLED
 
 /**
  * @brief Read energy export/import values from Shelly3EM energy meter
@@ -1944,9 +2099,10 @@ bool read_meter_shelly3em()
 
   DynamicJsonDocument doc(2048);
 
-  String url = "http://" + String(s.energy_meter_host) + "/status";
+  char url[90];
+  snprintf(url, sizeof(url), "http://%s/status", s.energy_meter_host);
   Serial.println(url);
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url.c_str(), ""));
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url, ""));
 
   if (error)
   {
@@ -1954,34 +2110,34 @@ bool read_meter_shelly3em()
     Serial.println(error.f_str());
     return false;
   }
-  shelly3em_read_count++;
+  energym_read_count++;
 
   unsigned now_period = int(now_in_func / (NETTING_PERIOD_SEC));
-  shelly3em_meter_read_ts = now_in_func;
+  energym_meter_read_ts = now_in_func;
 
   float netEnergyInPeriod;
   float netPowerInPeriod;
-  // if (shelly3em_last_period != now_period && (shelly3em_last_period > 0) && shelly3em_period_read_count == 1)
-  if (shelly3em_last_period != now_period)
+  // if (energym_last_period != now_period && (energym_last_period > 0) && energym_period_read_count == 1)
+  if (energym_last_period != now_period)
   {
-    shelly3em_period_read_count = 0;
+    energym_period_read_count = 0;
   }
 
-  if ((shelly3em_last_period > 0) && shelly3em_period_read_count == 1)
+  if ((energym_last_period > 0) && energym_period_read_count == 1)
   { // new period
     Serial.println(F("****Shelly - new period counter reset"));
-    // shelly3em_last_period = now_period;
+    // energym_last_period = now_period;
     // from this call
-    shelly3em_e_in_prev = shelly3em_e_in;
-    shelly3em_e_out_prev = shelly3em_e_out;
+    energym_e_in_prev = energym_e_in;
+    energym_e_out_prev = energym_e_out;
   }
 
   // read
   float power_tot = 0;
   int idx = 0;
   float power[3];
-  shelly3em_e_in = 0;
-  shelly3em_e_out = 0;
+  energym_e_in = 0;
+  energym_e_out = 0;
   for (JsonObject emeter : doc["emeters"].as<JsonArray>())
   {
     power[idx] = (float)emeter["power"];
@@ -1990,36 +2146,36 @@ bool read_meter_shelly3em()
     //  is_valid = emeter["is_valid"];
     if (emeter["is_valid"])
     {
-      shelly3em_e_in += (float)emeter["total"];
-      shelly3em_e_out += (float)emeter["total_returned"];
+      energym_e_in += (float)emeter["total"];
+      energym_e_out += (float)emeter["total_returned"];
     }
     idx++;
   }
-  shelly3em_power_in = power_tot;
-  shelly3em_period_read_count++;
+  energym_power_in = power_tot;
+  energym_period_read_count++;
   // read done
 
   // first query since boot
-  if (shelly3em_last_period == 0)
+  if (energym_last_period == 0)
   {
     Serial.println(F("Shelly - first query since startup"));
-    shelly3em_last_period = now_period;
-    shelly3em_period_first_read_ts = shelly3em_meter_read_ts;
-    shelly3em_e_in_prev = shelly3em_e_in;
-    shelly3em_e_out_prev = shelly3em_e_out;
+    energym_last_period = now_period;
+    energym_period_first_read_ts = energym_meter_read_ts;
+    energym_e_in_prev = energym_e_in;
+    energym_e_out_prev = energym_e_out;
   }
-  // if ((shelly3em_meter_read_ts - shelly3em_period_first_read_ts) != 0)
+  // if ((energym_meter_read_ts - energym_period_first_read_ts) != 0)
 
-  get_values_shelly3m(netEnergyInPeriod, netPowerInPeriod);
+  get_values_energym(netEnergyInPeriod, netPowerInPeriod);
   vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
   vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
   vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
-  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-shelly3em_power_in)); // momentary
+  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energym_power_in)); // momentary
 
-  if (shelly3em_last_period != now_period)
+  if (energym_last_period != now_period)
   {
-    shelly3em_period_first_read_ts = shelly3em_meter_read_ts;
-    shelly3em_last_period = now_period;
+    energym_period_first_read_ts = energym_meter_read_ts;
+    energym_last_period = now_period;
   }
   return true;
 }
@@ -2048,10 +2204,11 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   filter_Body_Data["PAC"] = true;
 
   StaticJsonDocument<256> doc;
-  String inverter_url = "http://" + String(s.energy_meter_host) + "/solar_api/v1/GetInverterRealtimeData.cgi?scope=Device&DeviceId=1&DataCollection=CumulationInverterData";
+  char inverter_url[190];
+  snprintf(inverter_url, sizeof(inverter_url), "http://%s/solar_api/v1/GetInverterRealtimeData.cgi?scope=Device&DeviceId=1&DataCollection=CumulationInverterData", s.energy_meter_host);
   Serial.println(inverter_url);
 
-  DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url.c_str(), ""), DeserializationOption::Filter(filter));
+  DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url, ""), DeserializationOption::Filter(filter));
 
   if (error)
   {
@@ -2471,12 +2628,14 @@ bool get_solar_forecast()
     return false;
   }
 
-  String query_data_raw = String("action=getChartData&loc=") + String(s.forecast_loc);
+  char query_data_cha[70];
+  snprintf(query_data_cha, sizeof(query_data_cha), "action=getChartData&loc=%s", s.forecast_loc);
+
   WiFiClient wifi_client;
 
   HTTPClient client_http;
   client_http.setReuse(false);
-  client_http.useHTTP10(true); // for json input
+  client_http.useHTTP10(true); // for json input, not chunked
   // Your Domain name with URL path or IP address with path
 
   // reset variables
@@ -2493,7 +2652,7 @@ bool get_solar_forecast()
   client_http.setUserAgent("ArskaESP");
 
   // Send HTTP POST request
-  client_http.POST(query_data_raw); // returns int httpResponseCode
+  client_http.POST(query_data_cha);
 
   DeserializationError error = deserializeJson(doc, client_http.getStream());
   if (error)
@@ -2570,21 +2729,24 @@ bool get_solar_forecast()
   {
     pv_fcst_a.add(pv_fcst[i]);
   }
-
-  time(&now_in_func);
-  doc["first_period"] = first_ts;
-  doc["resolution_m"] = 3600;
-  doc["ts"] = now_in_func;
-  doc["expires"] = now_in_func + 3600; // time-to-live of the result, under construction, TODO: set to parameters
-
-  // TODO: huom ajat 3 h väärin, eli annettu eet vaikka pitäisi olla utc-aika
-  // ajat klo xx:30 eli yksittäinen arvo ei matchaa mutta summa kyllä
-  // tästä voisi puristaa jonkun aikasarjan
   vars.set(VARIABLE_PVFORECAST_SUM24, sum_pv_fcst);
 
-  File fcst_file = LittleFS.open(fcst_filename, "w"); // Open file for writing
-  serializeJson(doc, fcst_file);
-  fcst_file.close();
+  /*
+    time(&now_in_func);
+    doc["first_period"] = first_ts;
+    doc["resolution_m"] = 3600;
+    doc["ts"] = now_in_func;
+    doc["expires"] = now_in_func + 3600; // time-to-live of the result, under construction, TODO: set to parameters
+
+    // TODO: huom ajat 3 h väärin, eli annettu eet vaikka pitäisi olla utc-aika
+    // ajat klo xx:30 eli yksittäinen arvo ei matchaa mutta summa kyllä
+    // tästä voisi puristaa jonkun aikasarjan
+
+
+    File fcst_file = LittleFS.open(fcst_filename, "w"); // Open file for writing
+    serializeJson(doc, fcst_file);
+    fcst_file.close();
+    */
 
   // Free resources
   client_http.end();
@@ -2636,6 +2798,48 @@ long round_divide(long lval, long divider)
   return (lval + add_in_round) / divider;
 }
 
+long get_price_for_segment(int start_idx_incl, int end_idx_incl)
+{
+  int price_count = 0;
+  long price_sum = 0;
+
+  for (int cur_idx = start_idx_incl; cur_idx <= end_idx_incl; cur_idx++)
+  {
+    price_sum += prices[cur_idx];
+    price_count++;
+  }
+  long segment_price_avg = (price_sum / price_count); // / 1000;
+  return segment_price_avg;
+}
+
+bool is_in_cheapest_segment(int start_idx_incl, int end_idx_incl, int time_idx, int segment_size)
+{
+  if ((start_idx_incl < 0) || end_idx_incl >= MAX_PRICE_PERIODS)
+    return false;
+  // long segment_price_this = get_price_for_segment(time_idx, time_idx+segment_size - 1);
+  long segment_price;
+  long segment_price_cheapest = LONG_MAX;
+  int cheapest_idx = 0;
+  for (int price_idx = start_idx_incl; price_idx <= (end_idx_incl + 1 - segment_size); price_idx++)
+  {
+    segment_price = get_price_for_segment(price_idx, price_idx + segment_size - 1);
+    if (segment_price < segment_price_cheapest)
+    {
+      segment_price_cheapest = segment_price;
+      cheapest_idx = price_idx;
+    }
+  }
+  Serial.printf("segment_price_cheapest: %ld, cheapest_idx: %d\n", segment_price_cheapest, cheapest_idx);
+  // is time_idx within segment (of segment size) starting from cheapest_idx
+  if ((time_idx >= cheapest_idx) && (time_idx < cheapest_idx + segment_size))
+  {
+    Serial.printf("Segment starting with time_idx %d is within %d h segment in the block\n", segment_size, time_idx);
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * @brief Get price ranks to current and future periods for defined windows/blocks
 //  * @details Price ranks tells how good is the price compared to other prices within window of periods \n
@@ -2659,6 +2863,11 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
   long price_ratio_avg;
   int rank;
   int window_start_incl_idx;
+
+  // experimental
+  // long price_2hseg_min[MAX_PRICE_PERIODS];
+  // for (int i = 0; i < MAX_PRICE_PERIODS; i++)
+  //  price_2hseg_min[i] = LONG_MAX; // init defaults
 
   for (time_t time = record_start + time_idx_now * PRICE_PERIOD_SEC; time < record_end_excl; time += PRICE_PERIOD_SEC)
   {
@@ -2724,6 +2933,14 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
     }
     Serial.printf("%d h fixed , block_start_before_this_idx: %d, first block starting %d, block_idx: %d , rank %d\n", block_size, block_start_before_this_idx, first_block_start_hour, block_idx, rank);
 
+    // check if this is full block, that we have all hours of the the block
+    if (is_in_cheapest_segment(window_start_incl_idx, window_start_incl_idx + block_size - 1, time_idx, 2))
+      json_obj["ps2f8"] = true;
+    if (is_in_cheapest_segment(window_start_incl_idx, window_start_incl_idx + block_size - 1, time_idx, 3))
+      json_obj["ps3f8"] = true;
+    if (is_in_cheapest_segment(window_start_incl_idx, window_start_incl_idx + block_size - 1, time_idx, 4))
+      json_obj["ps4f8"] = true;
+
     /*
     if (tm_struct_g.tm_hour < 6)
       window_start_incl_idx = time_idx - tm_struct_g.tm_hour;
@@ -2736,10 +2953,11 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
       json_obj["prf6"] = rank;
     }
     */
-
+    //
     time_idx++;
   }
   // Serial.println("calculate_price_ranks finished");
+
   return;
 }
 
@@ -2842,8 +3060,8 @@ bool get_price_data()
 
     return false;
   }
-
-  String url = url_base + String("&securityToken=") + s.entsoe_api_key + String("&In_Domain=") + s.entsoe_area_code + String("&Out_Domain=") + s.entsoe_area_code + String("&periodStart=") + date_str_start + String("&periodEnd=") + date_str_end;
+  char url[220];
+  snprintf(url, sizeof(url), "%s&securityToken=%s&In_Domain=%s&Out_Domain=%s&periodStart=%s&periodEnd=%s", url_base, s.entsoe_api_key, s.entsoe_area_code, s.entsoe_area_code, date_str_start, date_str_end);
   Serial.print("requesting URL: ");
 
   Serial.println(url);
@@ -2911,7 +3129,6 @@ bool get_price_data()
       Serial.print("Combined line:");
       Serial.println(line);
     }
-
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
@@ -3032,57 +3249,6 @@ bool get_price_data()
 
   return read_ok;
 }
-
-/**
- * @brief Update calculated variable values from another device, under construction
- *
- * @return true
- * @return false
- */
-/*
-bool query_external_variables()
-{
-  StaticJsonDocument<16> filter;
-  filter["variables"] = true;
-  StaticJsonDocument<800> doc;
-
-  char variable_url[100];
-
-  Serial.println("query_external_variables b");
-
-  if (strlen(s.variable_server) == 0)
-  {
-    log_msg(MSG_TYPE_ERROR, PSTR("Variable server undefined."));
-    return false;
-  }
-
-  snprintf(variable_url, sizeof(variable_url), "http://%s/status", s.variable_server);
-  Serial.println(variable_url);
-  DeserializationError error = deserializeJson(doc, httpGETRequest(variable_url, ""), DeserializationOption::Filter(filter));
-
-  if (error)
-  {
-    Serial.print(F("query_external_variables deserializeJson() failed: "));
-    Serial.println(error.c_str());
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot process variable data."));
-
-    return false;
-  }
-
-  JsonObject variables = doc["variables"];
-  Serial.println("variabsle- size:");
-  Serial.println(doc["variables"].size());
-
-  // using C++11 syntax (preferred):
-  for (JsonPair kv : variables)
-  {
-    Serial.print(kv.key().c_str());
-    Serial.print(" = ");
-    Serial.println(kv.value().as<const char *>()); //  as<char*>() with as<const char*>() [
-  }
-  return true;
-}
-*/
 
 /**
  * @brief Update price rank variables to a cache file
@@ -3280,12 +3446,19 @@ bool generate_ui_constants(bool force_create = false) // true if exist or genera
 void read_energy_meter()
 {
   bool read_ok;
+  Serial.println("read_energy_meter");
   time_t now_in_func;
   // SHELLY
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
 #ifdef METER_SHELLY3EM_ENABLED
     read_ok = read_meter_shelly3em();
+#endif
+  }
+  else if (s.energy_meter_type == ENERGYM_HAN_WIFI)
+  {
+#ifdef METER_HAN_ENABLED
+    read_ok = read_meter_han();
 #endif
   }
   // INVERTER
@@ -3399,7 +3572,8 @@ bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode = true)
 bool switch_http_relay(int channel_idx, bool up)
 {
   char error_msg[ERROR_MSG_LEN];
-  String url_to_call;
+  char url_to_call[50];
+
   char response_key[20];
   bool switch_set_ok = false;
   IPAddress undefined_ip = IPAddress(0, 0, 0, 0);
@@ -3411,23 +3585,24 @@ bool switch_http_relay(int channel_idx, bool up)
   }
   if (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN)
   {
-    url_to_call = "http://" + s.ch[channel_idx].relay_ip.toString() + "/relay/" + s.ch[channel_idx].relay_unit_id + "?turn=" + (up ? String("on") : String("off"));
+    snprintf(url_to_call, sizeof(url_to_call), "http://%s/relay/%d?turn=%s", s.ch[channel_idx].relay_ip.toString().c_str(), (int)s.ch[channel_idx].relay_unit_id, up ? "on" : "off");
     strcpy(response_key, "ison");
   }
   if (s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN)
   {
-    url_to_call = "http://" + s.ch[channel_idx].relay_ip.toString() + "/rpc/Switch.Set?id=" + s.ch[channel_idx].relay_unit_id + "&on=" + (up ? String("true") : String("false"));
+    snprintf(url_to_call, sizeof(url_to_call), "http://%s/rpc/Switch.Set?id=%d&on=%s", s.ch[channel_idx].relay_ip.toString().c_str(), (int)s.ch[channel_idx].relay_unit_id, up ? "true" : "false");
     strcpy(response_key, "was_on");
   }
   else if (s.ch[channel_idx].type == CH_TYPE_TASMOTA)
   {
-    url_to_call = "http://" + s.ch[channel_idx].relay_ip.toString() + "/cm?cmnd=Power" + s.ch[channel_idx].relay_unit_id + "%20" + (up ? String("On") : String("Off"));
+    snprintf(url_to_call, sizeof(url_to_call), "http://%s/cm?cmnd=Power%d%%20%s", s.ch[channel_idx].relay_ip.toString().c_str(), (int)s.ch[channel_idx].relay_unit_id, up ? "On" : "Off");
     sprintf(response_key, "POWER%d", s.ch[channel_idx].relay_unit_id);
   }
 
-  Serial.printf("url_to_call:%s\n", url_to_call.c_str());
+  Serial.printf("url_to_call    :%s\n", url_to_call);
+
   StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call.c_str(), "", 5000)); // shorter connect timeout for a local switch
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call, "", 5000)); // shorter connect timeout for a local switch
   if (error)
   {
     snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
@@ -3724,15 +3899,15 @@ bool get_releases()
 {
   WiFiClientSecure client_https;
   client_https.setCACert(letsencrypt_ca_certificate);
-  if (!client_https.connect(host_releases, 443))
+  if (!client_https.connect(RELEASES_HOST, 443))
   {
     Serial.println(F("Cannot get release info from the firmware site."));
     return false;
   }
-  String url = "/arska-install/releases.php?pre_releases=true"; // TODO: exclude pre-releases or parametrize
-  client_https.print(String("GET ") + url + " HTTP/1.1\r\n" +
-                     "Host: " + host_releases + "\r\n" +
-                     "User-Agent: ArskaNoderESP\r\n" +
+
+  client_https.print("GET " RELEASES_URL " HTTP/1.1\r\n"
+                     "Host: " RELEASES_HOST "\r\n"
+                     "User-Agent: ArskaNoderESP\r\n"
                      "Connection: close\r\n\r\n");
 
   while (client_https.connected())
@@ -3819,8 +3994,12 @@ t_httpUpdate_return update_fs()
   }
   WiFiClient wifi_client;
   LittleFS.end();
+
+  // TODO: update to new version without String when you can test it
   String file_to_download = "http://" + String(host_releases) + "/arska-install/files/" + String(HWID) + "/" + String(VERSION_BASE) + "/littlefs.bin";
+  // char const *file_to_download = "http://" RELEASES_HOST "/arska-install/files/" HWID "/" VERSION_BASE "/littlefs.bin";
   Serial.println(file_to_download);
+  // Serial.println(file_to_download_new);
 
   httpUpdate.onEnd(fs_update_ended); // change update phase after succesful update but before restart
   t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, file_to_download.c_str(), "");
@@ -3832,6 +4011,8 @@ t_httpUpdate_return update_fs()
   if (update_ok == HTTP_UPDATE_OK)
   {
     Serial.println(F("Restarting after filesystem update."));
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after filesystem update."), true);
+
     ESP.restart(); // Restart to recreate cache files etc
   }
   return update_ok;
@@ -4129,9 +4310,8 @@ void export_config(AsyncWebServerRequest *request)
 
   doc["check_value"] = s.check_value;
   doc["wifi_ssid"] = s.wifi_ssid;
-  doc["wifi_password"] = s.wifi_password; // TODO: maybe not here
+  doc["wifi_password"] = s.wifi_password;
   doc["http_username"] = s.http_username;
-  // doc["http_password"] = s.http_password; // TODO: maybe not here
 
   // current status, do not import
   doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
@@ -4220,14 +4400,11 @@ void export_config(AsyncWebServerRequest *request)
           // Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
           vars.to_str(stmt->variable_id, floatbuff, true, stmt->const_val, sizeof(floatbuff));
 
-          // Serial.printf("floatbuff:%s\n", floatbuff);
-
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][1] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][2] = stmt->const_val;
 
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][3] = floatbuff;
-          // vars.const_to_float(stmt->variable_id, stmt->const_val);
           stmt_count++;
         }
       }
@@ -4396,6 +4573,7 @@ bool import_config(const char *config_file_name)
  * @param data
  * @param len
  */
+// String * 8
 void onWebUploadConfig(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -5063,7 +5241,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     variables["powerProducedPeriodAvg"] = power_produced_period_avg;
   #endif
   */
-  // var_obj["updated"] = shelly3em_meter_read_ts;
+  // var_obj["updated"] = energym_meter_read_ts;
   // var_obj["freeHeap"] = ESP.getFreeHeap();
   // var_obj["uptime"] = (unsigned long)(millis() / 1000);
 
@@ -5201,10 +5379,9 @@ void setup()
   String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
 
-  //Experimental
-  grid_protection_delay_interval = random(0, grid_protection_delay_max/PROCESS_INTERVAL_SECS)*PROCESS_INTERVAL_SECS;
+  // Experimental
+  grid_protection_delay_interval = random(0, grid_protection_delay_max / PROCESS_INTERVAL_SECS) * PROCESS_INTERVAL_SECS;
   Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
-
 
   for (int i = 14; i > 0; i -= 3)
   {
@@ -5276,7 +5453,6 @@ void setup()
     delay(3000);
     wifi_in_setup_mode = true;
     create_wifi_ap = true;
-    //  scan_and_store_wifis(true); we had this in the beginnig
     check_forced_restart(true); // schedule restart
   }
   else
@@ -5317,6 +5493,8 @@ void setup()
     else
     {
       Serial.println(F("Cannot create AP, restarting"));
+      log_msg(MSG_TYPE_FATAL, PSTR("Cannot create AP, restarting."), true);
+
       delay(2000); // cannot create AP, restart
       ESP.restart();
     }
@@ -5446,8 +5624,7 @@ void setup()
   // TODO: nämä voisi mennä yhdellä
   server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, variables_filename, F("application/json")); });
-  server_web.on(fcst_filename, HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, fcst_filename, F("application/json")); });
+  // server_web.on(fcst_filename, HTTP_GET, [](AsyncWebServerRequest *request)  { request->send(LittleFS, fcst_filename, F("application/json")); });
   server_web.on(price_data_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, price_data_filename, F("text/plain")); }); // "/price_data.json"
 
@@ -5529,7 +5706,9 @@ void loop()
       Serial.println();
       Serial.flush();
       writeToEEPROM();
-      delay(1000);
+      log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
+
+      delay(2000);
       ESP.restart();
     }
   }
@@ -5764,7 +5943,7 @@ void loop()
     time(&now);
     next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_channel_states();
-    set_relays(true); //grid protection delay active
+    set_relays(true); // grid protection delay active
     flush_noncritical_eeprom_cache();
   }
 

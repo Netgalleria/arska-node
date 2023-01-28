@@ -17,7 +17,9 @@
         "system_error": "cpp",
         "cmath": "cpp",
         "functional": "cpp",
-        "cstdlib": "cpp"
+        "cstdlib": "cpp",
+        "*.tcc": "cpp"
     },
-    "C_Cpp.dimInactiveRegions": false
+    "C_Cpp.dimInactiveRegions": false,
+    "liveServer.settings.port": 5501
 }

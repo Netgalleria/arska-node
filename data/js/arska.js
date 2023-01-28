@@ -55,10 +55,6 @@ const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
 const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
 
-
-
-
-
 let variable_list = {}; // populate later
 
 // https://stackoverflow.com/questions/7317273/warn-user-before-leaving-web-page-with-unsaved-changes
@@ -181,7 +177,8 @@ function update_price_chart() {
         options: {
             responsive: true,
             scales: {
-                y: { beginAtZero:true,
+                y: {
+                    beginAtZero: true,
                     ticks: {
                         color: 'white',
                         font: { size: 17, }
@@ -249,9 +246,9 @@ function get_price_data() {
     });
 }
 
-function get_price_for_block(start_ts, end_ts = 0) {
+function get_price_for_segment(start_ts, end_ts = 0) {
     if (prices.length == 0) { //prices (not yet) populated
-        console.log("get_price_for_block, prices not populated              ");
+        console.log("get_price_for_segment, prices not populated              ");
         return -VARIABLE_LONG_UNKNOWN;
     }
     if (end_ts == 0)
@@ -267,8 +264,8 @@ function get_price_for_block(start_ts, end_ts = 0) {
         price_sum += prices[price_idx];
         price_count++;
     }
-    var block_price_avg = (price_sum / price_count) / 1000;
-    return block_price_avg;
+    var segment_price_avg = (price_sum / price_count) / 1000;
+    return segment_price_avg;
 }
 
 function pad_to_2digits(num) {
@@ -470,7 +467,7 @@ function updateStatus(repeat) {
 
     if (repeat) {
         setTimeout(function () { updateStatus(true); }, next_query_in * 1000);
-     //   console.log("next_query_in", next_query_in)
+        //   console.log("next_query_in", next_query_in)
     }
 }
 
@@ -669,8 +666,8 @@ function populateStmtField(varFld, stmt = [-1, -1, 0]) {
     addOption(varFld, -1, "select", (stmt[0] == -1));
 
     for (var i = 0; i < g_constants.variables.length; i++) {
-        var type_indi = (g_constants.variables[i][2] >= 50 && g_constants.variables[i][2] <= 51) ? "*" : " ";
-        var id_str = g_constants.variables[i][1] + type_indi;
+        var type_indi = (g_constants.variables[i][2] >= 50 && g_constants.variables[i][2] <= 51) ? "*" : " "; //logical
+        var id_str = '(' + g_constants.variables[i][0] + ') ' + g_constants.variables[i][1] + type_indi;
         addOption(varFld, g_constants.variables[i][0], id_str, (stmt[0] == g_constants.variables[i][0]));
     }
 }
@@ -770,9 +767,10 @@ function populateTemplateSel(selEl, template_id = -1) {
 }
 
 // unused ?
+/*
 function saveVal(el) {
     $.data(el, 'current', $(el).val());
-}
+}*/
 
 //localised text
 function _ltext(obj, prop) {
@@ -784,32 +782,105 @@ function _ltext(obj, prop) {
         return '[' + prop + ']';
 }
 //called from element, set by addEventlistener
-function templateChangedEVT(evt) {
-    templateChanged(evt.target);
+function template_changed_evt(evt) {
+    template_changed(evt.target);
 }
 
-function templateChanged(selEl) {
-    const fldA = selEl.id.split("_");
-    channel_idx = parseInt(fldA[1]);
-    //  console.log(selEl.value, channel_idx);
-    template_idx = selEl.value;
+
+function redefine_constants_evt(evt) {
+    const fldA = evt.target.id.split("_");
+    channel_idx = parseInt(fldA[1]); // parse channel id from calling control id
+    set_template_constants(channel_idx, false);
+}
+
+function set_template_constants(channel_idx, ask_confirmation) {
+    template_idx = $('#rts_' + channel_idx).val();
     url = '/data/templates?id=' + template_idx;
-    //  console.log(url, selEl.id);
-    $.getJSON(url, function (data) {
-        if (template_idx == -1 && confirm('Remove template definitions')) {
+
+   
+
+    $.ajax({
+        url: url,
+        dataType: 'json',
+        async: false,
+        success: function (data) {
+            $sel = $("#rts_" + channel_idx);
+            if (template_idx == -1) {
+                if (confirm('Remove template definitions')) {
+                    deleteStmtsUI(channel_idx);
+                    return true;
+                }
+                else {
+                    $sel.val($sel.data('current')); //back current
+                    return false;
+                }
+            }
+    
+            if ((template_idx != -1) && ask_confirmation) {
+                if (!confirm('Use template ' + _ltext(data, "name") + " \n" + _ltext(data, "desc"))) {
+                    //  selEl = $("#rts_" + channel_idx);
+                    console.log("set back to", $sel.val(), "->", $sel.data('current'));
+                    $sel.val($sel.data('current')); //back current
+                    return false;
+                }
+            }
+    
+            $sel.data('current', $sel.val()); // now fix current value
+    
             deleteStmtsUI(channel_idx);
-            return true;
+    
+            $.each(data.conditions, function (cond_idx, rule) {
+                set_radiob("ctrb_" + channel_idx + "_" + cond_idx, rule["on"] ? "1" : "0", true);
+                elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+                $.each(rule.statements, function (j, stmt) {
+                    //   console.log("stmt.values:" + JSON.stringify(stmt.values));
+                    stmt_obj = stmt.values;
+                    if (stmt.hasOwnProperty('const_prompt')) {
+                        stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
+                    }
+                    if (elBtn) {
+                        addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
+                    }
+                    var_this = get_var_by_id(stmt.values[0]);
+                    populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
+                });
+            });
+    
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get template", textStatus, jqXHR.status);
         }
-        if (!confirm('Use template ' + _ltext(data, "name") + ' - ' + _ltext(data, "desc"))) {
-            $(selEl).val($.data(selEl, 'current'));
-            return false;
+    });
+
+/*
+    $.getJSON(url, function (data) {
+        $sel = $("#rts_" + channel_idx);
+        if (template_idx == -1) {
+            if (confirm('Remove template definitions')) {
+                deleteStmtsUI(channel_idx);
+                return true;
+            }
+            else {
+                $sel.val($sel.data('current')); //back current
+                return false;
+            }
         }
+
+        if ((template_idx != -1) && ask_confirmation) {
+            if (!confirm('Use template ' + _ltext(data, "name") + " \n" + _ltext(data, "desc"))) {
+                //  selEl = $("#rts_" + channel_idx);
+                console.log("set back to", $sel.val(), "->", $sel.data('current'));
+                $sel.val($sel.data('current')); //back current
+                return false;
+            }
+        }
+
+        $sel.data('current', $sel.val()); // now fix current value
+
         deleteStmtsUI(channel_idx);
 
         $.each(data.conditions, function (cond_idx, rule) {
-
             set_radiob("ctrb_" + channel_idx + "_" + cond_idx, rule["on"] ? "1" : "0", true);
-
             elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
             $.each(rule.statements, function (j, stmt) {
                 //   console.log("stmt.values:" + JSON.stringify(stmt.values));
@@ -820,18 +891,37 @@ function templateChanged(selEl) {
                 if (elBtn) {
                     addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
                 }
-
                 var_this = get_var_by_id(stmt.values[0]);
                 populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
             });
-
-
         });
 
     });
-
+*/
     // fixing ui fields is delayed to get dom parsed ready?
-    setTimeout(function () { fillStmtRules(channel_idx, 1, template_idx); }, 1000);
+    // or should we have getjson syncronous
+  //  setTimeout(function () { fillStmtRules(channel_idx, 1, template_idx); }, 1000);
+    fillStmtRules(channel_idx, 1, template_idx);
+    return true;
+}
+
+
+function template_changed(selEl) {
+    const fldA = selEl.id.split("_");
+    channel_idx = parseInt(fldA[1]);
+
+    $sel = $('#' + selEl.id);
+
+    if ($sel.data('current'))
+        console.log("current", $sel.data('current'));
+    else
+        console.log("no current");
+
+    if (!set_template_constants(channel_idx, true)) {
+        // $(selEl).val($.data(selEl, 'current'));
+        console.log("back to previous...");
+   //     $(sel).val($.data(sel, 'current'));
+    }
 
     return true;
 }
@@ -843,7 +933,6 @@ function deleteStmtsUI(channel_idx) {
     // reset up/down checkboxes
     for (let cond_idx = 0; cond_idx < g_constants.CHANNEL_CONDITIONS_MAX; cond_idx++) {
         set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
-
     }
 }
 
@@ -875,7 +964,6 @@ function setRuleModeEVT(evt) {
 }
 
 function setRuleMode(channel_idx, rule_mode, reset, template_id) {
-
     //  console.log("setRuleMode", template_id);
     if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) { //template mode
         templateSelEl = document.getElementById("rts_" + channel_idx);
@@ -888,13 +976,13 @@ function setRuleMode(channel_idx, rule_mode, reset, template_id) {
             console.log("Cannot find element:", "rts_" + channel_idx);
     }
 
-
     $('#rd_' + channel_idx + ' select').attr('disabled', (rule_mode != 0));
     $('#rd_' + channel_idx + " input[type='text']").attr('disabled', (rule_mode != 0)); //jos ei iteroi?
     $('#rd_' + channel_idx + " input[type='text']").prop('readonly', (rule_mode != 0));
 
     $('#rd_' + channel_idx + ' .addstmtb').css({ "display": ((rule_mode != 0) ? "none" : "block") });
     $('#rts_' + channel_idx).css({ "display": ((rule_mode == CHANNEL_CONFIG_MODE_RULE) ? "none" : "block") });
+    $('#rtr_' + channel_idx).css({ "display": ((rule_mode == CHANNEL_CONFIG_MODE_RULE) ? "none" : "block") });
 
     fillStmtRules(channel_idx, rule_mode, template_id);
     if (rule_mode == CHANNEL_CONFIG_MODE_RULE) //enable all
@@ -984,7 +1072,6 @@ function setOper(evt) {
             document.getElementById("ru_" + channel_idx + "_" + (cond_idx + 1)).style.display = "block";
         }
         // set constant visibility (defined oper use no constants)
-        console.log("setOper", el_oper.id, el_oper.value);
         el_const = document.getElementById(el_oper.id.replace("op", "const"));
         el_const.style.display = (g_constants.opers[el_oper.value][5] || g_constants.opers[el_oper.value][6]) ? "none" : "block"; // const-style
     }
@@ -997,11 +1084,10 @@ function setEnergyMeterFields(emt) { //
 
     var emhd = document.querySelector('#emhd');
     var empd = document.querySelector('#empd');
-    var emhd = document.querySelector('#emhd');
     var emidd = document.querySelector('#emidd');
     var baseld = document.querySelector('#baseld');
 
-    if ([1, 2, 3].indexOf(idx) > -1) {
+    if ([1, 2, 3, 4].indexOf(idx) > -1) {
         emhd.style.display = "block";
         empd.style.display = "block";
     } else {
@@ -1034,7 +1120,6 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
         show_rule = (rule_mode == CHANNEL_CONFIG_MODE_RULE) || first_var_defined;
 
         if (!template_id) {// not yet populated to the select
-            console.log("template_id from ui select");
             template_id = document.getElementById("rts_" + channel_idx).value;
         }
 
@@ -1069,21 +1154,6 @@ function fillStmtRules(channel_idx, rule_mode, template_id) {
 
 function initChannelForm() {
     console.log("initChannelForm");
-    /*
-    var chtype;
-
-    let count = 0;
-    for (var channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
-        //TODO: fix if more types coming
-        if (document.getElementById('chty_' + channel_idx)) {
-            count++;
-            chtype = document.getElementById('chty_' + channel_idx).value;
-            setChannelFieldsByType(channel_idx, chtype);
-            console.log("calling  setChannelFieldsByType");
-        }
-    }
-    alert("setChannelFieldsByType calls " + count);
-    */
 
     // set rule statements, statements are in hidden fields
     let stmts_s = document.querySelectorAll("input[id^='stmts_']");
@@ -1096,7 +1166,7 @@ function initChannelForm() {
 
             stmts = JSON.parse(stmts_s[i].value);
             if (stmts && stmts.length > 0) {
-                console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
+                // console.log(stmts_s[i].id + ": " + JSON.stringify(stmts));
                 for (let j = 0; j < stmts.length; j++) {
                     elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
                     if (elBtn) {
@@ -1128,7 +1198,7 @@ function initChannelForm() {
 }
 
 function is_relay_id_used(channel_type) { // id required
-    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF,CH_TYPE_GPIO_USR_INVERSED, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
+    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
 }
 function is_relay_ip_used(channel_type) { //ip required
     return [CH_TYPE_SHELLY_1GEN, CH_TYPE_SHELLY_2GEN, CH_TYPE_TASMOTA].includes(parseInt(channel_type));
@@ -1146,7 +1216,7 @@ function set_relay_field_visibility(channel_idx, chtype) {
     relay_id_caption_span = document.getElementById("ch_ridcap_" + channel_idx);
 
     if (is_relay_id_used(chtype)) {
-        max_rid = ([CH_TYPE_GPIO_USER_DEF,CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype)) ? 39 : 255); //GPIO max 39
+        max_rid = ([CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype)) ? 39 : 255); //GPIO max 39
         document.getElementById("ch_rid_" + channel_idx).setAttribute("max", max_rid);
     }
     if (is_relay_uid_used(chtype)) {
@@ -1156,7 +1226,7 @@ function set_relay_field_visibility(channel_idx, chtype) {
         document.getElementById("ch_ruid_" + channel_idx).value = Math.max(min_ruid, cur_ruid); //for min value
     }
 
-    if ([CH_TYPE_GPIO_USER_DEF,CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype))) {
+    if ([CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype))) {
         relay_id_caption_span.innerHTML = "gpio:<br>";
     }
     else if (chtype == CH_TYPE_GPIO_FIXED) {
@@ -1167,7 +1237,8 @@ function set_relay_field_visibility(channel_idx, chtype) {
         relay_id_caption_span.innerHTML = "device id:"; //TODO: later modbus...
 }
 
-function setChannelFieldsByType(channel_idx, chtype_in) {
+
+function set_channel_fields_relay_type(channel_idx, chtype_in) {
     if (chtype_in.substring(0, 5) == "1000_") { //combined id, like 1000_2_192.168.66.36_0 
         id_a = chtype_in.split("_");
         chtype = id_a[1];
@@ -1331,15 +1402,15 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     cheapest_index = -1;
     for (k = 0; k < 24; k++) {
         end_ts = start_ts + (duration_selected * 60) - 1;
-        block_price = get_price_for_block(start_ts, end_ts);
-        if (block_price < cheapest_price) {
-            cheapest_price = block_price;
+        segment_price = get_price_for_segment(start_ts, end_ts);
+        if (segment_price < cheapest_price) {
+            cheapest_price = segment_price;
             cheapest_ts = start_ts;
             cheapest_index = k;
         }
 
-        if (block_price != -VARIABLE_LONG_UNKNOWN)
-            price_str = "   " + block_price.toFixed(1) + " c/kWh";
+        if (segment_price != -VARIABLE_LONG_UNKNOWN)
+            price_str = "   " + segment_price.toFixed(1) + " c/kWh";
         else
             price_str = "";
 
@@ -1540,12 +1611,17 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
     rb0.addEventListener("change", setRuleModeEVT);
 
     tmpl_div = createElem("div", "rt_" + channel_idx, null, null);
-    tmpl_sel = createElem("select", "rts_" + channel_idx, null, null, null);
+    // class fldstmt: float left
+    tmpl_sel = createElem("select", "rts_" + channel_idx, null,"fldstmt" , null);
     tmpl_sel.name = "rts_" + channel_idx;
     tmpl_div.appendChild(tmpl_sel);
 
+    tmpl_refresh = createElem("input", "rtr_" + channel_idx, " ↻ ", "addstmtb", "button");
+    tmpl_refresh.addEventListener("click", redefine_constants_evt);
+    tmpl_div.appendChild(tmpl_refresh);
+
     rm_div.appendChild(tmpl_div);
-    tmpl_sel.addEventListener("change", templateChangedEVT);
+    tmpl_sel.addEventListener("change", template_changed_evt);
 
     // relayt_div.appendChild(ct_sel);
     // conf_div.appendChild(relayt_div);
@@ -1841,7 +1917,7 @@ function activate_section(section_id_full) {
     let section_divs = document.querySelectorAll("div[id^='section_']");
     for (i = 0; i < section_divs.length; i++) {
         is_active_div = section_divs[i].id == "section_" + section_id;
-        section_divs[i].style.display = is_active_div ? "block" : "none";
+        section_divs[i].style.display = (is_active_div ? "block" : "none");
     }
     if (section_id == "channels" && url_a.length == 2) {
         var scroll_element = document.getElementById(url_a[1]);
@@ -1967,7 +2043,7 @@ function init_sections() {
         async: false,
         success: function (data) { g_config = data; console.log("got g_config"); },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_config", textStatus, jqXHR.status,errorThrown);
+            console.log("Cannot get g_config", textStatus, jqXHR.status, errorThrown);
         }
     });
 
@@ -2016,7 +2092,7 @@ function initForm(url) { // called from html onload
         async: false,
         success: function (data) { g_config = data; console.log("got g_config"); },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_config", textStatus, jqXHR.status,errorThrown);
+            console.log("Cannot get g_config", textStatus, jqXHR.status, errorThrown);
         }
     });
 
@@ -2090,7 +2166,7 @@ function setChannelFields(obj) {
     const fldA = obj.id.split("_");
     ch = parseInt(fldA[1]);
     var chtype = obj.value;
-    setChannelFieldsByType(ch, chtype);
+    set_channel_fields_relay_type(ch, chtype);
 }
 
 // check admin form fields before form post 

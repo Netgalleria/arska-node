@@ -4,6 +4,7 @@
 
 ### New features
 * New variables for fixed 8 hours blocks (23-06,07-14,15-22): VARIABLE_PRICERANK_FIXED_8, VARIABLE_PRICERANK_FIXED_8_BLOCKID
+* HAN P1 port reading  from HomeWizard Wi-Fi P1 Meter or device with similar telegram output (requires final testing)
 
 ### Bug Fixes
 * Special character including Scandinavian characters did not work in channel id or forecast location. Fixed. Stores now characters in ISO-8859-1 .
