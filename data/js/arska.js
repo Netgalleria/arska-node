@@ -95,6 +95,7 @@ function get_date_string_from_ts(ts) {
     return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
 }
 var prices = [];
+var net_exports = [];
 var prices_first_ts = 0;
 var prices_last_ts = 0;
 var prices_resolution_min = 60;
@@ -105,9 +106,14 @@ function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function ts_date_time(ts) {
+function ts_date_time(ts, include_year = true) {
     date = new Date(ts * 1000);
-    return pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '.' + date.getFullYear() + ' ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes());
+    date_str = pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '.';
+    if (include_year)
+        date_str += date.getFullYear();
+    date_str += ' ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes())
+    
+    return date_str;
 }
 
 function update_price_chart() {
@@ -116,7 +122,33 @@ function update_price_chart() {
         return;
     }
 
+
+    // experimental import query
+    var jqxhr_obj = $.ajax({
+        url: '/status',
+        dataType: 'json',
+        async: false,  //oli true
+        success: function (data, textStatus, jqXHR) {
+            has_import_values = false;
+            console.log(data.variable_history, data.variable_history["103"],data.variable_history["103"].length);
+            for (i = 0; i < data.variable_history["103"].length; i++) {
+                if (Math.abs(data.variable_history["103"][i]) > 1) {
+                    has_import_values = true;
+                    break;
+                }      
+            }
+            if (has_import_values)
+                net_exports = data.variable_history["103"];
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get status in price query", Date(Date.now()).toString(), textStatus, jqXHR.status);
+        }
+    });
+//**** 
+    console.log("has_import_values", has_import_values, "net_exports", net_exports);
+    
     let price_data = null;
+
     $.ajax({
         url: 'data/price-data.json',
         dataType: 'json',
@@ -140,19 +172,49 @@ function update_price_chart() {
     let date;
     let time_labels = [];
     let prices_out = [];
+    let imports = [];
     let idx = 0;
     let now_idx = 0;
     now_ts = (Date.now() / 1000);
-    start_date_str = ts_date_time(price_data.record_start) + '-' + ts_date_time(price_data.record_end_excl);
+
+    var tz_offset = new Date().getTimezoneOffset();
+    start_date_str = ts_date_time(price_data.record_start,false) + ' - ' + ts_date_time(price_data.record_end_excl-3600,false);
+
 
     for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += (price_data.resolution_m * 60)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
+            
         date = new Date(ts * 1000);
-        time_labels.push(pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '. ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes()));
+        day_diff_now = parseInt((ts-tz_offset*60)/86400)-parseInt(now_ts/86400);
+        if (day_diff_now != 0)
+            day_str = " (" + ((day_diff_now < 0) ? "" : "+") + day_diff_now + ")";
+        else
+            day_str = " ";
+       
+        
+       //     time_labels.push(pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '. ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes()));
+            time_labels.push(pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes())+day_str);
+        
+    
+        
         prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
+
         idx++;
     }
+   
+    // now history, if values exists
+    if (has_import_values) {   
+        dataset_started = false;
+        for (h_idx = net_exports.length - 1 - now_idx; h_idx < net_exports.length; h_idx++) {
+            if (Math.abs(net_exports[h_idx]) > 1)
+                dataset_started = true;
+            imports.push(dataset_started ? -net_exports[h_idx] : null);
+        }
+    }
+    console.log("net_exports", net_exports, "imports", imports);
+
+
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
     if (chartExist != undefined)
         chartExist.destroy();
@@ -164,29 +226,64 @@ function update_price_chart() {
             datasets: [{
                 label: 'price ¢/kWh',
                 data: prices_out,
+                yAxisID: 'yp',
                 borderColor: ['#f3f300'
                 ],
                 pointStyle: 'circle',
-                pointRadius: 3,
+                pointRadius: 1,
                 pointHoverRadius: 5,
                 fill: false,
                 stepped: true,
+                borderWidth: 2
+            },
+            {
+                label: 'import Wh',
+                data: imports,
+                yAxisID: 'ye',
+                cubicInterpolationMode: 'monotone',
+                borderColor: ['#008000'
+                ],
+                pointStyle: 'circle',
+                pointRadius: 1,
+                pointHoverRadius: 5,
+                fill: false,
+                stepped: false,
                 borderWidth: 2
             }]
         },
         options: {
             responsive: true,
             scales: {
-                y: {
+                ynow: {
+                    beginAtZero: true,
+                    ticks: {
+                        display: false
+                    },
+                    position: { x: now_idx + 0.5 }, grid: {
+                        display: false,
+                        lineWidth: 6, color: "#ffffcc", borderWidth: 1, borderColor: '#f7f7e6'
+                    }
+                },
+                yp: {
                     beginAtZero: true,
                     ticks: {
                         color: 'white',
-                        font: { size: 17, }
+                        font: { size: 17 }
                     },
-                    position: { x: now_idx }, grid: {
+                    position: 'right', grid: {
                         lineWidth: 1, color: "#f7f7e6", borderWidth: 1, borderColor: '#f7f7e6'
                     }
-                }, x: { grid: { lineWidth: 0.5, display: true, color: "#f7f7e6" } }
+                },
+                ye: {
+                    display: 'auto',
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: {
+                        color: 'white',
+                        font: { size: 17, }
+                    }
+                },
+                x: { grid: { lineWidth: 0.5, display: true, color: "#f7f7e6" } }
             },
             interaction: {
                 intersect: false,
@@ -242,8 +339,8 @@ function get_price_data() {
             console.log("Cannot get prices", textStatus, jqXHR.status);
             setTimeout(function () { get_price_data(); }, 10000);
         }
-
     });
+
 }
 
 function get_price_for_segment(start_ts, end_ts = 0) {
@@ -338,7 +435,6 @@ function update_discovered_devices() {
 
             }
             $("body").css("cursor", "default");  //done
-
             console.log(JSON.stringify(relay_list));
 
         },
@@ -378,6 +474,21 @@ function updateStatus(repeat) {
             console.log("got status data", textStatus, jqXHR.status);
             msgdiv = document.getElementById("msgdiv");
             keyfd = document.getElementById("keyfd");
+/*
+            has_import_values = false;
+            for (i = 0; i < data.net_exports.length; i++) {
+                if (Math.abs(data.net_exports[i]) > 1) {
+                    has_import_values = true;
+                    break;
+                }
+
+            }
+            if (has_import_values)
+                net_exports = data.net_exports;
+            //else
+            //    net_exports = [];
+*/
+
             if (data.hasOwnProperty('next_process_in'))
                 next_query_in = data.next_process_in + process_time_s;
 
@@ -463,6 +574,8 @@ function updateStatus(repeat) {
     }
 
     );
+
+
 
 
     if (repeat) {
@@ -797,13 +910,63 @@ function set_template_constants(channel_idx, ask_confirmation) {
     template_idx = $('#rts_' + channel_idx).val();
     url = '/data/templates?id=' + template_idx;
 
-   
+
 
     $.ajax({
         url: url,
         dataType: 'json',
         async: false,
         success: function (data) {
+            $sel = $("#rts_" + channel_idx);
+            if (template_idx == -1) {
+                if (confirm('Remove template definitions')) {
+                    deleteStmtsUI(channel_idx);
+                    return true;
+                }
+                else {
+                    $sel.val($sel.data('current')); //back current
+                    return false;
+                }
+            }
+
+            if ((template_idx != -1) && ask_confirmation) {
+                if (!confirm('Use template ' + _ltext(data, "name") + " \n" + _ltext(data, "desc"))) {
+                    //  selEl = $("#rts_" + channel_idx);
+                    console.log("set back to", $sel.val(), "->", $sel.data('current'));
+                    $sel.val($sel.data('current')); //back current
+                    return false;
+                }
+            }
+
+            $sel.data('current', $sel.val()); // now fix current value
+
+            deleteStmtsUI(channel_idx);
+
+            $.each(data.conditions, function (cond_idx, rule) {
+                set_radiob("ctrb_" + channel_idx + "_" + cond_idx, rule["on"] ? "1" : "0", true);
+                elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
+                $.each(rule.statements, function (j, stmt) {
+                    //   console.log("stmt.values:" + JSON.stringify(stmt.values));
+                    stmt_obj = stmt.values;
+                    if (stmt.hasOwnProperty('const_prompt')) {
+                        stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
+                    }
+                    if (elBtn) {
+                        addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
+                    }
+                    var_this = get_var_by_id(stmt.values[0]);
+                    populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
+                });
+            });
+
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get template", textStatus, jqXHR.status);
+        }
+    });
+
+    /*
+        $.getJSON(url, function (data) {
             $sel = $("#rts_" + channel_idx);
             if (template_idx == -1) {
                 if (confirm('Remove template definitions')) {
@@ -846,61 +1009,11 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 });
             });
     
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get template", textStatus, jqXHR.status);
-        }
-    });
-
-/*
-    $.getJSON(url, function (data) {
-        $sel = $("#rts_" + channel_idx);
-        if (template_idx == -1) {
-            if (confirm('Remove template definitions')) {
-                deleteStmtsUI(channel_idx);
-                return true;
-            }
-            else {
-                $sel.val($sel.data('current')); //back current
-                return false;
-            }
-        }
-
-        if ((template_idx != -1) && ask_confirmation) {
-            if (!confirm('Use template ' + _ltext(data, "name") + " \n" + _ltext(data, "desc"))) {
-                //  selEl = $("#rts_" + channel_idx);
-                console.log("set back to", $sel.val(), "->", $sel.data('current'));
-                $sel.val($sel.data('current')); //back current
-                return false;
-            }
-        }
-
-        $sel.data('current', $sel.val()); // now fix current value
-
-        deleteStmtsUI(channel_idx);
-
-        $.each(data.conditions, function (cond_idx, rule) {
-            set_radiob("ctrb_" + channel_idx + "_" + cond_idx, rule["on"] ? "1" : "0", true);
-            elBtn = document.getElementById("addstmt_" + channel_idx + "_" + cond_idx);
-            $.each(rule.statements, function (j, stmt) {
-                //   console.log("stmt.values:" + JSON.stringify(stmt.values));
-                stmt_obj = stmt.values;
-                if (stmt.hasOwnProperty('const_prompt')) {
-                    stmt_obj[2] = prompt(stmt.const_prompt, stmt_obj[2]);
-                }
-                if (elBtn) {
-                    addStmt(elBtn, channel_idx, cond_idx, j, stmt_obj);
-                }
-                var_this = get_var_by_id(stmt.values[0]);
-                populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
-            });
         });
-
-    });
-*/
+    */
     // fixing ui fields is delayed to get dom parsed ready?
     // or should we have getjson syncronous
-  //  setTimeout(function () { fillStmtRules(channel_idx, 1, template_idx); }, 1000);
+    //  setTimeout(function () { fillStmtRules(channel_idx, 1, template_idx); }, 1000);
     fillStmtRules(channel_idx, 1, template_idx);
     return true;
 }
@@ -920,7 +1033,7 @@ function template_changed(selEl) {
     if (!set_template_constants(channel_idx, true)) {
         // $(selEl).val($.data(selEl, 'current'));
         console.log("back to previous...");
-   //     $(sel).val($.data(sel, 'current'));
+        //     $(sel).val($.data(sel, 'current'));
     }
 
     return true;
@@ -1612,7 +1725,7 @@ function create_channel_config_elements(ce_div, channel_idx, ch_cur) {
 
     tmpl_div = createElem("div", "rt_" + channel_idx, null, null);
     // class fldstmt: float left
-    tmpl_sel = createElem("select", "rts_" + channel_idx, null,"fldstmt" , null);
+    tmpl_sel = createElem("select", "rts_" + channel_idx, null, "fldstmt", null);
     tmpl_sel.name = "rts_" + channel_idx;
     tmpl_div.appendChild(tmpl_sel);
 

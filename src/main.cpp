@@ -260,10 +260,14 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 
 #define PV_FORECAST_HOURS 24 //!< solar forecast consist of this many hours
 
-#define MAX_PRICE_PERIODS 48              //!< number of price period in the memory array
+#define MAX_PRICE_PERIODS 48 //!< number of price period in the memory array
+#define MAX_HISTORY_PERIOD 24
+#define HISTORY_VARIABLE_COUNT 1
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
 long prices[MAX_PRICE_PERIODS];
+//long net_imports[MAX_HISTORY_PERIOD];
+
 bool prices_initiated = false;
 time_t prices_first_period = 0;
 
@@ -567,6 +571,15 @@ struct statement_st
 // combined
 #define VARIABLE_DEPENDS_PRICE_SOLAR 3
 
+long var_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIOD];
+int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY};
+int get_variable_history_idx(int id) {
+  for (int i = 0; i < HISTORY_VARIABLE_COUNT;i++)
+    if (history_variables[i]==id)
+      return i;
+  return -1;
+}
+
 /**
  * @brief Class defines variables defined by measurements, calculations and used to define channel statuses
  *
@@ -597,6 +610,7 @@ public:
   float const_to_float(int id, long const_in);
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
   int get_variable_count() { return VARIABLE_COUNT; };
+  void rotate_period();
 
 private:
   // struct variable_st{ byte id; char code[20]; byte type; long val_l;};
@@ -605,6 +619,18 @@ private:
   // {VARIABLE_PRICERANK_FIXED_8,"rank in 8 h block", CONSTANT_TYPE_INT,VARIABLE_DEPENDS_UNDEFINED} ,{ VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}
   int get_variable_index(int id);
 };
+
+void Variables::rotate_period()
+{
+  // rotate to variable history
+  for (int v_idx = 0; v_idx < HISTORY_VARIABLE_COUNT; v_idx++)
+  {
+    var_history[v_idx][MAX_HISTORY_PERIOD - 1] = this->get_l(history_variables[v_idx]);
+    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIOD; h_idx++)
+      var_history[v_idx][h_idx] = var_history[v_idx][h_idx + 1];
+    var_history[v_idx][MAX_HISTORY_PERIOD - 1] = 0;
+  }
+}
 
 bool Variables::is_set(int id)
 {
@@ -627,7 +653,18 @@ void Variables::set(int id, long val_l)
   if (idx != -1)
   {
     variables[idx].val_l = val_l;
+    //update history
+    int v_h_idx = get_variable_history_idx(id);
+     if (v_h_idx!=-1)
+     var_history[v_h_idx][MAX_HISTORY_PERIOD - 1] = val_l;
   }
+
+
+  
+
+ 
+
+
 }
 /**
  * @brief Set variable unknown/not available
@@ -1945,7 +1982,7 @@ bool read_meter_han()
 {
   char url[90];
   // snprintf(url, sizeof(url), "http://%s/api/v1/telegram", s.energy_meter_host);
-  snprintf(url, sizeof(url), "http://%s/api/v1/telegram/index.txt", s.energy_meter_host);
+  snprintf(url, sizeof(url), "http://%s/api/v1/telegram/index.php", s.energy_meter_host);
   Serial.println(url);
   String telegram = httpGETRequest(url, "");
 
@@ -1977,7 +2014,6 @@ bool read_meter_han()
 
   // read
   double power_tot = 0;
-  int idx = 0;
   energym_e_in = 0;
   energym_e_out = 0;
 
@@ -2069,6 +2105,9 @@ bool read_meter_han()
   vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
   vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod));
   vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energym_power_in)); // momentary
+
+  // history
+  //net_imports[MAX_HISTORY_PERIOD - 1] = -vars.get_f(VARIABLE_SELLING_POWER);
 
   if (energym_last_period != now_period)
   {
@@ -2674,7 +2713,6 @@ bool get_solar_forecast()
   long long pvenergy_item_time;
   time_t pvenergy_time;
   bool got_future_prices = false;
-  time_t now_in_func;
 
   for (JsonObject pvenergy_item : doc["pvenergy"].as<JsonArray>())
   {
@@ -2788,7 +2826,7 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   else
     *price_ratio_avg = VARIABLE_LONG_UNKNOWN;
 
-  Serial.printf("price %ld, price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_price_idx], time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg, *window_price_avg, *price_differs_avg);
+  // Serial.printf("price %ld, price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_price_idx], time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg, *window_price_avg, *price_differs_avg);
   return rank;
 }
 
@@ -2829,8 +2867,8 @@ bool is_in_cheapest_segment(int start_idx_incl, int end_idx_incl, int time_idx, 
       cheapest_idx = price_idx;
     }
   }
-  Serial.printf("segment_price_cheapest: %ld, cheapest_idx: %d\n", segment_price_cheapest, cheapest_idx);
-  // is time_idx within segment (of segment size) starting from cheapest_idx
+  // Serial.printf("segment_price_cheapest: %ld, cheapest_idx: %d\n", segment_price_cheapest, cheapest_idx);
+  //  is time_idx within segment (of segment size) starting from cheapest_idx
   if ((time_idx >= cheapest_idx) && (time_idx < cheapest_idx + segment_size))
   {
     Serial.printf("Segment starting with time_idx %d is within %d h segment in the block\n", segment_size, time_idx);
@@ -2881,8 +2919,8 @@ void calculate_price_ranks(time_t record_start, time_t record_end_excl, int time
 
     localtime_r(&time, &tm_struct_g);
 
-    Serial.printf("time: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, ", time, time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
-    Serial.printf("price: %f \n", energyPriceSpot);
+    //Serial.printf("time: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, ", time, time_idx, tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour);
+    //Serial.printf("price: %f \n", energyPriceSpot);
 
     int price_block_count = (int)(sizeof(price_variable_blocks) / sizeof(*price_variable_blocks));
     for (int block_idx = 0; block_idx < price_block_count; block_idx++)
@@ -5256,12 +5294,16 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
     var_obj[id_str] = buff_value;
   }
-  /*
-    JsonArray channel_array = doc.createNestedArray("channels");
-    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-    {
-      channel_array.add(s.ch[channel_idx].is_up);
-    } */
+ 
+  
+  // variables with history time series
+  for (int v_idx = 0; v_idx < HISTORY_VARIABLE_COUNT; v_idx++)
+  {
+     snprintf(id_str, 6, "%d", history_variables[v_idx]);
+    JsonArray v_history_array_item = doc["variable_history"].createNestedArray(id_str);
+    for (int h_idx = 0; h_idx < MAX_HISTORY_PERIOD; h_idx++)
+      v_history_array_item.add(var_history[v_idx][h_idx]);
+  }
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -5958,6 +6000,16 @@ void loop()
       todo_in_loop_influx_write = true;
     }
 #endif
+    // experimental history processing
+    /*
+    net_imports[MAX_HISTORY_PERIOD - 1] = -vars.get_f(VARIABLE_SELLING_ENERGY);
+    // roll the history
+    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIOD; h_idx++)
+      net_imports[h_idx] = net_imports[h_idx + 1];
+    net_imports[MAX_HISTORY_PERIOD - 1] = 0;
+*/
+    vars.rotate_period();
+
     previous_period_start = current_period_start;
     period_changed = false;
   }
