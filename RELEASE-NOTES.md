@@ -2,9 +2,9 @@
 
 ## Arska 0.93 
 
-### New features
+### New features (updated 2023-02-04)
 * New variables for fixed 8 hours blocks (23-06,07-14,15-22): VARIABLE_PRICERANK_FIXED_8, VARIABLE_PRICERANK_FIXED_8_BLOCKID
-* HAN P1 port reading  from HomeWizard Wi-Fi P1 Meter or device with similar telegram output (requires final testing)
+* HAN P1 port reading from HomeWizard Wi-Fi P1 Meter (HWE-P1-G1) or device with similar telegram output, tested with Aidon 7534, HWE-P1-G1 firmware version 4.14
 
 ### Bug Fixes
 * Special character including Scandinavian characters did not work in channel id or forecast location. Fixed. Stores now characters in ISO-8859-1 .

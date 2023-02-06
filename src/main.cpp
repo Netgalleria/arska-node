@@ -1981,8 +1981,8 @@ void get_values_energym(float &netEnergyInPeriod, float &netPowerInPeriod)
 bool read_meter_han()
 {
   char url[90];
-  // snprintf(url, sizeof(url), "http://%s/api/v1/telegram", s.energy_meter_host);
-  snprintf(url, sizeof(url), "http://%s/api/v1/telegram/index.php", s.energy_meter_host);
+  snprintf(url, sizeof(url), "http://%s/api/v1/telegram", s.energy_meter_host);
+  //snprintf(url, sizeof(url), "http://%s/api/v1/telegram/index.php", s.energy_meter_host);
   Serial.println(url);
   String telegram = httpGETRequest(url, "");
 
@@ -1992,6 +1992,7 @@ bool read_meter_han()
   int s_idx = 0, e_idx;
   int vs_idx, ve_idx, va_idx;
   int len = telegram.length();
+  Serial.printf("Length of telegram: %i\n", len);
   int i = 0;
   energym_read_count++; // global
   unsigned now_period = int(now_in_func / (NETTING_PERIOD_SEC));
@@ -2023,8 +2024,11 @@ bool read_meter_han()
   while (s_idx <= len)
   {
     e_idx = telegram.indexOf('\n', s_idx);
-    if (e_idx == -1)
+    if (e_idx == -1) {
+      Serial.printf("Cannot find newline, searching from %d\n", s_idx);
       break;
+    }
+      
 
     vs_idx = telegram.indexOf('(', s_idx);
     if ((vs_idx == -1) || (vs_idx > e_idx))
@@ -2047,12 +2051,13 @@ bool read_meter_han()
     }
 
     Serial.print(telegram.substring(s_idx, vs_idx)); // OBIS code
-    Serial.print("|value");
+    Serial.print("|value:");
     Serial.print(telegram.substring(vs_idx + 1, va_idx)); // Value
     Serial.print("|unit:");
     Serial.print(telegram.substring(va_idx + 1, ve_idx)); // unit
     Serial.println("|");
 
+    Serial.printf("s_idx: %i, vs_idx: %i, [%s]\n",s_idx, vs_idx,telegram.substring(s_idx, vs_idx).c_str());
     if (telegram.substring(s_idx, vs_idx).startsWith("1-0:1.7.0"))
     {
       power_in = telegram.substring(vs_idx + 1, va_idx).toDouble();
