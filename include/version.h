@@ -3,12 +3,12 @@
     #define VERSION_BASE "0.93.0-beta2"
   #endif
   #ifndef BUILD_NUMBER
-    #define BUILD_NUMBER "1785"
+    #define BUILD_NUMBER "1860"
   #endif
   #ifndef VERSION
-    #define VERSION "0.93.0-beta2.1785 - 2023-02-04 21:31:13"
+    #define VERSION "0.93.0-beta2.1860 - 2023-02-08 19:41:24"
   #endif
   #ifndef VERSION_SHORT
-    #define VERSION_SHORT "0.93.0-beta2.1785"
+    #define VERSION_SHORT "0.93.0-beta2.1860"
   #endif
   

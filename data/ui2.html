@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="">
+  <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+  <meta name="generator" content="Hugo 0.104.2">
+  <title>Dashboard Template · Bootstrap v5.2</title>
+
+  <!-- <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/"> -->
+  <link href="/css/bootstrap.min.css" rel="stylesheet">
+
+  <style>
+    .bd-placeholder-img {
+      font-size: 1.125rem;
+      text-anchor: middle;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+
+    @media (min-width: 768px) {
+      .bd-placeholder-img-lg {
+        font-size: 3.5rem;
+      }
+    }
+
+    .b-example-divider {
+      height: 3rem;
+      background-color: rgba(0, 0, 0, .1);
+      border: solid rgba(0, 0, 0, .15);
+      border-width: 1px 0;
+      box-shadow: inset 0 .5em 1.5em rgba(0, 0, 0, .1), inset 0 .125em .5em rgba(0, 0, 0, .15);
+    }
+
+    .b-example-vr {
+      flex-shrink: 0;
+      width: 1.5rem;
+      height: 100vh;
+    }
+
+    .bi {
+      vertical-align: -.125em;
+      fill: currentColor;
+    }
+
+    .nav-scroller {
+      position: relative;
+      z-index: 2;
+      height: 2.75rem;
+      overflow-y: hidden;
+    }
+
+    .nav-scroller .nav {
+      display: flex;
+      flex-wrap: nowrap;
+      padding-bottom: 1rem;
+      margin-top: -1px;
+      overflow-x: auto;
+      text-align: center;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
+
+
+  <!-- Custom styles for this template 
+  <link href="/css/dashboard.css" rel="stylesheet"> -->
+</head>
+
+
+
+
+<body onload="init_ui();">
+  <script src="js/jquery-3.6.0.min.js"></script>
+  <script src="js/arska-ui.js"></script>
+  <script src="js/chart.min.3.9.1.js"></script>
+
+  <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
+    <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="#">Arska</a>
+    <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse"
+      data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <input class="form-control form-control-dark w-100 rounded-0 border-0" type="text" placeholder="Search"
+      aria-label="Search">
+    <div class="navbar-nav">
+      <div class="nav-item text-nowrap">
+        <a class="nav-link px-3" href="#">Sign out</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="container-fluid">
+    <div class="row">
+      <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse">
+        <div class="position-sticky pt-3 sidebar-sticky">
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <a class="nav-link active" aria-current="page" href="#">
+                <span data-feather="activity" class="align-text-bottom"></span>
+                Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#channels">
+                <span data-feather="sliders" class="align-text-bottom"></span>
+                Channels
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#settings">
+                <span data-feather="settings" class="align-text-bottom"></span>
+                Settings
+              </a>
+            </li>
+
+          </ul>
+
+        </div>
+      </nav>
+
+      <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+        <div
+          class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+          <h1 class="h2">Dashboard</h1>
+
+          <div class="btn-toolbar mb-2 mb-md-0">
+            <div class="btn-group me-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+              <span data-feather="calendar" class="align-text-bottom"></span>
+              This week
+            </button>
+          </div>
+        </div>
+
+       <!--  <canvas class="my-4 w-100" id="myChart" width="900" height="380"></canvas> -->
+        <div id="chart_container" style="display: none;">
+          <canvas id="day_ahead_chart"></canvas>
+      </div>
+      <input type="checkbox" id="cbShowPrices" checked onclick="statusCBClicked(this)"><label for='cbShowPrices'>Show price graph</label> 
+
+        <h1 class="mt-5" id="channels">Channels</h1>
+        Should we have channel navigation, typically 6 channels.
+
+        <div id="channel_list">
+        </div> <!-- channel_list  -->
+        <div>
+          <h1 class="mt-5" id="settings">Settings</h1>
+          Page (Settings) navigation here?
+
+          <div class="card  mb-3" id="network:card">
+            <div class="card-header">
+              <h5 class="card-title">Local Network</h5>
+            </div>
+
+
+            <div class="card-body"> 
+              <label for="wifi_ssid" class="form-label">Wifi SSID</label>
+              <div class="input-group mb-3">
+               
+                <input type="text" class="form-control" id="wifi_ssid" placeholder="" list="wifi_ssid_list">
+                <button id="network:refresh"  type="button" class="btn btn-primary" onclick="populate_wifi_ssid_list()">
+                  <span data-feather="refresh-cw" style="pointer-events: none;" 
+                      class="align-text-bottom"></span>
+                      </button>
+<datalist id="wifi_ssid_list">
+</datalist>
+
+              </div>
+              <div class="mb-3">
+                <label for="wifi_password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="wifi_password" placeholder="">
+              </div>
+           
+
+              <div class="col-12">
+                <button class="btn btn-primary m-lg-3" id="network:test"><span data-feather="type"
+                    class="align-text-bottom"></span> Test</button>
+                <button class="btn btn-primary m-lg-3" type="submit" id="network:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+
+              <div id="network:alert"></div>
+
+
+            </div>
+          </div><!-- network-->
+          <div class="card  mb-3" id="price_data:card">
+            <div class="card-header">
+              <h5 class="card-title">Price Data</h5>
+              Maybe here some info and link to help?
+            </div>
+
+            <div class="card-body">
+              Could/should save (and test) button and alert area be here istead of bottom of the card?
+              <div class="mb-3">
+                <label for="entsoe_api_key" class="form-label">ENTSO-E API key</label>
+                <input type="url" class="form-control" id="entsoe_api_key" placeholder="">
+              </div>
+              <div class="mb-3">
+                <label for="entsoe_area_code" class="form-label">Area code</label>
+                <select id="entsoe_area_code" class="form-select" aria-label="variable">
+                  <option value="#">not in use</option>
+                  <option value="10YAT-APG------L">Austria, APG 🇦🇹</option>
+                  <option value="10YBE----------2">Belgium, Elia 🇧🇪</option>
+                  <option value="10YCA-BULGARIA-R">Bulgaria, ESO 🇧🇬</option>
+                  <option value="10YHR-HEP------M">Croatia, HOPS 🇭🇷</option>
+                  <option value="10YCZ-CEPS-----N">Czech Republic, CEPS 🇨🇿</option>
+                  <option value="10Y1001A1001A82H">DE-LU 🇩🇪</option>
+                  <option value="10YDK-1--------W">DK1 🇩🇰</option>
+                  <option value="10YDK-2--------M">DK2 🇩🇰</option>
+                  <option value="10Y1001A1001A39I">Estonia, Elering 🇪🇪</option>
+                  <option value="10YFI-1--------U">Finland, Fingrid 🇫🇮</option>
+                  <option value="10YFR-RTE------C">France, RTE 🇫🇷</option>
+                  <option value="10YGR-HTSO-----Y">Greece, IPTO 🇬🇷</option>
+                  <option value="10YHU-MAVIR----U">Hungary, MAVIR 🇭🇺</option>
+                  <option value="10Y1001A1001A59C">Ireland (SEM) 🇮🇪</option>
+                  <option value="10Y1001A1001A885">Italy_Saco_AC 🇮🇹</option>
+                  <option value="10Y1001A1001A893">Italy_Saco_DC 🇮🇹</option>
+                  <option value="10Y1001C--00096J">IT-Calabria 🇮🇹</option>
+                  <option value="10Y1001A1001A70O">IT-Centre-North 🇮🇹</option>
+                  <option value="10Y1001A1001A71M">IT-Centre-South 🇮🇹</option>
+                  <option value="10Y1001A1001A73I">IT-North 🇮🇹</option>
+                  <option value="10Y1001A1001A74G">IT-Sardinia 🇮🇹</option>
+                  <option value="10Y1001A1001A75E">IT-Sicily 🇮🇹</option>
+                  <option value="10Y1001A1001A788">IT-South 🇮🇹</option>
+                  <option value="10YLV-1001A00074">Latvia, AST 🇱🇻</option>
+                  <option value="10YLT-1001A0008Q">Lithuania, Litgrid 🇱🇹</option>
+                  <option value="10YNL----------L">Netherlands, TenneT NL 🇳🇱</option>
+                  <option value="10YNO-1--------2">NO1 🇳🇴</option>
+                  <option value="10YNO-2--------T">NO2 🇳🇴</option>
+                  <option value="10YNO-3--------J">NO3 🇳🇴</option>
+                  <option value="10YNO-4--------9">NO4 🇳🇴</option>
+                  <option value="10Y1001A1001A48H">NO5 🇳🇴</option>
+                  <option value="50Y0JVU59B4JWQCU">NO2NSL 🇳🇴</option>
+                  <option value="10YPL-AREA-----S">Poland, PSE SA 🇵🇱</option>
+                  <option value="10YPT-REN------W">Portugal, REN 🇵🇹</option>
+                  <option value="10YRO-TEL------P">Romania, Transelectrica 🇷🇴</option>
+                  <option value="10Y1001A1001A44P">SE1 🇸🇪</option>
+                  <option value="10Y1001A1001A45N">SE2 🇸🇪</option>
+                  <option value="10Y1001A1001A46L">SE3 🇸🇪</option>
+                  <option value="10Y1001A1001A47J">SE4 🇸🇪</option>
+                  <option value="10YCS-SERBIATSOV">Serbia, EMS 🇷🇸</option>
+                  <option value="10YSK-SEPS-----K">Slovakia, SEPS 🇸🇰</option>
+                  <option value="10YSI-ELES-----O">Slovenia, ELES 🇸🇮</option>
+                  <option value="10YES-REE------0">Spain, REE 🇪🇸</option>
+                  <option value="10YCH-SWISSGRIDZ">Switzerland, Swissgrid 🇨🇭</option>
+                </select>
+
+              </div>
+
+              <div class="col-12">
+                <button class="btn btn-primary m-lg-3" id="influx:test"><span data-feather="type"
+                    class="align-text-bottom"></span> Test</button>
+                <button class="btn btn-primary m-lg-3" type="submit" id="price_data:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+
+              <div id="price_data:alert"></div>
+
+
+            </div>
+          </div><!-- price data-->
+
+
+
+          <div class="card mb-3" id="energy_forecast:card">
+            <div class="card-header">
+              <h5 class="card-title">Energy Forecast</h5>
+              BCDC Energy forecast is currently only available in Finland...
+            </div>
+
+
+            <div class="card-body">
+
+              <div class="mb-3">
+                <label for="forecast_loc" class="form-label">Forecast location</label>
+                <select id="forecast_loc" class="form-select" aria-label="variable">
+                  <option value="#">not in use</option>
+                  <option>Akaa</option>
+                  <option>Alajärvi</option>
+                  <option>Alavus</option>
+                  <option>Espoo</option>
+                  <option>Forssa</option>
+                  <option>Haapajärvi</option>
+                  <option>Haapavesi</option>
+                  <option>Hamina</option>
+                  <option>Hanko</option>
+                  <option>Harjavalta</option>
+                  <option>Heinola</option>
+                  <option>Helsinki</option>
+                  <option>Hetta</option>
+                  <option>Huittinen</option>
+                  <option>Hyvinkää</option>
+                  <option>Hämeenlinna</option>
+                  <option>Iisalmi</option>
+                  <option>Ikaalinen</option>
+                  <option>Imatra</option>
+                  <option>Inari</option>
+                  <option>Jakobstad</option>
+                  <option>Joensuu</option>
+                  <option>Juankoski</option>
+                  <option>Jyväskylä</option>
+                  <option>Jämsä</option>
+                  <option>Järvenpää</option>
+                  <option>Kaarina</option>
+                  <option>Kajaani</option>
+                  <option>Kalajoki</option>
+                  <option>Kankaanpää</option>
+                  <option>Kannus</option>
+                  <option>Karkkila</option>
+                  <option>Kaskinen</option>
+                  <option>Kauhajoki</option>
+                  <option>Kauhava</option>
+                  <option>Kauniainen</option>
+                  <option>Kemi</option>
+                  <option>Kemijärvi</option>
+                  <option>Kerava</option>
+                  <option>Keuruu</option>
+                  <option>Kilpisjärvi</option>
+                  <option>Kitee</option>
+                  <option>Kittilä</option>
+                  <option>Kiuruvesi</option>
+                  <option>Kokemäki</option>
+                  <option>Kokkola</option>
+                  <option>Kotka</option>
+                  <option>Kouvola</option>
+                  <option>Kristinestad</option>
+                  <option>Kuhmo</option>
+                  <option>Kuopio</option>
+                  <option>Kurikka</option>
+                  <option>Kuusamo</option>
+                  <option>Lahti</option>
+                  <option>Laitila</option>
+                  <option>Lappeenranta</option>
+                  <option>Lapua</option>
+                  <option>Lieksa</option>
+                  <option>Lohja</option>
+                  <option>Loimaa</option>
+                  <option>Loviisa</option>
+                  <option>Mariehamn</option>
+                  <option>Mikkeli</option>
+                  <option>Muonio</option>
+                  <option>Mänttä-Vilppula</option>
+                  <option>Naantali</option>
+                  <option>Nilsiä</option>
+                  <option>Nivala</option>
+                  <option>Nokia</option>
+                  <option>Nurmes</option>
+                  <option>Nykarleby</option>
+                  <option>Närpes</option>
+                  <option>Orimattila</option>
+                  <option>Orivesi</option>
+                  <option>Oulainen</option>
+                  <option>Oulu</option>
+                  <option>Outokumpu</option>
+                  <option>Paimio</option>
+                  <option>Pargas</option>
+                  <option>Parkano</option>
+                  <option>Pello</option>
+                  <option>Pieksämäki</option>
+                  <option>Pori</option>
+                  <option>Porvoo</option>
+                  <option>Pudasjärvi</option>
+                  <option>Pyhäjärvi</option>
+                  <option>Raahe</option>
+                  <option>Raisio</option>
+                  <option>Raseborg</option>
+                  <option>Rauma</option>
+                  <option>Riihimäki</option>
+                  <option>Rovaniemi</option>
+                  <option>Saarijärvi</option>
+                  <option>Saariselkä</option>
+                  <option>Salla</option>
+                  <option>Salo</option>
+                  <option>Sastamala</option>
+                  <option>Savonlinna</option>
+                  <option>Seinäjoki</option>
+                  <option>Sodankylä</option>
+                  <option>Somero</option>
+                  <option>Suonenjoki</option>
+                  <option>Tampere</option>
+                  <option>Tornio</option>
+                  <option>Turku</option>
+                  <option>Ulvila</option>
+                  <option>Utsjoki</option>
+                  <option>Uusikaupunki</option>
+                  <option>Vaasa</option>
+                  <option>Valkeakoski</option>
+                  <option>Vantaa</option>
+                  <option>Varkaus</option>
+                  <option>Viitasaari</option>
+                  <option>Vilppula</option>
+                  <option>Virrat</option>
+                  <option>Ylivieska</option>
+                  <option>Ylöjärvi</option>
+                  <option>Ähtäri</option>
+                  <option>Äänekoski</option>
+                </select>
+
+              </div>
+
+              <div class="col-12">
+
+                <button class="btn btn-primary m-lg-3" type="submit" id="energy_forecast:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+
+
+              <div id="energy_forecast:alert"></div>
+
+            </div>
+          </div><!-- energy_forecast-->
+
+
+
+          <div class="card mb-3" id="localisation:card">
+            <div class="card-header">
+              <h5 class="card-title">Localization</h5>
+            </div>
+
+
+            <div class="card-body">
+
+              <div class="mb-3">
+                <label for="timezone" class="form-label">Time Zone</label>
+                <select id="timezone">" class="form-select" aria-label="variable">
+                  <option>EET</option>
+                  <option>CET</option>
+                </select>
+
+              </div>
+
+              <div class="mb-3">
+                <label for="lang" class="form-label">Language</label>
+                <select id="lang">" class="form-select" aria-label="variable">
+                  <option value="en">English</option>
+                  <option value="fi">Finnish</option>
+                </select>
+
+              </div>
+
+              <div class="col-12">
+
+                <button class="btn btn-primary m-lg-3" type="submit" id="localisation:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+
+
+              <div id="localisation:alert"></div>
+
+            </div>
+          </div><!-- localisation-->
+
+
+          <div class="card mb-3" id="metering:card">
+            <div class="card-header">
+              <h5 class="card-title">Metering</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label for="energy_meter_type" class="form-label">Energy Meter</label>
+                <select id="energy_meter_type">" class="form-select" aria-label="variable">
+                  <option value='0'>none</option>
+                  <option value='1'>Shelly 3EM</option>
+                  <option value='4'>HAN P1 Telegram</option>
+                </select>
+              </div>
+              <div id="metering:energy_meter_ip_div" class="mb-3">
+                <label for="energy_meter_ip" class="form-label">IP Address:</label>
+                <div class="col-md-3">
+                  <input id="energy_meter_ip" type="text" class="form-control" id="basic-url" placeholder="0.0.0.0"
+                    required pattern="((^|\.)((25[0-5])|(2[0-4]\d)|(1\d\d)|([1-9]?\d))){4}$">
+                </div>
+              </div>
+
+              <div class="col-12">
+
+                <button class="btn btn-primary m-lg-3" type="submit" id="metering:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+              <div id="metering:alert"></div>
+
+            </div>
+          </div><!-- metering-->
+
+
+          <div class="card  mb-3" id="influx:card">
+            <div class="card-header">
+              <h5 class="card-title">Influx Server</h5>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <label for="exampleFormControlInput1" class="form-label">URL</label>
+                <input type="url" class="form-control" id="influx_url" placeholder="">
+              </div>
+              <div class="mb-3">
+                <label for="exampleFormControlInput1" class="form-label">Token</label>
+                <input type="text" class="form-control" id="influx_token" placeholder="">
+              </div>
+              <div class="mb-3">
+                <label for="exampleFormControlInput1" class="form-label">Organization</label>
+                <input type="text" class="form-control" id="influx_org" placeholder="">
+              </div>
+              <div class="mb-3">
+                <label for="exampleFormControlInput1" class="form-label">Bucket</label>
+                <input type="text" class="form-control" id="influx_bucket" placeholder="">
+              </div>
+              <div class="col-12">
+                <button class="btn btn-primary m-lg-3" id="influx:test"><span data-feather="type"
+                    class="align-text-bottom"></span> Test</button>
+                <button class="btn btn-primary m-lg-3" type="submit" id="influx:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+              <div id="influx:alert"></div>
+            </div>
+          </div><!-- influx-->
+
+
+
+
+          <div class="card mb-3" id="cloud:card">
+            <div class="card-header">
+              <h5 class="card-title">Cloud Settings</h5>
+              Only in the premium edition.
+            </div>
+
+
+            <div class="card-body">
+
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="true" id="cloud_enabled">
+                  <label class="form-label" for="cloud_enabled">
+                    Enable Cloud
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="true" id="sms_admin_enabled">
+                  <label class="form-label" for="sms_admin_enabled">
+                    SMS Admin enabled
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" value="true" id="sms_alerts_enabled">
+                  <label class="form-label" for="sms_alerts_enabled">
+                    SMS Alerts enabled
+                  </label>
+                </div>
+                <div class="mb-3">
+                  <label for="mobile_nbr" class="form-label">Mobile number</label>
+                  <input type="text" class="form-control" id="mobile_nbr" placeholder="+358 123 4567">
+                </div>
+
+                <div class="mb-3">
+                  <label for="mobile_apn" class="form-label">Mobile APN</label>
+                  <input type="text" class="form-control" id="mobile_apn" placeholder="internet">
+                </div>
+
+              </div>
+
+              <div class="col-12">
+
+                <button class="btn btn-primary m-lg-3" type="submit" id="cloud:save"><span data-feather="save"
+                    class="align-text-bottom"></span> Save</button>
+              </div>
+              <div id="cloud:alert"></div>
+
+            </div>
+          </div><!-- cloud-->
+
+
+          <div class="card mb-3" id="actions:card">
+            <div class="card-header">
+              <h5 class="card-title">Admin actions</h5>
+            </div>
+            <div class="card-body">
+
+              <div class="mb-3">
+                <button type="button" id="actions:restart" class="btn btn-secondary">Restart and clear cache</button>
+                <button type="button" id="actions:reset" class="btn btn-secondary">Reset Settings</button>
+                <button type="button" id="actions:scan_sensors" class="btn btn-secondary">Scan Sensors</button>
+              </div>
+
+              <div id="actions:alert"></div>
+
+            </div>
+          </div><!-- actions-->
+
+
+        </div>
+        <!--settings-->
+
+    </div>
+  </div>
+  </main>
+
+
+  <script src="/js/bootstrap.bundle.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js"
+    integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE"
+    crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"
+    integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha"
+    crossorigin="anonymous"></script>
+  <!-- <script src="/js/dashboard.js"></script> -->
+</body>
+
+
+</html>

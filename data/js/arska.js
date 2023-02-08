@@ -1437,7 +1437,6 @@ function initUrlBar(url) {
 }
 
 //TODO: get from main.cpp
-const force_up_hours = [0, 1, 2, 4, 8, 12, 24];
 const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440];
 
 
@@ -1967,13 +1966,12 @@ function post_schedule_update(channel_idx = -1) {
     for (i = 0; i < g_constants.CHANNEL_COUNT; i++) {
         if (channel_idx != -1 && i != channel_idx)
             continue;
-        sel1 = document.getElementById("fupdur_" + i);
-        if (sel1) {
-            sel2 = document.getElementById("fupfrom_" + i);
-            if (sel1.value > -1)
-                scheds.push({ "ch_idx": i, "duration": sel1.value, "from": sel2.value });
+            fupdur_sel = document.getElementById("fupdur_" + i);
+        if (fupdur_sel) {
+            fupfrom_sel = document.getElementById("fupfrom_" + i);
+            if (fupdur_sel.value > -1)
+                scheds.push({ "ch_idx": i, "duration": fupdur_sel.value, "from": fupfrom_sel.value });
         }
-
     }
     console.log(scheds);
     console.log(JSON.stringify(scheds));

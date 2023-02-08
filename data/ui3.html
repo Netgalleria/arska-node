@@ -1,0 +1,925 @@
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="">
+  <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+  <meta name="generator" content="Hugo 0.104.2">
+  <title>Dashboard Template · Bootstrap v5.2</title>
+
+  <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/">
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+
+  <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
+  <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
+  
+  <style>
+    .bd-placeholder-img {
+      font-size: 1.125rem;
+      text-anchor: middle;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+
+    @media (min-width: 768px) {
+      .bd-placeholder-img-lg {
+        font-size: 3.5rem;
+      }
+    }
+
+    .b-example-divider {
+      height: 3rem;
+      background-color: rgba(0, 0, 0, .1);
+      border: solid rgba(0, 0, 0, .15);
+      border-width: 1px 0;
+      box-shadow: inset 0 .5em 1.5em rgba(0, 0, 0, .1), inset 0 .125em .5em rgba(0, 0, 0, .15);
+    }
+
+    .b-example-vr {
+      flex-shrink: 0;
+      width: 1.5rem;
+      height: 100vh;
+    }
+
+    .bi {
+      vertical-align: -.125em;
+      fill: currentColor;
+    }
+
+    .nav-scroller {
+      position: relative;
+      z-index: 2;
+      height: 2.75rem;
+      overflow-y: hidden;
+    }
+
+    .nav-scroller .nav {
+      display: flex;
+      flex-wrap: nowrap;
+      padding-bottom: 1rem;
+      margin-top: -1px;
+      overflow-x: auto;
+      text-align: center;
+      white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
+  <!-- Custom styles for this template -->
+  <link href="/css/dashboard.css" rel="stylesheet">
+  <!--fonts-->
+  <link rel="stylesheet" href="https://use.typekit.net/uwx3oza.css">
+  <style type="text/css">
+    /* Chart.js */
+    @keyframes chartjs-render-animation {
+      from {
+        opacity: .99
+      }
+
+      to {
+        opacity: 1
+      }
+    }
+
+    .chartjs-render-monitor {
+      animation: chartjs-render-animation 1ms
+    }
+
+    .chartjs-size-monitor,
+    .chartjs-size-monitor-expand,
+    .chartjs-size-monitor-shrink {
+      position: absolute;
+      direction: ltr;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      pointer-events: none;
+      visibility: hidden;
+      z-index: -1
+    }
+
+    .chartjs-size-monitor-expand>div {
+      position: absolute;
+      width: 1000000px;
+      height: 1000000px;
+      left: 0;
+      top: 0
+    }
+
+    .chartjs-size-monitor-shrink>div {
+      position: absolute;
+      width: 200%;
+      height: 200%;
+      left: 0;
+      top: 0
+    }
+  </style>
+</head>
+
+<body>
+  <script src="js/jquery-3.6.0.min.js"></script>
+  <script src="js/arska-ui.js"></script>
+  <script src="js/chart.min.3.9.1.js"></script>
+
+
+  <!-- Header
+================================================== -->
+
+  <header>
+    <!-- Mobile header
+================================================== -->
+
+    <div class="mobile-header d-md-none py-1 d-flex align-items-center">
+      <a class="mobile-menu-btn mx-2" data-bs-toggle="offcanvas" href="#mobileMenu" role="button"
+        aria-controls="mobileMenu">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+          class="mobile-menu-icon bi bi-list" viewBox="0 0 16 16">
+          <path fill-rule="evenodd"
+            d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z" />
+        </svg>
+      </a>
+      <a class="brand-logo logotext mx-auto" href="#"><span class="logotext me-4">arska</span></a>
+    </div>
+
+    <!--    mobiilimenu
+================================================== -->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu" aria-labelledby="mobileMenu">
+      <div class="offcanvas-header px-4 pb-0">
+        <h5 class="offcanvas-title" id="mobileMenuLabel">Valikko</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body">
+        <div>
+          <ul class="mobile-menu">
+            <li class="menu-item active"><a href="#">Dashboard</a></li>
+            <li class="menu-item"><a href="#">Channels</a></li>
+            <li class="menu-item"><a href="#">Settings</a></li>
+            <li class="menu-item"><a href="#">Arska Wiki</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!--Desktop header
+================================================== -->
+
+    <div class="container-xl p-3 d-none d-md-block sticky-top">
+      <div class="d-flex align-items-center justify-content-between">
+        <a class="brand-logo logotext" href="#"><span class="logotext">arska</span></a>
+
+        <!-- Desktop Menu
+================================================== -->
+        <ul class="nav nav-pills app-menu" id="pills-tab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard"
+              type="button" role="tab" aria-controls="dashboard" aria-selected="true">Dashboard</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="channels-tab" data-bs-toggle="pill" data-bs-target="#channels" type="button"
+              role="tab" aria-controls="channels" aria-selected="false">Channels</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="admin-tab" data-bs-toggle="pill" data-bs-target="#admin" type="button"
+              role="tab" aria-controls="admin" aria-selected="false">Settings</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <a class="nav-link" href="https://github.com/Netgalleria/arska-node/wiki" target="_blank"><svg
+                xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-link-45deg"
+                viewBox="0 0 16 16">
+                <path
+                  d="M4.715 6.542 3.343 7.914a3 3 0 1 0 4.243 4.243l1.828-1.829A3 3 0 0 0 8.586 5.5L8 6.086a1.002 1.002 0 0 0-.154.199 2 2 0 0 1 .861 3.337L6.88 11.45a2 2 0 1 1-2.83-2.83l.793-.792a4.018 4.018 0 0 1-.128-1.287z" />
+                <path
+                  d="M6.586 4.672A3 3 0 0 0 7.414 9.5l.775-.776a2 2 0 0 1-.896-3.346L9.12 3.55a2 2 0 1 1 2.83 2.83l-.793.792c.112.42.155.855.128 1.287l1.372-1.372a3 3 0 1 0-4.243-4.243L6.586 4.672z" />
+              </svg>Arska Wiki</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+
+  </header>
+
+
+
+  <div class="container-xl p-0">
+    <div class="row justify-content-center">
+
+      <main class="mb-3 p-md-3">
+
+
+        <!-- Tab content
+================================================== -->
+        <div class="tab-content p-0" id="arska-content">
+
+          <!-- Dashboard
+================================================== -->
+          <div class="tab-pane fade show active" id="dashboard" role="tabpanel" aria-labelledby="dashboard-tab"
+            tabindex="0">
+            <div class="row g-4">
+              <div class="col">
+                <div class="card white-card p-3 px-xl-5 py-xl-4">
+                  <div class="card-header">
+                    <div class="chartjs-size-monitor">
+                      <div class="chartjs-size-monitor-expand">
+                        <div class=""></div>
+                      </div>
+                      <div class="chartjs-size-monitor-shrink">
+                        <div class=""></div>
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center ">
+                      <h1 class="h2 card-title">Dashboard</h1>
+                      <!--dashboard-nav-->
+                      <nav class="nav nav-pills nav-fill">
+                        <a class="nav-link active" aria-current="page" href="#">Active</a>
+                        <a class="nav-link" href="#">Link</a>
+                        <a class="nav-link" href="#">Link</a>
+                        <a class="nav-link disabled">Disabled</a>
+                      </nav>
+                    </div>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="chart-text">Day-ahead prices </span>
+                      <span class="text-muted">29.01.2023 (00:00) &mdash; 31.01.2023 (01:00)</span>
+                    </div>
+                    <!--./chart-info-->
+                  </div>
+                  <!--./card-header-->
+          
+                  <div class="card-body" id="chart_container">
+                    <canvas class="my-4 w-100 chartjs-render-monitor" id="day_ahead_chart" width="1624" height="684"
+                      style="display: block; height: 342px; width: 812px;"></canvas>
+                  </div>
+                  <div class="card-footer">
+                    <!--Valitse näytettävät tiedot-->
+                    <div class="show-hide-items pt-3">
+                      <span class="d-block d-md-inline  me-md-2 pb-2 pb-md-0">Show</span>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input price-label" type="checkbox" id="inlineCheckbox0"
+                          value="option0">
+                        <label class="form-check-label" for="inlineCheckbox0">Price graph</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-0" type="checkbox" id="inlineCheckbox0" value="option0"
+                          checked>
+                        <label class="form-check-label" for="inlineCheckbox0">Floor</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-1" type="checkbox" id="inlineCheckbox1" value="option1">
+                        <label class="form-check-label " for="inlineCheckbox1">Boiler</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-2" type="checkbox" id="inlineCheckbox2" value="option2">
+                        <label class="form-check-label" for="inlineCheckbox2">Channel 2</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-3" type="checkbox" id="inlineCheckbox3" value="option3">
+                        <label class="form-check-label" for="inlineCheckbox3">Channel 3</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-4" type="checkbox" id="inlineCheckbox4" value="option4">
+                        <label class="form-check-label" for="inlineCheckbox4">Channel 4</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-5" type="checkbox" id="inlineCheckbox5" value="option5">
+                        <label class="form-check-label" for="inlineCheckbox5">Channel 5</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-6" type="checkbox" id="inlineCheckbox6" value="option6">
+                        <label class="form-check-label" for="inlineCheckbox6">Channel 6</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-7" type="checkbox" id="inlineCheckbox7" value="option7">
+                        <label class="form-check-label" for="inlineCheckbox7">Channel 7</label>
+                      </div>
+                      <div class="form-check form-check-inline">
+                        <input class="form-check-input Channel-8" type="checkbox" id="inlineCheckbox8" value="option8">
+                        <label class="form-check-label" for="inlineCheckbox8">Channel 8</label>
+                      </div>
+                    </div>
+                    <!--./show-hide-items-->
+
+                  </div>
+                  <!--./card-footer-->
+                </div>
+                <!--./card-->
+              </div>
+              <!--./col-->
+            </div>
+            <!--./row-->
+            <div id="schedules" class="row row-cols-1 row-cols-md-2 g-4 mt-2">
+              <!--./col-->
+              <div class="col">
+                <div class="card white-card" id="sch_1:card">
+                  <div class="card-header d-flex align-items-center justify-content-between">
+                    <h5 class="card-title m-lg-0 p-1 channel-color-1"><span
+                        class="channel-label channel-label-1"></span>Boiler</h5>
+                    <label class="btn btn-secondary btn-sm text-bg-danger" for="sch_1:delete">
+
+                      <span data-feather="zap-off" style="pointer-events: none;" class="align-text-bottom"></span>
+                     OFF based on <a href="#" class="link-light">rule 1</a></label>
+                  </div>
+                  <!--card-header-->
+                  <div class="card-body">
+                    <div class="input-group mb-3">
+                      <span class="input-group-text" id="basic-addon1">Scheduled</span>
+                      <span class="input-group-text" id="basic-addon1">no schedule</span>
+
+                      <input id="sch_0:delete" type="radio" class="btn-check disabled" name="ch_0:config_mode"
+                        autocomplete="off" value="0">
+                      <label class="btn btn-secondary" for="sch_0:delete">
+                        <span data-feather="delete" style="pointer-events: none;" class="align-text-bottom"></span>
+                        </label>
+
+                    </div>
+                    <!--./input-group-->
+
+                    <div class="input-group mb-3">
+
+                      <span class="input-group-text" id="basic-addon1">Add schedule</span>
+                      <div class="col-md-6 col-lg-3">
+                        <select id="sc_0:duration" class="form-select" aria-label="variable">
+                          <option value="30">00:30</option>
+                          <option value="60">01:00</option>
+                          <option value="120">02:00</option>
+                          <option value="180">03:00</option>
+                          <option value="240">04:00</option>
+                          <option value="300">05:00</option>
+                          <option value="360">06:00</option>
+                          <option value="480">08:00</option>
+                          <option value="600">10:00</option>
+                          <option value="7200">12:00</option>
+                        </select>
+                      </div>
+
+                      <div class="col-md-6 col-lg-4">
+
+                        <select id="sc_0:start" class="form-select" aria-label="variable">
+                          <option value="0">now &rarr;</option>
+                          <option value="1673172000">12:00 &rarr; 14:00 4.7 c/kWh ***</option>
+                          <option value="1673175600">13:00 &rarr; 15:00 4.8 c/kWh</option>
+                          <option value="1673179200">14:00 &rarr; 16:00 5.2 c/kWh</option>
+                          <option value="1673182800">15:00 &rarr; 17:00 5.9 c/kWh</option>
+                          <option value="1673186400">16:00 &rarr; 18:00 6.5 c/kWh</option>
+                          <option value="1673190000">17:00 &rarr; 19:00 6.8 c/kWh</option>
+                          <option value="1673193600">18:00 &rarr; 20:00 7.0 c/kWh</option>
+                          <option value="1673197200">19:00 &rarr; 21:00 6.8 c/kWh</option>
+                          <option value="1673200800">20:00 &rarr; 22:00 6.3 c/kWh</option>
+                          <option value="1673204400">21:00 &rarr; 23:00 5.9 c/kWh</option>
+                          <option value="1673208000">22:00 &rarr; 00:00 (+1) 5.4 c/kWh</option>
+                          <option value="1673211600">23:00 &rarr; 01:00 (+1)</option>
+                          <option value="1673215200">00:00 (+1) &rarr; 02:00 (+1)</option>
+                          <option value="1673218800">01:00 (+1) &rarr; 03:00 (+1)</option>
+                          <option value="1673222400">02:00 (+1) &rarr; 04:00 (+1)</option>
+                          <option value="1673226000">03:00 (+1) &rarr; 05:00 (+1)</option>
+                          <option value="1673229600">04:00 (+1) &rarr; 06:00 (+1)</option>
+                          <option value="1673233200">05:00 (+1) &rarr; 07:00 (+1)</option>
+                          <option value="1673236800">06:00 (+1) &rarr; 08:00 (+1)</option>
+                          <option value="1673240400">07:00 (+1) &rarr; 09:00 (+1)</option>
+                          <option value="1673244000">08:00 (+1) &rarr; 10:00 (+1)</option>
+                          <option value="1673247600">09:00 (+1) &rarr; 11:00 (+1)</option>
+                          <option value="1673251200">10:00 (+1) &rarr; 12:00 (+1)</option>
+                          <option value="1673254800">11:00 (+1) &rarr; 13:00 (+1)</option>
+                        </select>
+
+
+                      </div>
+                      <span class="input-group-text p-0" id="basic-addon1"> </span>
+                      <input id="sch_0:add" type="radio" class="btn-check" name="ch_0:config_mode" autocomplete="off"
+                        value="0">
+                      <label class="btn btn-secondary" for="sch_0:add">
+                        <span data-feather="plus" style="pointer-events: none;" class="align-text-bottom"></span>
+                      </label>
+
+                    </div>
+                    <!--./input-group-->
+
+                    <div id="price_data:alert2">
+                      <div class="alert alert-success alert-dismissible mb-0" role="alert">
+                        <div>Message from schedule action, add or delete...</div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>
+                    </div>
+
+                  </div>
+                  <!--./card-body-->
+                </div>
+                <!--./card-->
+              </div>
+              <!--./col-->
+            </div>
+            <!--./row-->
+          </div>
+          <!--./dashboard-->
+          <!-- Services
+================================================== -->
+          <div class="tab-pane fade" id="services" role="tabpanel" aria-labelledby="services-tab" tabindex="0">
+            Services
+          </div>
+          <!--./channels-->
+          <!-- Channels
+================================================== -->
+          <div class="tab-pane fade" id="channels" role="tabpanel" aria-labelledby="channels-tab" tabindex="0">
+
+            <!--./row-->
+          </div>
+          <!--./channels-->
+          <!-- Admin / Settings
+================================================== -->
+          <div class="tab-pane fade" id="admin" role="tabpanel" aria-labelledby="admin-tab" tabindex="0">
+            <div class="row row-cols-1 row-cols-md-2 g-4">
+              <div class="col">
+                <!-- Price data
+                ================================================== -->
+                <div class="card white-card mb-3" id="price_data:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Price Data</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted">Maybe here some info and <a href="#">link to help?</a></span>
+                    </div>
+                    <!--./chart-info-->
+                  </div>
+                  <!--./card-header-->
+                  <div class="card-body">
+                    <div class="mb-2">
+                      <label for="entsoe_api_key" class="form-label">ENTSO-E API key</label>
+                      <input type="url" class="form-control" id="entsoe_api_key" placeholder="">
+                    </div>
+                    <div class="mb-2">
+                      <label for="entsoe_area_code" class="form-label">Area code</label>
+                      <select id="entsoe_area_code" class="form-select" aria-label="variable">
+                        <option value="#">not in use</option>
+                        <option value="10YAT-APG------L">Austria, APG 🇦🇹</option>
+                        <option value="10YBE----------2">Belgium, Elia 🇧🇪</option>
+                        <option value="10YCA-BULGARIA-R">Bulgaria, ESO 🇧🇬</option>
+                        <option value="10YHR-HEP------M">Croatia, HOPS 🇭🇷</option>
+                        <option value="10YCZ-CEPS-----N">Czech Republic, CEPS 🇨🇿</option>
+                        <option value="10Y1001A1001A82H">DE-LU 🇩🇪</option>
+                        <option value="10YDK-1--------W">DK1 🇩🇰</option>
+                        <option value="10YDK-2--------M">DK2 🇩🇰</option>
+                        <option value="10Y1001A1001A39I">Estonia, Elering 🇪🇪</option>
+                        <option value="10YFI-1--------U">Finland, Fingrid 🇫🇮</option>
+                        <option value="10YFR-RTE------C">France, RTE 🇫🇷</option>
+                        <option value="10YGR-HTSO-----Y">Greece, IPTO 🇬🇷</option>
+                        <option value="10YHU-MAVIR----U">Hungary, MAVIR 🇭🇺</option>
+                        <option value="10Y1001A1001A59C">Ireland (SEM) 🇮🇪</option>
+                        <option value="10Y1001A1001A885">Italy_Saco_AC 🇮🇹</option>
+                        <option value="10Y1001A1001A893">Italy_Saco_DC 🇮🇹</option>
+                        <option value="10Y1001C--00096J">IT-Calabria 🇮🇹</option>
+                        <option value="10Y1001A1001A70O">IT-Centre-North 🇮🇹</option>
+                        <option value="10Y1001A1001A71M">IT-Centre-South 🇮🇹</option>
+                        <option value="10Y1001A1001A73I">IT-North 🇮🇹</option>
+                        <option value="10Y1001A1001A74G">IT-Sardinia 🇮🇹</option>
+                        <option value="10Y1001A1001A75E">IT-Sicily 🇮🇹</option>
+                        <option value="10Y1001A1001A788">IT-South 🇮🇹</option>
+                        <option value="10YLV-1001A00074">Latvia, AST 🇱🇻</option>
+                        <option value="10YLT-1001A0008Q">Lithuania, Litgrid 🇱🇹</option>
+                        <option value="10YNL----------L">Netherlands, TenneT NL 🇳🇱</option>
+                        <option value="10YNO-1--------2">NO1 🇳🇴</option>
+                        <option value="10YNO-2--------T">NO2 🇳🇴</option>
+                        <option value="10YNO-3--------J">NO3 🇳🇴</option>
+                        <option value="10YNO-4--------9">NO4 🇳🇴</option>
+                        <option value="10Y1001A1001A48H">NO5 🇳🇴</option>
+                        <option value="50Y0JVU59B4JWQCU">NO2NSL 🇳🇴</option>
+                        <option value="10YPL-AREA-----S">Poland, PSE SA 🇵🇱</option>
+                        <option value="10YPT-REN------W">Portugal, REN 🇵🇹</option>
+                        <option value="10YRO-TEL------P">Romania, Transelectrica 🇷🇴</option>
+                        <option value="10Y1001A1001A44P">SE1 🇸🇪</option>
+                        <option value="10Y1001A1001A45N">SE2 🇸🇪</option>
+                        <option value="10Y1001A1001A46L">SE3 🇸🇪</option>
+                        <option value="10Y1001A1001A47J">SE4 🇸🇪</option>
+                        <option value="10YCS-SERBIATSOV">Serbia, EMS 🇷🇸</option>
+                        <option value="10YSK-SEPS-----K">Slovakia, SEPS 🇸🇰</option>
+                        <option value="10YSI-ELES-----O">Slovenia, ELES 🇸🇮</option>
+                        <option value="10YES-REE------0">Spain, REE 🇪🇸</option>
+                        <option value="10YCH-SWISSGRIDZ">Switzerland, Swissgrid 🇨🇭</option>
+                      </select>
+                    </div>
+                    <div id="price_data:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+                    <button class="btn btn-primary" type="submit" id="price_data:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                       Save</button>
+                  </div>
+                  <!--./card-footer-->
+                </div><!-- price data-card-->
+              </div>
+              <!--./col-->
+              <div class="col">
+                <!-- Energy Forecast
+                ================================================== -->
+                <div class="card white-card mb-3" id="energy_forecast:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Energy Forecast</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted"> BCDC Energy forecast is currently only available in Finland.</span>
+                    </div>
+                    <!--./chart-info-->
+                  </div>
+                  <!--./card-header-->
+                  <div class="card-body">
+
+                    <div class="mb-2">
+                      <label for="forecast_loc" class="form-label">Forecast location</label>
+                      <select id="forecast_loc" class="form-select" aria-label="variable">
+                        <option value="#">not in use</option>
+                        <option>Akaa</option>
+                        <option>Alajärvi</option>
+                        <option>Alavus</option>
+                        <option>Espoo</option>
+                        <option>Forssa</option>
+                        <option>Haapajärvi</option>
+                        <option>Haapavesi</option>
+                        <option>Hamina</option>
+                        <option>Hanko</option>
+                        <option>Harjavalta</option>
+                        <option>Heinola</option>
+                        <option>Helsinki</option>
+                        <option>Hetta</option>
+                        <option>Huittinen</option>
+                        <option>Hyvinkää</option>
+                        <option>Hämeenlinna</option>
+                        <option>Iisalmi</option>
+                        <option>Ikaalinen</option>
+                        <option>Imatra</option>
+                        <option>Inari</option>
+                        <option>Jakobstad</option>
+                        <option>Joensuu</option>
+                        <option>Juankoski</option>
+                        <option>Jyväskylä</option>
+                        <option>Jämsä</option>
+                        <option>Järvenpää</option>
+                        <option>Kaarina</option>
+                        <option>Kajaani</option>
+                        <option>Kalajoki</option>
+                        <option>Kankaanpää</option>
+                        <option>Kannus</option>
+                        <option>Karkkila</option>
+                        <option>Kaskinen</option>
+                        <option>Kauhajoki</option>
+                        <option>Kauhava</option>
+                        <option>Kauniainen</option>
+                        <option>Kemi</option>
+                        <option>Kemijärvi</option>
+                        <option>Kerava</option>
+                        <option>Keuruu</option>
+                        <option>Kilpisjärvi</option>
+                        <option>Kitee</option>
+                        <option>Kittilä</option>
+                        <option>Kiuruvesi</option>
+                        <option>Kokemäki</option>
+                        <option>Kokkola</option>
+                        <option>Kotka</option>
+                        <option>Kouvola</option>
+                        <option>Kristinestad</option>
+                        <option>Kuhmo</option>
+                        <option>Kuopio</option>
+                        <option>Kurikka</option>
+                        <option>Kuusamo</option>
+                        <option>Lahti</option>
+                        <option>Laitila</option>
+                        <option>Lappeenranta</option>
+                        <option>Lapua</option>
+                        <option>Lieksa</option>
+                        <option>Lohja</option>
+                        <option>Loimaa</option>
+                        <option>Loviisa</option>
+                        <option>Mariehamn</option>
+                        <option>Mikkeli</option>
+                        <option>Muonio</option>
+                        <option>Mänttä-Vilppula</option>
+                        <option>Naantali</option>
+                        <option>Nilsiä</option>
+                        <option>Nivala</option>
+                        <option>Nokia</option>
+                        <option>Nurmes</option>
+                        <option>Nykarleby</option>
+                        <option>Närpes</option>
+                        <option>Orimattila</option>
+                        <option>Orivesi</option>
+                        <option>Oulainen</option>
+                        <option>Oulu</option>
+                        <option>Outokumpu</option>
+                        <option>Paimio</option>
+                        <option>Pargas</option>
+                        <option>Parkano</option>
+                        <option>Pello</option>
+                        <option>Pieksämäki</option>
+                        <option>Pori</option>
+                        <option>Porvoo</option>
+                        <option>Pudasjärvi</option>
+                        <option>Pyhäjärvi</option>
+                        <option>Raahe</option>
+                        <option>Raisio</option>
+                        <option>Raseborg</option>
+                        <option>Rauma</option>
+                        <option>Riihimäki</option>
+                        <option>Rovaniemi</option>
+                        <option>Saarijärvi</option>
+                        <option>Saariselkä</option>
+                        <option>Salla</option>
+                        <option>Salo</option>
+                        <option>Sastamala</option>
+                        <option>Savonlinna</option>
+                        <option>Seinäjoki</option>
+                        <option>Sodankylä</option>
+                        <option>Somero</option>
+                        <option>Suonenjoki</option>
+                        <option>Tampere</option>
+                        <option>Tornio</option>
+                        <option>Turku</option>
+                        <option>Ulvila</option>
+                        <option>Utsjoki</option>
+                        <option>Uusikaupunki</option>
+                        <option>Vaasa</option>
+                        <option>Valkeakoski</option>
+                        <option>Vantaa</option>
+                        <option>Varkaus</option>
+                        <option>Viitasaari</option>
+                        <option>Vilppula</option>
+                        <option>Virrat</option>
+                        <option>Ylivieska</option>
+                        <option>Ylöjärvi</option>
+                        <option>Ähtäri</option>
+                        <option>Äänekoski</option>
+                      </select>
+
+                    </div>
+                    <div id="energy_forecast:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+                    <button class="btn btn-primary" type="submit" id="energy_forecast:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                       Save</button>
+                  </div>
+                  <!--./card-footer-->
+                </div><!-- energy_forecast -card-->
+              </div>
+              <!--./col-->
+              <div class="col">
+                <!-- Energy metering
+                ================================================== -->
+                <div class="card white-card  mb-3" id="metering:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Energy Metering</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="mb-2">
+                      <label for="energy_meter_type" class="form-label">Energy Meter Type</label>
+                      <select id="energy_meter_type" class="form-select" aria-label="variable">
+                        <option value="0">not in use</option>
+                        <option value="1">Shelly 3 EM</option>
+                        <option value="4">HAN P1 Telegram / Wifi</option>
+                      </select>
+                    </div>
+                    <div class="mb-2">
+                      <label for="energy_meter_ip" class="form-label">Energy Meter IP Address</label>
+                      <input type="text" class="form-control" id="energy_meter_ip" placeholder="0.0.0.0" pattern="((^|\.)((25[0-5])|(2[0-4]\d)|(1\d\d)|([1-9]?\d))){4}$">
+                    </div>
+                    <div class="mb-2">
+                      <label for="energy_meter_port" class="form-label">Energy Meter IP Port</label>
+                      <input type="number" class="form-control" id="energy_meter_port" placeholder="80" min="1" step="1" max="65536">
+                    </div> 
+                    <div class="mb-2">
+                      <label for="energy_meter_password" class="form-label">Energy Meter Password</label>
+                      <input type="text" class="form-control" id="energy_meter_password">
+                    </div>
+                    <div id="metering:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+                    <button class="btn btn-primary" type="submit" id="metering:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                       Save</button>
+                  </div>
+                  <!--./card-footer-->
+                </div><!-- metering card-->
+                           <!-- Energy production
+                ================================================== -->
+                <div class="card white-card  mb-3" id="production:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Energy Production</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="mb-2">
+                      <label for="production_meter_type" class="form-label">Inverter Type</label>
+                      <select id="production_meter_type" class="form-select" aria-label="variable">
+                        <option value="0">not in use</option>
+                        <option value='1'>Fronius Solar API</option>
+                        <option value='2'>SMA Modbus TCP</option>
+                      </select>
+                    </div>
+                    <div class="mb-2">
+                      <label for="production_meter_ip" class="form-label">Inverter IP Address</label>
+                      <input type="text" class="form-control" id="production_meter_ip" placeholder="0.0.0.0">
+                    </div>
+                    <div class="mb-2">
+                      <label for="production_meter_port" class="form-label">Inverter IP Port</label>
+                      <input type="number" class="form-control" id="production_meter_port" placeholder="80" >
+                    </div>
+                    <div class="mb-2">
+                      <label for="production_meter_id" class="form-label">Inverter IP ID</label>
+                      <input type="number" class="form-control" id="production_meter_id" placeholder="0" min="0" step="1" max="255" >
+                    </div>
+                    <div class="mb-2">
+                      <label for="baseload" class="form-label">Baseload (W)</label>
+                      <input type="text" class="form-control" id="baseload" placeholder="0">
+                    </div>
+                    <div id="production:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+                    <button class="btn btn-primary" type="submit" id="production:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                      Save</button>
+                  </div>
+                  <!--./card-footer-->
+                </div><!-- production card-->
+              </div>
+              <!--./col-->
+              <div class="col">
+                 <!-- Influx Server
+                ================================================== -->
+                <div class="card white-card  mb-3" id="influx:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Influx Server</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="mb-2">
+                      <label for="exampleFormControlInput1" class="form-label">URL</label>
+                      <input type="url" class="form-control" id="influx_url" placeholder="">
+                    </div>
+                    <div class="mb-2">
+                      <label for="exampleFormControlInput1" class="form-label">Token</label>
+                      <input type="text" class="form-control" id="influx_token" placeholder="">
+                    </div>
+                    <div class="mb-2">
+                      <label for="exampleFormControlInput1" class="form-label">Organization</label>
+                      <input type="text" class="form-control" id="influx_org" placeholder="">
+                    </div>
+                    <div class="mb-3">
+                      <label for="exampleFormControlInput1" class="form-label">Bucket</label>
+                      <input type="text" class="form-control" id="influx_bucket" placeholder="">
+                    </div>
+                    <div id="influx:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+                    <button class="btn btn-primary" id="influx:test">
+                      <span data-feather="type" style="pointer-events: none;" class="align-text-bottom"></span>
+                      Test</button>
+                    <button class="btn btn-primary" type="submit" id="influx:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                      Save</button>
+                  </div>
+                  <!--./card-footer-->
+
+                </div><!-- influx card-->
+              </div>
+              <!--./col-->
+              <div class="col">
+                <!-- Cloud Settings
+            ================================================== -->
+                <div class="card white-card mb-3" id="cloud:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Cloud Settings</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted"> Only in the premium edition. </span>
+                    </div>
+                    <!--./chart-info-->
+                  </div>
+                  <!--./card-header-->
+                  <div class="card-body">
+                    <div class="mb-2">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="true" id="cloud_enabled">
+                        <label class="form-label" for="cloud_enabled">
+                          Enable Cloud
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="true" id="sms_admin_enabled">
+                        <label class="form-label" for="sms_admin_enabled">
+                          SMS Admin enabled
+                        </label>
+                      </div>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="true" id="sms_alerts_enabled">
+                        <label class="form-label" for="sms_alerts_enabled">
+                          SMS Alerts enabled
+                        </label>
+                      </div>
+                    </div>
+                    <div class="mb-2">
+                      <label for="mobile_nbr" class="form-label">Mobile number</label>
+                      <input type="text" class="form-control" id="mobile_nbr" placeholder="+358 123 4567">
+                    </div>
+
+                    <div class="mb-2">
+                      <label for="mobile_apn" class="form-label">Mobile APN</label>
+                      <input type="text" class="form-control" id="mobile_apn" placeholder="internet">
+                    </div>
+                    <div id="cloud:alert"></div>
+
+                  </div><!-- card-body-->
+                  <div class="card-footer text-end">
+                    <button class="btn btn-primary" type="submit" id="cloud:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                       Save</button>
+
+                  </div><!-- card footer-->
+
+                </div><!-- cloud card-->
+              </div>
+              <!--./col-->
+              <div class="col">
+                <!-- Admin actions
+            ================================================== -->
+                <div class="card white-card mb-3" id="actions:card">
+                  <div class="card-header d-none">
+                    <h5 class="card-title" data-bs-toggle="collapse" href="#collapseExample" role="button"
+                      aria-expanded="false" aria-controls="collapseExample">Admin actions</h5>
+                  </div>
+                  <!--./card-header-->
+                  <div class="card-body">
+                    <p class="mb-0">
+                      <a data-bs-toggle="collapse" href="#collapseExample" role="button" aria-expanded="false"
+                        aria-controls="collapseExample">Admin actions</a>
+                    </p>
+                    <div class="collapse" id="collapseExample">
+                      <p class="my-3">With admin actions you can... Maybe here some info here.</p>
+                      <div id="actions:alert"></div>
+                      <div class="d-grid gap-2 d-md-block text-end">
+
+                        <button type="button" id="actions:restart" class="btn btn-secondary">Restart and clear
+                          cache</button>
+                        <button type="button" id="actions:reset" class="btn btn-secondary">Reset Settings</button>
+                        <button type="button" id="actions:scan_sensors" class="btn btn-secondary">Scan Sensors</button>
+                      </div>
+
+                    </div>
+                    <div id="actions:alert"></div>
+
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end d-none">
+                    <div class="d-grid gap-2 d-md-block">
+
+                      <button type="button" id="actions:restart" class="btn btn-secondary">Restart and clear
+                        cache</button>
+                      <button type="button" id="actions:reset" class="btn btn-secondary">Reset Settings</button>
+                      <button type="button" id="actions:scan_sensors" class="btn btn-secondary">Scan Sensors</button>
+                    </div>
+                  </div><!-- card footer-->
+                </div><!-- actions card-->
+
+              </div>
+              <!--./col-->
+
+
+            </div>
+            <!--./row-->
+
+
+
+          </div>
+          <!--./admin-->
+        </div>
+        <!--tab-content-->
+
+      </main>
+
+    </div>
+    <!--./container-xl-->
+  </div>
+  <!--./row-->
+
+
+  <!--color picker vaatii popper scriptin mukaan-->
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"
+    integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3"
+    crossorigin="anonymous"></script>
+  <script src="js/bootstrap.bundle.min.js"></script>
+
+
+
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js"
+    integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE"
+    crossorigin="anonymous"></script>
+ <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"
+    integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha"
+    crossorigin="anonymous"></script> -->
+  <script src="/js/dashboard.js"></script>
+
+
+  <!--tooltip-->
+  <script>
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+  </script>
+</body>
+</html>
