@@ -4449,6 +4449,7 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
     snprintf(char_buffer, 8, "#%06x", s.ch[channel_idx].channel_color);
     doc["ch"][channel_idx]["channel_color"] = char_buffer;
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
+   // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
@@ -5542,7 +5543,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   {
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["active_condition"] = active_condition(channel_idx);
-    doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
+    //doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
 

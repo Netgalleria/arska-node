@@ -24,53 +24,52 @@ window.onload = function () {
     init_ui();
 }
 
-const schedule_html = `<div class="col"><div class="card white-card" id="sch_#:card">
+const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch#):card">
                   <div class="card-header d-flex align-items-center justify-content-between">
-                    <h5 class="card-title m-lg-0 p-1 channel-color-0">
+                    <h5 class="card-title m-lg-0 p-1 channel-color-(ch#)">
                         <span
-                        class="channel-label channel-label-0"></span><span id="sch_#:title"></span></h5>
-                    <label class="btn btn-secondary btn-sm text-bg-success" for="sch_#:delete">
-                      <span data-feather="zap" class="align-text-bottom"></span>
-                      ON based on <a href="#" class="link-light">rule 2</a></label>
+                        class="channel-label channel-label-(ch#)"></span><span id="sch_(ch#):title"></span></h5>
+                        
+                    <label id="sch_(ch#):status" class="btn btn-secondary btn-sm text-bg-success">
+                      <span id="sch_(ch#):status_icon" data-feather="zap" class="align-text-bottom"></span>
+                      <span id="sch_(ch#):status_txt"></span></label>
                   </div>
                   <!--card-header-->
                   <div class="card-body">
+                  <span class="text-muted">Manual scheduling</span>
                     <div class="input-group mb-3">
-                      <span class="input-group-text" id="basic-addon1">Scheduled</span>
-                      <span class="input-group-text" id="basic-addon1">11:00 &rarr; 13:00</span>
-                      <input id="sch_#:delete" type="radio" class="btn-check p-0" name="sch_#:config_mode"
+                      <span class="input-group-text" id="basic-addon1">Current</span>
+                      <span class="input-group-text col-lg-6" id="sch_(ch#):current">-</span>
+                      <input id="sch_(ch#):delete" type="radio" class="btn-check p-0"
                         autocomplete="off" value="0">
-                      <label class="btn btn-secondary" for="sch_#:delete">
+                      <label class="btn btn-secondary" for="sch_(ch#):delete">
                         <span data-feather="delete" class="align-text-bottom"></span>
                         </label>
                     </div>
                     <!--./input-group-->
                     <div class="input-group mb-3">
-                      <span class="input-group-text" id="basic-addon1">Add schedule</span>
+                      <span class="input-group-text" id="basic-addon1">Add</span>
                       <div class="col-md-6 col-lg-3">
-                        <select id="sch_#:duration" class="form-select" aria-label="variable">
+                        <select id="sch_(ch#):duration" class="form-select" aria-label="variable" data-toggle="tooltip" title="Duration of the schedule hh:mm">
                         </select>
                       </div>
                       <!--./col-->
-                      <div class="col-md-6 col-lg-4">
-                        <select id="sch_#:start" class="form-select" aria-label="variable">
+                      <div class="col-md-6 col-lg-6">
+                        <select id="sch_(ch#):start" class="form-select" aria-label="variable">
+                        <option value="1-">start</option>
                           <option value="0">now &rarr;</option>
                         </select>
                       </div>
                       <!--./col-->
                       <span class="input-group-text p-0" id="basic-addon1"> </span>
-                      <input id="sch_#:save" type="radio" class="btn-check" name="sch_#:config_mode" autocomplete="off"
+                      <input id="sch_(ch#):save" type="radio" class="btn-check" name="sch_(ch#):config_mode" autocomplete="off"
                         value="0">
-                      <label class="btn btn-secondary" for="sch_#:add">
+                      <label class="btn btn-secondary" for="sch_(ch#):save">
                         <span data-feather="plus" class="align-text-bottom"></span>
                         </label>
                     </div>
                     <!--./input-group-->
-                    <div id="price_data:alert2">
-                      <div class="alert alert-success alert-dismissible mb-0" role="alert">
-                        <div>Message from schedule action, add or delete...</div>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                      </div>
+                    <div id="sch_(ch#):alert">
                     </div>
                   </div>
                   <!--./card-body-->
@@ -400,10 +399,207 @@ function getCookie(cname) {
     return "";
 }
 
+let last_status_update = 0;
+
+// update variables and channels statuses to channels form
+function update_status(repeat) {
+    console.log("update_status starting");
+    /*
+    if (document.getElementById("statusauto"))
+        show_variables = document.getElementById("statusauto").checked;
+    else
+        show_variables = false;
+        */
+    show_variables = false;
+    //TODO: add variable output
+
+    const interval_s = 30;
+    const process_time_s = 5;
+    let next_query_in = interval_s;
+
+    now_ts = Date.now() / 1000;
+    if (Math.floor(now_ts / 3600) != Math.floor(last_status_update / 3600)) {
+        console.log("Interval changed in update_status");
+        update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
+        price_chart_ok = update_price_chart();
+        if (price_chart_ok)
+            last_status_update = now_ts;
+    }
+
+    var jqxhr_obj = $.ajax({
+        url: '/status',
+        dataType: 'json',
+        async: false,  //oli true
+        success: function (data, textStatus, jqXHR) {
+            console.log("got status data", textStatus, jqXHR.status);
+            msgdiv = document.getElementById("msgdiv");
+            keyfd = document.getElementById("keyfd");
+            /*
+                        has_import_values = false;
+                        for (i = 0; i < data.net_exports.length; i++) {
+                            if (Math.abs(data.net_exports[i]) > 1) {
+                                has_import_values = true;
+                                break;
+                            }
+            
+                        }
+                        if (has_import_values)
+                            net_exports = data.net_exports;
+                        //else
+                        //    net_exports = [];
+            */
+
+            if (data.hasOwnProperty('next_process_in'))
+                next_query_in = data.next_process_in + process_time_s;
+
+            if (msgdiv) {
+                if (data.last_msg_ts > getCookie("msg_read")) {
+                    msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
+                    msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
+                }
+            }
+            /*
+            if (keyfd) {
+                selling = data.variables["102"];
+                price = data.variables["0"];
+                sensor_text = '';
+
+                emDate = new Date(data.energym_read_last * 1000);
+
+                for (i = 0; i < 3; i++) {
+                    if (data.variables[(i + 201).toString()] != "null") {
+                        if (sensor_text)
+                            sensor_text += ", ";
+                        sensor_text += 'Sensor ' + (i + 1) + ': <span  class="big">' + data.variables[(i + 201).toString()] + ' &deg;C</span>';
+                    }
+                }
+                if (sensor_text)
+                    sensor_text = "<br>" + sensor_text;
+
+                if (isNaN(selling)) {
+                    selling_text = '';
+                }
+                else {
+                    selling_text = (selling > 0) ? "Selling ⬆ " : "Buying ⬇ ";
+                    selling_text += '<span class="big">' + Math.abs(selling) + ' W</span> (period average ' + emDate.toLocaleTimeString() + '), ';
+                }
+                if (isNaN(price)) {
+                    price_text = 'not available';
+                }
+                else {
+                    price_text = ' ' + price + ' ¢/kWh ';
+                }
+
+                keyfd.innerHTML = selling_text + 'Price: <span class="big">' + price_text + '</span>' + sensor_text;
+            }
+            */
+
+            // TODO: update
+
+            if (show_variables) {
+                document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+                $("#tblVariables_tb").empty();
+                $.each(data.variables, function (i, variable) {
+                    var_this = getVariable(i);
+                    if (var_this[0] in variable_list)
+                        variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                    else
+                        variable_desc = "";
+                    id_str = ' (' + var_this[0] + ') ' + var_this[1];
+                    if (var_this[2] == 50 || var_this[2] == 51) {
+                        newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
+                    }
+                    else {
+                        newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
+                    }
+                    $(newRow).appendTo($("#tblVariables_tb"));
+                });
+                $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
+            }
+            // TODO: update
+            //console.log("Starting populate_channel_status loop");
+            $.each(data.ch, function (i, ch) {
+                populate_channel_status(i, ch)
+            });
+
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get status", Date(Date.now()).toString(), textStatus, jqXHR.status);
+
+            if (jqXHR.status === 401) {
+                // or just location.reload();
+                href_a = window.location.href.split("?");
+                window.location.href = href_a[0] + "?rnd=" + Math.floor(Math.random() * 1000);
+                return;
+            }
+        }/*,
+        complete: function (jqXHR, textStatus, errorThrown) {
+            console.log("A Status queried with result ", textStatus,jqXHR.status);
+        }*/
+    }
+
+    );
+
+    if (repeat) {
+        setTimeout(function () { update_status(true); }, next_query_in * 1000);
+        //   console.log("next_query_in", next_query_in)
+    }
+}
+
+
+function populate_channel_status(channel_idx, ch) {
+    // console.log("populate_channel_status",channel_idx, ch);
+    //TODO: update this to new...
+
+    now_ts = Date.now() / 1000;
+    // console.log(channel_idx,ch);
+    sch_current_span = document.getElementById(`sch_${channel_idx}:current`);
+    sch_status_label = document.getElementById(`sch_${channel_idx}:status`);
+    sch_status_icon_span = document.getElementById(`sch_${channel_idx}:status_icon`);
+    sch_status_text_span = document.getElementById(`sch_${channel_idx}:status_txt`);
+
+    // tsekkaa miten ikonin vaihto, pitääkö mennä svg:llä vai hide/show vai voisiko nykyisen svg:n korvata spanilla ja ajaa replace
+    //if (status_changed)
+    //    feather.replace(); //icon
+    if ((ch.force_up_until > now_ts)) {
+        sch_current_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; " + get_time_string_from_ts(ch.force_up_until, false, true);
+        //    console.log("sch_current_span.innerText", sch_current_span.innerText);
+    }
+    else
+        sch_current_span.innerHTML = "-";
+
+    //  <span id="sch_(ch#):status_txt">ON based on <a href="#" class="link-light">rule 2</a></span></label>
+
+    sch_status_label.classList.remove(ch.is_up ? "text-bg-danger" : "text-bg-success");
+    sch_status_label.classList.add(ch.is_up ? "text-bg-success" : "text-bg-danger");
+    //console.log(" sch_status_label.classList", ch, ch.is_up, sch_status_label.classList);
+
+    info_text = "";
+    if (ch.active_condition > -1)
+    rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
+
+    if (ch.is_up) {
+        if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
+            info_text += "Up based on manual schedule.";
+        else if (ch.active_condition > -1)
+            info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
+    }
+    else {
+        if ((ch.active_condition > -1))
+            info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
+        if ((ch.active_condition == -1))
+            info_text += "Down, no matching rules. ";
+    }
+
+    sch_status_text_span.innerHTML = info_text;
+    return;
+}
+
+
 function statusCBClicked(elCb) {
     if (elCb.id == 'statusauto') {
         if (elCb.checked) {
-            setTimeout(function () { updateStatus(false); }, 300);
+            setTimeout(function () { update_status(false); }, 300);
         }
         document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
     }
@@ -748,7 +944,7 @@ const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 144
 function update_schedule_select_periodical() {
     //remove schedule start times from history
     let selects = document.querySelectorAll("input[id*=':duration']");
-    //fupdur_sel = document.getElementById(`sch_${channel_idx}:duration`);
+    //sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
     now_ts = Date.now() / 1000;
     for (i = 0; i < selects.length; i++) {
         for (j = selects[i].options.length - 1; j >= 0; j--) {
@@ -759,22 +955,56 @@ function update_schedule_select_periodical() {
         }
     }
 }
+function post_schedule_update(channel_idx, duration, start) {
+    var scheds = [];
+
+    // live_alert(`sch_${channel_idx}`, "Updating... 'success'");
+
+    scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start });
+    console.log(scheds);
+
+    $.ajax({
+        type: "POST",
+        url: "/update.schedule",
+        async: "false",
+        data: JSON.stringify({ schedules: scheds }),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        success: function (data) {
+            sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`).value = -1;
+            sch_duration_sel = document.getElementById(`sch_${channel_idx}:start`).value = -1;
+            sch_duration_sel = document.getElementById(`sch_${channel_idx}:save`).disabled = false; // should not be needed
+            // console.log("success", data);
+            live_alert(`sch_${channel_idx}`, duration >0 ? "Schedule updated." : "Schedule deleted.", "success");
+
+        },
+        error: function (errMsg) {
+            console.log(errMsg);
+            live_alert(`sch_${channel_idx}`, "Update failed", "warning");
+        }
+    });
+
+}
+
 
 // single channel schedule update
 function schedule_update(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
-    post_schedule_update(channel_idx);
+    console.log("schedule_update channel_idx:", channel_idx);
+    post_schedule_update(channel_idx, document.getElementById(`sch_${channel_idx}:duration`).value, document.getElementById(`sch_${channel_idx}:start`).value);
     console.log("next update_fup_duration_element");
     // update select list
     duration = document.getElementById(`sch_${channel_idx}:duration`).value;
     schedule_el = document.getElementById(`sch_${channel_idx}:save`);
-    scheduled_ts = schedule_el.value;
-    update_fup_duration_element(channel_idx, 0, (duration > 0));
+    document.getElementById(`sch_${channel_idx}:save`).checked = false;
+    //scheduled_ts = schedule_el.value;
+    // update_fup_duration_element(channel_idx, 0, (duration > 0));
     update_fup_schedule_element(channel_idx);
 
-    schedule_el.disabled = true;
+    //schedule_el.disabled = true;
     // if (duration == 0 || scheduled_ts == 0)
-    setTimeout(function () { updateStatus(false); }, 5000); //update UI
+    update_status(false); 
+   // setTimeout(function () { update_status(false); }, 2000); //update UI
 }
 
 
@@ -782,55 +1012,29 @@ function schedule_update(evt) {
 function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     //dropdown, TODO: recalculate when new hour 
     now_ts = Date.now() / 1000;
-    sel_fup_from = document.getElementById(`sch_${channel_idx}:start`);
+    sch_start_sel = document.getElementById(`sch_${channel_idx}:start`);
+    sch_save_radio = document.getElementById(`sch_${channel_idx}:save`);
 
-/*
-    if (!sel_fup_from) {
-        prev_selected = current_start_ts;
-        sdiv = createElem("div", null, null, "schedsel", null);
-        sel_fup_from = createElem("select", "fupfrom_" + channel_idx, null, null, null);
-        sel_fup_from.name = "fupfrom_" + channel_idx;
-        sdiv.insertAdjacentHTML('beforeend', 'Schedule:<br>');
-        sdiv.appendChild(sel_fup_from);
-
-        // update button
-        
-        sdiv_btn = createElem("div", null, null, "shedupdv", null);
-        fup_btn = createElem("input", "fupbtn" + channel_idx, "💾", "fupbtn", "button");
-        fup_btn.setAttribute("onclick", "schedule_update('" + channel_idx + "');");
-        fup_btn.disabled = true; //wait for changes
-        sdiv_btn.insertAdjacentHTML('beforeend', ' <br>');
-        sdiv_btn.appendChild(fup_btn);
-       
-
-        // console.log("chdsched_" + channel_idx);
-        if (chdiv_sched) {
-            chdiv_sched.appendChild(sdiv);
-            chdiv_sched.appendChild(sdiv_btn);
-        }
-         
-    }
-    else
-        prev_selected = sel_fup_from.value;
-*/
-prev_selected = sel_fup_from.value;
+    prev_selected = sch_start_sel.value;
     //TODO: price and so on
     $("#fupfrom_" + channel_idx).empty();
-    fupdur_sel = document.getElementById(`sch_${channel_idx}:duration`)
+    sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`)
 
-    duration_selected = fupdur_sel.value;
+    duration_selected = sch_duration_sel.value;
 
     if (duration_selected <= 0) {
-        addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
-        sel_fup_from.disabled = true;
+        //  addOption(sch_start_sel, 0, "now ->", (duration_selected > 0));
+        sch_start_sel.disabled = true;
+        sch_save_radio.disabled = true;
         return;
     }
-    sel_fup_from.disabled = false;
+    sch_start_sel.disabled = false;
+    sch_save_radio.disabled = false;
 
     first_next_hour_ts = parseInt(((Date.now() / 1000)) / 3600) * 3600 + 3600;
     start_ts = first_next_hour_ts;
     //
-    addOption(sel_fup_from, 0, "now ->", (duration_selected > 0));
+    //  addOption(sch_start_sel, 0, "now ->", (duration_selected > 0));
     cheapest_price = -VARIABLE_LONG_UNKNOWN;
     cheapest_ts = -1;
     cheapest_index = -1;
@@ -848,13 +1052,13 @@ prev_selected = sel_fup_from.value;
         else
             price_str = "";
 
-        addOption(sel_fup_from, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false, true) + price_str, (prev_selected == start_ts));
+        addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false, true) + price_str, (prev_selected == start_ts));
         start_ts += 3600;
     }
     if (cheapest_index > -1) {
         console.log("cheapest_ts", cheapest_ts)
-        sel_fup_from.value = cheapest_ts;
-        sel_fup_from.options[cheapest_index + 1].innerHTML = sel_fup_from.options[cheapest_index + 1].innerHTML + " ***";
+        sch_start_sel.value = cheapest_ts;
+        sch_start_sel.options[cheapest_index + 1].innerHTML = sch_start_sel.options[cheapest_index + 1].innerHTML + " ***";
     }
 }
 
@@ -864,35 +1068,21 @@ function duration_changed(evt) {
     document.getElementById(`sch_${channel_idx}:save`).disabled = false;
 }
 
+function delete_schedule(evt) {
+    channel_idx = get_idx_from_str(evt.target.id, 0);
+    post_schedule_update(channel_idx, 0, 0);
+    document.getElementById(`sch_${channel_idx}:delete`).disabled = true;
+    document.getElementById(`sch_${channel_idx}:start`).value = -1;
+    //setTimeout(function () { update_status(false); }, 1000); //update UI
+    update_status(false);
+    
+}
+
 //TODO: refaktoroi myös muut
 function remove_select_options(select_element) {
     for (i = select_element.options.length - 1; i >= 0; i--) {
         select_element.remove(i);
     }
-}
-
-function update_fup_duration_element(channel_idx, selected_duration_min = 60, setting_exists) {
-    //sch_0:delete
-    //sch_0:duration (fupdur_)
-    //sch_0:start (fupfrom_0)
-
-    //chdiv_sched = document.getElementById("chdsched_" + channel_idx);  //chdsched_ chdinfo_
-    //if (!chdiv_sched)
-    //    return;
-    fupdur_sel = document.getElementById(`sch_${channel_idx}:duration`);
-    fups_val_prev = -1;
-    fups_val_prev = fupdur_sel.value;
-    remove_select_options(fupdur_sel);
-
-    addOption(fupdur_sel, -1, "select", true); //check checked
-    //if (setting_exists)
-    //    addOption(fupdur_sel, 0, "unschedule", false); //check checked
-    for (i = 0; i < force_up_mins.length; i++) {
-        min_cur = force_up_mins[i];
-        duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
-        addOption(fupdur_sel, min_cur, duration_str, (selected_duration_min == min_cur)); //check checked
-    }
-    // now initiate value
 }
 
 
@@ -1066,14 +1256,14 @@ function get_template_list() {
 
 
 function populateTemplateSel(selEl, template_id = -1) {
-    console.log("populateTemplateSel");
+    // console.log("populateTemplateSel");
     get_template_list();
     if (selEl.options && selEl.options.length > 1) {
         console.log("already populated", selEl.options.length);
         return; //already populated
     }
     addOption(selEl, -1, "Select template", false);
-    console.log("g_template_list.length", g_template_list.length);
+    // console.log("g_template_list.length", g_template_list.length);
     for (i = 0; i < g_template_list.length; i++) {
         addOption(selEl, g_template_list[i]["id"], g_template_list[i]["id"] + " - " + g_template_list[i]["name"], (template_id == g_template_list[i]["id"]));
     }
@@ -1333,7 +1523,7 @@ function changed_template(ev, selEl) {
 
 //todo: data as parameter?
 function populate_channel(channel_idx) {
-    console.log("populate_channel", channel_idx);
+  //  console.log("populate_channel", channel_idx);
 
     now_ts = Date.now() / 1000;
 
@@ -1348,24 +1538,21 @@ function populate_channel(channel_idx) {
     if ((ch_cur.force_up_from > now_ts)) {
         current_start_ts = ch_cur.force_up_from;
     }
-    fupdur_sel = document.getElementById(`sch_${channel_idx}:duration`);
-    fupdur_sel.addEventListener("change", duration_changed);
-    document.getElementById(`sch_${channel_idx}:save`).addEventListener("click", schedule_update);
-
 
     //experimental, is this enough or do we need loop
-    update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
+    //  update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
     update_fup_schedule_element(channel_idx, current_start_ts);
+    /////sch_(ch#):card
+    document.getElementById(`sch_${channel_idx}:card`).style.display = ((g_config.ch[channel_idx]["type"] == 0) ? "none" : "block");
 
     // end of scheduling
 
     document.getElementById(`ch_${channel_idx}:id_str`).value = g_config.ch[channel_idx]["id_str"];
     document.getElementById(`sch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
 
-    document.getElementById(`ch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
     document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value = parseInt(g_config.ch[channel_idx]["uptime_minimum"] / 60);
 
-    console.log("channel_color", channel_idx, (g_config.ch[channel_idx]["channel_color"]), g_config.ch[channel_idx]["channel_color"]);
+    // console.log("channel_color", channel_idx, (g_config.ch[channel_idx]["channel_color"]), g_config.ch[channel_idx]["channel_color"]);
     document.getElementById(`ch_${channel_idx}:channel_color`).value = (g_config.ch[channel_idx]["channel_color"]);
 
     populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), g_config.ch[channel_idx]["template_id"]);
@@ -1571,10 +1758,10 @@ function create_channels() {
 
     //front page 
     // for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) { //
-    //     document.getElementById("schedules").insertAdjacentHTML('beforeend', schedule_html.replaceAll("sch_#", "sch_" + channel_idx));
+    //     document.getElementById("schedules").insertAdjacentHTML('beforeend', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx));
     // }
     for (channel_idx = g_constants.CHANNEL_COUNT - 1; channel_idx > -1; channel_idx--) { //beforeend
-        document.getElementById("schedules").insertAdjacentHTML('afterbegin', schedule_html.replaceAll("sch_#", "sch_" + channel_idx));
+        document.getElementById("schedules").insertAdjacentHTML('afterbegin', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx).replaceAll("(ch#)", channel_idx));
     }
 
 
@@ -1610,14 +1797,33 @@ function create_channels() {
                     document.getElementById(`${stmt_id}:oper`).addEventListener("focus", focus_oper);
                 }
             }
+
+            // schedule controls
+            sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
+            remove_select_options(sch_duration_sel);
+            addOption(sch_duration_sel, -1, "duration", true); //check checked
+            for (i = 0; i < force_up_mins.length; i++) {
+                min_cur = force_up_mins[i];
+                duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+                addOption(sch_duration_sel, min_cur, duration_str, false); //check checked
+            }
+
+            // populate data
             populate_channel(channel_idx);
         }
         feather.replace(); // this replaces  <span data-feather="activity">  with svg
 
+        //Schedulings listeners
+        sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
+        sch_duration_sel.addEventListener("change", duration_changed);
+
+        sch_duration_sel = document.getElementById(`sch_${channel_idx}:delete`);
+        sch_duration_sel.addEventListener("click", delete_schedule);
+
+
         channel_type_ctrl.addEventListener("change", set_channel_fields_by_type);
 
         // refine template constants
-        channel_type_ctrl = document.getElementById(`ch_${channel_idx}:type`);
 
         template_reset_ctrl = document.getElementById(`ch_${channel_idx}:template_reset`);
         template_reset_ctrl.addEventListener("click", template_reset);
@@ -1636,6 +1842,7 @@ function create_channels() {
 }
 
 function init_ui() {
+    console.log("init_ui");
     get_price_data(); //TODO: also update at 2pm
     $.ajax({
         url: '/application',
@@ -1655,10 +1862,18 @@ function init_ui() {
     for (let i = 0; i < save_buttons.length; i++) {
         if (save_buttons[i].id.startsWith("ch_"))
             save_buttons[i].addEventListener("click", save_channel);
+        else if (save_buttons[i].id.startsWith("sch_"))
+            save_buttons[i].addEventListener("change", schedule_update);
         else
             save_buttons[i].addEventListener("click", save_card);
-        save_buttons[i].disabled = true;
+        if (!(save_buttons[i].id.startsWith("sch_"))) {
+            save_buttons[i].disabled = true;
+            console.log("save_buttons[i].disabled");
+        }
+
     }
+
+
     action_buttons = document.querySelectorAll("button[id^='actions:']");
     for (let i = 0; i < action_buttons.length; i++) {
         action_buttons[i].addEventListener("click", launch_action);
@@ -1667,7 +1882,6 @@ function init_ui() {
 
     const input_controls = document.querySelectorAll("input, select");
     for (let i = 0; i < input_controls.length; i++) {
-
         if (input_controls[i].type == "radio")
             input_controls[i].addEventListener("click", ctrl_changed);
         else
@@ -1675,9 +1889,10 @@ function init_ui() {
         // console.log("Action added " + input_controls[i].id);
     }
 
-    update_price_chart();//TODO: timing, refresh
+    update_price_chart();//TODO: timing, refresh, synch with update_status
     setTimeout(function () { update_price_chart; }, 60);
     // populate_wifi_ssid_list();
+    update_status(true);
 }
 
 function live_alert(card_idstr, message, type) {
@@ -1732,9 +1947,9 @@ function ctrl_changed(ev) {
 
 
     if (parent_card) {
-       // if (parent_card.startsWith("sch_")) // no save buttons so far...
-       //     return;
-        console.log("Found " + ev.target.id + " in parent " + parent_card + ", disabling " + parent_card + ":save");
+        // if (parent_card.startsWith("sch_")) // no save buttons so far...
+        //     return;
+        // console.log("Found " + ev.target.id + " in parent " + parent_card + ", disabling " + parent_card + ":save");
         document.getElementById(parent_card + ":save").disabled = false;
     }
 }
@@ -1806,7 +2021,7 @@ function save_channel(ev) {
 
     //POST
 
-    live_alert(card, "Response comes here. Sending:\n" + JSON.stringify(post_data), 'success');
+    live_alert(card, "Updating... 'success'");
 
 
     $.ajax({
@@ -1818,8 +2033,9 @@ function save_channel(ev) {
         dataType: "json",
         success: function (data) {
             live_alert(card, "Updated", 'success');
-            console.log("success", data);
+            console.log("success, card", card, data);
             document.getElementById(card + ":save").disabled = true;
+            console.log("save_channel save disabled");
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);
@@ -1851,12 +2067,7 @@ function save_card(ev) {
 
     // alert("Sending:\n" + JSON.stringify(post_data));
 
-
-
     live_alert(card, "Response comes here. Sending:\n" + JSON.stringify(post_data), 'success');
-
-
-
 
     $.ajax({
         type: "POST",
@@ -1867,8 +2078,9 @@ function save_card(ev) {
         dataType: "json",
         success: function (data) {
             live_alert(card, "Updated", 'success');
-            console.log("success", data);
+            console.log("success, card ", card, data);
             document.getElementById(card + ":save").disabled = true;
+            console.log("save_channel save disabled");
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);
