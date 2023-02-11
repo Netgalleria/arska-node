@@ -260,12 +260,12 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define PV_FORECAST_HOURS 24 //!< solar forecast consist of this many hours
 
 #define MAX_PRICE_PERIODS 48 //!< number of price period in the memory array
-#define MAX_HISTORY_PERIOD 24
+#define MAX_HISTORY_PERIODS 24
 #define HISTORY_VARIABLE_COUNT 1
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
 long prices[MAX_PRICE_PERIODS];
-// long net_imports[MAX_HISTORY_PERIOD];
+// long net_imports[MAX_HISTORY_PERIODS];
 
 bool prices_initiated = false;
 time_t prices_first_period = 0;
@@ -570,7 +570,8 @@ struct statement_st
 // combined
 #define VARIABLE_DEPENDS_PRICE_SOLAR 3
 
-long var_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIOD];
+long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
+byte channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY};
 int get_variable_history_idx(int id)
 {
@@ -624,10 +625,10 @@ void Variables::rotate_period()
   // rotate to variable history
   for (int v_idx = 0; v_idx < HISTORY_VARIABLE_COUNT; v_idx++)
   {
-    var_history[v_idx][MAX_HISTORY_PERIOD - 1] = this->get_l(history_variables[v_idx]);
-    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIOD; h_idx++)
-      var_history[v_idx][h_idx] = var_history[v_idx][h_idx + 1];
-    var_history[v_idx][MAX_HISTORY_PERIOD - 1] = 0;
+    variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = this->get_l(history_variables[v_idx]);
+    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
+      variable_history[v_idx][h_idx] = variable_history[v_idx][h_idx + 1];
+    variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0;
   }
 }
 
@@ -655,7 +656,7 @@ void Variables::set(int id, long val_l)
     // update history
     int v_h_idx = get_variable_history_idx(id);
     if (v_h_idx != -1)
-      var_history[v_h_idx][MAX_HISTORY_PERIOD - 1] = val_l;
+      variable_history[v_h_idx][MAX_HISTORY_PERIODS - 1] = val_l;
   }
 }
 /**
@@ -1139,10 +1140,10 @@ public:
   void new_log_period(time_t ts_report);
   void set_state(int channel_idx, bool new_state);
   time_t get_duration_in_this_state(int channel_idx);
-
 private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
 };
+
 
 void ChannelCounters::init()
 {
@@ -1184,6 +1185,15 @@ void ChannelCounters::new_log_period(time_t ts_report)
       utilization = 0;
     snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
     point_period_avg.addField(field_name, utilization);
+
+ // rotate to variable history
+  
+    channel_history[i][MAX_HISTORY_PERIODS - 1] = (byte)(utilization*100+0.001);
+    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
+      channel_history[i][h_idx] = channel_history[i][h_idx + 1];
+    channel_history[i][MAX_HISTORY_PERIODS - 1] = 0;
+
+
   }
   // then reset
   for (int i = 0; i < CHANNEL_COUNT; i++)
@@ -1222,6 +1232,8 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
   if (old_state != new_state)
     channel_logs[channel_idx].this_state_started_epoch = now_l;
 }
+
+ 
 
 ChannelCounters ch_counters;
 
@@ -2113,7 +2125,7 @@ bool read_meter_han()
   vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energym_power_in)); // momentary
 
   // history
-  // net_imports[MAX_HISTORY_PERIOD - 1] = -vars.get_f(VARIABLE_SELLING_POWER);
+  // net_imports[MAX_HISTORY_PERIODS - 1] = -vars.get_f(VARIABLE_SELLING_POWER);
 
   if (energym_last_period != now_period)
   {
@@ -4513,7 +4525,7 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
 
   if (format == 0)
   {
-    request->send(200, "application/json; charset=iso-8859-1", output);
+    request->send(200, "application/json;charset=UTF-8", output);
   }
   else
   {
@@ -5501,7 +5513,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     return request->requestAuthentication();
   }
 
-  StaticJsonDocument<2048> doc; //
+  //StaticJsonDocument<2048> doc; //
+  DynamicJsonDocument doc(4096);
   String output;
 
   JsonObject var_obj = doc.createNestedObject("variables");
@@ -5533,9 +5546,9 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   {
     snprintf(id_str, 6, "%d", history_variables[v_idx]);
     JsonArray v_history_array_item = doc["variable_history"].createNestedArray(id_str);
-    for (int h_idx = 0; h_idx < MAX_HISTORY_PERIOD; h_idx++)
+    for (int h_idx = 0; h_idx < MAX_HISTORY_PERIODS; h_idx++)
     {
-      v_history_array_item.add((VARIABLE_LONG_UNKNOWN == var_history[v_idx][h_idx]) ? 0 : var_history[v_idx][h_idx]);
+      v_history_array_item.add((VARIABLE_LONG_UNKNOWN == variable_history[v_idx][h_idx]) ? 0 : variable_history[v_idx][h_idx]);
     }
   }
 
@@ -5546,8 +5559,14 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     //doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
-
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
+    
+   // JsonArray channel_history_array_item = doc["channel_history"][channel_idx];
+   // JsonArray channel_history_array_item = doc["ch"][channel_idx].createNestedArray("channel_history");
+    for (int h_idx = 0; h_idx < MAX_HISTORY_PERIODS; h_idx++)
+    {
+      doc["channel_history"][channel_idx][h_idx ] = channel_history[channel_idx][h_idx];
+    }
   }
 
   time_t current_time;
@@ -5871,19 +5890,19 @@ void setup()
   // server_web.on("/", HTTP_POST, onWebDashboardPost);
 
   // server_web.on("/inputs", HTTP_GET, onWebInputsGet);
-  server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->redirect("/#services"); });
+  //server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
+   //             { request->redirect("/#services"); });
 
   // server_web.on("/inputs", HTTP_POST, onWebInputsPost);
 
   // server_web.on("/channels", HTTP_GET, onWebChannelsGet);
-  server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->redirect("/#channels"); });
+  //server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
+  //              { request->redirect("/#channels"); });
   // server_web.on("/channels", HTTP_POST, onWebChannelsPost);
 
   // server_web.on("/admin", HTTP_GET, onWebAdminGet);
-  server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->redirect("/#admin"); });
+  //server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
+  //              { request->redirect("/#admin"); });
   // server_web.on("/admin", HTTP_POST, onWebAdminPost);
 
   server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -6254,11 +6273,11 @@ void loop()
 #endif
     // experimental history processing
     /*
-    net_imports[MAX_HISTORY_PERIOD - 1] = -vars.get_f(VARIABLE_SELLING_ENERGY);
+    net_imports[MAX_HISTORY_PERIODS - 1] = -vars.get_f(VARIABLE_SELLING_ENERGY);
     // roll the history
-    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIOD; h_idx++)
+    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
       net_imports[h_idx] = net_imports[h_idx + 1];
-    net_imports[MAX_HISTORY_PERIOD - 1] = 0;
+    net_imports[MAX_HISTORY_PERIODS - 1] = 0;
 */
     vars.rotate_period();
 

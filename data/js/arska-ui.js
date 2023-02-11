@@ -2,6 +2,8 @@ var g_config;
 var g_datamapping;
 var g_constants;
 
+var day_ahead_chart_obj;
+
 const VARIABLE_LONG_UNKNOWN = -2147483648;
 
 //selected constants
@@ -26,43 +28,48 @@ window.onload = function () {
 
 const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch#):card">
                   <div class="card-header d-flex align-items-center justify-content-between">
-                    <h5 class="card-title m-lg-0 p-1 channel-color-(ch#)">
-                        <span
-                        class="channel-label channel-label-(ch#)"></span><span id="sch_(ch#):title"></span></h5>
+                    <h5 class="card-title m-lg-0 p-1 ">
+                        <span id="sch_(ch#):label" class="channel-label"></span>
+                        <span id="sch_(ch#):title"></span>
+                    </h5>
                         
                     <label id="sch_(ch#):status" class="btn btn-secondary btn-sm text-bg-success">
                       <span id="sch_(ch#):status_icon" data-feather="zap" class="align-text-bottom"></span>
-                      <span id="sch_(ch#):status_txt"></span></label>
+                      <span id="sch_(ch#):status_txt"></span>
+                    </label>
                   </div>
                   <!--card-header-->
                   <div class="card-body">
                   <span class="text-muted">Manual scheduling</span>
-                    <div class="input-group mb-3">
-                      <span class="input-group-text" id="basic-addon1">Current</span>
-                      <span class="input-group-text col-lg-6" id="sch_(ch#):current">-</span>
-                      <input id="sch_(ch#):delete" type="radio" class="btn-check p-0"
-                        autocomplete="off" value="0">
+                    <div class="input-group mb-0">
+                      <span class="input-group-text bg-light" >
+                        <span data-feather="calendar" class="align-text-bottom"></span>
+                      </span>
+                      <span class="input-group-text bg-light col-lg-3" id="sch_(ch#):duration_c">-</span>
+                      <span class="input-group-text bg-light col-lg-6" id="sch_(ch#):start_c">-</span>
+                      <input id="sch_(ch#):delete" type="radio" class="btn-check p-0" value="0">
                       <label class="btn btn-secondary" for="sch_(ch#):delete">
                         <span data-feather="delete" class="align-text-bottom"></span>
                         </label>
                     </div>
                     <!--./input-group-->
                     <div class="input-group mb-3">
-                      <span class="input-group-text" id="basic-addon1">Add</span>
+                      <span class="input-group-text bg-light" >
+                        <span data-feather="edit-3" class="align-text-bottom"></span>
+                      </span>
                       <div class="col-md-6 col-lg-3">
-                        <select id="sch_(ch#):duration" class="form-select" aria-label="variable" data-toggle="tooltip" title="Duration of the schedule hh:mm">
+                        <select id="sch_(ch#):duration" class="form-select" aria-label="variable" data-bs-toggle="tooltip" title="Duration of the schedule hh:mm">
                         </select>
                       </div>
                       <!--./col-->
                       <div class="col-md-6 col-lg-6">
                         <select id="sch_(ch#):start" class="form-select" aria-label="variable">
-                        <option value="1-">start</option>
                           <option value="0">now &rarr;</option>
                         </select>
                       </div>
                       <!--./col-->
-                      <span class="input-group-text p-0" id="basic-addon1"> </span>
-                      <input id="sch_(ch#):save" type="radio" class="btn-check" name="sch_(ch#):config_mode" autocomplete="off"
+                      <span class="input-group-text p-0" > </span>
+                      <input id="sch_(ch#):save" type="radio" class="btn-check" name="sch_(ch#):config_mode" 
                         value="0">
                       <label class="btn btn-secondary" for="sch_(ch#):save">
                         <span data-feather="plus" class="align-text-bottom"></span>
@@ -76,15 +83,14 @@ const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch
                 </div></div>`;
 
 
-const channel_html = `<div class="row row-cols-1">
-<div class="col">
-    <!-- boiler
+const channel_html = `<div class="col">
+    <!-- Channel (ch#)
 ================================================== -->
     <!-- channel starts -->
-    <div class="card white-card mb-3" id="ch_#:card">
+    <div class="card white-card mb-3" id="ch_(ch#):card">
         <div class="card-header">
-            <h5 id="ch_#:title" class="card-title m-lg-0 p-1 channel-color-0"><span
-                    class="channel-label channel-label-0"></span>Boiler</h5>
+            <h5 id="ch_(ch#):title" class="card-title m-lg-0 p-1"><span
+                    class="channel-label channel-label-0"></span></h5>
         </div>
         <div class="card-body pt-2">
             <!--basic settings-->
@@ -92,22 +98,22 @@ const channel_html = `<div class="row row-cols-1">
                 <h6 class="form-section-title">Basic Settings</h6>
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
-                        <label for="ch_#:id_str" class="form-label">Channel id</label>
-                        <input id="ch_#:id_str" type="text" class="form-control"
+                        <label for="ch_(ch#):id_str" class="form-label">Channel id</label>
+                        <input id="ch_(ch#):id_str" type="text" class="form-control"
                             placeholder="Channel name" maxlength="20">
                     </div>
                     <!--./col-->
                     <div class="col-auto">
-                        <label for="ch_#:uptime_minimum_m" class="form-label">Minimum uptime
+                        <label for="ch_(ch#):uptime_minimum_m" class="form-label">Minimum uptime
                             (minutes)</label>
-                        <input id="ch_#:uptime_minimum_m" type="number" class="form-control" placeholder="5" min="0" step="1" max="480" >
+                        <input id="ch_(ch#):uptime_minimum_m" type="number" class="form-control" placeholder="5" min="0" step="1" max="480" >
                     </div>
                     <!--./col-->
                     <div class="col-6 col-lg-auto">
-                        <label for="ch_#:channel_color" class="form-label">Channel
+                        <label for="ch_(ch#):channel_color" class="form-label">Channel
                             color</label>
                         <input type="color" class="form-control form-control-color"
-                            id="ch_#:channel_color" value="#005d85" data-bs-toggle="tooltip"
+                            id="ch_(ch#):channel_color" value="#005d85" data-bs-toggle="tooltip"
                             data-bs-original-title="Select custom Channel color.">
                     </div>
                     <!--./col-->
@@ -120,27 +126,27 @@ const channel_html = `<div class="row row-cols-1">
                 <h6 class="form-section-title">Relay Settings</h6>
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <label for="ch_#:type" class="form-label">Relay type:</label>
-                        <select id="ch_#:type" class="form-select" aria-label="variable">
+                        <label for="ch_(ch#):type" class="form-label">Relay type:</label>
+                        <select id="ch_(ch#):type" class="form-select" aria-label="variable">
                         </select>
                     </div>
                     <!--./col-->
-                    <div id="ch_#:r_id_div" class="col-md-3">
-                        <label for="ch_#:r_id" class="form-label">GPIO:</label>
-                        <input id="ch_#:r_id" type="number" class="form-control" disabled=""  placeholder="33" min="0" step="1" max="33">
+                    <div id="ch_(ch#):r_id_div" class="col-md-3">
+                        <label for="ch_(ch#):r_id" class="form-label">GPIO:</label>
+                        <input id="ch_(ch#):r_id" type="number" class="form-control" disabled=""  placeholder="33" min="0" step="1" max="33">
                        
                     </div>
                     <!--./col-->
-                    <div id="ch_#:r_ip_div" class="col-md-4">
-                        <label for="ch_#:r_ip" class="form-label">IP Address:</label>
-                        <input id="ch_#:r_ip" type="text" class="form-control"
+                    <div id="ch_(ch#):r_ip_div" class="col-md-4">
+                        <label for="ch_(ch#):r_ip" class="form-label">IP Address:</label>
+                        <input id="ch_(ch#):r_ip" type="text" class="form-control"
                             placeholder="0.0.0.0" required=""
                             pattern="((^|.)((25[0-5])|(2[0-4]d)|(1dd)|([1-9]?d))){4}$">
                     </div>
                     <!--./col-->
-                    <div id="ch_#:r_uid_div" class="col-md-1">
-                        <label for="ch_#:r_id" class="form-label">ID:</label>
-                        <input id="ch_#:r_uid" type="number" class="form-control" placeholder="0" min="0" step="1" max="255">
+                    <div id="ch_(ch#):r_uid_div" class="col-md-1">
+                        <label for="ch_(ch#):r_id" class="form-label">ID:</label>
+                        <input id="ch_(ch#):r_uid" type="number" class="form-control" placeholder="0" min="0" step="1" max="255">
                     </div>
                     <!--./col-->
                 </div>
@@ -149,49 +155,48 @@ const channel_html = `<div class="row row-cols-1">
             <!--./form-section-->
             <!--Channel rules-->
 
-            <div class="accordion" id="ch_#_accordion">
+            <div class="accordion" id="ch_(ch#)_accordion">
                 <div class="accordion-item">
-                    <h2 class="accordion-header" id="ch_#_accordionh3">
-                        <button class="accordion-button accordion-title collapsed"
+                    <h2 class="accordion-header" id="ch_(ch#)_accordionh3">
+                        <button class="accordion-button"
                             type="button" data-bs-toggle="collapse"
-                            data-bs-target="#ch_#_colla3" aria-expanded="false"
-                            aria-controls="ch_#_colla3">
+                            data-bs-target="#ch_(ch#)_colla_rules" aria-expanded="true"
+                            aria-controls="ch_(ch#)_colla_rules">
                             Channel Rules
                         </button>
                     </h2>
                     
-                    <div id="ch_#_colla3" class="accordion-collapse collapse"
-                        aria-labelledby="ch_#_accordionh3" data-bs-parent="#ch_#_accordion"
-                        style="">
+                    <div id="ch_(ch#)_colla_rules" class="accordion-collapse collapse collapsed"
+                        aria-labelledby="ch_(ch#)_accordionh3" data-bs-parent="#ch_(ch#)_accordion">
                         <div class="accordion-body">
                             <div class="row g-3">
                                 <div class="col">
                                     <div class="input-group mb-3">
                                         <span class="input-group-text"
-                                            id="basic-addon3">Config mode</span>
-                                        <input id="ch_#:config_mode_1" type="radio"
-                                            class="btn-check" name="ch_#:config_mode"
-                                            autocomplete="off" checked="" value="1">
+                                            id="ch_(ch#):basic-addon3">Config mode</span>
+                                        <input id="ch_(ch#):config_mode_1" type="radio"
+                                            class="btn-check" name="ch_(ch#):config_mode"
+                                             checked="" value="1">
                                         <label class="btn btn-secondary"
-                                            for="ch_#:config_mode_1">
+                                            for="ch_(ch#):config_mode_1">
                                             <span data-feather="file"
                                             class="align-text-bottom"></span>Template</label>
 
-                                        <input id="ch_#:config_mode_0" type="radio"
-                                            class="btn-check" name="ch_#:config_mode"
-                                            autocomplete="off" value="0">
+                                        <input id="ch_(ch#):config_mode_0" type="radio"
+                                            class="btn-check" name="ch_(ch#):config_mode"
+                                             value="0">
                                         <label class="btn btn-secondary"
-                                            for="ch_#:config_mode_0">
+                                            for="ch_(ch#):config_mode_0">
                                             <span data-feather="list" class="align-text-bottom"></span>
                                             Advanced</label>
                                     </div>
                                     <div class="input-group mb-3">
-                                        <select id="ch_#:template_id" class="form-select"
+                                        <select id="ch_(ch#):template_id" class="form-select"
                                             aria-label="variable" disabled="">
                                             <option value="-1">Select template</option>
                                         </select>
                                         <span class="input-group-text p-0"> </span>
-                                        <button id="ch_#:template_reset" type="button"
+                                        <button id="ch_(ch#):template_reset" type="button"
                                             class="btn btn-primary" disabled="">
                                             <span data-feather="settings"
             class="align-text-bottom"></span>
@@ -201,107 +206,28 @@ const channel_html = `<div class="row row-cols-1">
                                 <!--./col-->
                             </div>
                             <!--./row-->
-                            <div id="ch_#:rules"
-                                class="row row row-cols-1 row-cols-md-2 g-3">
-                               
+                            <div id="ch_(ch#):rules"
+                                class="row row row-cols-1 row-cols-md-2 g-3">      
                                 <!--./col-->
                             </div>
                             <!--./row-->
-
-
                         </div>
 
                     </div>
                 </div> <!-- accordion -->
             </div>
-            <div id="ch_#:alert"></div>
-
-            <!-- Modal example channel rules
-================================================== -->
-            <div class="modal fade" id="exampleModalToggle" aria-hidden="true"
-                aria-labelledby="exampleModalToggleLabel" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="card-title mb-0" id="exampleModalToggleLabel">Create
-                                Channel rule </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p><strong>Template 2 - Hyödynnä halpa aurinkosähkö</strong></p>
-                            <p>Päällä ainoastaan kun oman tuotannon ylijäämää. Kalliin
-                                sähkön aikana myydään omaa
-                                tuotantoa.</p>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary"
-                                data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-primary"
-                                data-bs-target="#exampleModalToggle2"
-                                data-bs-toggle="modal">OK</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal fade" id="exampleModalToggle2" aria-hidden="true"
-                aria-labelledby="exampleModalToggleLabel2" tabindex="-1">
-                <div class="modal-dialog modal-dialog-centered">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="card-title mb-0" id="exampleModalToggleLabel2">Create
-                                Channel rule </h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"
-                                aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <p><strong>Template 2 - Hyödynnä halpa aurinkosähkö</strong></p>
-
-                            <form>
-                                <div class="mb-3">
-                                    <label for="min-price" class="col-form-label">Min price
-                                        to sell own production (e.g.
-                                        13c/kWh)?</label>
-                                    <input type="text" class="form-control" id="min-price">
-                                </div>
-                            </form>
-
-
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary"
-                                data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" class="btn btn-primary">OK</button>
-                            <!--palaa takaisin ekaan vaiheeseen
-<button class="btn btn-primary" data-bs-target="#exampleModalToggle2" data-bs-toggle="modal">OK</button>
--->
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- modal example -->
-            <a class="mt-3 d-block" data-bs-target="#exampleModalToggle"
-                data-bs-toggle="modal">Example channel
-                rules - modal example here:
-                https://getbootstrap.com/docs/5.2/components/modal/#varying-modal-content
-            </a>
-
+            <div id="ch_(ch#):alert"></div>
         </div>
         <!--./card-body-->
         <div class="card-footer text-end">
-            <button id="ch_#:save" class="btn btn-primary " type="submit" disabled="" >
-            <span data-feather="save"
+            <button id="ch_(ch#):save"  class="btn btn-primary" type="submit" disabled="" >
+            <span data-feather="save" style="pointer-events: none;"
             class="align-text-bottom"></span>
                 Save</button>
         </div>
         <!--./card-footer-->
-
-
     </div> <!-- channel ends-->
-
-</div>
-</div>
-<!--./row-->`;
+</div> <!-- col ends -->`;
 
 const rule_html = `<div class="col">
      <!-- rule starts -->
@@ -312,20 +238,17 @@ const rule_html = `<div class="col">
          </div>
          <div class="card-body">
              <div class="input-group mb-3">
-                 <span class="input-group-text"
-                     id="basic-addon3">Rule sets
+                 <span class="input-group-text">Rule sets
                      channel</span>
                  <input id="ch_#:r_#:up_0" type="radio"
-                     class="btn-check" name="ch_#:r_#:up"
-                     autocomplete="off" checked="">
+                     class="btn-check" name="ch_#:r_#:up" checked="">
                  <label class="btn btn-secondary"
                      for="ch_#:r_#:up_0">
                      <span data-feather="zap-off"
             class="align-text-bottom"></span>
                      off</label>
                  <input id="ch_#:r_#:up_1" type="radio"
-                     class="btn-check" name="ch_#:r_#:up"
-                     autocomplete="off">
+                     class="btn-check" name="ch_#:r_#:up">
                  <label class="btn btn-secondary"
                      for="ch_#:r_#:up_1">
                      <span data-feather="zap"
@@ -352,7 +275,7 @@ const stmt_html = `<div class="row g-1">
     <select id="ch_#:r_#:s_#:oper"
         class="form-select visible"
         aria-label="oper">
-        <option value="-1"></option>
+        <option value="-1">&nbsp;</option>
 
     </select>
 </div>
@@ -401,6 +324,8 @@ function getCookie(cname) {
 
 let last_status_update = 0;
 
+
+
 // update variables and channels statuses to channels form
 function update_status(repeat) {
     console.log("update_status starting");
@@ -420,7 +345,7 @@ function update_status(repeat) {
     now_ts = Date.now() / 1000;
     if (Math.floor(now_ts / 3600) != Math.floor(last_status_update / 3600)) {
         console.log("Interval changed in update_status");
-        update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
+        //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
         price_chart_ok = update_price_chart();
         if (price_chart_ok)
             last_status_update = now_ts;
@@ -553,7 +478,9 @@ function populate_channel_status(channel_idx, ch) {
 
     now_ts = Date.now() / 1000;
     // console.log(channel_idx,ch);
-    sch_current_span = document.getElementById(`sch_${channel_idx}:current`);
+    sch_duration_c_span = document.getElementById(`sch_${channel_idx}:duration_c`);
+    sch_start_c_span = document.getElementById(`sch_${channel_idx}:start_c`);
+    sch_delete_radio = document.getElementById(`sch_${channel_idx}:delete`);
     sch_status_label = document.getElementById(`sch_${channel_idx}:status`);
     sch_status_icon_span = document.getElementById(`sch_${channel_idx}:status_icon`);
     sch_status_text_span = document.getElementById(`sch_${channel_idx}:status_txt`);
@@ -562,11 +489,17 @@ function populate_channel_status(channel_idx, ch) {
     //if (status_changed)
     //    feather.replace(); //icon
     if ((ch.force_up_until > now_ts)) {
-        sch_current_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; " + get_time_string_from_ts(ch.force_up_until, false, true);
-        //    console.log("sch_current_span.innerText", sch_current_span.innerText);
+        duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
+        duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
+        sch_duration_c_span.innerHTML = duration_c_str;
+        sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_up_until, false, true);
+        //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
     }
-    else
-        sch_current_span.innerHTML = "-";
+    else {
+        sch_duration_c_span.innerHTML = "-";
+        sch_start_c_span.innerHTML = "-";
+    }
+    sch_delete_radio.disabled = (ch.force_up_until <= now_ts);
 
     //  <span id="sch_(ch#):status_txt">ON based on <a href="#" class="link-light">rule 2</a></span></label>
 
@@ -576,8 +509,8 @@ function populate_channel_status(channel_idx, ch) {
 
     info_text = "";
     if (ch.active_condition > -1)
-    rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
-
+        // rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
+        rule_link_a = "";
     if (ch.is_up) {
         if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
             info_text += "Up based on manual schedule.";
@@ -618,8 +551,10 @@ function get_date_string_from_ts(ts) {
     tmpDate = new Date(ts * 1000);
     return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
 }
+// graph
 var prices = [];
 var net_exports = [];
+
 var prices_first_ts = 0;
 var prices_last_ts = 0;
 var prices_resolution_min = 60;
@@ -646,6 +581,8 @@ function update_price_chart() {
           return;
       }
   */
+    var channel_history = [];
+
 
     // experimental import query
     var jqxhr_obj = $.ajax({
@@ -653,6 +590,7 @@ function update_price_chart() {
         dataType: 'json',
         async: false,  //oli true
         success: function (data, textStatus, jqXHR) {
+            channel_history = data.channel_history;
             has_import_values = false;
             console.log(data.variable_history, data.variable_history["103"], data.variable_history["103"].length);
             for (i = 0; i < data.variable_history["103"].length; i++) {
@@ -670,6 +608,8 @@ function update_price_chart() {
     });
     //**** 
     console.log("has_import_values", has_import_values, "net_exports", net_exports);
+
+
 
     let price_data = null;
 
@@ -705,6 +645,11 @@ function update_price_chart() {
     var tz_offset = new Date().getTimezoneOffset();
     start_date_str = ts_date_time(price_data.record_start, false) + ' - ' + ts_date_time(price_data.record_end_excl - 3600, false);
 
+    //document.getElementById("chart_title").innerText = "Day-ahead prices" + has_import_values ? " and imported energy" : "";
+    //     document.getElementById("chart_subtitle").innerText
+
+
+
     for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += (price_data.resolution_m * 60)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
@@ -728,7 +673,7 @@ function update_price_chart() {
         for (h_idx = net_exports.length - 1 - now_idx; h_idx < net_exports.length; h_idx++) {
             if (Math.abs(net_exports[h_idx]) > 1)
                 dataset_started = true;
-            imports.push(dataset_started ? -net_exports[h_idx] : null);
+            imports.push(dataset_started ? -net_exports[h_idx] / 1000 : null);
         }
     }
     console.log("net_exports", net_exports, "imports", imports);
@@ -737,38 +682,70 @@ function update_price_chart() {
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
     if (chartExist != undefined)
         chartExist.destroy();
+    // const
+    datasets = [{
+        label: 'price ¢/kWh',
+        data: prices_out,
+        yAxisID: 'yp',
+        borderColor: ['#2376DD'
+        ],
+        backgroundColor: '#2376DD',
+        pointStyle: 'none',
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        fill: false,
+        stepped: true,
+        borderWidth: 2
+    },
+    {
+        label: 'import Wh',
+        data: imports,
+        yAxisID: 'ye',
+        cubicInterpolationMode: 'monotone',
+        borderColor: ['#0eb03c'
+        ],
+        backgroundColor: '#0eb03c',
+        pointStyle: 'circle',
+        pointRadius: 1,
+        pointHoverRadius: 5,
+        fill: false,
+        stepped: false,
+        borderWidth: 2
+    }
+    ];
 
-    const day_ahead_chart = new Chart(ctx, {
+    var channel_dataset;
+    for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
+        if (g_config.ch[channel_idx]["type"] == 0) // undefined
+            continue;
+        channel_dataset = [];
+        for (h_idx = net_exports.length - 1 - now_idx; h_idx < net_exports.length; h_idx++) {
+            channel_dataset.push(channel_history[channel_idx][h_idx]);
+        }
+        console.log("channel_dataset", channel_dataset);
+        datasets.push({
+            label: g_config.ch[channel_idx]["id_str"],
+            hidden: true,
+            type: 'bar',
+            data: channel_dataset,
+            yAxisID: 'ych',
+            borderColor: [g_config.ch[channel_idx]["channel_color"]
+            ],
+            backgroundColor: g_config.ch[channel_idx]["channel_color"],
+            pointHoverRadius: 5,
+            borderWidth: 1
+        });
+    }
+
+
+
+
+
+    day_ahead_chart_obj = new Chart(ctx, {
         type: 'line',
         data: {
             labels: time_labels,
-            datasets: [{
-                label: 'price ¢/kWh',
-                data: prices_out,
-                yAxisID: 'yp',
-                borderColor: ['#2376DD'
-                ],
-                pointStyle: 'circle',
-                pointRadius: 1,
-                pointHoverRadius: 5,
-                fill: false,
-                stepped: true,
-                borderWidth: 2
-            },
-            {
-                label: 'import Wh',
-                data: imports,
-                yAxisID: 'ye',
-                cubicInterpolationMode: 'monotone',
-                borderColor: ['#008000'
-                ],
-                pointStyle: 'circle',
-                pointRadius: 1,
-                pointHoverRadius: 5,
-                fill: false,
-                stepped: false,
-                borderWidth: 2
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,
@@ -780,17 +757,20 @@ function update_price_chart() {
                     },
                     position: { x: now_idx + 0.5 }, grid: {
                         display: false,
-                        lineWidth: 6, color: "#ffffcc", borderWidth: 1, borderColor: '#f7f7e6'
+                        lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
                 },
                 yp: {
                     beginAtZero: true,
                     ticks: {
-                        color: 'white',
-                        font: { size: 17 }
+                        color: 'black',
+                        font: { size: 12 },
+                        callback: function (value, index, values) {
+                            return value + ' ¢/kWh';
+                        }
                     },
                     position: 'right', grid: {
-                        lineWidth: 1, color: "#f7f7e6", borderWidth: 1, borderColor: '#f7f7e6'
+                        lineWidth: 1, color: "#47470e", borderWidth: 1, borderColor: '#47470e'
                     }
                 },
                 ye: {
@@ -798,11 +778,28 @@ function update_price_chart() {
                     beginAtZero: true,
                     grid: { display: false },
                     ticks: {
-                        color: 'white',
-                        font: { size: 17, }
+                        color: '#4f4f42',
+                        font: { size: 12 },
+                        callback: function (value, index, values) {
+                            return value + ' kWh';
+                        }
                     }
                 },
-                x: { grid: { lineWidth: 0.5, display: true, color: "#f7f7e6" } }
+                ych: {
+                    display: 'auto',
+                    beginAtZero: true,
+                    min: 0,
+                    max: 100,
+                    grid: { display: false },
+                    ticks: {
+                        color: '#4f4f42',
+                        font: { size: 12 },
+                        callback: function (value, index, values) {
+                            return value + ' %';
+                        }
+                    }
+                },
+                x: { grid: { lineWidth: 0.5, display: true, color: "#47470e" } }
             },
             interaction: {
                 intersect: false,
@@ -811,20 +808,33 @@ function update_price_chart() {
             plugins: {
                 title: {
                     display: true,
-                    text: (ctx) => 'Day-ahead prices ' + start_date_str,
+                    text: (ctx) => "Day-ahead prices" + ((has_import_values) ? " and imported energy" : ""),
                     font: {
                         size: 24,
-                        weight: "normal"
+                        weight: "normal",
+
                     }
                 },
                 legend: {
-                    display: false
+                    display: true,
+                    labels: { boxWidth: 15, boxHeight: 15 },
+                    position: 'bottom',
+                    font: {
+                        family: "'lato', 'sans-serif'",
+                        size: 12,
+                        weight: "normal"
+                    }
                 }
             }
         }
     });
-    Chart.defaults.color = '#f7f7e6';
-    Chart.defaults.scales.borderColor = '#f7f7e6';
+
+
+
+
+
+    Chart.defaults.color = '#0a0a03';
+    Chart.defaults.scales.borderColor = '#262623';
     document.getElementById("chart_container").style.display = "block";
     return true;
 }
@@ -939,7 +949,7 @@ function populate_wifi_ssid_list() {
 //TODO: get from main.cpp
 const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440];
 
-
+/*
 
 function update_schedule_select_periodical() {
     //remove schedule start times from history
@@ -954,12 +964,10 @@ function update_schedule_select_periodical() {
             }
         }
     }
-}
+} */
 function post_schedule_update(channel_idx, duration, start) {
     var scheds = [];
-
     // live_alert(`sch_${channel_idx}`, "Updating... 'success'");
-
     scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start });
     console.log(scheds);
 
@@ -968,14 +976,14 @@ function post_schedule_update(channel_idx, duration, start) {
         url: "/update.schedule",
         async: "false",
         data: JSON.stringify({ schedules: scheds }),
-        contentType: "application/json; charset=utf-8",
+        contentType: "application/json",
         dataType: "json",
         success: function (data) {
-            sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`).value = -1;
-            sch_duration_sel = document.getElementById(`sch_${channel_idx}:start`).value = -1;
-            sch_duration_sel = document.getElementById(`sch_${channel_idx}:save`).disabled = false; // should not be needed
+            document.getElementById(`sch_${channel_idx}:duration`).value = 60;
+            document.getElementById(`sch_${channel_idx}:start`).value = 0;
+            document.getElementById(`sch_${channel_idx}:save`).disabled = false; // should not be needed
             // console.log("success", data);
-            live_alert(`sch_${channel_idx}`, duration >0 ? "Schedule updated." : "Schedule deleted.", "success");
+            live_alert(`sch_${channel_idx}`, duration > 0 ? "Schedule updated." : "Schedule deleted.", "success");
 
         },
         error: function (errMsg) {
@@ -1003,8 +1011,9 @@ function schedule_update(evt) {
 
     //schedule_el.disabled = true;
     // if (duration == 0 || scheduled_ts == 0)
-    update_status(false); 
-   // setTimeout(function () { update_status(false); }, 2000); //update UI
+
+    setTimeout(function () { update_status(false); }, 1000); //update UI
+    // update_status(false); 
 }
 
 
@@ -1048,11 +1057,12 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         }
 
         if (segment_price != -VARIABLE_LONG_UNKNOWN)
-            price_str = "   " + segment_price.toFixed(1) + " c/kWh";
+            price_str = " &bull; " + segment_price.toFixed(1) + " c/kWh";
         else
             price_str = "";
 
-        addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false, true) + price_str, (prev_selected == start_ts));
+        //           addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false, true) + price_str, (prev_selected == start_ts));
+        addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + price_str, (prev_selected == start_ts));
         start_ts += 3600;
     }
     if (cheapest_index > -1) {
@@ -1073,9 +1083,9 @@ function delete_schedule(evt) {
     post_schedule_update(channel_idx, 0, 0);
     document.getElementById(`sch_${channel_idx}:delete`).disabled = true;
     document.getElementById(`sch_${channel_idx}:start`).value = -1;
-    //setTimeout(function () { update_status(false); }, 1000); //update UI
-    update_status(false);
-    
+    setTimeout(function () { update_status(false); }, 1000); //update UI
+    //update_status(false);
+
 }
 
 //TODO: refaktoroi myös muut
@@ -1523,7 +1533,7 @@ function changed_template(ev, selEl) {
 
 //todo: data as parameter?
 function populate_channel(channel_idx) {
-  //  console.log("populate_channel", channel_idx);
+    //  console.log("populate_channel", channel_idx);
 
     now_ts = Date.now() / 1000;
 
@@ -1539,6 +1549,12 @@ function populate_channel(channel_idx) {
         current_start_ts = ch_cur.force_up_from;
     }
 
+    //color
+    document.getElementById(`sch_${channel_idx}:title`).style.color = g_config.ch[channel_idx]["channel_color"];
+    document.getElementById(`sch_${channel_idx}:label`).style["background-color"] = g_config.ch[channel_idx]["channel_color"];
+    document.getElementById(`ch_${channel_idx}:title`).style.color = g_config.ch[channel_idx]["channel_color"];
+
+
     //experimental, is this enough or do we need loop
     //  update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
     update_fup_schedule_element(channel_idx, current_start_ts);
@@ -1547,6 +1563,7 @@ function populate_channel(channel_idx) {
 
     // end of scheduling
 
+    document.getElementById(`ch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
     document.getElementById(`ch_${channel_idx}:id_str`).value = g_config.ch[channel_idx]["id_str"];
     document.getElementById(`sch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
 
@@ -1757,18 +1774,18 @@ function create_channels() {
     console.log("create_channels");
 
     //front page 
-    // for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) { //
-    //     document.getElementById("schedules").insertAdjacentHTML('beforeend', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx));
-    // }
-    for (channel_idx = g_constants.CHANNEL_COUNT - 1; channel_idx > -1; channel_idx--) { //beforeend
-        document.getElementById("schedules").insertAdjacentHTML('afterbegin', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx).replaceAll("(ch#)", channel_idx));
+    for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) { //
+        document.getElementById("schedules").insertAdjacentHTML('beforeend', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx));
     }
+    /*   for (channel_idx = g_constants.CHANNEL_COUNT - 1; channel_idx > -1; channel_idx--) { //beforeend
+           document.getElementById("schedules").insertAdjacentHTML('afterbegin', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx).replaceAll("(ch#)", channel_idx));
+       }*/
 
 
     // channel settings page
-    channels = document.getElementById("channels");
+    channels = document.getElementById("channels_row");
     for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
-        channels.insertAdjacentHTML('beforeend', channel_html.replaceAll("ch_#", "ch_" + channel_idx));
+        channels.insertAdjacentHTML('beforeend', channel_html.replaceAll("(ch#)", channel_idx));
 
         // populate types, "channel_types": [
         //    `ch_${channel_idx}:type`
@@ -1801,11 +1818,10 @@ function create_channels() {
             // schedule controls
             sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
             remove_select_options(sch_duration_sel);
-            addOption(sch_duration_sel, -1, "duration", true); //check checked
             for (i = 0; i < force_up_mins.length; i++) {
                 min_cur = force_up_mins[i];
                 duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
-                addOption(sch_duration_sel, min_cur, duration_str, false); //check checked
+                addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
             }
 
             // populate data
@@ -1889,8 +1905,10 @@ function init_ui() {
         // console.log("Action added " + input_controls[i].id);
     }
 
-    update_price_chart();//TODO: timing, refresh, synch with update_status
+    //update_price_chart();//TODO: timing, refresh, synch with update_status
     setTimeout(function () { update_price_chart; }, 60);
+
+
     // populate_wifi_ssid_list();
     update_status(true);
 }
@@ -2029,7 +2047,7 @@ function save_channel(ev) {
         url: "/settings",
         async: "false",
         data: JSON.stringify(post_data),
-        contentType: "application/json; charset=utf-8",
+        contentType: "application/json;",
         dataType: "json",
         success: function (data) {
             live_alert(card, "Updated", 'success');
@@ -2074,7 +2092,7 @@ function save_card(ev) {
         url: "/settings",
         async: "false",
         data: JSON.stringify(post_data),
-        contentType: "application/json; charset=utf-8",
+        contentType: "application/json",
         dataType: "json",
         success: function (data) {
             live_alert(card, "Updated", 'success');

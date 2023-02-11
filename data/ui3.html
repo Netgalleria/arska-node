@@ -1,14 +1,17 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="">
   <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
   <meta name="generator" content="Hugo 0.104.2">
   <title>Dashboard Template · Bootstrap v5.2</title>
-
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+<!--
   <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/">
   <link href="css/bootstrap.min.css" rel="stylesheet">
+  -->
 
   <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
   <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
@@ -69,7 +72,7 @@
   <link href="/css/dashboard.css" rel="stylesheet">
   <!--fonts-->
   <link rel="stylesheet" href="https://use.typekit.net/uwx3oza.css">
-  <style type="text/css">
+  <style>
     /* Chart.js */
     @keyframes chartjs-render-animation {
       from {
@@ -232,17 +235,21 @@
                     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center ">
                       <h1 class="h2 card-title">Dashboard</h1>
                       <!--dashboard-nav-->
+                      
                       <nav class="nav nav-pills nav-fill">
                         <a class="nav-link active" aria-current="page" href="#">Active</a>
                         <a class="nav-link" href="#">Link</a>
                         <a class="nav-link" href="#">Link</a>
                         <a class="nav-link disabled">Disabled</a>
                       </nav>
+                      
                     </div>
+                    <!--
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="chart-text">Day-ahead prices </span>
-                      <span class="text-muted">29.01.2023 (00:00) &mdash; 31.01.2023 (01:00)</span>
+                      <span id="chart_title" class="chart-text">Day-ahead prices </span>
+                      <span id="chart_subtitle" class="text-muted">29.01.2023 (00:00) &mdash; 31.01.2023 (01:00)</span>
                     </div>
+                    -->
                     <!--./chart-info-->
                   </div>
                   <!--./card-header-->
@@ -251,8 +258,11 @@
                     <canvas class="my-4 w-100 chartjs-render-monitor" id="day_ahead_chart" width="1624" height="684"
                       style="display: block; height: 342px; width: 812px;"></canvas>
                   </div>
+                  <!--Valitse näytettävät tiedot-->
+                  <!--
                   <div class="card-footer">
-                    <!--Valitse näytettävät tiedot-->
+                    
+                    
                     <div class="show-hide-items pt-3">
                       <span class="d-block d-md-inline  me-md-2 pb-2 pb-md-0">Show</span>
                       <div class="form-check form-check-inline">
@@ -296,11 +306,10 @@
                       <div class="form-check form-check-inline">
                         <input class="form-check-input Channel-8" type="checkbox" id="inlineCheckbox8" value="option8">
                         <label class="form-check-label" for="inlineCheckbox8">Channel 8</label>
-                      </div>
+                      </div>      
                     </div>
-                    <!--./show-hide-items-->
-
                   </div>
+                -->
                   <!--./card-footer-->
                 </div>
                 <!--./card-->
@@ -313,16 +322,14 @@
             <!--./row-->
           </div>
           <!--./dashboard-->
-          <!-- Services
+          <!-- Services removed
 ================================================== -->
-          <div class="tab-pane fade" id="services" role="tabpanel" aria-labelledby="services-tab" tabindex="0">
-            Services
-          </div>
           <!--./channels-->
           <!-- Channels
 ================================================== -->
           <div class="tab-pane fade" id="channels" role="tabpanel" aria-labelledby="channels-tab" tabindex="0">
-
+<div id="channels_row" class="row row-cols-1">
+</div>
             <!--./row-->
           </div>
           <!--./channels-->
@@ -330,6 +337,7 @@
 ================================================== -->
           <div class="tab-pane fade" id="admin" role="tabpanel" aria-labelledby="admin-tab" tabindex="0">
             <div class="row row-cols-1 row-cols-md-2 g-4">
+        
               <div class="col">
                 <!-- Price data
                 ================================================== -->
@@ -651,19 +659,19 @@
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
-                      <label for="exampleFormControlInput1" class="form-label">URL</label>
+                      <label for="influx_url" class="form-label">URL</label>
                       <input type="url" class="form-control" id="influx_url" placeholder="">
                     </div>
                     <div class="mb-2">
-                      <label for="exampleFormControlInput1" class="form-label">Token</label>
+                      <label for="influx_token" class="form-label">Token</label>
                       <input type="text" class="form-control" id="influx_token" placeholder="">
                     </div>
                     <div class="mb-2">
-                      <label for="exampleFormControlInput1" class="form-label">Organization</label>
+                      <label for="influx_org" class="form-label">Organization</label>
                       <input type="text" class="form-control" id="influx_org" placeholder="">
                     </div>
                     <div class="mb-3">
-                      <label for="exampleFormControlInput1" class="form-label">Bucket</label>
+                      <label for="influx_bucket" class="form-label">Bucket</label>
                       <input type="text" class="form-control" id="influx_bucket" placeholder="">
                     </div>
                     <div id="influx:alert"></div>
@@ -742,7 +750,7 @@
             ================================================== -->
                 <div class="card white-card mb-3" id="actions:card">
                   <div class="card-header d-none">
-                    <h5 class="card-title" data-bs-toggle="collapse" href="#collapseExample" role="button"
+                    <h5 class="card-title" data-bs-toggle="collapse"
                       aria-expanded="false" aria-controls="collapseExample">Admin actions</h5>
                   </div>
                   <!--./card-header-->
@@ -753,7 +761,6 @@
                     </p>
                     <div class="collapse" id="collapseExample">
                       <p class="my-3">With admin actions you can... Maybe here some info here.</p>
-                      <div id="actions:alert"></div>
                       <div class="d-grid gap-2 d-md-block text-end">
 
                         <button type="button" id="actions:restart" class="btn btn-secondary">Restart and clear
@@ -768,25 +775,13 @@
                   </div>
                   <!--./card-body-->
                   <div class="card-footer text-end d-none">
-                    <div class="d-grid gap-2 d-md-block">
-
-                      <button type="button" id="actions:restart" class="btn btn-secondary">Restart and clear
-                        cache</button>
-                      <button type="button" id="actions:reset" class="btn btn-secondary">Reset Settings</button>
-                      <button type="button" id="actions:scan_sensors" class="btn btn-secondary">Scan Sensors</button>
-                    </div>
                   </div><!-- card footer-->
                 </div><!-- actions card-->
 
               </div>
               <!--./col-->
-
-
             </div>
             <!--./row-->
-
-
-
           </div>
           <!--./admin-->
         </div>
@@ -801,26 +796,30 @@
 
 
   <!--color picker vaatii popper scriptin mukaan-->
+  <!--
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"
     integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3"
     crossorigin="anonymous"></script>
-  <script src="js/bootstrap.bundle.min.js"></script>
+    -->
+  <!--<script defer src="/js/bootstrap.bundle.min.js"></script>-->
 
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js"
+  <script defer src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js"
     integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE"
     crossorigin="anonymous"></script>
  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"
     integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha"
     crossorigin="anonymous"></script> -->
-  <script src="/js/dashboard.js"></script>
 
-
+   
   <!--tooltip-->
+  <!--
   <script>
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
   </script>
+  -->
 </body>
 </html>
