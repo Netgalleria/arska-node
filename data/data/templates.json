@@ -1,4 +1,7 @@
-{
+{   "info" : {
+    "version" : "20230212-0",
+    "created_by": "Olli Rinne, Netgalleria Oy"
+},
     "1": {
         "id": 1,
         "name": "Only on during cheapest night hours",

@@ -8,7 +8,6 @@ Resource files (see data subfolder):
 - js/arska-ui.js - main javascript code template //TODO:separate variable(constant) and code
 - js/jquery-3.6.0.min.js - jquery library
 - data/version.txt - file system version info
-- data/template-list.json - list of rule templates
 - data/templates.json - rule template definitions
 DEVEL BRANCH
 
@@ -82,7 +81,7 @@ const char *variables_filename PROGMEM = "/data/variables.json";
 // const char *fcst_filename PROGMEM = "/data/fcst.json"; // TODO: we need it only for debugging?, remove?
 const char *wifis_filename PROGMEM = "/data/wifis.json";
 const char *template_filename PROGMEM = "/data/templates.json";
-const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
+// const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
 
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
@@ -1140,10 +1139,10 @@ public:
   void new_log_period(time_t ts_report);
   void set_state(int channel_idx, bool new_state);
   time_t get_duration_in_this_state(int channel_idx);
+
 private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
 };
-
 
 void ChannelCounters::init()
 {
@@ -1186,14 +1185,12 @@ void ChannelCounters::new_log_period(time_t ts_report)
     snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
     point_period_avg.addField(field_name, utilization);
 
- // rotate to variable history
-  
-    channel_history[i][MAX_HISTORY_PERIODS - 1] = (byte)(utilization*100+0.001);
+    // rotate to variable history
+
+    channel_history[i][MAX_HISTORY_PERIODS - 1] = (byte)(utilization * 100 + 0.001);
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
       channel_history[i][h_idx] = channel_history[i][h_idx + 1];
     channel_history[i][MAX_HISTORY_PERIODS - 1] = 0;
-
-
   }
   // then reset
   for (int i = 0; i < CHANNEL_COUNT; i++)
@@ -1232,8 +1229,6 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
   if (old_state != new_state)
     channel_logs[channel_idx].this_state_started_epoch = now_l;
 }
-
- 
 
 ChannelCounters ch_counters;
 
@@ -3318,6 +3313,7 @@ bool get_price_data()
   return read_ok;
 }
 
+// TODO: no cache, check for eval versions
 /**
  * @brief Update price rank variables to a cache file
  *
@@ -4461,7 +4457,7 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
     snprintf(char_buffer, 8, "#%06x", s.ch[channel_idx].channel_color);
     doc["ch"][channel_idx]["channel_color"] = char_buffer;
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
-   // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
+    // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
@@ -4723,6 +4719,7 @@ void onWebUIGet(AsyncWebServerRequest *request)
  *
  * @param request
  */
+/*
 void onWebTemplateGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -4751,6 +4748,8 @@ void onWebTemplateGet(AsyncWebServerRequest *request)
   serializeJson(root, output);
   request->send(200, "application/json", output);
 }
+
+*/
 /**
  * @brief Process dashboard form, forcing channels up, JSON update, work in progress
  *
@@ -5513,7 +5512,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     return request->requestAuthentication();
   }
 
-  //StaticJsonDocument<2048> doc; //
+  // StaticJsonDocument<2048> doc; //
   DynamicJsonDocument doc(4096);
   String output;
 
@@ -5556,16 +5555,16 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   {
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["active_condition"] = active_condition(channel_idx);
-    //doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
+    // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
-    
-   // JsonArray channel_history_array_item = doc["channel_history"][channel_idx];
-   // JsonArray channel_history_array_item = doc["ch"][channel_idx].createNestedArray("channel_history");
+
+    // JsonArray channel_history_array_item = doc["channel_history"][channel_idx];
+    // JsonArray channel_history_array_item = doc["ch"][channel_idx].createNestedArray("channel_history");
     for (int h_idx = 0; h_idx < MAX_HISTORY_PERIODS; h_idx++)
     {
-      doc["channel_history"][channel_idx][h_idx ] = channel_history[channel_idx][h_idx];
+      doc["channel_history"][channel_idx][h_idx] = channel_history[channel_idx][h_idx];
     }
   }
 
@@ -5887,34 +5886,16 @@ void setup()
          size_t len, bool final) {},
       onScheduleUpdate);
 
-  // server_web.on("/", HTTP_POST, onWebDashboardPost);
-
-  // server_web.on("/inputs", HTTP_GET, onWebInputsGet);
-  //server_web.on("/inputs", HTTP_GET, [](AsyncWebServerRequest *request)
-   //             { request->redirect("/#services"); });
-
-  // server_web.on("/inputs", HTTP_POST, onWebInputsPost);
-
-  // server_web.on("/channels", HTTP_GET, onWebChannelsGet);
-  //server_web.on("/channels", HTTP_GET, [](AsyncWebServerRequest *request)
-  //              { request->redirect("/#channels"); });
-  // server_web.on("/channels", HTTP_POST, onWebChannelsPost);
-
-  // server_web.on("/admin", HTTP_GET, onWebAdminGet);
-  //server_web.on("/admin", HTTP_GET, [](AsyncWebServerRequest *request)
-  //              { request->redirect("/#admin"); });
-  // server_web.on("/admin", HTTP_POST, onWebAdminPost);
-
-  server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/style.css", "text/css"); });
+  // server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
+  //               { request->send(LittleFS, "/style.css", "text/css"); });
 
   server_web.serveStatic("/js/", LittleFS, "/js/");
   server_web.serveStatic("/css/", LittleFS, "/css/");
 
   //  /data/ui-constants.json
-  server_web.on("/ui-constants.json", HTTP_GET, [](AsyncWebServerRequest *request)
+  /*server_web.on("/ui-constants.json", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, ui_constants_filename, F("application/json")); });
-
+*/
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
   server_web.on("/favicon-32x32.png", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -5926,7 +5907,7 @@ void setup()
   server_web.serveStatic("/data/", LittleFS, "/data/");
 
   // no authentication
-  server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
+  // server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
   server_web.on("/data/arska-mappings.json", HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, "/data/arska-mappings.json", F("application/json")); });
@@ -5942,8 +5923,12 @@ void setup()
   server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, wifis_filename, "text/json"); });
 
-  server_web.on("/ui.html", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/ui.html", "text/html"); });
+  // templates
+  server_web.on(template_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, template_filename, "text/json"); });
+
+ // server_web.on("/ui.html", HTTP_GET, [](AsyncWebServerRequest *request)
+ //               { request->send(LittleFS, "/ui.html", "text/html"); });
 
   server_web.onNotFound(notFound);
   // TODO: remove force create
