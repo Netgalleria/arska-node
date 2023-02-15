@@ -9,8 +9,9 @@
 ### Bug Fixes
 * Special character including Scandinavian characters did not work in channel id or forecast location. Fixed. Stores now characters in ISO-8859-1 .
 
-### Other Changes
+### Other Changes (updated 2023-02-15)
 * Code cleanup: Removed outdated ESP8266 code, documentation, removed unused variables and functions
+* New Entso-E server API address web-api.tp.entsoe.eu updated
 
 ## Arska 0.92 (updated 2022-11-02)
 * 0.92.0-stable released 2022-11-02
