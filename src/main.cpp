@@ -272,7 +272,10 @@ bool prices_initiated = false;
 time_t prices_first_period = 0;
 
 // API
-const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
+//const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
+//fixed 14.2.2023, see https://transparency.entsoe.eu/news/widget?id=63eb9d10f9b76c35f7d06f2e
+const char *host_prices PROGMEM = "web-api.tp.entsoe.eu";
+
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
