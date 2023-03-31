@@ -22,8 +22,15 @@ const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
 const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
 
+
+
+
+
+let variable_list = {}; // populate later
+
 window.onload = function () {
     init_ui();
+
 }
 
 const template_form_html = `<div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
@@ -89,7 +96,6 @@ const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch
                       <!--./col-->
                       <div class="col-md-6 col-lg-6">
                         <select id="sch_(ch#):start" class="form-select" aria-label="variable">
-                          <option value="0">now &rarr;</option>
                         </select>
                       </div>
                       <!--./col-->
@@ -228,7 +234,6 @@ const channel_html = `<div class="col">
                                         </button>
                                     </div>
 
-
                                     <div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
                                     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                                       <div class="modal-content">
@@ -310,6 +315,7 @@ const rule_html = `<div class="col">
             class="align-text-bottom" style="pointer-events: none;"></span>
                      on</label>
              </div>
+             <span class="row g-1 form-label">Conditions (and):</span>
              <div class="rule-container">
                  <div id="ch_#:r_#:stmts"> 
                  </div>
@@ -406,7 +412,7 @@ function update_status(repeat) {
     else
         show_variables = false;
         */
-    show_variables = false;
+    show_variables = true;
     //TODO: add variable output
 
     const interval_s = 30;
@@ -428,7 +434,7 @@ function update_status(repeat) {
         async: false,  //oli true
         success: function (data, textStatus, jqXHR) {
             console.log("got status data", textStatus, jqXHR.status);
-            msgdiv = document.getElementById("msgdiv");
+            msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
             /*
                         has_import_values = false;
@@ -448,12 +454,43 @@ function update_status(repeat) {
             if (data.hasOwnProperty('next_process_in'))
                 next_query_in = data.next_process_in + process_time_s;
 
-            if (msgdiv) {
-                if (data.last_msg_ts > getCookie("msg_read")) {
-                    msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
-                    msgdiv.innerHTML = '<span class="msg' + data.last_msg_type + '">' + msgDateStr + ' ' + data.last_msg_msg + '<button class="smallbtn" onclick="set_msg_read(this)" id="btn_msgread">✔</button></span>';
-                }
+            if (msgdiv &&  (data.last_msg_ts > getCookie("msg_read"))) {
+                if (data.last_msg_type == 1)
+                    msg_type = 'info';
+                else if (data.last_msg_type == 2)
+                    msg_type = 'warning';
+                else if (data.last_msg_type == 3)
+                    msg_type = 'error';
+                else
+                    msg_type = 'success';
+
+                msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
+                live_alert("dashboard", msgDateStr + ' ' + data.last_msg_msg, msg_type);
+                $('#dashboard\\:alert_i').on('closed.bs.alert', function () {
+                    setCookie("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
+                 //   document.getElementById("msgdiv").innerHTML = "";
+                  })
             }
+           // "db:production_period"
+           // em_period_s = parseInt(data.energym_read_last / 3600) * 3600; 
+           // em_period_s_date = new Date(em_period_s * 1000);
+            em_period_e_date = new Date(data.energym_read_last * 1000);
+            selling = isNaN(data.variables["102"]) ? "-" : data.variables["102"] + " W";
+            document.getElementById("db:export_v").innerHTML = selling;
+            document.getElementById("db:export_period").innerHTML = "(" + em_period_e_date.toLocaleTimeString().substring(0,5) + ")";
+            
+            document.getElementById("db:production_d").style.display = isNaN(data.variables["105"]) ? "none" : "block";
+
+            if (!isNaN(data.variables["105"])) {
+                document.getElementById("db:production_v").innerHTML = data.variables["105"] + " W";; 
+            }
+
+            price = isNaN(data.variables["0"]) ? '-' : data.variables["0"] + ' ¢/kWh ';
+           
+            document.getElementById("db:price_v").innerHTML = price;
+
+            // Math.abs(selling)
+        
             /*
             if (keyfd) {
                 selling = data.variables["102"];
@@ -493,7 +530,7 @@ function update_status(repeat) {
             // TODO: update
 
             if (show_variables) {
-                document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
+                //   document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
                 $("#tblVariables_tb").empty();
                 $.each(data.variables, function (i, variable) {
                     var_this = getVariable(i);
@@ -501,16 +538,19 @@ function update_status(repeat) {
                         variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
                     else
                         variable_desc = "";
-                    id_str = ' (' + var_this[0] + ') ' + var_this[1];
-                    if (var_this[2] == 50 || var_this[2] == 51) {
-                        newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (logical)</td></tr>';
-                    }
-                    else {
-                        newRow = '<tr><td>' + id_str + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + ' (numeric)</td></tr>';
-                    }
+                    //  id_str = ' (' + var_this[0] + ') ' + var_this[1];
+                    if (var_this[2] == 50 || var_this[2] == 51)
+                        var_type = "logical";
+                    else
+                        var_type = "numeric";
+
+                    newRow = '<tr><th scope="row">' + var_this[0] + '</th><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + '</td></tr>';
+
                     $(newRow).appendTo($("#tblVariables_tb"));
                 });
-                $('<tr><td>updated</td><td>' + data.localtime.substring(11) + '</td></tr></table>').appendTo($("#tblVariables_tb"));
+
+                $('#vars_updated').text('updated: ' + data.localtime.substring(11));
+                //$('<tr><td></td><td>updated</td><td>' + data.localtime.substring(11) + '</td><td></td><td></td></tr></table>').appendTo($("#tblVariables_tb"));
             }
             // TODO: update
             //console.log("Starting populate_channel_status loop");
@@ -556,9 +596,7 @@ function populate_channel_status(channel_idx, ch) {
     sch_status_icon_span = document.getElementById(`sch_${channel_idx}:status_icon`);
     sch_status_text_span = document.getElementById(`sch_${channel_idx}:status_txt`);
 
-    // tsekkaa miten ikonin vaihto, pitääkö mennä svg:llä vai hide/show vai voisiko nykyisen svg:n korvata spanilla ja ajaa replace
-    //if (status_changed)
-    //    feather.replace(); //icon
+
     if ((ch.force_up_until > now_ts)) {
         duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
         duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
@@ -572,17 +610,22 @@ function populate_channel_status(channel_idx, ch) {
     }
     sch_delete_radio.disabled = (ch.force_up_until <= now_ts);
 
-    //  <span id="sch_(ch#):status_txt">ON based on <a href="#" class="link-light">rule 2</a></span></label>
-
     sch_status_label.classList.remove(ch.is_up ? "text-bg-danger" : "text-bg-success");
     sch_status_label.classList.add(ch.is_up ? "text-bg-success" : "text-bg-danger");
-    //console.log(" sch_status_label.classList", ch, ch.is_up, sch_status_label.classList);
 
     info_text = "";
     if (ch.active_condition > -1)
         // rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
         rule_link_a = "";
-    if (ch.is_up) {
+
+    if (g_config.ch[channel_idx]["type"] == 0) {
+        info_text = "Relay undefined";
+        sch_status_label.classList.add("text-bg-muted");
+        sch_status_label.classList.remove("text-bg-danger");
+        sch_status_label.classList.remove("text-bg-success");
+    }
+
+    else if (ch.is_up) {
         if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
             info_text += "Up based on manual schedule.";
         else if (ch.active_condition > -1)
@@ -591,7 +634,7 @@ function populate_channel_status(channel_idx, ch) {
     else {
         if ((ch.active_condition > -1))
             info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
-        if ((ch.active_condition == -1))
+        else if ((ch.active_condition == -1))
             info_text += "Down, no matching rules. ";
     }
 
@@ -599,7 +642,7 @@ function populate_channel_status(channel_idx, ch) {
     return;
 }
 
-
+/*
 function statusCBClicked(elCb) {
     if (elCb.id == 'statusauto') {
         if (elCb.checked) {
@@ -612,6 +655,7 @@ function statusCBClicked(elCb) {
         update_price_chart();
     }
 }
+*/
 
 
 function link_to_wiki(article_name) {
@@ -625,6 +669,9 @@ function get_date_string_from_ts(ts) {
 // graph
 var prices = [];
 var net_exports = [];
+
+var has_history_values = {};
+var variable_history;
 
 var prices_first_ts = 0;
 var prices_last_ts = 0;
@@ -646,6 +693,8 @@ function ts_date_time(ts, include_year = true) {
     return date_str;
 }
 
+
+
 function update_price_chart() {
     /*  if (!document.getElementById("cbShowPrices").checked) {
           document.getElementById("chart_container").style.display = "none";
@@ -662,26 +711,26 @@ function update_price_chart() {
         async: false,  //oli true
         success: function (data, textStatus, jqXHR) {
             channel_history = data.channel_history;
-            has_import_values = false;
-            console.log(data.variable_history, data.variable_history["103"], data.variable_history["103"].length);
-            for (i = 0; i < data.variable_history["103"].length; i++) {
-                if (Math.abs(data.variable_history["103"][i]) > 1) {
-                    has_import_values = true;
-                    break;
+
+            variable_history = data.variable_history;
+            for (const variable_code in data.variable_history) {
+                for (i = 0; i < data.variable_history[variable_code].length; i++) {
+                    if (Math.abs(data.variable_history[variable_code][i]) > 1) {
+                        has_history_values[variable_code] = true;
+                        break;
+                    }
                 }
             }
-            if (has_import_values)
-                net_exports = data.variable_history["103"];
+
+            console.log("has_history_values", has_history_values);
+
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get status in price query", Date(Date.now()).toString(), textStatus, jqXHR.status);
         }
     });
     //**** 
-   // console.log("has_import_values", has_import_values, "net_exports", net_exports);
-
-
-
+    // console.log("has_import_values", has_import_values, "net_exports", net_exports);
     let price_data = null;
 
     $.ajax({
@@ -739,15 +788,7 @@ function update_price_chart() {
     }
 
     // now history, if values exists
-    if (has_import_values) {
-        dataset_started = false;
-        for (h_idx = net_exports.length - 1 - now_idx; h_idx < net_exports.length; h_idx++) {
-            if (Math.abs(net_exports[h_idx]) > 1)
-                dataset_started = true;
-            imports.push(dataset_started ? -net_exports[h_idx] / 1000 : null);
-        }
-    }
-    //console.log("net_exports", net_exports, "imports", imports);
+
 
 
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
@@ -767,23 +808,68 @@ function update_price_chart() {
         fill: false,
         stepped: true,
         borderWidth: 2
-    },
-    {
-        label: 'import Wh',
-        data: imports,
-        yAxisID: 'ye',
-        cubicInterpolationMode: 'monotone',
-        borderColor: ['#0eb03c'
-        ],
-        backgroundColor: '#0eb03c',
-        pointStyle: 'circle',
-        pointRadius: 1,
-        pointHoverRadius: 5,
-        fill: false,
-        stepped: false,
-        borderWidth: 2
     }
     ];
+
+    const VARIABLE_PRODUCTION_POWER = "101";
+    const VARIABLE_SELLING_ENERGY = "103";
+
+    var new_ds = [];
+    if (has_history_values[VARIABLE_SELLING_ENERGY]) {
+        dataset_started = false;
+
+        for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
+            if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
+                dataset_started = true;
+            new_ds.push(dataset_started ? -variable_history[VARIABLE_SELLING_ENERGY][h_idx] : null);
+        }
+        console.log("new_ds 103", new_ds);
+        if (dataset_started)
+            datasets.push(
+                {
+                    label: 'import Wh',
+                    data: new_ds,
+                    yAxisID: 'y_energy',
+                    cubicInterpolationMode: 'monotone',
+                    borderColor: ['#0eb03c'
+                    ],
+                    backgroundColor: '#0eb03c',
+                    pointStyle: 'circle',
+                    pointRadius: 1,
+                    pointHoverRadius: 5,
+                    fill: false,
+                    stepped: false,
+                    borderWidth: 2
+                });
+    }
+
+    if (has_history_values[VARIABLE_PRODUCTION_POWER]) {
+        dataset_started = false;
+        let new_ds = [];
+        for (h_idx = variable_history[VARIABLE_PRODUCTION_POWER].length - 1 - now_idx; h_idx < variable_history[VARIABLE_PRODUCTION_POWER].length; h_idx++) {
+            if (Math.abs(variable_history[VARIABLE_PRODUCTION_POWER][h_idx]) > 1)
+                dataset_started = true;
+            new_ds.push(dataset_started ? variable_history[VARIABLE_PRODUCTION_POWER][h_idx] : null);
+        }
+        console.log("new_ds 105", new_ds);
+        if (dataset_started)
+            datasets.push(
+                {
+                    label: 'production Wh',
+                    data: new_ds,
+                    yAxisID: 'y_energy',
+                    cubicInterpolationMode: 'monotone',
+                    borderColor: ['#f58d42'
+                    ],
+                    backgroundColor: '#f58d42',
+                    pointStyle: 'circle',
+                    pointRadius: 1,
+                    pointHoverRadius: 5,
+                    fill: false,
+                    stepped: false,
+                    borderWidth: 2
+                });
+    }
 
     var channel_dataset;
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
@@ -844,7 +930,7 @@ function update_price_chart() {
                         lineWidth: 1, color: "#47470e", borderWidth: 1, borderColor: '#47470e'
                     }
                 },
-                ye: {
+                y_energy: {
                     display: 'auto',
                     beginAtZero: true,
                     grid: { display: false },
@@ -852,7 +938,7 @@ function update_price_chart() {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
-                            return value + ' kWh';
+                            return value + ' Wh';
                         }
                     }
                 },
@@ -879,7 +965,7 @@ function update_price_chart() {
             plugins: {
                 title: {
                     display: true,
-                    text: (ctx) => "Day-ahead prices" + ((has_import_values) ? " and imported energy" : ""),
+                    //  text: (ctx) => "Day-ahead prices imported energy" : ""),
                     font: {
                         size: 24,
                         weight: "normal",
@@ -998,7 +1084,7 @@ function populate_wifi_ssid_list() {
     console.log("populate_wifi_ssid_list");
     $.ajax({
         type: "GET",
-        url: '/wifis',
+        url: "/data/wifis.json",
         dataType: 'json',
         async: true,
         success: function (data) {
@@ -1091,14 +1177,24 @@ function schedule_update(evt) {
 
 function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     //dropdown, TODO: recalculate when new hour 
+
     now_ts = Date.now() / 1000;
     sch_start_sel = document.getElementById(`sch_${channel_idx}:start`);
     sch_save_radio = document.getElementById(`sch_${channel_idx}:save`);
+    sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`)
+
+
+    if (g_config.ch[channel_idx]["type"] == 0) {
+        sch_start_sel.disabled = true;
+        sch_save_radio.disabled = true;
+        sch_duration_sel.disabled = true;
+        return;
+    }
+
 
     prev_selected = sch_start_sel.value;
     //TODO: price and so on
     $("#fupfrom_" + channel_idx).empty();
-    sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`)
 
     duration_selected = sch_duration_sel.value;
 
@@ -1118,6 +1214,10 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     cheapest_price = -VARIABLE_LONG_UNKNOWN;
     cheapest_ts = -1;
     cheapest_index = -1;
+
+    remove_select_options(sch_start_sel);
+    addOption(sch_start_sel, 0, "now &rarr;", (prev_selected == 0));
+
     for (k = 0; k < 24; k++) {
         end_ts = start_ts + (duration_selected * 60) - 1;
         segment_price = get_price_for_segment(start_ts, end_ts);
@@ -1132,7 +1232,6 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         else
             price_str = "";
 
-        //           addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + get_time_string_from_ts(start_ts + duration_selected * 60, false, true) + price_str, (prev_selected == start_ts));
         addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + price_str, (prev_selected == start_ts));
         start_ts += 3600;
     }
@@ -1182,6 +1281,7 @@ function load_config() {
         }
     });
 
+    //TODO: tsekkaa tarvitaanko tätä oikeasti/välttämättä
     $.ajax({
         url: '/data/arska-mappings.json',
         dataType: 'json',
@@ -1192,10 +1292,10 @@ function load_config() {
         }
     });
 
+
     for (const property in g_config) {
         //  console.log(`${property}: ${g_config[property]}`);
         if (property in g_datamapping) {
-            // console.log(g_datamapping[property][0]);  
             field_name = g_datamapping[property][0];
             //   console.log(field_name + "#");
             ctrl = document.getElementById(field_name);
@@ -1208,8 +1308,20 @@ function load_config() {
         }
     }
 
+    $.getJSON('/data/variable-info.json', function (data) {
+        variable_list = data;
+    });
+
 
 };
+
+function getVariable(variable_id) {
+    for (var i = 0; i < g_constants.variables.length; i++) {
+        if (g_constants.variables[i][0] == variable_id)
+            return g_constants.variables[i];
+    }
+    return null;
+}
 
 // Add option to a given select element
 function addOption(el, value, text, selected = false) {
@@ -1490,7 +1602,7 @@ function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]
 }
 function template_reset(ev) { //ch_0:template_reset
     channel_idx = get_idx_from_str(ev.target.id, 0);
-    
+
 
     console.log(ev, "---", ev.target.id, "template_reset channel_idx", channel_idx);
     set_template_constants(channel_idx, false);
@@ -1499,9 +1611,9 @@ var template_data;
 
 function set_template_constants(channel_idx, ask_confirmation) {
     template_idx = document.getElementById(`ch_${channel_idx}:template_id`).value;
-    
 
-  
+
+
     if (template_idx == -1) {
         if (confirm('Remove template definitions')) {
             delete_stmts_from_UI(channel_idx);
@@ -1554,34 +1666,32 @@ function set_template_constants(channel_idx, ask_confirmation) {
     field_list = document.getElementById(`ch_${channel_idx}_tmpl_fields`);
     while (field_list.firstChild) {
         field_list.removeChild(field_list.lastChild);
-      }
-   // field_list.innerHTML = ""; //clear
+    }
+    // field_list.innerHTML = ""; //clear
     document.getElementById(`ch_${channel_idx}_tmpl_name`).innerHTML = _ltext(template_data, "name");
     document.getElementById(`ch_${channel_idx}_tmpl_desc`).innerHTML = _ltext(template_data, "desc");
-    
-    
+
+
     //Create modal form
     $.each(template_data.conditions, function (cond_idx, rule) {
-      //  document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
-      //  document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
         $.each(rule.statements, function (j, stmt) {
             //   console.log("stmt.values:" + JSON.stringify(stmt.values));
             stmt_obj = stmt.values;
-            
+
             if (stmt.hasOwnProperty('const_prompt')) {
                 // stmt_obj[3] = prompt(stmt.const_prompt, stmt_obj[2]);
                 hasPrompts = true;
                 console.log(form_fld_idx, stmt_obj);
-                
-                //document.getElementById(`ch_${channel_idx}_tmpl_fields`).insertAdjacentHTML('beforeend', template_fld_html.replaceAll("(ch#)",  channel_idx).replaceAll("(fld#)",  form_fld_idx));
+
                 //TODO: voisiko parsiminen kestää
                 const name_label = createElem("label", `ch_${channel_idx}_templ_field_${form_fld_idx}_name`, null, "form-label", null);
                 name_label.setAttribute("for", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`);
-                name_label.innerHTML = stmt.const_prompt;
+                var_this = get_var_by_id(stmt_obj[0]);
+                name_label.innerHTML = var_this[1] + " (" + var_this[0] + ")  ";// variable name & id
                 field_list.appendChild(name_label);
 
                 const desc_span = createElem("span", `ch_${channel_idx}_templ_field_${form_fld_idx}_desc`, null, "text-muted", null);
-                desc_span.innerHTML = stmt.const_prompt;
+                desc_span.innerHTML = stmt.const_prompt; //template variable prompt
                 field_list.appendChild(desc_span);
                 field_list.appendChild(document.createElement("br"));
 
@@ -1591,20 +1701,20 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 field_list.appendChild(document.createElement("br"));
                 form_fld_idx++;
             }
-          
+
             //move this after modal close
             //addStmt(channel_idx, cond_idx, -1, stmt_obj); 
-           // var_this = get_var_by_id(stmt.values[0]);
+            // var_this = get_var_by_id(stmt.values[0]);
             //  // populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
         });
     });
 
-    if (hasPrompts) {    
+    if (hasPrompts) {
         var myModalEl = document.getElementById(`ch_${channel_idx}_tmpl_form`);
         var template_modal = bootstrap.Modal.getOrCreateInstance(myModalEl) // Returns a Bootstrap modal instance
-       // var template_modal = new bootstrap.Modal(document.getElementById(`ch_${channel_idx}_tmpl_form`), {
-       //     keyboard: false
-       //   })
+        // var template_modal = new bootstrap.Modal(document.getElementById(`ch_${channel_idx}_tmpl_form`), {
+        //     keyboard: false
+        //   })
         template_modal.show();
     }
 
@@ -1657,7 +1767,17 @@ function populate_channel(channel_idx) {
     //  update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
     update_fup_schedule_element(channel_idx, current_start_ts);
     /////sch_(ch#):card
-    document.getElementById(`sch_${channel_idx}:card`).style.display = ((g_config.ch[channel_idx]["type"] == 0) ? "none" : "block");
+
+    // console.log("g_config.ch:" + JSON.stringify(g_config.ch[channel_idx]));
+
+    ///// document.getElementById(`sch_${channel_idx}:card`).style.display = ((g_config.ch[channel_idx]["type"] == 0) ? "none" : "block");
+
+    // $(`sch_${channel_idx}:card`).prop('disabled', g_config.ch[channel_idx]["type"] == 0);
+    if (g_config.ch[channel_idx]["type"] == 0)
+        document.getElementById(`sch_${channel_idx}:card`).classList.add("opacity-50")
+
+
+    // console.log("g_config.ch:" + JSON.stringify(g_config.ch[channel_idx]));
 
     // end of scheduling
 
@@ -1694,7 +1814,7 @@ function populate_channel(channel_idx) {
 
             for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_constants.RULE_STATEMENTS_MAX); stmt_idx++) {
                 this_stmt = this_rule["stmts"][stmt_idx];
-       
+
                 populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
 
             }
@@ -1731,8 +1851,8 @@ function selected_var(ev) {
 
     const_ctrl = document.getElementById(ev.target.id.replace("var", "const"));
 
-    console.log("variable", var_this, "is_var_logical(var_this[2])", is_var_logical(var_this[2]));
-   // el_const.style.display = (is_var_logical(var_this[2])) ? "none" : "segment"; //const-style
+    // console.log("variable", var_this, "is_var_logical(var_this[2])", is_var_logical(var_this[2]));
+    // el_const.style.display = (is_var_logical(var_this[2])) ? "none" : "segment"; //const-style
 
     //    if (g_constants.opers[i][0] == stmt[1]) {
     //      el_const.style.display = (g_constants.opers[i][5] || g_constants.opers[i][6]) ? "none" : "segment"; //const-style
@@ -1845,12 +1965,12 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     el_oper.classList.add("visible");
 
     //*** */
-    show_constant =  !is_var_logical(var_this[2]);
+    show_constant = !is_var_logical(var_this[2]);
 
     el_const.classList.remove(show_constant ? "invisible" : "visible");
     el_const.classList.add(show_constant ? "visible" : "invisible");
 
-   
+
     el_const.classList.disabled = !show_constant;
 
 
@@ -1870,7 +1990,7 @@ function focus_oper(ev) {
 function template_form_closed(ev) {
     id_a = ev.target.id.split("_");
     channel_idx = id_a[1];
-    alert("template_form_closed:" + channel_idx);
+   // alert("template_form_closed:" + channel_idx);
     delete_stmts_from_UI(channel_idx);
     form_fld_idx = 0;
     console.log("******** adding new fields");
@@ -1891,22 +2011,57 @@ function template_form_closed(ev) {
                 }
                 else
                     console.log(`no element ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[3]);
-                    
-            }   
+
+            }
             stmt_obj2 = [stmt_obj[0], stmt_obj[1], null, new_value];
-            console.log("before addStmt: ", channel_idx, cond_idx, stmt_obj,stmt_obj2);
+            console.log("before addStmt: ", channel_idx, cond_idx, stmt_obj, stmt_obj2);
             addStmt(channel_idx, cond_idx, j, stmt_obj2);
         });
     });
     var template_modal = bootstrap.Modal.getOrCreateInstance(document.getElementById(`ch_${channel_idx}_tmpl_form`));
     template_modal.hide();
 }
+function do_backup() {
+    $.fileDownload('/export-config?format=file')
+        .done(function () {
+            ;
+            // alert('File download a success!');
+        })
+        .fail(function () { alert('File download failed!'); });
+}
+
+function restore_config(evt) {
+    alert("not implemented");
+    return;
+    evt.preventDefault();
+    var formData = new FormData(document.getElementById("restore_form"));
+
+    console.log(formData);
+    $.ajax({
+        url: "/settings", //window.location.pathname,
+        type: 'POST',
+        data: formData,
+        success: function (data) {
+            alert(data)
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot post config", textStatus, jqXHR.status);
+        },
+        cache: false,
+        contentType: false,
+        processData: false
+    });
+
+    alert("It's loaded!")
+}
+
 
 function create_channels() {
     console.log("create_channels");
 
     //front page 
     for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) { //
+        console.log("creating scheduling for ch " + channel_idx);
         document.getElementById("schedules").insertAdjacentHTML('beforeend', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx));
     }
     /*   for (channel_idx = g_constants.CHANNEL_COUNT - 1; channel_idx > -1; channel_idx--) { //beforeend
@@ -1927,6 +2082,7 @@ function create_channels() {
             addOption(channel_type_ctrl, g_constants.channel_types[i].id, g_constants.channel_types[i].name, (g_config.ch[channel_idx]["type"] == g_constants.channel_types[i].id));
         }
 
+        sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
         if (channel_idx < (g_config.ch.length)) { // we should have data
             //initiate rule structure
             rule_list = document.getElementById(`ch_${channel_idx}:rules`);
@@ -1941,33 +2097,30 @@ function create_channels() {
                     stmt_list.insertAdjacentHTML('beforeend', stmt_html.replaceAll("ch_#:r_#:s_#", stmt_id));
 
                     // lets try lazy population, var, oper, const
-                    //       console.log(`${stmt_id}:var`);
                     document.getElementById(`${stmt_id}:var`).addEventListener("focus", focus_var);
                     document.getElementById(`${stmt_id}:oper`).addEventListener("focus", focus_oper);
                 }
             }
 
             // schedule controls
-            sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
             remove_select_options(sch_duration_sel);
-            for (i = 0; i < force_up_mins.length; i++) {
-                min_cur = force_up_mins[i];
-                duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
-                addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
+            if (g_config.ch[channel_idx]["type"] != 0) { // only if relay defined
+                for (i = 0; i < force_up_mins.length; i++) {
+                    min_cur = force_up_mins[i];
+                    duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+                    addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
+                }
             }
 
             // populate data
             populate_channel(channel_idx);
         }
-        feather.replace(); // this replaces  <span data-feather="activity">  with svg
 
         //Schedulings listeners
-        sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
         sch_duration_sel.addEventListener("change", duration_changed);
 
-        sch_duration_sel = document.getElementById(`sch_${channel_idx}:delete`);
-        sch_duration_sel.addEventListener("click", delete_schedule);
-
+        sch_duration_del = document.getElementById(`sch_${channel_idx}:delete`);
+        sch_duration_del.addEventListener("click", delete_schedule);
 
         channel_type_ctrl.addEventListener("change", set_channel_fields_by_type);
 
@@ -1976,12 +2129,9 @@ function create_channels() {
         template_reset_ctrl = document.getElementById(`ch_${channel_idx}:template_reset`);
         template_reset_ctrl.addEventListener("click", template_reset);
 
-
         //modal closing
         document.getElementById(`ch_${channel_idx}_tmpl_close`).addEventListener("click", template_form_closed);
-
         document.getElementById(`ch_${channel_idx}:template_id`).addEventListener("change", changed_template);
-
     }
     let cm_buttons = document.querySelectorAll("input[id*=':config_mode_']");
 
@@ -1991,6 +2141,58 @@ function create_channels() {
         cm_buttons[i].addEventListener("click", changed_rule_mode);
     }
 
+    document.getElementById("do_restore").addEventListener("click", restore_config);
+
+    if (typeof feather != "undefined") {
+        feather.replace(); // this replaces  <span data-feather="activity">  with svg
+    }
+    else {
+        console.log("Feather icons undefined.");
+    }
+
+}
+
+// for sorting wifis by signal strength
+function compare_wifis(a, b) {
+    return ((a.rssi > b.rssi) ? -1 : 1);
+}
+
+function initWifiForm() {
+    var wifisp = null;
+    $.ajax({
+        url: '/data/wifis.json',
+        dataType: 'json',
+        async: false,
+        success: function (data) { wifisp = data; console.log("got wifis"); },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get wifis", textStatus, jqXHR.status);
+        }
+    });
+
+    if (!wifisp) {
+        console.log("initWifiForm: No wifis.");
+        return;
+    }
+    //  wifisp = JSON.parse(wifis);
+    wifisp.sort(compare_wifis);
+    var wifi_sel = document.getElementById("wifi_ssid");
+    var wifi_ssid_db = g_config.wifi_ssid;// document.getElementById("wifi_ssid_db");
+
+    wifisp.forEach(function (wifi, i) {
+        if (wifi.id) {
+            var opt = document.createElement("option");
+            opt.value = wifi.id;
+
+            if (g_config.wifi_in_setup_mode && i == 0)
+                opt.selected = true;
+            else if (wifi_ssid_db.value == wifi.id) {
+                opt.selected = true;
+                opt.value = "NA";
+            }
+            opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
+            wifi_sel.appendChild(opt);
+        }
+    });
 }
 
 function init_ui() {
@@ -2044,17 +2246,26 @@ function init_ui() {
     //update_price_chart();//TODO: timing, refresh, synch with update_status
     setTimeout(function () { update_price_chart; }, 60);
 
+    initWifiForm();
 
     // populate_wifi_ssid_list();
     update_status(true);
+
+   // const exampleEl = document.getElementById('tooltiptest');
+   // const tooltip = new bootstrap.Tooltip(exampleEl);
+
+    const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
 }
 
 function live_alert(card_idstr, message, type) {
     alertPlaceholder = document.getElementById(card_idstr + ':alert');
     if (alertPlaceholder !== null) {
         const wrapper = document.createElement('div');
+        alert_id = card_idstr + ':alert_i';
         wrapper.innerHTML = [
-            `<div class="alert alert-${type} alert-dismissible" role="alert">`,
+            `<div id="${alert_id}" class="alert alert-${type} alert-dismissible" role="alert">`,
             `   <div>${message}</div>`,
             '   <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>',
             '</div>'

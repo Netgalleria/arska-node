@@ -260,7 +260,7 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 
 #define MAX_PRICE_PERIODS 48 //!< number of price period in the memory array
 #define MAX_HISTORY_PERIODS 24
-#define HISTORY_VARIABLE_COUNT 1
+#define HISTORY_VARIABLE_COUNT 2
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
 long prices[MAX_PRICE_PERIODS];
@@ -270,7 +270,10 @@ bool prices_initiated = false;
 time_t prices_first_period = 0;
 
 // API
-const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
+//const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
+//fixed 14.2.2023, see https://transparency.entsoe.eu/news/widget?id=63eb9d10f9b76c35f7d06f2e
+const char *host_prices PROGMEM = "web-api.tp.entsoe.eu";
+
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
@@ -518,12 +521,12 @@ struct statement_st
   int variable_id;
   uint8_t oper_id;
   uint8_t constant_type;
-  uint16_t depends; // TODO: check if needed?
+  //uint16_t depends; // TODO: check if needed?
   long const_val;
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 32
+#define VARIABLE_COUNT 33
 
 #define VARIABLE_PRICE 0                     //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1               //!< price rank within 9 hours window
@@ -547,6 +550,7 @@ struct statement_st
 #define VARIABLE_SELLING_POWER 102
 #define VARIABLE_SELLING_ENERGY 103
 #define VARIABLE_SELLING_POWER_NOW 104
+#define VARIABLE_PRODUCTION_ENERGY 105
 #define VARIABLE_MM 110
 #define VARIABLE_MMDD 111
 #define VARIABLE_WDAY 112
@@ -559,6 +563,7 @@ struct statement_st
 #define VARIABLE_LOCALTIME_TS 1001
 
 // variable dependency bitmask
+/*
 #define VARIABLE_DEPENDS_UNDEFINED 0
 #define VARIABLE_DEPENDS_PRICE 1
 #define VARIABLE_DEPENDS_SOLAR_FORECAST 2
@@ -568,10 +573,11 @@ struct statement_st
 
 // combined
 #define VARIABLE_DEPENDS_PRICE_SOLAR 3
+*/
 
 long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
 byte channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
-int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY};
+int history_variables[HISTORY_VARIABLE_COUNT] = { VARIABLE_SELLING_ENERGY,VARIABLE_PRODUCTION_ENERGY}; //oli VARIABLE_SELLING_POWER,VARIABLE_PRODUCTION_POWER,
 int get_variable_history_idx(int id)
 {
   for (int i = 0; i < HISTORY_VARIABLE_COUNT; i++)
@@ -613,7 +619,10 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+ // dependency removed variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED},  {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0, VARIABLE_DEPENDS_UNDEFINED},  {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
+  
+  
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", 0}, {VARIABLE_PRICERANK_24, "price rank 24h", 0}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0},  {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0},  {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}};
   // experimental , not in use, { VARIABLE_BEEN_UP_AGO_HOURS_0, "ch 1, up x h ago", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_UNDEFINED }};
   // {VARIABLE_PRICERANK_FIXED_8,"rank in 8 h block", CONSTANT_TYPE_INT,VARIABLE_DEPENDS_UNDEFINED} ,{ VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}
   int get_variable_index(int id);
@@ -1245,7 +1254,10 @@ void add_period_variables_to_influx_buffer(time_t ts_report)
   // prices are batch updated in function update_prices_to_influx
 
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
-    point_period_avg.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
+   point_period_avg.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
+
+ // if (vars.is_set(VARIABLE_PRODUCTION_ENERGY))
+ //   point_period_avg.addField("productionWh", vars.get_f(VARIABLE_PRODUCTION_ENERGY));
 
   if (vars.is_set(VARIABLE_SELLING_POWER))
     point_period_avg.addField("sellingW", vars.get_f(VARIABLE_SELLING_POWER));
@@ -2543,7 +2555,8 @@ void update_meter_based_variables()
     if (s.energy_meter_type == ENERGYM_NONE) // estimate using baseload
       vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(power_produced_period_avg > (s.baseload + WATT_EPSILON)) ? 1L : 0L);
 
-    vars.set(VARIABLE_PRODUCTION_POWER, (long)(power_produced_period_avg));
+   vars.set(VARIABLE_PRODUCTION_POWER, (long)(power_produced_period_avg));
+ //  vars.set(VARIABLE_PRODUCTION_ENERGY, (long)(energy_produced_period));
   }
 #endif
 }
@@ -4888,6 +4901,8 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
 
+char http_password[MAX_ID_STR_LENGTH];
+char http_password2[MAX_ID_STR_LENGTH];
   Serial.println((const char *)data);
 
   StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
@@ -4914,10 +4929,17 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
   ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
   ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
   ajson_str_to_mem(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
-
-  Serial.println(s.forecast_loc);
-
   ajson_str_to_mem(doc, (char *)"lang", s.lang, sizeof(s.lang));
+
+if (ajson_str_to_mem(doc, (char *)"http_password", http_password, sizeof(http_password))) {
+  if (ajson_str_to_mem(doc, (char *)"http_password2", http_password2, sizeof(http_password2))) {
+    if ((strcmp( http_password,http_password2)==0) && strlen(http_password)>0 && strlen(http_password2)>0) { //equal
+      strncpy(s.http_password, http_password, sizeof(s.http_password));
+      Serial.println("Passwrod changed");
+    }
+  }
+}
+
 
   s.hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
   s.baseload = ajson_int_get(doc, (char *)"baseload", s.baseload);
@@ -5500,6 +5522,43 @@ void onWebDoGet(AsyncWebServerRequest *request)
   request->send(200, "application/json", "{\"result\": \"queued\"}");
 }
 
+/*
+
+void json_get_price_handler(AsyncWebServerRequest *request)
+{
+    DynamicJsonDocument doc(4096);
+  String output;
+
+  JsonObject var_obj = doc.createNestedObject("variables");
+
+    cJSON *root;
+    root = cJSON_CreateObject();
+
+    cJSON_AddItemToObject(root, "prices", cJSON_CreateIntArray(prices, MAX_PRICE_PERIODS));
+
+    time_t record_start = record_end_excl - (PRICE_PERIOD_SEC * MAX_PRICE_PERIODS);
+    cJSON_AddNumberToObject(root, "record_start", (long)record_start);
+
+    ESP_LOGI(TAG, "record_start record_end_excl %ld %ld", (long)record_start, (long)record_end_excl);
+
+    double apu = (long)record_end_excl;
+    // cJSON_AddNumberToObject(root, "record_end_excl", record_end_excl);
+    cJSON_AddNumberToObject(root, "record_end_excl", apu);
+
+    char *json_string = cJSON_PrintUnformatted(root); // cJSON_Print
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json_string, strlen(json_string));
+
+    if (json_string) // free memory
+        cJSON_free(json_string);
+
+    cJSON_Delete(root);
+
+    return ESP_OK;
+}
+*/
+
 /**
  * @brief Returns status in json
  *
@@ -5513,7 +5572,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   }
 
   // StaticJsonDocument<2048> doc; //
-  DynamicJsonDocument doc(4096);
+  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
   String output;
 
   JsonObject var_obj = doc.createNestedObject("variables");
@@ -5870,13 +5929,7 @@ void setup()
          size_t len, bool final) {},
       onWebSettingsPost);
 
-  // TODO: poista ja yhddistä settingseihin
-  /*
-  server_web.on(
-      "/upload-config", HTTP_POST, [](AsyncWebServerRequest *request)
-      { request->send(200); },
-      onWebUploadConfig);
-*/
+ 
   server_web.on("/", HTTP_GET, onWebUIGet);
 
   server_web.on(
@@ -5917,7 +5970,7 @@ void setup()
                 { request->send(LittleFS, variables_filename, F("application/json")); });
   // server_web.on(fcst_filename, HTTP_GET, [](AsyncWebServerRequest *request)  { request->send(LittleFS, fcst_filename, F("application/json")); });
   server_web.on(price_data_filename, HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, price_data_filename, F("text/plain")); }); // "/price_data.json"
+                { request->send(LittleFS, price_data_filename, F("text/plain")); }); // "/price_data.json", miksi text/plain
 
   // debug
   server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)

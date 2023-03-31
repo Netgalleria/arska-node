@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,15 +8,17 @@
   <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
   <meta name="generator" content="Hugo 0.104.2">
   <title>Dashboard Template · Bootstrap v5.2</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
-<!--
-  <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/">
+  <!--<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+  -->
   <link href="css/bootstrap.min.css" rel="stylesheet">
+  <!--
+  <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/">
+  
   -->
 
   <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
   <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
-  
+
   <style>
     .bd-placeholder-img {
       font-size: 1.125rem;
@@ -235,7 +238,7 @@
                     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center ">
                       <h1 class="h2 card-title">Dashboard</h1>
                       <!--dashboard-nav-->
-                     <!--
+                      <!--
                       <nav class="nav nav-pills nav-fill">
                         <a class="nav-link active" aria-current="page" href="#">Active</a>
                         <a class="nav-link" href="#">Link</a>
@@ -253,12 +256,45 @@
                     <!--./chart-info-->
                   </div>
                   <!--./card-header-->
-          
+
+
+                  <div class="form-section">
+                    <div class="row g-3">
+                    
+
+
+                      <div id="db:export_d" class="col" data-bs-toggle="tooltip" data-bs-placement="top"
+                        data-bs-custom-class="custom-tooltip" data-bs-title="&uarr; Selling / &darr; buying, period average">
+                        <span data-feather="arrow-up" style="pointer-events: none;" class="align-text-bottom"></span>
+                        <span id="db:export_v" ></span>
+                        <span id="db:export_period" class="text-muted"></span>
+                      </div>
+                      <div id="db:production_d" class="col" data-bs-toggle="tooltip" data-bs-placement="top"
+                      data-bs-custom-class="custom-tooltip" data-bs-title="Production, period average">
+                        <span data-feather="sun" style="pointer-events: none;" class="align-text-bottom"></span>
+                        <span id="db:production_v"></span>
+                        <span id="db:production_period" class="text-muted"></span>
+                      </div>
+                      <div id="db:price_d"  class="col" data-bs-toggle="tooltip" data-bs-placement="top"
+                      data-bs-custom-class="custom-tooltip" data-bs-title="Current market price">
+                        <span data-feather="activity" style="pointer-events: none;" class="align-text-bottom"></span>
+                        <span id="db:price_v"></span> <span id="db:price_period" class="text-muted"></span>
+                      </div>
+
+
+                    </div>
+                    <!--./row-->
+                  </div>
+
+
+                  <div id="dashboard:alert">
+                  </div>
+
                   <div class="card-body" id="chart_container">
                     <canvas class="my-4 w-100 chartjs-render-monitor" id="day_ahead_chart" width="1624" height="684"
                       style="display: block; height: 342px; width: 812px;"></canvas>
                   </div>
-               
+
                   <!--./card-footer-->
                 </div>
                 <!--./card-->
@@ -267,6 +303,7 @@
             </div>
             <!--./row-->
             <div id="schedules" class="row row-cols-1 row-cols-md-2 g-4 mt-2">
+
             </div>
             <!--./row-->
           </div>
@@ -277,8 +314,66 @@
           <!-- Channels
 ================================================== -->
           <div class="tab-pane fade" id="channels" role="tabpanel" aria-labelledby="channels-tab" tabindex="0">
-<div id="channels_row" class="row row-cols-1">
-</div>
+
+
+
+
+            <div class="card white-card  mb-3" id="variables:card">
+              <div class="card-header">
+                <h5 class="card-title">Channel rules and definitions</h5>
+              </div>
+              <div class="card-body">
+                <p>Channel states are calculated based on channel rules and current variable values.</p>
+                <p>In template configuration mode select rule template and give required parameters. In advanced mode
+                  you can enter the rules you want at a detailed level.</p>
+                <p>The rules are checked in order, and the first rule whose conditions are met determines the state of
+                  the channel.</p>
+
+                <div class="accordion" id="variables_accordion">
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="variables_accordionh3">
+                      <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#variables_acc" aria-expanded="true" aria-controls="variables_acc">
+                        Variable descriptions and current values
+                      </button>
+                    </h2>
+                    <div id="variables_acc" class="accordion-collapse collapsed collapse collapsed"
+                      aria-labelledby="variables_accordionh3" data-bs-parent="#variables_accordion">
+                      <div class="accordion-body">
+                        <span id="vars_updated"></span>
+                        <table id="tblVariables" class="table">
+                          <thead>
+                            <tr>
+                              <th scope="col">#</th>
+                              <th scope="col">Variable</th>
+                              <th scope="col">Value</th>
+                              <th scope="col">Description</th>
+                            </tr>
+                          </thead>
+                          <tbody id="tblVariables_tb">
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+
+              </div>
+              <!--./card-body-->
+              <div class="card-footer text-end">
+                <!--./card-footer-->
+
+              </div>
+            </div>
+
+
+
+
+
+
+            <div id="channels_row" class="row row-cols-1">
+            </div>
             <!--./row-->
           </div>
           <!--./channels-->
@@ -286,7 +381,7 @@
 ================================================== -->
           <div class="tab-pane fade" id="admin" role="tabpanel" aria-labelledby="admin-tab" tabindex="0">
             <div class="row row-cols-1 row-cols-md-2 g-4">
-        
+
               <div class="col">
                 <!-- Price data
                 ================================================== -->
@@ -360,7 +455,7 @@
                   <div class="card-footer text-end">
                     <button class="btn btn-primary" type="submit" id="price_data:save" disabled="">
                       <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
-                       Save</button>
+                      Save</button>
                   </div>
                   <!--./card-footer-->
                 </div><!-- price data-card-->
@@ -512,7 +607,7 @@
                   <div class="card-footer text-end">
                     <button class="btn btn-primary" type="submit" id="energy_forecast:save" disabled="">
                       <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
-                       Save</button>
+                      Save</button>
                   </div>
                   <!--./card-footer-->
                 </div><!-- energy_forecast -card-->
@@ -536,12 +631,14 @@
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_ip" class="form-label">Energy Meter IP Address</label>
-                      <input type="text" class="form-control" id="energy_meter_ip" placeholder="0.0.0.0" pattern="((^|\.)((25[0-5])|(2[0-4]\d)|(1\d\d)|([1-9]?\d))){4}$">
+                      <input type="text" class="form-control" id="energy_meter_ip" placeholder="0.0.0.0"
+                        pattern="((^|\.)((25[0-5])|(2[0-4]\d)|(1\d\d)|([1-9]?\d))){4}$">
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_port" class="form-label">Energy Meter IP Port</label>
-                      <input type="number" class="form-control" id="energy_meter_port" placeholder="80" min="1" step="1" max="65536">
-                    </div> 
+                      <input type="number" class="form-control" id="energy_meter_port" placeholder="80" min="1" step="1"
+                        max="65536">
+                    </div>
                     <div class="mb-2">
                       <label for="energy_meter_password" class="form-label">Energy Meter Password</label>
                       <input type="text" class="form-control" id="energy_meter_password">
@@ -552,11 +649,11 @@
                   <div class="card-footer text-end">
                     <button class="btn btn-primary" type="submit" id="metering:save" disabled="">
                       <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
-                       Save</button>
+                      Save</button>
                   </div>
                   <!--./card-footer-->
                 </div><!-- metering card-->
-                           <!-- Energy production
+                <!-- Energy production
                 ================================================== -->
                 <div class="card white-card  mb-3" id="production:card">
                   <div class="card-header">
@@ -577,11 +674,12 @@
                     </div>
                     <div class="mb-2">
                       <label for="production_meter_port" class="form-label">Inverter IP Port</label>
-                      <input type="number" class="form-control" id="production_meter_port" placeholder="80" >
+                      <input type="number" class="form-control" id="production_meter_port" placeholder="80">
                     </div>
                     <div class="mb-2">
                       <label for="production_meter_id" class="form-label">Inverter IP ID</label>
-                      <input type="number" class="form-control" id="production_meter_id" placeholder="0" min="0" step="1" max="255" >
+                      <input type="number" class="form-control" id="production_meter_id" placeholder="0" min="0"
+                        step="1" max="255">
                     </div>
                     <div class="mb-2">
                       <label for="baseload" class="form-label">Baseload (W)</label>
@@ -600,8 +698,8 @@
               </div>
               <!--./col-->
               <div class="col">
-                 <!-- Influx Server
-                ================================================== -->
+                <!-- Influx Server
+               ================================================== -->
                 <div class="card white-card  mb-3" id="influx:card">
                   <div class="card-header">
                     <h5 class="card-title">Influx Server</h5>
@@ -627,9 +725,9 @@
                   </div>
                   <!--./card-body-->
                   <div class="card-footer text-end">
-                    <button class="btn btn-primary" id="influx:test">
-                      <span data-feather="type" style="pointer-events: none;" class="align-text-bottom"></span>
-                      Test</button>
+                    <!--  <button class="btn btn-primary" id="influx:test"> 
+                     <span data-feather="type" style="pointer-events: none;" class="align-text-bottom"></span>
+                     Test</button> -->
                     <button class="btn btn-primary" type="submit" id="influx:save" disabled="">
                       <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
                       Save</button>
@@ -639,6 +737,71 @@
                 </div><!-- influx card-->
               </div>
               <!--./col-->
+              <div class="col">
+                <!-- Wifi & network
+             ================================================== -->
+                <div class="card white-card  mb-3" id="network:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Network</h5>
+                  </div>
+                  <div class="card-body">
+                    <div class="mb-2">
+                      <label for="wifi_ssid" class="form-label">SSID</label>
+
+                      <input type="text" class="form-control" id="wifi_ssid" placeholder="" list="wifi_ssid_list">
+                      <button id="network:refresh" type="button" class="btn btn-primary"
+                        onclick="populate_wifi_ssid_list()">
+                        <span data-feather="refresh-cw" style="pointer-events: none;" class="align-text-bottom"></span>
+                      </button>
+                      <datalist id="wifi_ssid_list">
+                      </datalist>
+                    </div>
+                    <div class="mb-2">
+                      <label for="wifi_password" class="form-label">Password</label>
+                      <input type="text" class="form-control" id="wifi_password" placeholder="">
+                    </div>
+                    <div id="password_note"></div>
+                    <div class="mb-2">
+                      <label for="http_password" class="form-label">Password for 'admin'</label>
+                      <input type="password" class="form-control" id="http_password" placeholder="">
+                    </div>
+                    <div class="mb-2">
+                      <label for="http_password2" class="form-label">Rewrite to change</label>
+                      <input type="password" class="form-control" id="http_password2" placeholder="">
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label">Configuration</label>
+                      <br>
+                      <button class="btn btn-primary" type="submit" id="do_backup">
+                        <span data-feather="download" style="pointer-events: none;" class="align-text-bottom"></span>
+                        Backup</button>
+
+
+                      <form id="restore_form" method="post" enctype="multipart/form-data">
+                        <input name="config" type="file" />
+                        <button id="do_restore" class="btn btn-primary">
+                          <span data-feather="upload" style="pointer-events: none;"
+                            class="align-text-bottom"></span>Restore</button>
+                      </form>
+
+
+                    </div>
+                    <div id="network:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+
+                    <button class="btn btn-primary" type="submit" id="network:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                      Save</button>
+                  </div>
+                  <!--./card-footer-->
+
+                </div><!-- network-->
+              </div>
+              <!--./col-->
+
+
               <div class="col">
                 <!-- Cloud Settings
             ================================================== -->
@@ -687,7 +850,7 @@
                   <div class="card-footer text-end">
                     <button class="btn btn-primary" type="submit" id="cloud:save" disabled="">
                       <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
-                       Save</button>
+                      Save</button>
 
                   </div><!-- card footer-->
 
@@ -699,8 +862,8 @@
             ================================================== -->
                 <div class="card white-card mb-3" id="actions:card">
                   <div class="card-header d-none">
-                    <h5 class="card-title" data-bs-toggle="collapse"
-                      aria-expanded="false" aria-controls="collapseExample">Admin actions</h5>
+                    <h5 class="card-title" data-bs-toggle="collapse" aria-expanded="false"
+                      aria-controls="collapseExample">Admin actions</h5>
                   </div>
                   <!--./card-header-->
                   <div class="card-body">
@@ -750,19 +913,20 @@
     integrity="sha384-oBqDVmMz9ATKxIep9tiCxS/Z9fNfEXiDAYTujMAeBAsjFuCZSmKbSSUnQlmh/jp3"
     crossorigin="anonymous"></script>
     -->
-  <!--<script defer src="/js/bootstrap.bundle.min.js"></script>-->
-
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
-
+  <script defer src="/js/bootstrap.bundle.min.js"></script>
+  <!--<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
+  
   <script defer src="https://cdn.jsdelivr.net/npm/feather-icons@4.28.0/dist/feather.min.js"
     integrity="sha384-uO3SXW5IuS1ZpFPKugNNWqTZRRglnUJK6UAZ/gxOX80nxEkN9NcGZTftn6RzhGWE"
     crossorigin="anonymous"></script>
- <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"
+    -->
+
+  <script defer src="/js/feather.min.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@2.9.4/dist/Chart.min.js"
     integrity="sha384-zNy6FEbO50N+Cg5wap8IKA4M/ZnLJgzc6w2NqACZaK0u0FXfOWRRJOnQtpZun8ha"
     crossorigin="anonymous"></script> -->
 
-   
+
   <!--tooltip-->
   <!--
   <script>
@@ -771,4 +935,5 @@
   </script>
   -->
 </body>
+
 </html>

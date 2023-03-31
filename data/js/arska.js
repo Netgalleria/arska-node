@@ -96,6 +96,8 @@ function get_date_string_from_ts(ts) {
 }
 var prices = [];
 var net_exports = [];
+var has_history_values = {};
+var variable_history;
 var prices_first_ts = 0;
 var prices_last_ts = 0;
 var prices_resolution_min = 60;
@@ -129,6 +131,17 @@ function update_price_chart() {
         dataType: 'json',
         async: false,  //oli true
         success: function (data, textStatus, jqXHR) {
+            variable_history = data.variable_history;
+            for (const variable_code in data.variable_history) {
+                for (i = 0; i < data.variable_history[variable_code].length; i++) {
+                    if (Math.abs(data.variable_history[variable_code][i]) > 1) {
+                        has_history_values[variable_code] = true;
+                        break;
+                    }      
+                }
+            }
+            
+            //OLD WAY remove when the new is ready...
             has_import_values = false;
             console.log(data.variable_history, data.variable_history["103"],data.variable_history["103"].length);
             for (i = 0; i < data.variable_history["103"].length; i++) {
@@ -145,7 +158,7 @@ function update_price_chart() {
         }
     });
 //**** 
-    console.log("has_import_values", has_import_values, "net_exports", net_exports);
+    console.log("has_history_values[\"103\"]", has_history_values["103"], "net_exports", variable_history["103"]);
     
     let price_data = null;
 
@@ -196,15 +209,14 @@ function update_price_chart() {
        //     time_labels.push(pad_to_2digits(date.getDate()) + '.' + pad_to_2digits(date.getMonth() + 1) + '. ' + pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes()));
             time_labels.push(pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes())+day_str);
         
-    
-        
         prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
 
         idx++;
     }
    
     // now history, if values exists
-    if (has_import_values) {   
+ //   if (has_import_values) {   
+    if (has_history_values["103"]) {
         dataset_started = false;
         for (h_idx = net_exports.length - 1 - now_idx; h_idx < net_exports.length; h_idx++) {
             if (Math.abs(net_exports[h_idx]) > 1)
@@ -212,6 +224,7 @@ function update_price_chart() {
             imports.push(dataset_started ? -net_exports[h_idx] : null);
         }
     }
+
     console.log("net_exports", net_exports, "imports", imports);
 
 
