@@ -293,8 +293,7 @@ const rule_html = `<div class="col">
      <!-- rule starts -->
      <div class="card rule-card">
          <div class="card-header">
-             <h5 id="ch_#:r_#:title" class="card-title">Rule
-                 1</h5>
+             <h5 id="ch_#:r_#:title" class="card-title">Rule 1</h5>
          </div>
          <div class="card-body">
              <div class="input-group mb-3">
@@ -454,7 +453,7 @@ function update_status(repeat) {
             if (data.hasOwnProperty('next_process_in'))
                 next_query_in = data.next_process_in + process_time_s;
 
-            if (msgdiv &&  (data.last_msg_ts > getCookie("msg_read"))) {
+            if (msgdiv && (data.last_msg_ts > getCookie("msg_read"))) {
                 if (data.last_msg_type == 1)
                     msg_type = 'info';
                 else if (data.last_msg_type == 2)
@@ -468,29 +467,29 @@ function update_status(repeat) {
                 live_alert("dashboard", msgDateStr + ' ' + data.last_msg_msg, msg_type);
                 $('#dashboard\\:alert_i').on('closed.bs.alert', function () {
                     setCookie("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
-                 //   document.getElementById("msgdiv").innerHTML = "";
-                  })
+                    //   document.getElementById("msgdiv").innerHTML = "";
+                })
             }
-           // "db:production_period"
-           // em_period_s = parseInt(data.energym_read_last / 3600) * 3600; 
-           // em_period_s_date = new Date(em_period_s * 1000);
+            // "db:production_period"
+            // em_period_s = parseInt(data.energym_read_last / 3600) * 3600; 
+            // em_period_s_date = new Date(em_period_s * 1000);
             em_period_e_date = new Date(data.energym_read_last * 1000);
             selling = isNaN(data.variables["102"]) ? "-" : data.variables["102"] + " W";
             document.getElementById("db:export_v").innerHTML = selling;
-            document.getElementById("db:export_period").innerHTML = "(" + em_period_e_date.toLocaleTimeString().substring(0,5) + ")";
-            
+            document.getElementById("db:export_period").innerHTML = "(" + em_period_e_date.toLocaleTimeString().substring(0, 5) + ")";
+
             document.getElementById("db:production_d").style.display = isNaN(data.variables["105"]) ? "none" : "block";
 
             if (!isNaN(data.variables["105"])) {
-                document.getElementById("db:production_v").innerHTML = data.variables["105"] + " W";; 
+                document.getElementById("db:production_v").innerHTML = data.variables["105"] + " W";;
             }
 
             price = isNaN(data.variables["0"]) ? '-' : data.variables["0"] + ' ¢/kWh ';
-           
+
             document.getElementById("db:price_v").innerHTML = price;
 
             // Math.abs(selling)
-        
+
             /*
             if (keyfd) {
                 selling = data.variables["102"];
@@ -617,6 +616,7 @@ function populate_channel_status(channel_idx, ch) {
     if (ch.active_condition > -1)
         // rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
         rule_link_a = "";
+        rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":r_" + ch.active_condition + "\");'";
 
     if (g_config.ch[channel_idx]["type"] == 0) {
         info_text = "Relay undefined";
@@ -760,6 +760,7 @@ function update_price_chart() {
     let imports = [];
     let idx = 0;
     let now_idx = 0;
+    let now_idx_chh = 23;
     now_ts = (Date.now() / 1000);
 
     var tz_offset = new Date().getTimezoneOffset();
@@ -872,18 +873,39 @@ function update_price_chart() {
     }
 
     var channel_dataset;
+    now_period_start = parseInt(now_ts / 3600) * 3000;
+    first_chh_period = now_period_start - 23 * 3600;
+    console.log("now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
+
+
+
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
             continue;
         channel_dataset = [];
-        for (h_idx = net_exports.length - 1 - now_idx; h_idx < net_exports.length; h_idx++) {
-            channel_dataset.push(channel_history[channel_idx][h_idx]);
+        dataset_started = true;
+        //for (h_idx = 0; h_idx < channel_history[channel_idx].length; h_idx++) {
+        for (h_idx = 36 - 1 - now_idx; h_idx < 36; h_idx++) {
+            chh_idx = h_idx+ now_idx_chh - now_idx;
+            if (chh_idx < 0)
+                channel_dataset.push(null);
+            else if (chh_idx > 23)
+                break;
+            else {
+                if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
+                    dataset_started = true;
+                channel_dataset.push(dataset_started ? channel_history[channel_idx][chh_idx] : null);
+            }
+
         }
-        //  console.log("channel_dataset", channel_dataset);
+
+        console.log("channel_history", channel_idx, channel_history[channel_idx]);
+        console.log("channel_dataset", channel_dataset);
         datasets.push({
             label: g_config.ch[channel_idx]["id_str"],
             hidden: true,
             type: 'bar',
+            parsing: true,
             data: channel_dataset,
             yAxisID: 'ych',
             borderColor: [g_config.ch[channel_idx]["channel_color"]
@@ -1990,7 +2012,7 @@ function focus_oper(ev) {
 function template_form_closed(ev) {
     id_a = ev.target.id.split("_");
     channel_idx = id_a[1];
-   // alert("template_form_closed:" + channel_idx);
+    // alert("template_form_closed:" + channel_idx);
     delete_stmts_from_UI(channel_idx);
     form_fld_idx = 0;
     console.log("******** adding new fields");
@@ -2151,6 +2173,35 @@ function create_channels() {
     }
 
 }
+function jump(section_id_full) {
+    //onclick="activate_section("channels:ch_4:r_0");"
+    url_a = section_id_full.split(":");
+    section_id = url_a[0];
+
+    console.log("Jumping to section " + section_id);
+    $('#' + section_id +'-tab').trigger('click');
+
+    // show new section div….
+    let section_divs = document.querySelectorAll("div[id^='section_']");
+    for (i = 0; i < section_divs.length; i++) {
+        is_active_div = section_divs[i].id == "section_" + section_id;
+        section_divs[i].style.display = (is_active_div ? "block" : "none");
+    }
+    if (section_id == "channels" && url_a.length == 3) {
+       rule_accordion = document.getElementById(`${url_a[1]}_colla_rules`);
+       rule_accordion.classList.remove("collapse");
+       rule_accordion.classList.remove("open");
+      
+        var scroll_element = document.getElementById(`${url_a[1]}:${url_a[2]}:title`);
+        console.log("Try to scroll", scroll_element.id);
+
+        if (scroll_element)
+            scroll_element.scrollIntoView();
+    }
+    //  else
+    //      console.log("No scroll", section_id_full);
+}
+
 
 // for sorting wifis by signal strength
 function compare_wifis(a, b) {
@@ -2251,8 +2302,8 @@ function init_ui() {
     // populate_wifi_ssid_list();
     update_status(true);
 
-   // const exampleEl = document.getElementById('tooltiptest');
-   // const tooltip = new bootstrap.Tooltip(exampleEl);
+    // const exampleEl = document.getElementById('tooltiptest');
+    // const tooltip = new bootstrap.Tooltip(exampleEl);
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));

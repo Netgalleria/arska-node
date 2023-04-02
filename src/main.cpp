@@ -264,7 +264,6 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
 long prices[MAX_PRICE_PERIODS];
-// long net_imports[MAX_HISTORY_PERIODS];
 
 bool prices_initiated = false;
 time_t prices_first_period = 0;
@@ -636,7 +635,7 @@ void Variables::rotate_period()
     variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = this->get_l(history_variables[v_idx]);
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
       variable_history[v_idx][h_idx] = variable_history[v_idx][h_idx + 1];
-    variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0;
+    variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0; //current peeriod
   }
 }
 
@@ -1127,6 +1126,7 @@ typedef struct
   time_t this_state_started_epoch;
   int on_time;
   int off_time;
+  byte utilization_;
 } channel_log_struct;
 
 // Point state_stats("state_stats");
@@ -1148,6 +1148,8 @@ public:
   void new_log_period(time_t ts_report);
   void set_state(int channel_idx, bool new_state);
   time_t get_duration_in_this_state(int channel_idx);
+  byte get_utilization(int channel_idx) { return channel_logs[channel_idx].utilization_; }
+  void update_utilization(int channel_idx);
 
 private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
@@ -1173,6 +1175,14 @@ time_t ChannelCounters::get_duration_in_this_state(int channel_idx)
   time(&now_l);
   return (now_l - channel_logs[channel_idx].this_state_started_epoch);
 };
+void ChannelCounters::update_utilization(int channel_idx){
+  float utilization = 0;
+  set_state(channel_idx, channel_logs[channel_idx].state); // this will update counters without changing state
+  if ((channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time) > 0)
+    utilization = (float)channel_logs[channel_idx].on_time / (float)(channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time);
+
+  channel_logs[channel_idx].utilization_ = (byte)(utilization * 100 + 0.001);
+}
 
 void ChannelCounters::new_log_period(time_t ts_report)
 {
@@ -1186,21 +1196,25 @@ void ChannelCounters::new_log_period(time_t ts_report)
   char field_name[10];
   for (int i = 0; i < CHANNEL_COUNT; i++)
   {
+    // update current (old) period utilization
     set_state(i, channel_logs[i].state); // this will update counters without changing state
     if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
       utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
     else
       utilization = 0;
+    
+    channel_logs[i].utilization_ = (byte)(utilization * 100 + 0.001);
+
     snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
     point_period_avg.addField(field_name, utilization);
 
-    // rotate to variable history
-
+    // rotate to channel history
     channel_history[i][MAX_HISTORY_PERIODS - 1] = (byte)(utilization * 100 + 0.001);
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
       channel_history[i][h_idx] = channel_history[i][h_idx + 1];
     channel_history[i][MAX_HISTORY_PERIODS - 1] = 0;
   }
+
   // then reset
   for (int i = 0; i < CHANNEL_COUNT; i++)
   {
@@ -1230,6 +1244,8 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
   {
     utilization = 0;
   }
+  channel_logs[channel_idx].utilization_ = utilization;
+
   Serial.printf("%d, (on: %d / off: %d ) = %f\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization);
 
   bool old_state = channel_logs[channel_idx].state;
@@ -5619,12 +5635,13 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
 
-    // JsonArray channel_history_array_item = doc["channel_history"][channel_idx];
-    // JsonArray channel_history_array_item = doc["ch"][channel_idx].createNestedArray("channel_history");
-    for (int h_idx = 0; h_idx < MAX_HISTORY_PERIODS; h_idx++)
+    for (int h_idx = 0; h_idx < MAX_HISTORY_PERIODS-1; h_idx++)
     {
       doc["channel_history"][channel_idx][h_idx] = channel_history[channel_idx][h_idx];
     }
+    
+    ch_counters.update_utilization(channel_idx);
+    doc["channel_history"][channel_idx][MAX_HISTORY_PERIODS - 1] = ch_counters.get_utilization(channel_idx);
   }
 
   time_t current_time;
