@@ -70,6 +70,22 @@
       white-space: nowrap;
       -webkit-overflow-scrolling: touch;
     }
+
+    /* file upload button */
+    input[type=file]::file-selector-button {
+      margin-right: 20px;
+      border: none;
+      background: #00b595;
+      padding: 10px 20px;
+      border-radius: 10px;
+      color: #fff;
+      cursor: pointer;
+      transition: background .2s ease-in-out;
+    }
+
+    input[type=file]::file-selector-button:hover {
+      background: #029378;
+    }
   </style>
   <!-- Custom styles for this template -->
   <link href="/css/dashboard.css" rel="stylesheet">
@@ -236,7 +252,7 @@
                       </div>
                     </div>
                     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center ">
-                      <h1 class="h2 card-title">Dashboard</h1>
+                      <!--<h1 class="h2 card-title">Dashboard</h1>-->
                       <!--dashboard-nav-->
                       <!--
                       <nav class="nav nav-pills nav-fill">
@@ -259,24 +275,29 @@
 
 
                   <div class="form-section">
-                    <div class="row g-3">
-                    
 
+                    <div class="row g-3">
+                      <h6 class="form-section-title">CURRENT PERIOD <span id="db:current_period"
+                          class="text-muted"></span></h6>
+                    </div>
+
+                    <div class="row g-3">
 
                       <div id="db:export_d" class="col" data-bs-toggle="tooltip" data-bs-placement="top"
-                        data-bs-custom-class="custom-tooltip" data-bs-title="&uarr; Selling / &darr; buying, period average">
+                        data-bs-custom-class="custom-tooltip"
+                        data-bs-title="&uarr; Selling / &darr; buying, period average">
                         <span data-feather="arrow-up" style="pointer-events: none;" class="align-text-bottom"></span>
-                        <span id="db:export_v" ></span>
-                        <span id="db:export_period" class="text-muted"></span>
+                        <span id="db:export_v"></span>
+
                       </div>
                       <div id="db:production_d" class="col" data-bs-toggle="tooltip" data-bs-placement="top"
-                      data-bs-custom-class="custom-tooltip" data-bs-title="Production, period average">
+                        data-bs-custom-class="custom-tooltip" data-bs-title="Production, period average">
                         <span data-feather="sun" style="pointer-events: none;" class="align-text-bottom"></span>
                         <span id="db:production_v"></span>
                         <span id="db:production_period" class="text-muted"></span>
                       </div>
-                      <div id="db:price_d"  class="col" data-bs-toggle="tooltip" data-bs-placement="top"
-                      data-bs-custom-class="custom-tooltip" data-bs-title="Current market price">
+                      <div id="db:price_d" class="col" data-bs-toggle="tooltip" data-bs-placement="top"
+                        data-bs-custom-class="custom-tooltip" data-bs-title="Current market price">
                         <span data-feather="activity" style="pointer-events: none;" class="align-text-bottom"></span>
                         <span id="db:price_v"></span> <span id="db:price_period" class="text-muted"></span>
                       </div>
@@ -291,6 +312,10 @@
                   </div>
 
                   <div class="card-body" id="chart_container">
+                    <button id="dashboard:refresh" type="button" class="btn btn-primary" onclick="create_price_chart()">
+                      <span data-feather="refresh-cw" style="pointer-events: none;" class="align-text-bottom"></span>
+                    </button>
+
                     <canvas class="my-4 w-100 chartjs-render-monitor" id="day_ahead_chart" width="1624" height="684"
                       style="display: block; height: 342px; width: 812px;"></canvas>
                   </div>
@@ -314,10 +339,6 @@
           <!-- Channels
 ================================================== -->
           <div class="tab-pane fade" id="channels" role="tabpanel" aria-labelledby="channels-tab" tabindex="0">
-
-
-
-
             <div class="card white-card  mb-3" id="variables:card">
               <div class="card-header">
                 <h5 class="card-title">Channel rules and definitions</h5>
@@ -367,11 +388,6 @@
               </div>
             </div>
 
-
-
-
-
-
             <div id="channels_row" class="row row-cols-1">
             </div>
             <!--./row-->
@@ -389,7 +405,9 @@
                   <div class="card-header">
                     <h5 class="card-title">Price Data</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted">Maybe here some info and <a href="#">link to help?</a></span>
+                      <span class="text-muted">Nordpool price info is updated from ENTSO-E Transparency Platform. <a target="_blank"
+                          href="https://github.com/Netgalleria/arska-node/wiki/Edit-Services">How to get own ENTSO-E API
+                          key</a></span>
                     </div>
                     <!--./chart-info-->
                   </div>
@@ -618,7 +636,11 @@
                 ================================================== -->
                 <div class="card white-card  mb-3" id="metering:card">
                   <div class="card-header">
-                    <h5 class="card-title">Energy Metering</h5>
+                    <h5 class="card-title">Grid Energy Metering</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted">Optional grid metering helps in optimizing the use of self-produced
+                        electricity.</span>
+                    </div>
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
@@ -653,11 +675,17 @@
                   </div>
                   <!--./card-footer-->
                 </div><!-- metering card-->
+              </div>
+              <!--./col-->
+              <div class="col">
                 <!-- Energy production
                 ================================================== -->
                 <div class="card white-card  mb-3" id="production:card">
                   <div class="card-header">
-                    <h5 class="card-title">Energy Production</h5>
+                    <h5 class="card-title">Energy Production Metering</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted">Optional production metering reads your solar inverter.</span>
+                    </div>
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
@@ -681,10 +709,12 @@
                       <input type="number" class="form-control" id="production_meter_id" placeholder="0" min="0"
                         step="1" max="255">
                     </div>
+                    <!--
                     <div class="mb-2">
                       <label for="baseload" class="form-label">Baseload (W)</label>
                       <input type="text" class="form-control" id="baseload" placeholder="0">
                     </div>
+                    -->
                     <div id="production:alert"></div>
                   </div>
                   <!--./card-body-->
@@ -703,6 +733,10 @@
                 <div class="card white-card  mb-3" id="influx:card">
                   <div class="card-header">
                     <h5 class="card-title">Influx Server</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted">Define optional server for history time series reporting and
+                        analysis.</span>
+                    </div>
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
@@ -743,22 +777,35 @@
                 <div class="card white-card  mb-3" id="network:card">
                   <div class="card-header">
                     <h5 class="card-title">Network</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted">Wifi and administration password settings.</span>
+                    </div>
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
                       <label for="wifi_ssid" class="form-label">SSID</label>
-
-                      <input type="text" class="form-control" id="wifi_ssid" placeholder="" list="wifi_ssid_list">
-                      <button id="network:refresh" type="button" class="btn btn-primary"
-                        onclick="populate_wifi_ssid_list()">
-                        <span data-feather="refresh-cw" style="pointer-events: none;" class="align-text-bottom"></span>
-                      </button>
-                      <datalist id="wifi_ssid_list">
-                      </datalist>
+                      <div class="input-group mb-0">
+                        <input type="text" class="form-control" id="wifi_ssid" placeholder="" list="wifi_ssid_list">
+                        <button id="network:refresh" type="button" class="btn btn-primary"
+                          onclick="populate_wifi_ssid_list()">
+                          <span data-feather="refresh-cw" style="pointer-events: none;"
+                            class="align-text-bottom"></span>
+                        </button>
+                        <datalist id="wifi_ssid_list">
+                        </datalist>
+                      </div>
                     </div>
-                    <div class="mb-2">
+                    <div class="mb-2"> 
                       <label for="wifi_password" class="form-label">Password</label>
-                      <input type="text" class="form-control" id="wifi_password" placeholder="">
+                      <div class="input-group mb-0">
+                        <input type="password" class="form-control" id="wifi_password" placeholder="">
+                        <button id="wifi_password_show" type="button" class="btn btn-primary" onclick="toggle_show(this);"><span data-feather="eye"
+                          style="pointer-events: none;" class="align-text-bottom"></span></button>
+                      
+                       <button id="wifi_password_hide" type="button" class="btn btn-primary d-none"  onclick="toggle_show(this);"> <span
+                          data-feather="eye-off" style="pointer-events: none;" class="align-text-bottom"></span>
+                        </button> 
+                      </div>
                     </div>
                     <div id="password_note"></div>
                     <div class="mb-2">
@@ -766,26 +813,10 @@
                       <input type="password" class="form-control" id="http_password" placeholder="">
                     </div>
                     <div class="mb-2">
-                      <label for="http_password2" class="form-label">Rewrite to change</label>
+                      <label for="http_password2" class="form-label">Rewrite 'admin' password to change</label>
                       <input type="password" class="form-control" id="http_password2" placeholder="">
                     </div>
-                    <div class="mb-2">
-                      <label class="form-label">Configuration</label>
-                      <br>
-                      <button class="btn btn-primary" type="submit" id="do_backup">
-                        <span data-feather="download" style="pointer-events: none;" class="align-text-bottom"></span>
-                        Backup</button>
 
-
-                      <form id="restore_form" method="post" enctype="multipart/form-data">
-                        <input name="config" type="file" />
-                        <button id="do_restore" class="btn btn-primary">
-                          <span data-feather="upload" style="pointer-events: none;"
-                            class="align-text-bottom"></span>Restore</button>
-                      </form>
-
-
-                    </div>
                     <div id="network:alert"></div>
                   </div>
                   <!--./card-body-->
@@ -801,97 +832,175 @@
               </div>
               <!--./col-->
 
-
-              <div class="col">
-                <!-- Cloud Settings
-            ================================================== -->
-                <div class="card white-card mb-3" id="cloud:card">
-                  <div class="card-header">
-                    <h5 class="card-title">Cloud Settings</h5>
-                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted"> Only in the premium edition. </span>
-                    </div>
-                    <!--./chart-info-->
-                  </div>
-                  <!--./card-header-->
-                  <div class="card-body">
-                    <div class="mb-2">
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="true" id="cloud_enabled">
-                        <label class="form-label" for="cloud_enabled">
-                          Enable Cloud
-                        </label>
-                      </div>
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="true" id="sms_admin_enabled">
-                        <label class="form-label" for="sms_admin_enabled">
-                          SMS Admin enabled
-                        </label>
-                      </div>
-                      <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="true" id="sms_alerts_enabled">
-                        <label class="form-label" for="sms_alerts_enabled">
-                          SMS Alerts enabled
-                        </label>
-                      </div>
-                    </div>
-                    <div class="mb-2">
-                      <label for="mobile_nbr" class="form-label">Mobile number</label>
-                      <input type="text" class="form-control" id="mobile_nbr" placeholder="+358 123 4567">
-                    </div>
-
-                    <div class="mb-2">
-                      <label for="mobile_apn" class="form-label">Mobile APN</label>
-                      <input type="text" class="form-control" id="mobile_apn" placeholder="internet">
-                    </div>
-                    <div id="cloud:alert"></div>
-
-                  </div><!-- card-body-->
-                  <div class="card-footer text-end">
-                    <button class="btn btn-primary" type="submit" id="cloud:save" disabled="">
-                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
-                      Save</button>
-
-                  </div><!-- card footer-->
-
-                </div><!-- cloud card-->
-              </div>
-              <!--./col-->
               <div class="col">
                 <!-- Admin actions
             ================================================== -->
-                <div class="card white-card mb-3" id="actions:card">
-                  <div class="card-header d-none">
-                    <h5 class="card-title" data-bs-toggle="collapse" aria-expanded="false"
-                      aria-controls="collapseExample">Admin actions</h5>
+                <div class="card white-card mb-3" id="admin:card">
+                  <div class="card-header">
+                    <div class="card-header">
+                      <h5 class="card-title">System administration</h5>
+                      <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                        <span class="text-muted">Always backup configuration before system upgrade.</span>
+                      </div>
+                    </div>
+
                   </div>
                   <!--./card-header-->
                   <div class="card-body">
-                    <p class="mb-0">
-                      <a data-bs-toggle="collapse" href="#collapseExample" role="button" aria-expanded="false"
-                        aria-controls="collapseExample">Admin actions</a>
-                    </p>
-                    <div class="collapse" id="collapseExample">
-                      <p class="my-3">With admin actions you can... Maybe here some info here.</p>
-                      <div class="d-grid gap-2 d-md-block text-end">
-
-                        <button type="button" id="actions:restart" class="btn btn-secondary">Restart and clear
-                          cache</button>
-                        <button type="button" id="actions:reset" class="btn btn-secondary">Reset Settings</button>
-                        <button type="button" id="actions:scan_sensors" class="btn btn-secondary">Scan Sensors</button>
-                      </div>
-
+                    <div class="mb-2">
+                      <label class="form-label">Backup configuration</label>
+                      <br>
+                      <a href="/settings?format=file"><button class="btn btn-primary" type="submit" id="do_backup">
+                          <span data-feather="download" style="pointer-events: none;" class="align-text-bottom"></span>
+                          Backup</button></a>
                     </div>
-                    <div id="actions:alert"></div>
 
+                    <div class="mb-2">
+                      <label class="form-label">Restore configuration</label>
+                      <form id="restore_form" method="post" enctype="multipart/form-data" style="display: inline;">
+
+                        <div class="input-group">
+
+                          <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="inputGroupFile01"
+                              aria-describedby="inputGroupFileAddon01" accept='application/json'
+                              onchange='openFile(event)'>
+
+                          </div>
+                        </div>
+
+                      </form>
+                    </div>
+                    <br>
+                    <div class="mb-2">
+                      <label class="form-label">Current version</label>
+                      <table id="version_table" class="table">
+                        <tbody>
+                          <tr>
+                            <td scope="col">Software version</td>
+                            <th id="version" scope="row"></th>
+                          </tr>
+                          <tr>
+                            <td scope="col">Filesystem version</td>
+                            <th id="version_fs" id_scope="row"></th>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div class="mb-2">
+                      <label for="sel_releases" class="form-label">Upgrade</label>
+                      <div class="input-group mb-0">
+
+                        <button id="releases:refresh" type="button" class="btn btn-primary"
+                          onclick="populate_releases()" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
+                          data-bs-placement="top" data-bs-title="Get available firmware versions">
+                          <span data-feather="refresh-ccw" style="pointer-events: none;"
+                            class="align-text-bottom"></span>
+                        </button>
+                        <select id="sel_releases" class="form-select" aria-label="variable" disabled="">
+                        </select>
+                        <button id="releases:update" type="button" class="btn btn-primary" onclick="start_fw_update();"
+                          disabled="" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
+                          data-bs-title="Start upgrade">
+                          <span data-feather="download-cloud" style="pointer-events: none;"
+                            class="align-text-bottom"></span> Upgrade</button>
+
+
+                      </div>
+                      <a href="/update">Manual upgrade</a>
+                    </div>
+
+
+
+                    <div class="accordion" id="adminadv_accordion">
+                      <div class="accordion-item">
+                        <h2 class="accordion-header" id="adminadv_accordionh3">
+                          <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#adminadv_acc" aria-expanded="true" aria-controls="adminadv_acc">
+                            Advanced settings
+                          </button>
+                        </h2>
+                        <div id="adminadv_acc" class="accordion-collapse collapsed collapse collapsed"
+                          aria-labelledby="adminadv_accordionh3" data-bs-parent="#adminadv_accordion">
+                          <div class="accordion-body">
+                            <div class="d-grid gap-2 d-md-block text-end">
+                              <label class="form-label">Special actions</label><br>
+
+                              <button type="button" id="admin:restart" class="btn btn-secondary">Restart and clear
+                                cache</button>
+                              <button type="button" id="admin:reset" class="btn btn-secondary">Reset Settings</button>
+                              <button type="button" id="admin:scan_sensors" class="btn btn-secondary">Scan
+                                Sensors</button>
+                            </div>
+                            <div class="mb-2">
+                              <label for="hw_template_id" class="form-label">Hardware template</label>
+                              <select id="hw_template_id" class="form-select" aria-label="variable">
+                                <option value="0">undefined</option>
+                                <option value="1">esp32lilygo-4ch</option>
+                                <option value="2">esp32wroom-4ch-a</option>
+                                <option value="3">devantech-esp32lr42</option>
+                              </select>
+                            </div>
+                            <div id="admin:alert"></div>
+
+
+                            <button class="btn btn-primary" type="submit" id="admin:save" disabled="">
+                              <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                              Save</button>
+
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <!--./card-body-->
+
                   <div class="card-footer text-end d-none">
                   </div><!-- card footer-->
                 </div><!-- actions card-->
 
               </div>
               <!--./col-->
+
+              <div class="col">
+                <!-- Licenses
+                ================================================== -->
+                <div class="card white-card  mb-3" id="metering:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Data sources and licenses</h5>
+
+                  </div>
+                  <div class="card-body">
+                    <label for="production_meter_type" class="form-label">Data sources:</label>
+                    <p>Day-ahead prices <a
+                        href="https://transparency.entsoe.eu/"">ENTSO-E Transparency Platform</a>, Energy weather (Finland only) <a href="
+                        http://www.bcdcenergia.fi/en/">BCDC Energy</a></p>
+
+                    <label for="production_meter_type" class="form-label">Open source licenses:</label>
+                    <p>
+                      <a href="https://github.com/jquery/jquery">JQuery</a>, <a
+                        href="https://github.com/me-no-dev/ESPAsyncWebServer">ESPAsyncWebServer</a>, <a
+                        href="https://github.com/bblanchon/ArduinoJson" target="wiki">ArduinoJson</a>, NTPClient, <a
+                        target="wiki" href="https://github.com/emelianov/modbus-esp8266">modbus-esp8266</a>,
+                      adafruit/RTClib, SPI,
+                      <a href="https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino"
+                        target="wiki">tobiasschuerg/ESP8266 Influxdb</a>, <a
+                        href="https://github.com/milesburton/Arduino-Temperature-Control-Library">DallasTemperature</a>,
+                      <a href="https://github.com/PaulStoffregen/OneWire">paulstoffregen/OneWire</a>,
+                      <a href="https://github.com/marian-craciunescu/ESP32Ping">ESP32Ping</a> , <a
+                        href="https://github.com/chartjs/Chart.js" target="wiki">Chart.js</a>
+                    </p>
+
+                    <p>Arska (C) Netgalleria Oy, Olli Rinne, 2021-2023</p>
+
+                  </div>
+                  <!--./card-body-->
+
+                  <!--./card-footer-->
+                </div><!-- licence card-->
+              </div>
+
+
             </div>
             <!--./row-->
           </div>
