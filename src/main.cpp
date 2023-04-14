@@ -2,9 +2,9 @@
 (C) Netgalleria Oy, Olli Rinne, 2021-2023
 
 Resource files (see data subfolder):
-- arska.js - web UI Javascript routines
+- arska-ui.js - web UI Javascript routines
 - style.css - web UI styles
-- ui2.html
+- ui3.html
 - js/arska-ui.js - main javascript code template //TODO:separate variable(constant) and code
 - js/jquery-3.6.0.min.js - jquery library
 - data/version.txt - file system version info
@@ -76,11 +76,11 @@ String version_fs_base; //= "";
 #define WATT_EPSILON 50
 
 const char *default_http_password PROGMEM = "arska";
-const char *price_data_filename PROGMEM = "/data/price-data.json";
-const char *variables_filename PROGMEM = "/data/variables.json";
-const char *wifis_filename PROGMEM = "/data/wifis.json";
+const char *price_data_filename PROGMEM = "/cache/price-data.json";
+const char *wifis_filename PROGMEM = "/cache/wifis.json";
+const char *variables_filename PROGMEM = "/cache/variables.json";
+
 const char *template_filename PROGMEM = "/data/templates.json";
-// const char *ui_constants_filename PROGMEM = "/data/ui-constants.json";
 
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
@@ -524,7 +524,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 33
+#define VARIABLE_COUNT 34
 
 #define VARIABLE_PRICE 0                     //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1               //!< price rank within 9 hours window
@@ -554,6 +554,7 @@ struct statement_st
 #define VARIABLE_WDAY 112
 #define VARIABLE_HH 115
 #define VARIABLE_HHMM 116
+#define VARIABLE_MINUTES 117
 #define VARIABLE_DAYENERGY_FI 130        //!< true if day, (07:00-22:00 Finnish tariffs), logical
 #define VARIABLE_WINTERDAY_FI 140        //!< true if winterday, (Finnish tariffs), logical
 #define VARIABLE_SENSOR_1 201            //!< sensor1 value, float, 1 decimal
@@ -619,7 +620,7 @@ public:
 private:
   // dependency removed variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_9, "price rank 9h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_24, "price rank 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SOLAR_FORECAST}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_PRICE_SOLAR}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0, VARIABLE_DEPENDS_PRODUCTION_METER}, {VARIABLE_SELLING_POWER, "selling W", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0, VARIABLE_DEPENDS_UNDEFINED},  {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0, VARIABLE_DEPENDS_UNDEFINED},  {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WDAY, "weekday (1-7)", 0, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK, VARIABLE_DEPENDS_UNDEFINED}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_SENSOR}};
 
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", 0}, {VARIABLE_PRICERANK_24, "price rank 24h", 0}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0}, {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", 0}, {VARIABLE_PRICERANK_24, "price rank 24h", 0}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", 0}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_EXTRA_PRODUCTION, "extra production", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0}, {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4},{VARIABLE_MINUTES, "minutes 0-59", CONSTANT_TYPE_CHAR_2},  {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}};
   // experimental , not in use, { VARIABLE_BEEN_UP_AGO_HOURS_0, "ch 1, up x h ago", CONSTANT_TYPE_DEC1, VARIABLE_DEPENDS_UNDEFINED }};
   // {VARIABLE_PRICERANK_FIXED_8,"rank in 8 h block", CONSTANT_TYPE_INT,VARIABLE_DEPENDS_UNDEFINED} ,{ VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}
   int get_variable_index(int id);
@@ -633,7 +634,7 @@ void Variables::rotate_period()
     variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = this->get_l(history_variables[v_idx]);
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
       variable_history[v_idx][h_idx] = variable_history[v_idx][h_idx + 1];
-    variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0; // current peeriod
+    variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0; // current period
   }
 }
 
@@ -1058,6 +1059,7 @@ typedef struct
   uint8_t config_mode;    //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
   int template_id;        //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
   uint32_t channel_color; // UI color in graphs etc
+  uint8_t priority; // channel switching priority, channel with the lowest priority value is switched on first and off last
 } channel_struct;
 
 #ifdef SENSOR_DS18B20_ENABLED
@@ -2021,7 +2023,10 @@ bool read_meter_han()
   char url[90];
   snprintf(url, sizeof(url), "http://%s/api/v1/telegram", s.energy_meter_ip.toString().c_str());
   Serial.println(url);
+
+  yield();
   String telegram = httpGETRequest(url, "");
+  yield();
 
   time_t now_in_func;
   time(&now_in_func);
@@ -2142,6 +2147,7 @@ bool read_meter_han()
     energym_e_out_prev = energym_e_out;
   }
 
+  yield();
   get_values_energym(netEnergyInPeriod, netPowerInPeriod);
   vars.set(VARIABLE_EXTRA_PRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
   vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod));
@@ -2156,7 +2162,7 @@ bool read_meter_han()
     energym_period_first_read_ts = energym_meter_read_ts;
     energym_last_period = now_period;
   }
-
+  yield();
   return true;
 }
 
@@ -2191,7 +2197,10 @@ bool read_meter_shelly3em()
 
   snprintf(url, sizeof(url), "http://%s%s:%d/status", auth, s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
   Serial.println(url);
+
+  yield();
   DeserializationError error = deserializeJson(doc, httpGETRequest(url, ""));
+  yield();
 
   if (error)
   {
@@ -2266,6 +2275,7 @@ bool read_meter_shelly3em()
     energym_period_first_read_ts = energym_meter_read_ts;
     energym_last_period = now_period;
   }
+  yield();
   return true;
 }
 #endif
@@ -2299,7 +2309,9 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   snprintf(inverter_url, sizeof(inverter_url), "http://%s/solar_api/v1/GetInverterRealtimeData.cgi?scope=Device&DeviceId=1&DataCollection=CumulationInverterData", s.production_meter_ip.toString().c_str());
   Serial.println(inverter_url);
 
+  yield();
   DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url, ""), DeserializationOption::Filter(filter));
+  yield();
 
   if (error)
   {
@@ -2363,7 +2375,7 @@ bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data)
   }
   else
   {
-    Serial.println(F("Modbus read succesful"));
+    Serial.println(F(" Modbus read succesful"));
   }
 
   return true;
@@ -2427,6 +2439,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   uint16_t ip_port = s.production_meter_port;
   uint8_t modbusip_unit = s.production_meter_id;
 
+  yield();
   Serial.printf("ModBus host: [%s], ip_port: [%d], unit_id: [%d] \n", s.production_meter_ip.toString().c_str(), ip_port, modbusip_unit);
 
   mb.task();
@@ -2437,12 +2450,18 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     Serial.println(cresult);
     mb.task();
   }
+  yield();
+
+  long int total_energy_new;
 
   if (mb.isConnected(s.production_meter_ip))
   { // Check if connection to Modbus slave is established
     mb.task();
     Serial.println(F("Connection ok. Reading values from Modbus registries."));
-    total_energy = get_mbus_value(s.production_meter_ip, SMA_TOTALENERGY_OFFSET, 2, modbusip_unit);
+    total_energy_new = get_mbus_value(s.production_meter_ip, SMA_TOTALENERGY_OFFSET, 2, modbusip_unit);
+    if (total_energy == 0 ||abs(total_energy_new-total_energy)<1000) //sanity check
+      total_energy = total_energy_new;
+
     mb.task();
     Serial.print(F(" total energy Wh:"));
     Serial.print(total_energy);
@@ -2453,6 +2472,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 
     mb.disconnect(s.production_meter_ip); // disconect in the end
     mb.task();
+    yield();
     return true;
   }
   else
@@ -2481,6 +2501,7 @@ bool read_inverter(bool period_changed)
   time(&now_in_func);
 
   bool read_ok = false;
+  yield();
   if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
   {
     read_ok = read_inverter_fronius_data(total_energy, current_power);
@@ -2498,6 +2519,7 @@ bool read_inverter(bool period_changed)
 
   if (read_ok)
   {
+    yield();
     time(&productionm_read_last);
     if (period_changed || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
     {
@@ -2525,7 +2547,7 @@ bool read_inverter(bool period_changed)
     power_produced_period_avg = current_power;
 
   Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
-
+  yield();
   return read_ok;
 } // read_inverter
 
@@ -2544,6 +2566,9 @@ void update_time_based_variables()
 
   vars.set(VARIABLE_HH, (long)(tm_struct.tm_hour));
   vars.set(VARIABLE_HHMM, (long)(tm_struct.tm_hour) * 100 + tm_struct.tm_min);
+  vars.set(VARIABLE_MINUTES, (long) tm_struct.tm_min);
+
+  
 
 #ifdef TARIFF_VARIABLES_FI
   // päiväsähkö/yösähkö (Finnish day/night tariff)
@@ -2605,6 +2630,7 @@ void update_variable_from_json(JsonObject variable_list, String doc_key, int var
   else
     vars.set_NA(variable_id);
 }
+
 
 /**
  * @brief Update current variable values from cache file
@@ -3557,6 +3583,7 @@ void read_production_meter()
 {
   bool read_ok;
   Serial.println("read_production_meter");
+  yield();
   time_t now_in_func;
   if (s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR or (s.production_meter_type == PRODUCTIONM_SMA_MODBUS_TCP))
   {
@@ -3574,6 +3601,7 @@ void read_production_meter()
     productionm_read_last = now_in_func;
   else
   {
+    yield();
     if (ping_enabled) // TODO: ping local gw
     {
       internet_connection_ok = test_host(IPAddress(8, 8, 8, 8)); // Google DNS, TODO: set address to parameters
@@ -3583,6 +3611,7 @@ void read_production_meter()
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Failed to production energy meter. Check Wifi, internet connection and the meter."));
   }
+  yield();
 }
 //
 
@@ -3614,6 +3643,40 @@ int get_channel_to_switch(bool is_rise, int switch_count)
     }
   }
   return -1; // we should not end up here
+}
+
+/**
+ * @brief Get a channel to switch next, using channel priority
+ * @details There can be multiple channels which could be switched but not all are switched at the same round
+ *
+ * @param is_rise
+ * @return int
+ */
+int get_channel_to_switch_prio(bool is_rise)
+{
+  uint8_t matching_prio;
+  int matching_prio_channel = -1;
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    if (is_rise && !s.ch[channel_idx].is_up && s.ch[channel_idx].wanna_be_up)
+    { // we should rise this up, select down channel with lowest priority value
+      Serial.printf("get_channel_to_switch_prio ch %d wanna to be up \n", channel_idx);
+      if (matching_prio_channel == -1 || matching_prio > s.ch[channel_idx].priority)
+      {
+        matching_prio = s.ch[channel_idx].priority;
+        matching_prio_channel = channel_idx;
+      }
+    }
+    if (!is_rise && s.ch[channel_idx].is_up && !s.ch[channel_idx].wanna_be_up)
+    { // we should drop this channel, select up channel with highest priority value
+    Serial.printf("get_channel_to_switch_prio ch %d wanna be down , matching_prio %d, priority %d\n", channel_idx, (int)matching_prio,s.ch[channel_idx].priority);
+       if (matching_prio_channel == -1 || matching_prio< s.ch[channel_idx].priority) {
+        matching_prio = s.ch[channel_idx].priority;
+        matching_prio_channel = channel_idx;
+      }
+    }
+  }
+  return matching_prio_channel;
 }
 /*
 //WiP
@@ -3927,7 +3990,8 @@ void set_relays(bool grid_protection_delay_used)
     switchings_to_todo = min(oper_count, MAX_CHANNELS_SWITCHED_AT_TIME);
     for (int i = 0; i < switchings_to_todo; i++)
     {
-      int ch_to_switch = get_channel_to_switch(is_rise, oper_count--); // return in random order if many
+      //int ch_to_switch = get_channel_to_switch(is_rise, oper_count--); // return in random order if many
+      int ch_to_switch = get_channel_to_switch_prio(is_rise); //return in priority order
       Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
       s.ch[ch_to_switch].is_up = is_rise;
       //   s.ch[ch_to_switch].toggle_last = now;
@@ -4358,6 +4422,8 @@ void reset_config(bool full_reset)
     s.ch[channel_idx].template_id = -1;
 
     s.ch[channel_idx].channel_color = default_colors[channel_idx % DEFAULT_COLOR_COUNT];
+    s.ch[channel_idx].priority = channel_idx;
+    
 
     snprintf(s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str), "channel %d", channel_idx + 1);
 
@@ -4483,6 +4549,8 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["uptime_minimum"] = int(s.ch[channel_idx].uptime_minimum);
     snprintf(char_buffer, 8, "#%06x", s.ch[channel_idx].channel_color);
     doc["ch"][channel_idx]["channel_color"] = char_buffer;
+    doc["ch"][channel_idx]["priority"] =  s.ch[channel_idx].priority;;
+
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
     // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
@@ -4689,7 +4757,7 @@ bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_
   if (!element.isNull())
   {
     Serial.println(element.as<const char *>());
-    strncpy(tostr, element.as<const char *>(), buffer_length);
+    strncpy(tostr, element.as<const char *>(), buffer_length-1); // leave one char for a null-character
     return true;
   }
   Serial.printf("Element %s isNull.\n", doc_key);
@@ -4752,6 +4820,7 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
 
   char http_password[MAX_ID_STR_LENGTH];
   char http_password2[MAX_ID_STR_LENGTH];
+  int channel_idx_loop=0;
 
   ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
   ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
@@ -4835,7 +4904,7 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
 
   for (JsonObject ch : doc["ch"].as<JsonArray>())
   {
-    // channel_idx = ajson_int_get(ch, (char *)"idx", channel_idx_loop);
+    channel_idx = ajson_int_get(ch, (char *)"idx", channel_idx_loop);
     ajson_str_to_mem(ch, (char *)"id_str", s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str));
     Serial.printf("s.ch[channel_idx].id_str %s\n", s.ch[channel_idx].id_str);
 
@@ -4850,6 +4919,7 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
       s.ch[channel_idx].channel_color = (uint32_t)strtol(hex_buffer + 1, NULL, 16);
     }
 
+    s.ch[channel_idx].priority = ajson_int_get(ch, (char *)"priority", s.ch[channel_idx].priority);
     s.ch[channel_idx].relay_id = ajson_int_get(ch, (char *)"r_id", s.ch[channel_idx].relay_id);
     s.ch[channel_idx].relay_ip = ajson_ip_get(ch, (char *)"r_ip", s.ch[channel_idx].relay_ip);
     s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
@@ -4888,6 +4958,7 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
       rule_idx++;
     }
     channel_idx++;
+    channel_idx_loop++;
   }
   writeToEEPROM();
   return true;
@@ -4923,7 +4994,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
 
   String logmessage = "Client:" + request->client()->remoteIP().toString() + " " + request->url();
   Serial.println(logmessage);
-  const char *filename_internal = "/data/config_in.json";
+  const char *filename_internal = "/cache/config_in.json";
 
   if (!index) // first
   {
@@ -5209,121 +5280,6 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
 
   store_settings_json(doc);
 
-  // TODO: mieti vielä paluuarvo
-  ////****
-  /*
-
-  ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
-  ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
-  //  s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
-  ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
-  ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
-
-  // copy_doc_str(doc, (char *)"variable_server", s.variable_server, sizeof(s.variable_server));
-  ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
-  ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
-  ajson_str_to_mem(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
-  ajson_str_to_mem(doc, (char *)"lang", s.lang, sizeof(s.lang));
-
-if (ajson_str_to_mem(doc, (char *)"http_password", http_password, sizeof(http_password))) {
-  if (ajson_str_to_mem(doc, (char *)"http_password2", http_password2, sizeof(http_password2))) {
-    if ((strcmp( http_password,http_password2)==0) && strlen(http_password)>0 && strlen(http_password2)>0) { //equal
-      strncpy(s.http_password, http_password, sizeof(s.http_password));
-      Serial.println("Passwrod changed");
-    }
-  }
-}
-
-  s.hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
-  s.baseload = ajson_int_get(doc, (char *)"baseload", s.baseload);
-
-  s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
-  Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
-  // ajson_str_to_mem(doc, (char *)"energy_meter_host", s.energy_meter_host, sizeof(s.energy_meter_host));
-  s.energy_meter_ip = ajson_ip_get(doc, (char *)"energy_meter_ip", s.energy_meter_ip);
-  ajson_str_to_mem(doc, (char *)"energy_meter_password", s.energy_meter_password, sizeof(s.energy_meter_password));
-
-  // doc["energy_meter_password"] = s.energy_meter_password;
-  s.energy_meter_port = ajson_int_get(doc, (char *)"energy_meter_port", s.energy_meter_port);
-  s.energy_meter_id = ajson_int_get(doc, (char *)"energy_meter_id", s.energy_meter_id);
-
-  s.production_meter_type = ajson_int_get(doc, (char *)"production_meter_type", s.production_meter_type);
-  s.production_meter_ip = ajson_ip_get(doc, (char *)"production_meter_ip", s.production_meter_ip);
-  s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
-  s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
-
-#ifdef INFLUX_REPORT_ENABLED
-  ajson_str_to_mem(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
-  ajson_str_to_mem(doc, (char *)"influx_token", s.influx_token, sizeof(s.influx_token));
-  ajson_str_to_mem(doc, (char *)"influx_org", s.influx_org, sizeof(s.influx_org));
-  ajson_str_to_mem(doc, (char *)"influx_bucket", s.influx_bucket, sizeof(s.influx_bucket));
-#endif
-
-  int channel_idx_loop = 0;
-  int channel_idx;
-  int rule_idx = 0;
-  int stmt_idx = 0;
-  char hex_buffer[8];
-
-  for (JsonObject ch : doc["ch"].as<JsonArray>())
-  {
-    channel_idx = ajson_int_get(ch, (char *)"idx", channel_idx_loop);
-    ajson_str_to_mem(ch, (char *)"id_str", s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str));
-    Serial.printf("s.ch[channel_idx].id_str %s\n", s.ch[channel_idx].id_str);
-
-    s.ch[channel_idx].type = ajson_int_get(ch, (char *)"type", s.ch[channel_idx].type);
-    s.ch[channel_idx].config_mode = ajson_int_get(ch, (char *)"config_mode", s.ch[channel_idx].config_mode);
-    s.ch[channel_idx].template_id = ajson_int_get(ch, (char *)"template_id", s.ch[channel_idx].template_id);
-    s.ch[channel_idx].uptime_minimum = ajson_int_get(ch, (char *)"uptime_minimum", s.ch[channel_idx].uptime_minimum);
-
-    if (ch.containsKey("channel_color"))
-    {
-      ajson_str_to_mem(ch, (char *)"channel_color", hex_buffer, sizeof(hex_buffer));
-      s.ch[channel_idx].channel_color = (uint32_t)strtol(hex_buffer + 1, NULL, 16);
-    }
-
-    s.ch[channel_idx].relay_id = ajson_int_get(ch, (char *)"r_id", s.ch[channel_idx].relay_id);
-    s.ch[channel_idx].relay_ip = ajson_ip_get(ch, (char *)"r_ip", s.ch[channel_idx].relay_ip);
-    s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
-
-    // clear  statements
-    // TODO: add to new version
-    for (rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
-    {
-      for (stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-      {
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = -1;
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = -1;
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = VARIABLE_LONG_UNKNOWN;
-      }
-    }
-
-    // channel rules
-    rule_idx = 0;
-
-    // channel rules
-    for (JsonObject ch_rule : ch["rules"].as<JsonArray>())
-    {
-      s.ch[channel_idx].conditions[rule_idx].on = ch_rule["on"];
-      stmt_idx = 0;
-      Serial.printf("rule on %s", s.ch[channel_idx].conditions[rule_idx].on ? "true" : "false");
-
-      for (JsonArray ch_rule_stmt : ch_rule["stmts"].as<JsonArray>())
-      {
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = vars.float_to_internal_l(ch_rule_stmt[0], ch_rule_stmt[3]);
-        Serial.printf("rules/stmts: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
-        stmt_idx++;
-      }
-      rule_idx++;
-    }
-  }
-
-  writeToEEPROM();
-  */
-  ////****
 
   StaticJsonDocument<256> out_doc; // global doc to discoveries
   out_doc["rc"] = 0;
@@ -5461,7 +5417,7 @@ uint8_t get_device_swith_type(int mdns_device_idx, device_db_struct *device)
  */
 void discover_devices()
 {
-  unsigned long started = millis();
+  unsigned long started_ms = millis();
   device_db_struct device_db_entry;
   uint8_t switch_type;
 
@@ -5496,7 +5452,7 @@ void discover_devices()
   time_t now_l;
   time(&now_l);
   discover_doc["ts"] = now_l;
-  discover_doc["process_time"] = millis() - started; // debug
+  discover_doc["process_time"] = millis() - started_ms; // debug
 }
 
 /**
@@ -5632,6 +5588,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
+     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
+
     doc["ch"][channel_idx]["active_condition"] = active_condition(channel_idx);
     // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
@@ -5687,7 +5645,7 @@ void set_time_settings()
   configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
 
   struct tm timeinfo;
-  if (!getLocalTime(&timeinfo, 10000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
+  if (!getLocalTime(&timeinfo, 3000) && (now < ACCEPTED_TIMESTAMP_MINIMUM))
   {
     log_msg(MSG_TYPE_ERROR, PSTR("Failed to obtain time"));
     time(&now_infunc);
@@ -5987,40 +5945,32 @@ void setup()
   // server_web.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, "/style.css", "text/css"); });
 
-  server_web.serveStatic("/js/", LittleFS, "/js/");
-  server_web.serveStatic("/css/", LittleFS, "/css/");
+  server_web.serveStatic("/js/", LittleFS, "/js/").setCacheControl("max-age=84600, public");  
+  server_web.serveStatic("/css/", LittleFS, "/css/").setCacheControl("max-age=84600, public");
+    // TODO: check authentication for files in /cache
+  server_web.serveStatic("/data/", LittleFS, "/data/").setCacheControl("max-age=84600, public");
+  server_web.serveStatic("/cache/", LittleFS, "/cache/");
 
-  //  /data/ui-constants.json
-  /*server_web.on("/ui-constants.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, ui_constants_filename, F("application/json")); });
-*/
+
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
+                { request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
   server_web.on("/favicon-32x32.png", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/data/favicon-32x32.png"), F("image/png")); });
+                { request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon-32x32.png"), F("image/png")); });
   server_web.on("/favicon-16x16.png", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, F("/data/favicon-16x16.png"), F("image/png")); });
+                {  request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon-16x16.png"), F("image/png")); });
 
   // refresh test
   server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, wifis_filename, "text/json"); });
 
-  // TODO: check authentication or relocate potentially sensitive files
-  server_web.serveStatic("/data/", LittleFS, "/data/");
 
-  // no authentication
-  // server_web.on("/data/templates", HTTP_GET, onWebTemplateGet);
 
   // debug
-  server_web.on("/data/config_in.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/data/config_in.json", F("application/json")); });
+  server_web.on("/cache/config_in.json", HTTP_GET, [](AsyncWebServerRequest *request)
+                { request->send(LittleFS, "/cache/config_in.json", F("application/json")); });
 
-  // server_web.on("/data/arska-mappings.json", HTTP_GET, [](AsyncWebServerRequest *request)
-  //               { request->send(LittleFS, "/data/arska-mappings.json", F("application/json")); });
-
-  // TODO: nämä voisi mennä yhdellä
-  server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, variables_filename, F("application/json")); });
+  //server_web.on(variables_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+  //              { request->send(LittleFS, variables_filename, F("application/json")); });
 
   server_web.on(price_data_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, price_data_filename, F("text/plain")); }); // "/price_data.json", miksi text/plain
@@ -6028,6 +5978,7 @@ void setup()
   // templates
   server_web.on(template_filename, HTTP_GET, [](AsyncWebServerRequest *request)
                 { request->send(LittleFS, template_filename, "text/json"); });
+              //  
 
   // server_web.on("/ui.html", HTTP_GET, [](AsyncWebServerRequest *request)
   //               { request->send(LittleFS, "/ui.html", "text/html"); });
@@ -6188,26 +6139,25 @@ void loop()
   // initial message
   if (now < ACCEPTED_TIMESTAMP_MINIMUM)
   {
-    delay(10000);
+    delay(3000);
     return;
   }
   else if (started == 0) // we have clock set
   {
+    delay(2000); //wait if we get more accurate time...?
+    time(&now);
     started = now;
+
+   // Serial.printf(PSTR("Started processing %ld \n"), started);
+
 
     if (config_resetted)
       log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
     else
       log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
 
-    set_time_settings(); // set tz info
+    //set_time_settings(); // set tz info
 
-    // experimental ota update, should be when wifi is up and  time is up-to-date
-    if (now < 1664446053)
-    { // skip it if the code is accidentally not commented out
-      Serial.println("Testing firmware update");
-      todo_in_loop_update_firmware_partition = true;
-    }
 
     ch_counters.init();
     next_query_price_data = now;
@@ -6261,7 +6211,8 @@ void loop()
   // just in case check the wifi and reconnect/restart if needed
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
-    for (int wait_loop = 0; wait_loop < 10; wait_loop++)
+    // Wait for the wifi to come up again 
+    for (int wait_loop = 0; wait_loop < 20; wait_loop++)
     {
       delay(1000);
       Serial.print('w');
@@ -6271,7 +6222,7 @@ void loop()
     if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
     {
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
-      delay(10000);
+      delay(2000);
       ESP.restart(); // boot if cannot recover wifi in time
     }
   }
@@ -6290,6 +6241,9 @@ void loop()
     Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start, grid_protection_delay_interval);
     period_changed = true;
     next_process_ts = now; // process now if new period
+
+    vars.rotate_period(); //experimental move
+
     update_time_based_variables();
   }
 
@@ -6359,15 +6313,8 @@ void loop()
       todo_in_loop_influx_write = true;
     }
 #endif
-    // experimental history processing
-    /*
-    net_imports[MAX_HISTORY_PERIODS - 1] = -vars.get_f(VARIABLE_SELLING_ENERGY);
-    // roll the history
-    for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
-      net_imports[h_idx] = net_imports[h_idx + 1];
-    net_imports[MAX_HISTORY_PERIODS - 1] = 0;
-*/
-    vars.rotate_period();
+  
+//vars.rotate_period(); experimental move
 
     previous_period_start = current_period_start;
     period_changed = false;

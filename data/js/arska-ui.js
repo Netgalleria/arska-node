@@ -60,17 +60,17 @@ function populate_releases() {
                 });
                 $('#releases\\:update').prop('disabled', false);
                 $('#sel_releases').prop('disabled', false);
-              
-                        
+
+
                 if (g_constants.VERSION_SHORT) {
                     version_base = g_constants.VERSION_SHORT.substring(0, g_constants.VERSION_SHORT.lastIndexOf('.'));
                     console.log('version_base', version_base);
                     $('#sel_releases option:contains(' + version_base + ')').append(' ***');
                     $('#sel_releases').val(version_base);
                 }
-               
 
-             //   $('#div_upd2').css('opacity', '1');
+
+                //   $('#div_upd2').css('opacity', '1');
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -194,6 +194,11 @@ const channel_html = `<div class="col">
                         <label for="ch_(ch#):uptime_minimum_m" class="form-label">Minimum uptime
                             (minutes)</label>
                         <input id="ch_(ch#):uptime_minimum_m" type="number" class="form-control" placeholder="5" min="0" step="1" max="480" >
+                    </div>
+                    <!--./col-->
+                    <div class="col-auto">
+                        <label for="ch_(ch#):priority" class="form-label">Priority</label>
+                        <input id="ch_(ch#):priority" type="number" class="form-control" placeholder="0" min="0" step="1" max="255" >
                     </div>
                     <!--./col-->
                     <div class="col-6 col-lg-auto">
@@ -438,7 +443,7 @@ function getCookie(cname) {
     return "";
 }
 
-let last_status_update = 0;
+let last_chart_update = 0;
 
 function createElem(tagName, id = null, value = null, class_ = "", type = null) {
     const elem = document.createElement(tagName);
@@ -461,6 +466,18 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
 // update variables and channels statuses to channels form
 function update_status(repeat) {
     console.log("update_status starting");
+    if (!(typeof Chart === 'function')) { //wait for chartJs script loading
+        setTimeout(function () { update_status(repeat); }, 2000);
+        return;
+    }
+    
+    //moratorium, do not query status from the controller during busiest times
+    const now_date = new Date();
+    if ((now_date.getSeconds() < 15) || (now_date.getMinutes() == 0)) {
+        setTimeout(function () { update_status(repeat); }, 10000);
+        return;
+    }
+    status_query_queued = false;
     /*
     if (document.getElementById("statusauto"))
         show_variables = document.getElementById("statusauto").checked;
@@ -470,31 +487,42 @@ function update_status(repeat) {
     show_variables = true;
     //TODO: add variable output
 
-    const interval_s = 30;
-    const process_time_s = 5;
+    const interval_s = 60;
+    const process_time_s = 15;
     let next_query_in = interval_s;
 
     now_ts = Date.now() / 1000;
-    if (Math.floor(now_ts / 3600) != Math.floor(last_status_update / 3600)) {
+    if (Math.floor(now_ts / 3600) != Math.floor(last_chart_update / 3600)) {
         console.log("Interval changed in update_status");
         //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
         price_chart_ok = create_price_chart();
-        if (price_chart_ok)
-            last_status_update = now_ts;
     }
-
-
 
     var jqxhr_obj = $.ajax({
         url: '/status',
+        cache: false,
         dataType: 'json',
         async: false,  //oli true
         success: function (data, textStatus, jqXHR) {
             console.log("got status data", textStatus, jqXHR.status);
+            // moved from chart creation create_price_chart
+            channel_history = data.channel_history;
+            variable_history = data.variable_history;
+            for (const variable_code in data.variable_history) {
+                for (i = 0; i < data.variable_history[variable_code].length; i++) {
+                    if (Math.abs(data.variable_history[variable_code][i]) > 1) {
+                        has_history_values[variable_code] = true;
+                        break;
+                    }
+                }
+            }
+
+            //** 
+
             msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
             if (data.hasOwnProperty('next_process_in'))
-                next_query_in = data.next_process_in + process_time_s;
+                next_query_in = data.next_process_in + process_time_s+ Math.floor(Math.random() * 20);
 
             if (msgdiv && (data.last_msg_ts > getCookie("msg_read"))) {
                 if (data.last_msg_type == 1)
@@ -589,18 +617,16 @@ function update_status(repeat) {
 
     if (repeat) {
         setTimeout(function () { update_status(true); }, next_query_in * 1000);
-        //   console.log("next_query_in", next_query_in)
     }
 }
 
 
 function populate_channel_status(channel_idx, ch) {
-    // console.log("populate_channel_status",channel_idx, ch);
     //TODO: update this to new...
-
     now_ts = Date.now() / 1000;
     // console.log(channel_idx,ch);
     sch_duration_c_span = document.getElementById(`sch_${channel_idx}:duration_c`);
+
     sch_start_c_span = document.getElementById(`sch_${channel_idx}:start_c`);
     sch_delete_radio = document.getElementById(`sch_${channel_idx}:delete`);
     sch_status_label = document.getElementById(`sch_${channel_idx}:status`);
@@ -609,9 +635,15 @@ function populate_channel_status(channel_idx, ch) {
 
 
     if ((ch.force_up_until > now_ts)) {
+        //same duration as scheduled
+        document.getElementById(`sch_${channel_idx}:duration`).value = parseInt((ch.force_up_until - ch.force_up_from) / 60); //same default duration for input/update
+        update_fup_schedule_element(channel_idx);
+        //document.getElementById(`sch_${channel_idx}:save`).disabled = false;
+
         duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
         duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
         sch_duration_c_span.innerHTML = duration_c_str;
+
         sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_up_until, false, true);
         //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
     }
@@ -640,34 +672,26 @@ function populate_channel_status(channel_idx, ch) {
     else if (ch.is_up) {
         if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
             info_text += "Up based on manual schedule.";
+        else if (!ch.wanna_be_up)
+            info_text += "Up, but going down.";
         else if (ch.active_condition > -1)
             info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
+
     }
     else {
-        if ((ch.active_condition > -1))
+        if (ch.wanna_be_up)
+            info_text += "Down, but going up.";
+        else if ((ch.active_condition > -1))
             info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
         else if ((ch.active_condition == -1))
             info_text += "Down, no matching rules. ";
+
     }
 
     sch_status_text_span.innerHTML = info_text;
     return;
 }
 
-/*
-function statusCBClicked(elCb) {
-    if (elCb.id == 'statusauto') {
-        if (elCb.checked) {
-            setTimeout(function () { update_status(false); }, 300);
-        }
-        document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
-    }
-    else if (elCb.id == 'cbShowPrices') {
-        setCookie("show_price_graph", elCb.checked ? 1 : 0);
-        create_price_chart();
-    }
-}
-*/
 
 
 function link_to_wiki(article_name) {
@@ -684,6 +708,8 @@ var net_exports = [];
 
 var has_history_values = {};
 var variable_history;
+var channel_history = [];
+
 
 var prices_first_ts = 0;
 var prices_last_ts = 0;
@@ -714,11 +740,12 @@ function get_dataset_price() {
     let price_data = null;
 
     $.ajax({
-        url: 'data/price-data.json',
+        url: '/cache/price-data.json',
+        cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            console.log('got data/price-data.json', textStatus, jqXHR.status);
+            console.log('got /cache/price-data.json', textStatus, jqXHR.status);
             price_data = data;
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -735,10 +762,12 @@ function create_price_chart() {
           return;
       }
   */
-    var channel_history = [];
+   // var channel_history = [];
     // experimental import query
+    /*
     var jqxhr_obj = $.ajax({
         url: '/status',
+        cache: false,
         dataType: 'json',
         async: false,  //oli true
         success: function (data, textStatus, jqXHR) {
@@ -759,8 +788,10 @@ function create_price_chart() {
             console.log("Cannot get status in price query", Date(Date.now()).toString(), textStatus, jqXHR.status);
         }
     });
+    */
 
-    let price_data = get_dataset_price();
+  //  let price_data = get_dataset_price();
+    
     if (price_data == null) {
         console.log("create_price_chart: no price data");
         return false;
@@ -1012,13 +1043,15 @@ function create_price_chart() {
         }
     });
 
-
-
-
-
     Chart.defaults.color = '#0a0a03';
     Chart.defaults.scales.borderColor = '#262623';
     document.getElementById("chart_container").style.display = "block";
+
+    last_chart_update = Date.now() / 1000;
+    
+    //document.getElementById("dashboard:refresh").classList.remove('d-none');
+    document.getElementById("dashboard:refresh").style.display = "block";
+
     return true;
 }
 
@@ -1035,11 +1068,13 @@ function get_price_data() {
     //await sleep(5000);
 
     $.ajax({
-        url: '/data/price-data.json',
+        url: '/cache/price-data.json',
+        cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            console.log('got /data/price-data.json', textStatus, jqXHR.status);
+            console.log('got /cache/price-data.json', textStatus, jqXHR.status);
+            price_data = data; //TODO: remove redundancy in variables
             prices = data.prices;
             prices_first_ts = data.record_start;
             prices_resolution_min = data.resolution_m;
@@ -1049,7 +1084,7 @@ function get_price_data() {
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get prices", textStatus, jqXHR.status);
-            setTimeout(function () { get_price_data(); }, 10000);
+            setTimeout(function () { get_price_data(); }, 40000);
         }
     });
 
@@ -1108,7 +1143,8 @@ function populate_wifi_ssid_list_2() {
     console.log("populate_wifi_ssid_list_2");
     $.ajax({
         type: "GET",
-        url: "/data/wifis.json",
+        url: "/cache/wifis.json",
+        cache: false,
         dataType: 'json',
         async: false,
         success: function (data) {
@@ -1138,23 +1174,8 @@ function populate_wifi_ssid_list() {
 //TODO: get from main.cpp
 const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440];
 
-/*
 
-function update_schedule_select_periodical() {
-    //remove schedule start times from history
-    let selects = document.querySelectorAll("input[id*=':duration']");
-    //sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
-    now_ts = Date.now() / 1000;
-    for (i = 0; i < selects.length; i++) {
-        for (j = selects[i].options.length - 1; j >= 0; j--) {
-            if (selects[i].options[j].value > 0 && selects[i].options[j].value < now_ts) {
-                console.log("Removing option ", j, selects[i].options[j].value);
-                selects[i].remove(j);
-            }
-        }
-    }
-} */
-function post_schedule_update(channel_idx, duration, start) {
+function post_schedule_update(channel_idx, duration, start, duration_old) {
     var scheds = [];
     // live_alert(`sch_${channel_idx}`, "Updating... 'success'");
     scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start });
@@ -1163,12 +1184,14 @@ function post_schedule_update(channel_idx, duration, start) {
     $.ajax({
         type: "POST",
         url: "/update.schedule",
+        cache: false,
         async: "false",
         data: JSON.stringify({ schedules: scheds }),
         contentType: "application/json",
         dataType: "json",
         success: function (data) {
-            document.getElementById(`sch_${channel_idx}:duration`).value = 60;
+            console.log(data);
+            document.getElementById(`sch_${channel_idx}:duration`).value = (duration == 0) ? 60 : duration;
             document.getElementById(`sch_${channel_idx}:start`).value = 0;
             document.getElementById(`sch_${channel_idx}:save`).disabled = false; // should not be needed
             // console.log("success", data);
@@ -1202,7 +1225,6 @@ function schedule_update(evt) {
     // if (duration == 0 || scheduled_ts == 0)
 
     setTimeout(function () { update_status(false); }, 1000); //update UI
-    // update_status(false); 
 }
 
 
@@ -1268,7 +1290,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         start_ts += 3600;
     }
     if (cheapest_index > -1) {
-        console.log("cheapest_ts", cheapest_ts)
+      //  console.log("cheapest_ts", cheapest_ts)
         sch_start_sel.value = cheapest_ts;
         sch_start_sel.options[cheapest_index + 1].innerHTML = sch_start_sel.options[cheapest_index + 1].innerHTML + " ***";
     }
@@ -1286,7 +1308,6 @@ function delete_schedule(evt) {
     document.getElementById(`sch_${channel_idx}:delete`).disabled = true;
     document.getElementById(`sch_${channel_idx}:start`).value = -1;
     setTimeout(function () { update_status(false); }, 1000); //update UI
-    //update_status(false);
 
 }
 
@@ -1304,6 +1325,7 @@ function load_application_config() {
     //current config
     $.ajax({
         type: "GET",
+        cache: false,
         url: '/settings',
         dataType: 'json',
         async: false,
@@ -1467,7 +1489,6 @@ function get_template_list() {
 
 
 function populateTemplateSel(selEl, template_id = -1) {
-    // console.log("populateTemplateSel");
     get_template_list();
     if (selEl.options && selEl.options.length > 1) {
         console.log("already populated", selEl.options.length);
@@ -1478,13 +1499,9 @@ function populateTemplateSel(selEl, template_id = -1) {
     for (i = 0; i < g_template_list.length; i++) {
         addOption(selEl, g_template_list[i]["id"], g_template_list[i]["id"] + " - " + g_template_list[i]["name"], (template_id == g_template_list[i]["id"]));
     }
-    /*
-    $.getJSON('/data/template-list.json', function (data) {
-        $.each(data, function (i, row) {
-            addOption(selEl, row["id"], row["id"] + " - " + _ltext(row, "name"), (template_id == row["id"]));
-        });
-    });*/
+
 }
+
 //KESKEN
 function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
     template_id_ctrl = document.getElementById(`ch_${channel_idx}:template_id`);
@@ -1757,7 +1774,6 @@ function changed_template(ev, selEl) {
 
 //todo: data as parameter?
 function populate_channel(channel_idx) {
-    //  console.log("populate_channel", channel_idx);
 
     now_ts = Date.now() / 1000;
 
@@ -1784,16 +1800,8 @@ function populate_channel(channel_idx) {
     update_fup_schedule_element(channel_idx, current_start_ts);
     /////sch_(ch#):card
 
-    // console.log("g_config.ch:" + JSON.stringify(g_config.ch[channel_idx]));
-
-    ///// document.getElementById(`sch_${channel_idx}:card`).style.display = ((g_config.ch[channel_idx]["type"] == 0) ? "none" : "block");
-
-    // $(`sch_${channel_idx}:card`).prop('disabled', g_config.ch[channel_idx]["type"] == 0);
     if (g_config.ch[channel_idx]["type"] == 0)
         document.getElementById(`sch_${channel_idx}:card`).classList.add("opacity-50")
-
-
-    // console.log("g_config.ch:" + JSON.stringify(g_config.ch[channel_idx]));
 
     // end of scheduling
 
@@ -1805,6 +1813,7 @@ function populate_channel(channel_idx) {
 
     // console.log("channel_color", channel_idx, (g_config.ch[channel_idx]["channel_color"]), g_config.ch[channel_idx]["channel_color"]);
     document.getElementById(`ch_${channel_idx}:channel_color`).value = (g_config.ch[channel_idx]["channel_color"]);
+    document.getElementById(`ch_${channel_idx}:priority`).value = (g_config.ch[channel_idx]["priority"]);
 
     populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), g_config.ch[channel_idx]["template_id"]);
 
@@ -1826,8 +1835,6 @@ function populate_channel(channel_idx) {
             this_rule = g_config.ch[channel_idx]["rules"][rule_idx];
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = this_rule["on"] ? false : true;
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
-
-
             for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_constants.RULE_STATEMENTS_MAX); stmt_idx++) {
                 this_stmt = this_rule["stmts"][stmt_idx];
 
@@ -2048,9 +2055,8 @@ function do_backup() {
 
 //https://stackoverflow.com/questions/14446447/how-to-read-a-local-text-file-in-the-browser
 // restore config (with reset)
-var openFile = function (event) {
+var restore_config = function (event) {
     var input = event.target;
-
     var reader = new FileReader();
     reader.onload = function () {
         var text = reader.result;
@@ -2060,8 +2066,10 @@ var openFile = function (event) {
 
         $.ajax({
             url: "/settings-restore", //window.location.pathname,
+            cache: false,
             type: 'POST',
-            contentType: "application/json;charset=ISO-8859-1",
+            //  contentType: "application/json;charset=ISO-8859-1",
+            contentType: "application/json",
             data: text,
             processData: false,
             success: function (data) {
@@ -2077,41 +2085,9 @@ var openFile = function (event) {
             contentType: false,
             processData: false
         });
-
-
-
     };
     reader.readAsText(input.files[0]);
 };
-
-function restore_config(evt) {
-
-    evt.preventDefault();
-    var formData = new FormData(document.getElementById("restore_form"));
-
-    console.log(formData);
-    $.ajax({
-        url: "/settings", //window.location.pathname,
-        type: 'POST',
-        data: formData,
-        success: function (data) {
-            // alert(data)
-            live_alert("admin", "Settings restored", 'success');
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot post config", textStatus, jqXHR.status);
-            live_alert("admin", "Cannot restore settings.", 'warning');
-        },
-        cache: false,
-        contentType: false,
-        processData: false
-    });
-
-
-    //  live_alert("admin", "Response comes here. Sending:\n" + JSON.stringify(post_data), 'success');
-
-
-}
 
 
 function create_channels() {
@@ -2170,8 +2146,8 @@ function create_channels() {
                 }
             }
 
-            // populate data
-            populate_channel(channel_idx);
+            // populate data, delayed
+            //populate_channel(channel_idx);
         }
 
         //Schedulings listeners
@@ -2206,6 +2182,12 @@ function create_channels() {
     }
     else {
         console.log("Feather icons undefined.");
+    }
+}
+
+function populate_channels() {
+    for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
+        populate_channel(channel_idx);
     }
 
 }
@@ -2243,11 +2225,12 @@ function jump(section_id_full) {
 function compare_wifis(a, b) {
     return ((a.rssi > b.rssi) ? -1 : 1);
 }
-
+/*
 function initWifiForm() {
     var wifisp = null;
     $.ajax({
-        url: '/data/wifis.json',
+        url: '/cache/wifis.json',
+        cache: false,
         dataType: 'json',
         async: false,
         success: function (data) { wifisp = data; console.log("got wifis"); },
@@ -2281,7 +2264,7 @@ function initWifiForm() {
         }
     });
 }
-
+*/
 function init_ui() {
     console.log("init_ui");
     get_price_data(); //TODO: also update at 2pm
@@ -2337,16 +2320,13 @@ function init_ui() {
         // console.log("Action added " + input_controls[i].id);
     }
 
-    //create_price_chart();//TODO: timing, refresh, synch with update_status
-    setTimeout(function () { create_price_chart; }, 60);
+    // delay loading
+    var script = document.createElement('script');
+    script.src = "/js/chart.min.3.9.1.js";
+    document.getElementsByTagName('body')[0].appendChild(script);
 
-    initWifiForm();
 
-    // populate_wifi_ssid_list();
-    update_status(true);
-
-    // const exampleEl = document.getElementById('tooltiptest');
-    // const tooltip = new bootstrap.Tooltip(exampleEl);
+    setTimeout(function () { populate_channels(); update_status(true);}, 2*1000);
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
@@ -2388,7 +2368,6 @@ function find_pid(el, id) {
             return p;
     return null;
 }
-// <div class="card  mb-3" id="price_data:card">
 function find_parent_card(el) {
     var p = el;
     while (p = p.parentNode) {
@@ -2415,10 +2394,10 @@ function ctrl_changed(ev) {
     }
 }
 function launch_action(action, card_id, params) {
-  //  var post_data = { "action": action };
+    //  var post_data = { "action": action };
     let post_data = Object.assign({ "action": action }, params);
 
-    console.log("post_data",post_data);
+    console.log("post_data", post_data);
 
     if (card_id)
         live_alert(card_id, "Sending:\n" + JSON.stringify(post_data), 'success');
@@ -2427,6 +2406,7 @@ function launch_action(action, card_id, params) {
     $.ajax({
         type: "POST",
         url: "/actions",
+        cache: false,
         async: "false",
         data: JSON.stringify(post_data),
         contentType: "application/json;",
@@ -2470,7 +2450,7 @@ function start_fw_update() {
         }
         else
             return;
-    } 
+    }
 }
 
 
@@ -2490,6 +2470,7 @@ function save_channel(ev) {
     data_ch["uptime_minimum"] = parseInt(document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value * 60);
 
     data_ch["channel_color"] = document.getElementById(`ch_${channel_idx}:channel_color`).value;
+    data_ch["priority"] = document.getElementById(`ch_${channel_idx}:priority`).value;
 
     data_ch["template_id"] = parseInt(document.getElementById(`ch_${channel_idx}:template_id`).value);
 
@@ -2535,6 +2516,7 @@ function save_channel(ev) {
     $.ajax({
         type: "POST",
         url: "/settings",
+        cache: false,
         async: "false",
         data: JSON.stringify(post_data),
         contentType: "application/json;",
@@ -2556,11 +2538,11 @@ function toggle_show(el) {
     console.log(el.id);
     target_id = el.id.replace('_hide', '').replace('_show', '');
     target = document.getElementById(target_id);
- /*   is_show = target_id.includes('_show');
-    the_other_id = target_id + (is_show ? "_hide" : "_show");
-    console.log(target_id,"#", the_other_id);
-    the_other_el = document.getElementById(the_other_id);
-*/
+    /*   is_show = target_id.includes('_show');
+       the_other_id = target_id + (is_show ? "_hide" : "_show");
+       console.log(target_id,"#", the_other_id);
+       the_other_el = document.getElementById(the_other_id);
+   */
     var show_eye = document.getElementById(target_id + "_show");
     var hide_eye = document.getElementById(target_id + "_hide");
 
@@ -2576,10 +2558,10 @@ function toggle_show(el) {
         hide_eye.style.display = "none";
     }
 
-    
-   // el.classList.add('d-none');
-   // el.classList.remove('d-none');
-   // the_other_el.classList.remove('d-none');
+
+    // el.classList.add('d-none');
+    // el.classList.remove('d-none');
+    // the_other_el.classList.remove('d-none');
 
 
 }
@@ -2595,13 +2577,13 @@ function save_card(ev) {
     for (let i = 0; i < elems.length; i++) {
         console.log("POST:" + elems[i].id + ", " + elems[i].type.toLowerCase())
         if (elems[i].id == 'http_password') {
-           // console.log(elems[i].id, elems[i].value, document.getElementById('http_password2').value);
+            // console.log(elems[i].id, elems[i].value, document.getElementById('http_password2').value);
             if (elems[i].value != document.getElementById('http_password2').value) {
                 live_alert(card, "Passwords don't match", "warning");
                 return;
             }
         }
-      
+
         if (elems[i].type.toLowerCase() == 'checkbox') {
             post_data[elems[i].id] = elems[i].checked;
         }
@@ -2610,13 +2592,12 @@ function save_card(ev) {
         }
     }
 
-
-
     live_alert(card, "Sending:" + JSON.stringify(post_data), 'success');
 
     $.ajax({
         type: "POST",
         url: "/settings",
+        cache: false,
         async: "false",
         data: JSON.stringify(post_data),
         contentType: "application/json",

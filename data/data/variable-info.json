@@ -107,6 +107,10 @@
         "id": "hhmm",
         "en": "current hour and minute, e.g. 1200 - noon"
     },
+    "117": {
+        "id": "minutes",
+        "en": "current minutes, 0-59"
+    },
     "130": {
         "id": "day",
         "en": "true if day tariff (Finnish tariff, 0700-2200) effective"
