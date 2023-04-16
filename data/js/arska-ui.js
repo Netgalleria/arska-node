@@ -462,6 +462,19 @@ function createElem(tagName, id = null, value = null, class_ = "", type = null) 
     return elem;
 }
 
+// graph
+//var prices = [];
+var price_data = null;
+var net_exports = [];
+
+let has_history_values = {};
+var variable_history;
+var channel_history = [];
+
+var prices_first_ts = 0;
+var prices_last_ts = 0;
+var prices_resolution_min = 60;
+var prices_expires = 0;
 
 // update variables and channels statuses to channels form
 function update_status(repeat) {
@@ -470,20 +483,15 @@ function update_status(repeat) {
         setTimeout(function () { update_status(repeat); }, 2000);
         return;
     }
-    
-    //moratorium, do not query status from the controller during busiest times
+
+    //moratorium, do not query status from the controller during busiest processing times
     const now_date = new Date();
-    if ((now_date.getSeconds() < 15) || (now_date.getMinutes() == 0)) {
-        setTimeout(function () { update_status(repeat); }, 10000);
+    if ((now_date.getSeconds() < 10) || (now_date.getMinutes() == 0 && now_date.getSeconds() < 30)) {
+        setTimeout(function () { update_status(repeat); }, 5000);
         return;
     }
     status_query_queued = false;
-    /*
-    if (document.getElementById("statusauto"))
-        show_variables = document.getElementById("statusauto").checked;
-    else
-        show_variables = false;
-        */
+
     show_variables = true;
     //TODO: add variable output
 
@@ -491,18 +499,12 @@ function update_status(repeat) {
     const process_time_s = 15;
     let next_query_in = interval_s;
 
-    now_ts = Date.now() / 1000;
-    if (Math.floor(now_ts / 3600) != Math.floor(last_chart_update / 3600)) {
-        console.log("Interval changed in update_status");
-        //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
-        price_chart_ok = create_price_chart();
-    }
 
     var jqxhr_obj = $.ajax({
         url: '/status',
         cache: false,
         dataType: 'json',
-        async: false,  //oli true
+        async: false,
         success: function (data, textStatus, jqXHR) {
             console.log("got status data", textStatus, jqXHR.status);
             // moved from chart creation create_price_chart
@@ -522,7 +524,7 @@ function update_status(repeat) {
             msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
             if (data.hasOwnProperty('next_process_in'))
-                next_query_in = data.next_process_in + process_time_s+ Math.floor(Math.random() * 20);
+                next_query_in = data.next_process_in + process_time_s + Math.floor(Math.random() * 10);
 
             if (msgdiv && (data.last_msg_ts > getCookie("msg_read"))) {
                 if (data.last_msg_type == 1)
@@ -565,6 +567,7 @@ function update_status(repeat) {
 
             document.getElementById("db:price_v").innerHTML = price;
 
+            now_ts = Date.now() / 1000;
             now_period_start = parseInt(now_ts / 3600) * 3000;
             // TODO: update
 
@@ -598,6 +601,16 @@ function update_status(repeat) {
             $.each(data.ch, function (i, ch) {
                 populate_channel_status(i, ch)
             });
+
+            
+            if (Math.floor(now_ts / 3600) != Math.floor(last_chart_update / 3600)) {
+                console.log("Interval changed in update_status");
+                //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
+                price_chart_ok = create_price_chart();
+            }
+
+
+
 
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -638,7 +651,6 @@ function populate_channel_status(channel_idx, ch) {
         //same duration as scheduled
         document.getElementById(`sch_${channel_idx}:duration`).value = parseInt((ch.force_up_until - ch.force_up_from) / 60); //same default duration for input/update
         update_fup_schedule_element(channel_idx);
-        //document.getElementById(`sch_${channel_idx}:save`).disabled = false;
 
         duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
         duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
@@ -702,19 +714,7 @@ function get_date_string_from_ts(ts) {
     tmpDate = new Date(ts * 1000);
     return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
 }
-// graph
-var prices = [];
-var net_exports = [];
 
-var has_history_values = {};
-var variable_history;
-var channel_history = [];
-
-
-var prices_first_ts = 0;
-var prices_last_ts = 0;
-var prices_resolution_min = 60;
-var prices_expires = 0;
 
 
 function sleep(ms) {
@@ -732,9 +732,7 @@ function ts_date_time(ts, include_year = true) {
 }
 
 let price_chart_dataset = [];
-
-function update_price_chart() {
-}
+/*
 
 function get_dataset_price() {
     let price_data = null;
@@ -755,14 +753,14 @@ function get_dataset_price() {
     });
     return price_data;
 }
-
+*/
 function create_price_chart() {
     /*  if (!document.getElementById("cbShowPrices").checked) {
           document.getElementById("chart_container").style.display = "none";
           return;
       }
   */
-   // var channel_history = [];
+    // var channel_history = [];
     // experimental import query
     /*
     var jqxhr_obj = $.ajax({
@@ -790,13 +788,8 @@ function create_price_chart() {
     });
     */
 
-  //  let price_data = get_dataset_price();
-    
-    if (price_data == null) {
-        console.log("create_price_chart: no price data");
-        return false;
-    }
-    const ctx = document.getElementById('day_ahead_chart').getContext('2d');
+    //  let price_data = get_dataset_price();
+
     let date;
     let time_labels = [];
     let prices_out = [];
@@ -804,14 +797,39 @@ function create_price_chart() {
     let now_idx = 0;
     let now_idx_chh = 23;
     now_ts = (Date.now() / 1000);
+    let price_data_exists = true
+
+    if (price_data == null) {
+        console.log("create_price_chart: no price data");
+        price_data_exists = false;
+
+        // 48 periods
+        chart_start_ts = parseInt(now_ts / 3600) * 3600 - (24 * 3600);
+        chart_end_excl_ts = chart_start_ts + (48 * 3600);
+        chart_resolution_m = 60;
+        now_idx = 24;
+        now_idx_chh = 24;
+        //    return false;
+    }
+    else {
+        chart_start_ts = price_data.record_start;
+        chart_end_excl_ts = price_data.record_end_excl;
+        chart_resolution_m = price_data.resolution_m;
+    }
+    const ctx = document.getElementById('day_ahead_chart').getContext('2d');
+
 
     var tz_offset = new Date().getTimezoneOffset();
-    start_date_str = ts_date_time(price_data.record_start, false) + ' - ' + ts_date_time(price_data.record_end_excl - 3600, false);
+    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - 3600, false);
 
-    for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += (price_data.resolution_m * 60)) {
+    // now history, if values exists
+    var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
+    if (chartExist != undefined)
+        chartExist.destroy();
+
+    for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_m * 60)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
-
         date = new Date(ts * 1000);
         day_diff_now = parseInt((ts - tz_offset * 60) / 86400) - parseInt(now_ts / 86400);
         if (day_diff_now != 0)
@@ -819,33 +837,42 @@ function create_price_chart() {
         else
             day_str = " ";
         time_labels.push(pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes()) + day_str);
-        prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
+
+        if (price_data_exists)
+            prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
         idx++;
     }
 
-    // now history, if values exists
-    var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
-    if (chartExist != undefined)
-        chartExist.destroy();
-    // const
-    datasets = [{
-        label: 'price ¢/kWh',
-        data: prices_out,
-        yAxisID: 'yp',
-        borderColor: ['#2376DD'
-        ],
-        backgroundColor: '#2376DD',
-        pointStyle: 'none',
-        pointRadius: 0,
-        pointHoverRadius: 5,
-        fill: false,
-        stepped: true,
-        borderWidth: 2
+    if (price_data_exists) {
+        datasets = [{
+            label: 'price ¢/kWh',
+            data: prices_out,
+            yAxisID: 'yp',
+            borderColor: ['#2376DD'
+            ],
+            backgroundColor: '#2376DD',
+            pointStyle: 'none',
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            fill: false,
+            stepped: true,
+            borderWidth: 2
+        }
+        ];
     }
-    ];
+    else
+        datasets = [];
+
+    console.log("now_idx", now_idx);
 
     var new_ds = [];
+    has_history_values["999"] = true;
+    console.log("has_history_values", has_history_values);
+
+    // iterate
+
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
+        console.log("VARIABLE_SELLING_ENERGY");
         dataset_started = false;
         for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
@@ -873,6 +900,7 @@ function create_price_chart() {
     }
 
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
+        console.log("VARIABLE_PRODUCTION_ENERGY");
         dataset_started = false;
         let new_ds = [];
         for (h_idx = variable_history[VARIABLE_PRODUCTION_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
@@ -901,19 +929,19 @@ function create_price_chart() {
     }
 
     var channel_dataset;
-    now_period_start = parseInt(now_ts / 3600) * 3000;
+    now_period_start = parseInt(now_ts / 3600) * 3600;
     first_chh_period = now_period_start - 23 * 3600;
     console.log("now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
             continue;
         channel_dataset = [];
-        dataset_started = true;
+        dataset_started = false;
         // for (chh_idx = 0; chh_idx < channel_history[channel_idx].length; chh_idx++) {
         // for (h_idx = 36 - 1 - now_idx; h_idx < 36; h_idx++) {
         for (h_idx = 0; h_idx < 36; h_idx++) {
             chh_idx = h_idx + now_idx_chh - now_idx;
-            //console.log("chh_idx",chh_idx);
+            console.log("chh_idx",chh_idx);
             if (chh_idx < 0)
                 channel_dataset.push(null);
             else if (chh_idx > 23)
@@ -922,10 +950,11 @@ function create_price_chart() {
                 if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                     dataset_started = true;
                 channel_dataset.push(dataset_started ? channel_history[channel_idx][chh_idx] : null);
+            //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
             }
         }
 
-        console.log("channel_history", channel_idx, channel_history[channel_idx]);
+      //  console.log("channel_history", channel_idx, channel_history[channel_idx]);
         console.log("channel_dataset", channel_dataset);
         datasets.push({
             label: g_config.ch[channel_idx]["id_str"],
@@ -1048,7 +1077,7 @@ function create_price_chart() {
     document.getElementById("chart_container").style.display = "block";
 
     last_chart_update = Date.now() / 1000;
-    
+
     //document.getElementById("dashboard:refresh").classList.remove('d-none');
     document.getElementById("dashboard:refresh").style.display = "block";
 
@@ -1068,19 +1097,20 @@ function get_price_data() {
     //await sleep(5000);
 
     $.ajax({
-        url: '/cache/price-data.json',
+        url: '/prices',//'/cache/price-data.json',
         cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            console.log('got /cache/price-data.json', textStatus, jqXHR.status);
-            price_data = data; //TODO: remove redundancy in variables
-            prices = data.prices;
-            prices_first_ts = data.record_start;
-            prices_resolution_min = data.resolution_m;
-            prices_last_ts = prices_first_ts + (prices.length - 1) * (prices_resolution_min * 60);
-            prices_expires = data.expires;
-            setTimeout(function () { get_price_data(); }, 1800000);
+            if (data.expires > now_ts) {
+                console.log('got /prices', textStatus, jqXHR.status);
+                price_data = data; //TODO: remove redundancy in variables
+                prices_first_ts = data.record_start;
+                prices_resolution_min = data.resolution_m;
+                prices_last_ts = prices_first_ts + (price_data.prices.length - 1) * (prices_resolution_min * 60);
+                prices_expires = data.expires;
+                setTimeout(function () { get_price_data(); }, 1800000);
+            }
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get prices", textStatus, jqXHR.status);
@@ -1091,7 +1121,7 @@ function get_price_data() {
 }
 
 function get_price_for_segment(start_ts, end_ts = 0) {
-    if (prices.length == 0) { //prices (not yet) populated
+    if (price_data === null || price_data.prices === null || price_data.prices.length == 0) { //prices (not yet) populated
         console.log("get_price_for_segment, prices not populated              ");
         return -VARIABLE_LONG_UNKNOWN;
     }
@@ -1105,7 +1135,7 @@ function get_price_for_segment(start_ts, end_ts = 0) {
 
     for (cur_ts = start_ts; cur_ts <= end_ts; cur_ts += (prices_resolution_min * 60)) {
         price_idx = (cur_ts - prices_first_ts) / (prices_resolution_min * 60);
-        price_sum += prices[price_idx];
+        price_sum += price_data.prices[price_idx];
         price_count++;
     }
     var segment_price_avg = (price_sum / price_count) / 1000;
@@ -1290,7 +1320,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         start_ts += 3600;
     }
     if (cheapest_index > -1) {
-      //  console.log("cheapest_ts", cheapest_ts)
+        //  console.log("cheapest_ts", cheapest_ts)
         sch_start_sel.value = cheapest_ts;
         sch_start_sel.options[cheapest_index + 1].innerHTML = sch_start_sel.options[cheapest_index + 1].innerHTML + " ***";
     }
@@ -1946,7 +1976,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
 
     el_var = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`);
     el_const = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
-    console.log(el_oper.id, `ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
+    //console.log(el_oper.id, `ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
 
     el_const.value = stmt[2];
 
@@ -1959,7 +1989,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
         }
     }
 
-    console.log(var_this);
+    //console.log(var_this);
     var show_constant = false;
     if (var_this) {
         //populate oper select
@@ -2326,7 +2356,7 @@ function init_ui() {
     document.getElementsByTagName('body')[0].appendChild(script);
 
 
-    setTimeout(function () { populate_channels(); update_status(true);}, 2*1000);
+    setTimeout(function () { populate_channels(); update_status(true); }, 2 * 1000);
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));

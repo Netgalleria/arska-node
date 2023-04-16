@@ -18,7 +18,9 @@
         "cmath": "cpp",
         "functional": "cpp",
         "cstdlib": "cpp",
-        "*.tcc": "cpp"
+        "*.tcc": "cpp",
+        "sntp.h": "c",
+        "sntp_opts.h": "c"
     },
     "C_Cpp.dimInactiveRegions": false,
     "liveServer.settings.port": 5501
