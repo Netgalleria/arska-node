@@ -87,6 +87,11 @@ function completeHandler(event) { _('status').innerHTML = event.target.responseT
 function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; }
 function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; }
 
+function whatDecimalSeparator() {
+    var n = 1.1;
+    n = n.toLocaleString().substring(1, 2);
+    return n;
+}
 
 const template_form_html = `<div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
 <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
@@ -402,7 +407,7 @@ const stmt_html = `<div class="row g-1">
 </div>
 <div class="col col-3">
     <input id="ch_#:r_#:s_#:const"
-        type="text"
+        type="number"
         class="form-control visible"
         placeholder="value"
         aria-label="value">
@@ -485,12 +490,11 @@ function update_status(repeat) {
     }
 
     //moratorium, do not query status from the controller during busiest processing times
-    const now_date = new Date();
+    /*const now_date = new Date();
     if ((now_date.getSeconds() < 10) || (now_date.getMinutes() == 0 && now_date.getSeconds() < 30)) {
         setTimeout(function () { update_status(repeat); }, 5000);
         return;
-    }
-    status_query_queued = false;
+    } */
 
     show_variables = true;
     //TODO: add variable output
@@ -518,11 +522,11 @@ function update_status(repeat) {
                     }
                 }
             }
-
             //** 
 
             msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
+
             if (data.hasOwnProperty('next_process_in'))
                 next_query_in = data.next_process_in + process_time_s + Math.floor(Math.random() * 10);
 
@@ -546,17 +550,19 @@ function update_status(repeat) {
             // "db:production_period"
             // em_period_s = parseInt(data.energym_read_last / 3600) * 3600; 
             // em_period_s_date = new Date(em_period_s * 1000);
+            document.getElementById("started_str").innerHTML = ts_date_time(data.started);
+
 
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
             document.getElementById("db:export_v").innerHTML = selling;
 
             now_period_start = Math.max(data.started, parseInt(data.ts / 3600) * 3600);
-            em_period_s_date = new Date(now_period_start * 1000);
-            em_period_e_date = new Date(data.ts * 1000);
+            // em_period_s_date = new Date(now_period_start * 1000);
+            //  em_period_e_date = new Date(data.ts * 1000);
 
             ///localtime
-            document.getElementById("db:current_period").innerHTML = "(" + em_period_s_date.toLocaleTimeString().substring(0, 5) + "-" + em_period_e_date.toLocaleTimeString().substring(0, 5) + ")";
-
+            //document.getElementById("db:current_period").innerHTML = "(" + em_period_s_date.toLocaleTimeString('fi-FI', { hour12: false }).substring(0, 5) + "-" + em_period_e_date.toLocaleTimeString('fi-FI', { hour12: false }).substring(0, 5) + ")";
+            document.getElementById("db:current_period").innerHTML = "(" + get_time_string_from_ts(now_period_start, false) + "-" + get_time_string_from_ts(data.ts, false) + ")";
             document.getElementById("db:production_d").style.display = isNaN(data.variables[VARIABLE_PRODUCTION_ENERGY]) ? "none" : "block";
 
             if (!isNaN(data.variables[VARIABLE_PRODUCTION_POWER])) {
@@ -567,6 +573,16 @@ function update_status(repeat) {
 
             document.getElementById("db:price_v").innerHTML = price;
 
+            //sensor values
+            for (s_idx = 201; s_idx <= 203; s_idx++) {
+                sensor_has_value = !isNaN(data.variables[s_idx.toString()]);
+                if (sensor_has_value) {
+                    document.getElementById(`db:s_${s_idx}:val`).innerHTML = data.variables[s_idx.toString()] + "&deg;C";
+                }
+                document.getElementById(`db:s_${s_idx}:div`).style.display = sensor_has_value ? "block" : "none";
+            }
+
+
             now_ts = Date.now() / 1000;
             now_period_start = parseInt(now_ts / 3600) * 3000;
             // TODO: update
@@ -574,21 +590,26 @@ function update_status(repeat) {
             if (show_variables) {
                 //   document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
                 $("#tblVariables_tb").empty();
-                $.each(data.variables, function (i, variable) {
-                    var_this = getVariable(i);
-                    if (var_this[0] in variable_list)
-                        variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
-                    else
-                        variable_desc = "";
-                    //  id_str = ' (' + var_this[0] + ') ' + var_this[1];
-                    if (var_this[2] == 50 || var_this[2] == 51)
-                        var_type = "logical";
-                    else
-                        var_type = "numeric";
+                $.each(data.variables, function (id, variable) {
+                    if (id == 152 || id == 153)
+                        console.log(id, variable);
+                    var_this = getVariable(id);
+                    variable_name = "";
+                    variable_desc = "";
+                    if (var_this) {
+                        if (var_this[0] in variable_list) {
+                            variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                        }
+                        if (Array.isArray(variable)) {
+                            var_value = JSON.stringify(variable);
+                        }
+                        else {
+                            var_value = variable.replace('"', '').replace('"', '');
+                        }
+                        newRow = '<tr><th scope="row">' + var_this[0] + '</th><td>' + var_this[1] + '</td><td>' + var_value + '</td><td>' + variable_desc + '</td></tr>';
+                        $(newRow).appendTo($("#tblVariables_tb"));
+                    }
 
-                    newRow = '<tr><th scope="row">' + var_this[0] + '</th><td>' + var_this[1] + '</td><td>' + variable.replace('"', '').replace('"', '') + '</td><td>' + variable_desc + '</td></tr>';
-
-                    $(newRow).appendTo($("#tblVariables_tb"));
                 });
 
                 // $('#vars_updated').text('updated: ' + data.localtime.substring(11));
@@ -602,8 +623,8 @@ function update_status(repeat) {
                 populate_channel_status(i, ch)
             });
 
-            
-            if (Math.floor(now_ts / 3600) != Math.floor(last_chart_update / 3600)) {
+
+            if (Math.floor(now_ts / 600) != Math.floor(last_chart_update / 600)) {
                 console.log("Interval changed in update_status");
                 //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
                 price_chart_ok = create_price_chart();
@@ -710,10 +731,6 @@ function link_to_wiki(article_name) {
     return '<a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/' + article_name + '">ℹ</a>';
 }
 
-function get_date_string_from_ts(ts) {
-    tmpDate = new Date(ts * 1000);
-    return tmpDate.getFullYear() + '-' + ('0' + (tmpDate.getMonth() + 1)).slice(-2) + '-' + ('0' + tmpDate.getDate()).slice(-2) + ' ' + tmpDate.toLocaleTimeString();
-}
 
 
 
@@ -732,64 +749,8 @@ function ts_date_time(ts, include_year = true) {
 }
 
 let price_chart_dataset = [];
-/*
 
-function get_dataset_price() {
-    let price_data = null;
-
-    $.ajax({
-        url: '/cache/price-data.json',
-        cache: false,
-        dataType: 'json',
-        async: false,
-        success: function (data, textStatus, jqXHR) {
-            console.log('got /cache/price-data.json', textStatus, jqXHR.status);
-            price_data = data;
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get prices", textStatus, jqXHR.status);
-            document.getElementById("chart_container").style.display = "none";
-        }
-    });
-    return price_data;
-}
-*/
 function create_price_chart() {
-    /*  if (!document.getElementById("cbShowPrices").checked) {
-          document.getElementById("chart_container").style.display = "none";
-          return;
-      }
-  */
-    // var channel_history = [];
-    // experimental import query
-    /*
-    var jqxhr_obj = $.ajax({
-        url: '/status',
-        cache: false,
-        dataType: 'json',
-        async: false,  //oli true
-        success: function (data, textStatus, jqXHR) {
-            channel_history = data.channel_history;
-
-            variable_history = data.variable_history;
-            for (const variable_code in data.variable_history) {
-                for (i = 0; i < data.variable_history[variable_code].length; i++) {
-                    if (Math.abs(data.variable_history[variable_code][i]) > 1) {
-                        has_history_values[variable_code] = true;
-                        break;
-                    }
-                }
-            }
-            console.log("has_history_values", has_history_values);
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get status in price query", Date(Date.now()).toString(), textStatus, jqXHR.status);
-        }
-    });
-    */
-
-    //  let price_data = get_dataset_price();
-
     let date;
     let time_labels = [];
     let prices_out = [];
@@ -804,11 +765,12 @@ function create_price_chart() {
         price_data_exists = false;
 
         // 48 periods
-        chart_start_ts = parseInt(now_ts / 3600) * 3600 - (24 * 3600);
+        //  chart_start_ts = parseInt(now_ts / 3600) * 3600 - (24 * 3600);
+        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (3600);
         chart_end_excl_ts = chart_start_ts + (48 * 3600);
         chart_resolution_m = 60;
-        now_idx = 24;
-        now_idx_chh = 24;
+        now_idx = 0; //oli 24 pitäisikö olla 23? 
+        now_idx_chh = 23; //oli 23
         //    return false;
     }
     else {
@@ -817,7 +779,6 @@ function create_price_chart() {
         chart_resolution_m = price_data.resolution_m;
     }
     const ctx = document.getElementById('day_ahead_chart').getContext('2d');
-
 
     var tz_offset = new Date().getTimezoneOffset();
     start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - 3600, false);
@@ -866,20 +827,19 @@ function create_price_chart() {
     console.log("now_idx", now_idx);
 
     var new_ds = [];
-    has_history_values["999"] = true;
     console.log("has_history_values", has_history_values);
 
     // iterate
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
-        console.log("VARIABLE_SELLING_ENERGY");
+        //    console.log("VARIABLE_SELLING_ENERGY");
         dataset_started = false;
         for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
                 dataset_started = true;
             new_ds.push(dataset_started ? -variable_history[VARIABLE_SELLING_ENERGY][h_idx] : null);
         }
-        console.log("new_ds ", VARIABLE_SELLING_ENERGY, new_ds);
+        // console.log("new_ds ", VARIABLE_SELLING_ENERGY, new_ds);
         if (dataset_started)
             datasets.push(
                 {
@@ -937,25 +897,25 @@ function create_price_chart() {
             continue;
         channel_dataset = [];
         dataset_started = false;
-        // for (chh_idx = 0; chh_idx < channel_history[channel_idx].length; chh_idx++) {
-        // for (h_idx = 36 - 1 - now_idx; h_idx < 36; h_idx++) {
+
+        console.log("chh_idx [x - x [", now_idx_chh - now_idx, 35 + now_idx_chh - now_idx);
         for (h_idx = 0; h_idx < 36; h_idx++) {
             chh_idx = h_idx + now_idx_chh - now_idx;
-            console.log("chh_idx",chh_idx);
+            //  console.log("chh_idx",chh_idx);
             if (chh_idx < 0)
                 channel_dataset.push(null);
-            else if (chh_idx > 23)
+            else if (chh_idx > 23) //?
                 break;
             else {
                 if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                     dataset_started = true;
                 channel_dataset.push(dataset_started ? channel_history[channel_idx][chh_idx] : null);
-            //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
+                //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
             }
         }
 
-      //  console.log("channel_history", channel_idx, channel_history[channel_idx]);
-        console.log("channel_dataset", channel_dataset);
+        // console.log("channel_history", channel_idx, channel_history[channel_idx]);
+        // console.log("channel_dataset", channel_dataset);
         datasets.push({
             label: g_config.ch[channel_idx]["id_str"],
             hidden: true,
@@ -1019,13 +979,13 @@ function create_price_chart() {
                     display: 'auto',
                     beginAtZero: true,
                     min: 0,
-                    max: 100,
+                    max: 60,
                     grid: { display: false },
                     ticks: {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
-                            return value + ' %';
+                            return value + ' m';
                         }
                     }
                 },
@@ -1078,7 +1038,7 @@ function create_price_chart() {
 
     last_chart_update = Date.now() / 1000;
 
-    //document.getElementById("dashboard:refresh").classList.remove('d-none');
+    document.getElementById("dashboard:refresh").classList.remove('d-none');
     document.getElementById("dashboard:refresh").style.display = "block";
 
     return true;
@@ -1097,12 +1057,12 @@ function get_price_data() {
     //await sleep(5000);
 
     $.ajax({
-        url: '/prices',//'/cache/price-data.json',
+        url: '/prices',
         cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            if (data.expires > now_ts) {
+            if (data.expires > now_ts + (-3600 * 4)) {
                 console.log('got /prices', textStatus, jqXHR.status);
                 price_data = data; //TODO: remove redundancy in variables
                 prices_first_ts = data.record_start;
@@ -1148,7 +1108,7 @@ function pad_to_2digits(num) {
 
 function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
     tmpDate = new Date(ts * 1000);
-    tmpStr = tmpDate.toLocaleTimeString();
+    //  tmpStr = tmpDate.toLocaleTimeString();
 
     tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
     if (show_secs)
@@ -1621,12 +1581,7 @@ function changed_rule_mode(ev) {
 
 
 function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0]) {
-
     //console.log("populateStmtField", channel_idx, rule_idx, stmt_idx, stmt);
-
-    // assume populateted...
-
-
     var_ctrl = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`);
     var_this = get_var_by_id(stmt[0]);
     populate_var(var_ctrl, stmt[0]);
@@ -1634,14 +1589,11 @@ function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0
     oper_ctrl = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:oper`);
     populate_oper(oper_ctrl, var_this, stmt);
 
-
     var_ctrl.value = stmt[0];
     oper_ctrl.value = stmt[1];
     document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`).value = stmt[3];
-
-
-
 }
+
 
 function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]) {
     //get next statement index if not defined
@@ -1902,10 +1854,10 @@ function selected_var(ev) {
     oper_ctrl.classList.remove("invisible");
     oper_ctrl.classList.add("visible");
 
-    const_ctrl = document.getElementById(ev.target.id.replace("var", "const"));
+    //const_ctrl = document.getElementById(ev.target.id.replace("var", "const"));
 
     // console.log("variable", var_this, "is_var_logical(var_this[2])", is_var_logical(var_this[2]));
-    // el_const.style.display = (is_var_logical(var_this[2])) ? "none" : "segment"; //const-style
+    //const_ctrl.style.display = (is_var_logical(var_this[2])) ? "none" : "segment"; //const-style
 
     //    if (g_constants.opers[i][0] == stmt[1]) {
     //      el_const.style.display = (g_constants.opers[i][5] || g_constants.opers[i][6]) ? "none" : "segment"; //const-style
@@ -1914,8 +1866,8 @@ function selected_var(ev) {
 }
 
 // operator select changed, show next statement fields if hidden
-function selected_oper(ev) {
-    const el_oper = ev.target;
+function selected_oper(el_oper) {
+    // const el_oper = ev.target;
     channel_idx = get_idx_from_str(el_oper.id, 0);
     rule_idx = get_idx_from_str(el_oper.id, 1);
     stmt_idx = get_idx_from_str(el_oper.id, 2);
@@ -1929,20 +1881,23 @@ function selected_oper(ev) {
         // }
 
         // set constant visibility (defined oper use no constants)
-        console.log("show_const params:", g_constants.opers[el_oper.value][5], g_constants.opers[el_oper.value][6])
+        // console.log("show_const params:", g_constants.opers[el_oper.value][5], g_constants.opers[el_oper.value][6])
         show_const = !(g_constants.opers[el_oper.value][5] || g_constants.opers[el_oper.value][6]);
         //   el_const.style.display = (g_constants.opers[el_oper.value][5] || g_constants.opers[el_oper.value][6]) ? "none" : "segment"; // const-style
     }
 
+    // console.log(el_const.id,show_const);
     el_const.classList.remove(show_const ? "invisible" : "visible");
     el_const.classList.add(show_const ? "visible" : "invisible");
-
+}
+function selected_oper_ev(ev) {
+    selected_oper(ev.target);
 }
 
 function populate_var(sel_ctrl, selected = -1) {
     // get_idx_from_str(sel_ctrl.id)
     if (sel_ctrl.options.length == 0) {
-        addOption(sel_ctrl, -1, "", false);
+        addOption(sel_ctrl, -1, "remove", false);
         for (var i = 0; i < g_constants.variables.length; i++) {
             var type_indi = is_var_logical(g_constants.variables[i][2]) ? "*" : " "; //logical
             var id_str = '(' + g_constants.variables[i][0] + ') ' + g_constants.variables[i][1] + type_indi;
@@ -1965,9 +1920,12 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     rule_idx = get_idx_from_str(el_oper.id, 1);
     stmt_idx = get_idx_from_str(el_oper.id, 2);
 
-    if (el_oper.options.length == 0) {
-        el_oper.addEventListener("change", selected_oper);
+    if (el_oper.options.length <= 1) {
+        el_oper.addEventListener("change", selected_oper_ev);
+        //     console.log("populate_oper addEventListener",el_oper.id);
     }
+    // else
+    //     console.log("populate_oper not addEventListener",el_oper.id,el_oper.options.length);
 
     // rule_mode = document.getElementById("mo_" + channel_idx + "_0").checked ? 0 : 1;
     // rule_mode = 0; //TODO: FIX
@@ -2009,7 +1967,6 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
                 //  el_const.style.display = (g_constants.opers[i][5] || g_constants.opers[i][6]) ? "none" : "segment"; //const-style  
                 show_constant = !(g_constants.opers[i][5] || g_constants.opers[i][6])
             }
-
         }
     }
 
@@ -2017,22 +1974,23 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     el_oper.classList.remove("invisible");
     el_oper.classList.add("visible");
 
+
+
     //*** */
-    show_constant = !is_var_logical(var_this[2]);
+    if (typeof var_this != "undefined")
+        show_constant = !is_var_logical(var_this[2]);
+    else
+        show_constant = true;
 
-    el_const.classList.remove(show_constant ? "invisible" : "visible");
-    el_const.classList.add(show_constant ? "visible" : "invisible");
 
-
-    el_const.classList.disabled = !show_constant;
+    selected_oper(el_oper);
+    //console.log(el_oper.id,show_constant);
 
 
     el_oper.disabled = (rule_mode != 0);
     el_var.disabled = (rule_mode != 0);
-    el_const.disabled = (rule_mode != 0);
+    el_const.disabled = ((rule_mode != 0) || !show_constant);
 }
-
-
 
 function focus_oper(ev) {
     sel_ctrl = ev.target;
@@ -2199,7 +2157,6 @@ function create_channels() {
     }
     let cm_buttons = document.querySelectorAll("input[id*=':config_mode_']");
 
-    console.log(cm_buttons.length, " buttons found!");
     for (let i = 0; i < cm_buttons.length; i++) {
         // console.log(cm_buttons[i].id, "changed_rule_mode");
         cm_buttons[i].addEventListener("click", changed_rule_mode);
@@ -2297,6 +2254,7 @@ function initWifiForm() {
 */
 function init_ui() {
     console.log("init_ui");
+    console.log("whatDecimalSeparator", whatDecimalSeparator());
     get_price_data(); //TODO: also update at 2pm
     $.ajax({
         url: '/application',
@@ -2307,6 +2265,7 @@ function init_ui() {
             // versions
             document.getElementById("version").innerHTML = g_constants.VERSION;
             document.getElementById("version_fs").innerHTML = g_constants.version_fs;
+
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get g_constants", textStatus, jqXHR.status);
@@ -2427,6 +2386,12 @@ function launch_action(action, card_id, params) {
     //  var post_data = { "action": action };
     let post_data = Object.assign({ "action": action }, params);
 
+    // testing a BIG message
+    /* for (i = 0; i < 100; i++) {
+         post_data['property_' + i] = i;
+     }
+     */
+
     console.log("post_data", post_data);
 
     if (card_id)
@@ -2442,6 +2407,8 @@ function launch_action(action, card_id, params) {
         contentType: "application/json;",
         dataType: "json",
         success: function (data) {
+            console.log("action response", data);
+
             if (card_id)
                 live_alert(card_id, "Action launched", 'success');
 
@@ -2484,7 +2451,6 @@ function start_fw_update() {
 }
 
 
-
 function save_channel(ev) {
     channel_idx = get_idx_from_str(ev.target.id, 0);
     if (channel_idx == -1) {
@@ -2494,7 +2460,6 @@ function save_channel(ev) {
     var data_ch = { "idx": channel_idx };
     card = "ch_" + channel_idx
     console.log("save_channel channel_idx", channel_idx, ev.target.id);
-
 
     data_ch["id_str"] = document.getElementById(`ch_${channel_idx}:id_str`).value;
     data_ch["uptime_minimum"] = parseInt(document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value * 60);
@@ -2526,7 +2491,7 @@ function save_channel(ev) {
 
             if ((!isNaN(parseInt(var_value))) && (var_value > -1) && (!isNaN(parseInt(oper_value))) && (oper_value > -1)) {
                 rule_stmts.push([var_value, oper_value, null, const_value]);
-                console.log("A", [var_value, oper_value, null, const_value])
+          //      console.log("A", [var_value, oper_value, null, const_value])
                 stmt_count++;
             }
         }
@@ -2535,13 +2500,17 @@ function save_channel(ev) {
     }
     data_ch["rules"] = rules;
 
-
     const post_data = { "ch": [data_ch] };
 
-
+    // testing a BIG message
+    /*
+    for (i = 0; i < parseInt(document.getElementById(`ch_0:uptime_minimum_m`).value ); i++) {
+        post_data['property_' + i] = i;
+    }
+    */
+    
     //POST
-
-
+    console.log("sending post_data", post_data);
 
     $.ajax({
         type: "POST",

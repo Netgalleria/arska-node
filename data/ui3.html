@@ -302,7 +302,20 @@
                         <span data-feather="activity" style="pointer-events: none;" class="align-text-bottom"></span>
                         <span id="db:price_v"></span> <span id="db:price_period" class="text-muted"></span>
                       </div>
-
+                    
+                      <div id="db:s_201:div" class="col"  style="display: none;">
+                        <span data-feather="thermometer" style="pointer-events: none;" class="align-text-bottom"></span>
+                        <span id="db:s_201:val"></span><span class="text-muted"> (1)</span>
+                      </div>
+                      <div id="db:s_202:div" class="col" style="display: none;">
+                        <span data-feather="thermometer" style="pointer-events: none;" class="align-text-bottom"></span>
+                        <span id="db:s_202:val"></span><span class="text-muted"> (2)</span>
+                      </div>
+                      <div id="db:s_203:div" class="col" style="display: none;">
+                        <span data-feather="thermometer" style="pointer-events: none;" class="align-text-bottom"></span>
+                        <span id="db:s_203:val"></span><span class="text-muted"> (3)</span>
+                      </div>
+                    
 
                     </div>
                     <!--./row-->
@@ -924,6 +937,10 @@
                           <tr>
                             <td scope="col">Filesystem version</td>
                             <th id="version_fs" id_scope="row"></th>
+                          </tr>
+                          <tr>
+                            <td scope="col">Started</td>
+                            <th id="started_str" id_scope="row"></th>
                           </tr>
                         </tbody>
                       </table>

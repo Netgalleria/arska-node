@@ -119,6 +119,14 @@
         "id": "winterday",
         "en": "true if winter day tariff (Finnish) effective"
     },
+    "152": {
+        "id": "ch up mins in 8 h",
+        "en": "channel uptime (minutes) during last 8 h"
+    },
+    "153": {
+        "id": "ch up mins in 24 h",
+        "en": "channel uptime (minutes) during last 24 h"
+    },
     "201": {
         "id": "sensor 1 temperature",
         "en": "sensor 1 temperature, C"
