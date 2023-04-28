@@ -78,10 +78,13 @@
       border: none;
       background: #00b595;
       padding: 10px 20px;
-      border-radius: 10px;
+      border-radius: 0.375rem;
       color: #fff;
       cursor: pointer;
       transition: background .2s ease-in-out;
+      width :140px;
+      display: block;
+      line-height:1.1;
     }
 
     input[type=file]::file-selector-button:hover {
@@ -807,7 +810,7 @@
                       <label for="lang" class="form-label">Preferred language</label>
                       <select id="lang" class="form-select" aria-label="variable">
                       <option value="en">English</option>
-                    <option value="fi">Finnish</option>
+                    <option value="fi">Suomi (rajoitettu käännös)</option>
                     </select>
                     </div>
               
@@ -904,7 +907,7 @@
                     <div class="mb-2">
                       <label class="form-label">Backup configuration</label>
                       <br>
-                      <a href="/settings?format=file"><button class="btn btn-primary" type="submit" id="do_backup">
+                      <a href="/settings?format=file"><button class="btn btn-primary" style="line-height:1.1;width:140px;" type="submit" id="do_backup">
                           <span data-feather="download" style="pointer-events: none;" class="align-text-bottom"></span>
                           Backup</button></a>
                     </div>
@@ -916,10 +919,9 @@
                         <div class="input-group">
 
                           <div class="custom-file">
-                            <input type="file" class="custom-file-input" id="inputGroupFile01"
-                              aria-describedby="inputGroupFileAddon01" accept='application/json'
+                            <input type="file" class="custom-file-input" id="restore_config_btn"
+                              aria-describedby="restore_config_btn"  accept='application/json'
                               onchange='restore_config(event)'>
-
                           </div>
                         </div>
 
@@ -931,15 +933,19 @@
                       <table id="version_table" class="table">
                         <tbody>
                           <tr>
-                            <td scope="col">Software version</td>
+                            <td scope="col">Software</td>
                             <th id="version" scope="row"></th>
                           </tr>
                           <tr>
-                            <td scope="col">Filesystem version</td>
+                            <td scope="col">Filesystem</td>
                             <th id="version_fs" id_scope="row"></th>
                           </tr>
                           <tr>
-                            <td scope="col">Started</td>
+                            <td scope="col">Rule Templates</td>
+                            <th id="version_templates" id_scope="row"></th>
+                          </tr>
+                          <tr>
+                            <td scope="col">System started</td>
                             <th id="started_str" id_scope="row"></th>
                           </tr>
                         </tbody>
@@ -963,13 +969,8 @@
                           data-bs-title="Start upgrade">
                           <span data-feather="download-cloud" style="pointer-events: none;"
                             class="align-text-bottom"></span> Upgrade</button>
-
-
-                      </div>
-                      <a href="/update">Manual upgrade</a>
+                      </div>    
                     </div>
-
-
 
                     <div class="accordion" id="adminadv_accordion">
                       <div class="accordion-item">
@@ -1000,9 +1001,13 @@
                                 <option value="3">devantech-esp32lr42</option>
                               </select>
                             </div>
+                            <div class="mb-2">
+                              <a href="/update">Manual upgrade</a>
+                            </div>
+                           
                             <div id="admin:alert"></div>
 
-
+                            
                             <button class="btn btn-primary" type="submit" id="admin:save" disabled="">
                               <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
                               Save</button>

@@ -1,5 +1,6 @@
 var g_config;
 var g_constants;
+var g_templates;
 
 var day_ahead_chart_obj;
 
@@ -19,7 +20,6 @@ const CH_TYPE_GPIO_USR_INVERSED = 10;
 
 const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
-const CH_TYPE_DISCOVERED = 1000; // pseudo type, use discovered device list
 
 const VARIABLE_PRODUCTION_POWER = "101";
 const VARIABLE_SELLING_POWER = "102";
@@ -111,12 +111,13 @@ const template_form_html = `<div class="modal fade"  id="ch_(ch#)_tmpl_form" ari
   </div>
 </div>
 </div>`;
-
+/*
 const template_fld_html = `<label for="ch_(ch#)_templ_field_(fld#)" class="form-label">Max daytime price up</label>
 <br>
 <span class="text-muted">Max price to keep the channe up daytime (e.g. 15c/kWh)?</span>
 <input id="ch_(ch#)_ch_0:templ_field_(fld#)" type="number" class="form-control"  placeholder="15">
 <br>`;
+*/
 
 const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch#):card">
                   <div class="card-header d-flex align-items-center justify-content-between">
@@ -300,6 +301,8 @@ const channel_html = `<div class="col">
                                         </button>
                                     </div>
 
+                                    <div class="mb-3"><span id="ch_(ch#):desc" class="text-muted mb-3"></span></div>
+
                                     <div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
                                     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
                                       <div class="modal-content">
@@ -324,11 +327,6 @@ const channel_html = `<div class="col">
                                     </div>
                                    <!-- <a class="mt-3 d-block" data-bs-target="#ch_(ch#)_tmpl_form" data-bs-toggle="modal">Example channel rules - modal example here: https://getbootstrap.com/docs/5.2/components/modal/#varying-modal-content </a> 
                                    -->
-
-
-
-
-
                                 </div>
                                 <!--./col-->
                             </div>
@@ -357,9 +355,10 @@ const channel_html = `<div class="col">
 
 const rule_html = `<div class="col">
      <!-- rule starts -->
-     <div class="card rule-card">
+     <div id="ch_#:r_#:card" class="card rule-card">
          <div class="card-header">
              <h5 id="ch_#:r_#:title" class="card-title">Rule 1</h5>
+             <div class="mt-3" style="margin-left: 0.5rem;"><span id="ch_#:r_#:desc"class="text-muted"></span></div>
          </div>
          <div class="card-body">
              <div class="input-group mb-3">
@@ -380,11 +379,14 @@ const rule_html = `<div class="col">
             class="align-text-bottom" style="pointer-events: none;"></span>
                      up</label>
              </div>
+             
              <span class="row g-1 form-label">Conditions (and):</span>
              <div class="rule-container">
                  <div id="ch_#:r_#:stmts"> 
                  </div>
              </div> <!-- container -->
+            
+
          </div> <!-- card body -->
      </div> <!-- rule ends -->
  </div>`;
@@ -1456,6 +1458,7 @@ function set_channel_fields_by_type(evt, ch_idx) {
 }
 
 var g_template_list = [];
+var g_template_version = "";
 
 function get_template_list() {
     if (g_template_list.length > 0)
@@ -1466,6 +1469,11 @@ function get_template_list() {
         dataType: 'json',
         async: false,
         success: function (data) {
+            g_templates = data;
+            g_template_version = data.info.version;
+            if (document.getElementById("version_templates"))
+                document.getElementById("version_templates").innerHTML = g_template_version;
+
             $.each(data, function (i, row) {
                 if (row.hasOwnProperty("id")) // no version object 
                     g_template_list.push({ "id": row["id"], "name": _ltext(row, "name") });
@@ -1484,7 +1492,8 @@ function populateTemplateSel(selEl, template_id = -1) {
         console.log("already populated", selEl.options.length);
         return; //already populated
     }
-    addOption(selEl, -1, "Select template", false);
+    if (selEl.length == 0)
+        addOption(selEl, -1, "Select template", false);
     // console.log("g_template_list.length", g_template_list.length);
     for (i = 0; i < g_template_list.length; i++) {
         addOption(selEl, g_template_list[i]["id"], g_template_list[i]["id"] + " - " + g_template_list[i]["name"], (template_id == g_template_list[i]["id"]));
@@ -1495,6 +1504,15 @@ function populateTemplateSel(selEl, template_id = -1) {
 //KESKEN
 function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
     template_id_ctrl = document.getElementById(`ch_${channel_idx}:template_id`);
+
+    //experimental
+    //template desc
+    document.getElementById(`ch_${channel_idx}:desc`).innerHTML = "";
+    //template rule desc
+    for (let rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+        document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = "";
+    }
+
     if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) { //template mode
         if (template_id_ctrl) {
             populateTemplateSel(template_id_ctrl, template_id);
@@ -1503,9 +1521,29 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
         }
         else
             console.log("Cannot find element:", template_id_ctrl);
+
+        //set template and template rules desc:s
+        $.each(g_templates, function (i, template) {
+            if (template["id"] == template_id) {
+                if (template.hasOwnProperty('desc'))
+                    document.getElementById(`ch_${channel_idx}:desc`).innerHTML = _ltext(template, "desc");
+                $.each(template.rules, function (rule_idx, rule) {
+                    if (rule.hasOwnProperty('desc'))
+                        document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = _ltext(rule, "desc");
+                });
+                return false;
+            }
+        });
+    }
+    else {
+        document.getElementById(`ch_${channel_idx}:template_id`).value = -1;
+        $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false);
     }
 
     rules_div = document.getElementById(`ch_${channel_idx}:rules`);
+
+    //experimental
+    $(`[id^=ch_${channel_idx}\\:r_] input[type='radio']`).attr('disabled', (rule_mode != 0)); //up/down
 
     $(`#ch_${channel_idx}\\:rules select`).attr('disabled', (rule_mode != 0));
     $(`#ch_${channel_idx}\\:rules input[type='text']`).attr('disabled', (rule_mode != 0)); //jos ei iteroi?
@@ -1518,11 +1556,8 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
     template_reset_ctrl = document.getElementById(`ch_${channel_idx}:template_reset`);
     template_reset_ctrl.disabled = (rule_mode == CHANNEL_CONFIG_MODE_RULE);
 
-    // seuraava kesken
-    // fillStmtRules(channel_idx, rule_mode, template_id);
-    // if (rule_mode == CHANNEL_CONFIG_MODE_RULE) //enable all
-    //     $('#rd_' + channel_idx + " input[type='radio']").attr('disabled', false);
 }
+
 
 function delete_stmts_from_UI(channel_idx) {
     // empty vars/opers
@@ -1618,19 +1653,16 @@ function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]
 }
 function template_reset(ev) { //ch_0:template_reset
     channel_idx = get_idx_from_str(ev.target.id, 0);
-
-
     console.log(ev, "---", ev.target.id, "template_reset channel_idx", channel_idx);
     set_template_constants(channel_idx, false);
 }
+
 var template_data;
 
+
 function set_template_constants(channel_idx, ask_confirmation) {
-    template_idx = document.getElementById(`ch_${channel_idx}:template_id`).value;
-
-
-
-    if (template_idx == -1) {
+    template_id = document.getElementById(`ch_${channel_idx}:template_id`).value;
+    if (template_id == -1) {
         if (confirm('Remove template definitions')) {
             delete_stmts_from_UI(channel_idx);
             return true;
@@ -1642,21 +1674,11 @@ function set_template_constants(channel_idx, ask_confirmation) {
     }
 
     // delete_stmts_from_UI(channel_idx);
-    url = '/data/templates.json';
-    $.ajax({
-        url: url,
-        dataType: 'json',
-        async: false,
-        success: function (data) {
-            $.each(data, function (i, row) {
-                if (row["id"] == template_idx) {
-                    template_data = row;
-                    return;
-                }
-            });
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get template", textStatus, jqXHR.status);
+
+    $.each(g_templates, function (i, row) {
+        if (row["id"] == template_id) {
+            template_data = row;
+            return false;
         }
     });
 
@@ -1672,10 +1694,7 @@ function set_template_constants(channel_idx, ask_confirmation) {
 */
     $sel.data('current', $sel.val()); // now fix current value
 
-
-
     //one time is enough?, wait for confirmed results
-
     //TODO: here we couldhave first loop ceating modal for with fields and template description, possibly validation
     hasPrompts = false;
     form_fld_idx = 0;
@@ -1687,15 +1706,26 @@ function set_template_constants(channel_idx, ask_confirmation) {
     document.getElementById(`ch_${channel_idx}_tmpl_name`).innerHTML = _ltext(template_data, "name");
     document.getElementById(`ch_${channel_idx}_tmpl_desc`).innerHTML = _ltext(template_data, "desc");
 
+    document.getElementById(`ch_${channel_idx}:desc`).innerHTML = "";
+    //template rule desc
+    for (let rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+        document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = "";
+    }
 
-    //Create modal form
-    $.each(template_data.conditions, function (cond_idx, rule) {
-        $.each(rule.statements, function (j, stmt) {
-            //   console.log("stmt.values:" + JSON.stringify(stmt.values));
-            stmt_obj = stmt.values;
+    if (template_data.hasOwnProperty('desc'))
+        document.getElementById(`ch_${channel_idx}:desc`).innerHTML = _ltext(template_data, "desc");
+  
+    //Create modal form for parameters
+    $.each(template_data.rules, function (rule_idx, rule) {
+        if (rule.hasOwnProperty('desc')) {
+            document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = _ltext(rule, "desc");
+        }
 
-            if (stmt.hasOwnProperty('const_prompt')) {
-                // stmt_obj[3] = prompt(stmt.const_prompt, stmt_obj[2]);
+        $.each(rule.stmts, function (j, stmt) {
+            stmt_obj = stmt;
+
+            // if (stmt.hasOwnProperty('const_prompt')) {
+            if (stmt_obj.length > 4 && stmt_obj[4].hasOwnProperty('prompt')) {
                 hasPrompts = true;
                 console.log(form_fld_idx, stmt_obj);
 
@@ -1706,34 +1736,27 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 field_list.appendChild(name_label);
 
                 const desc_span = createElem("span", `ch_${channel_idx}_templ_field_${form_fld_idx}_desc`, null, "text-muted", null);
-                desc_span.innerHTML = "<br>" + stmt.const_prompt; //template variable prompt
+                //desc_span.innerHTML = "<br>" + _ltext(stmt, "const_prompt"); //template variable prompt
+                desc_span.innerHTML = "<br>" + _ltext(stmt_obj[4], "prompt"); //template variable prompt
                 field_list.appendChild(desc_span);
                 field_list.appendChild(document.createElement("br"));
 
                 const value_input = createElem("input", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[2], "form-control", "number");
-                //value_input.innerHTML = stmt.const_prompt;
                 field_list.appendChild(value_input);
                 field_list.appendChild(document.createElement("br"));
                 form_fld_idx++;
             }
 
-            //move this after modal close
-            //addStmt(channel_idx, cond_idx, -1, stmt_obj); 
-            // var_this = get_var_by_id(stmt.values[0]);
-            //  // populateOper(document.getElementById("op_" + channel_idx + "_" + cond_idx + "_" + j), var_this, stmt_obj);
         });
     });
 
     if (hasPrompts) {
         var myModalEl = document.getElementById(`ch_${channel_idx}_tmpl_form`);
         var template_modal = bootstrap.Modal.getOrCreateInstance(myModalEl) // Returns a Bootstrap modal instance
-        // var template_modal = new bootstrap.Modal(document.getElementById(`ch_${channel_idx}_tmpl_form`), {
-        //     keyboard: false
-        //   })
+
         template_modal.show();
     }
 
-    // fillStmtRules(channel_idx, 1, template_idx);
     return true;
 }
 
@@ -1742,13 +1765,10 @@ function changed_template(ev, selEl) {
     if (ev !== null) {
         channel_idx = get_idx_from_str(ev.target.id, 0);
     }
-
     // console.log("changed_template channel_idx", channel_idx);
-
     if (!set_template_constants(channel_idx, true)) {
         console.log("back to previous...");
     }
-
     return true;
 }
 
@@ -1756,7 +1776,6 @@ function changed_template(ev, selEl) {
 
 //todo: data as parameter?
 function populate_channel(channel_idx) {
-
     now_ts = Date.now() / 1000;
 
     //Dashboard scheduling
@@ -1770,12 +1789,10 @@ function populate_channel(channel_idx) {
     if ((ch_cur.force_up_from > now_ts)) {
         current_start_ts = ch_cur.force_up_from;
     }
-
     //color
     document.getElementById(`sch_${channel_idx}:title`).style.color = g_config.ch[channel_idx]["channel_color"];
     document.getElementById(`sch_${channel_idx}:label`).style["background-color"] = g_config.ch[channel_idx]["channel_color"];
     document.getElementById(`ch_${channel_idx}:title`).style.color = g_config.ch[channel_idx]["channel_color"];
-
 
     //experimental, is this enough or do we need loop
     //  update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
@@ -1922,15 +1939,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
 
     if (el_oper.options.length <= 1) {
         el_oper.addEventListener("change", selected_oper_ev);
-        //     console.log("populate_oper addEventListener",el_oper.id);
     }
-    // else
-    //     console.log("populate_oper not addEventListener",el_oper.id,el_oper.options.length);
-
-    // rule_mode = document.getElementById("mo_" + channel_idx + "_0").checked ? 0 : 1;
-    // rule_mode = 0; //TODO: FIX
-    rule_mode = document.getElementById(`ch_${channel_idx}:config_mode_0`).checked ? 0 : 1;
-
 
     el_var = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`);
     el_const = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
@@ -1974,19 +1983,17 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     el_oper.classList.remove("invisible");
     el_oper.classList.add("visible");
 
-
-
     //*** */
     if (typeof var_this != "undefined")
         show_constant = !is_var_logical(var_this[2]);
     else
         show_constant = true;
 
-
     selected_oper(el_oper);
     //console.log(el_oper.id,show_constant);
 
 
+    rule_mode = document.getElementById(`ch_${channel_idx}:config_mode_0`).checked ? 0 : 1;
     el_oper.disabled = (rule_mode != 0);
     el_var.disabled = (rule_mode != 0);
     el_const.disabled = ((rule_mode != 0) || !show_constant);
@@ -1994,8 +2001,6 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
 
 function focus_oper(ev) {
     sel_ctrl = ev.target;
-    // populate_oper(sel_ctrl);
-
 }
 
 function template_form_closed(ev) {
@@ -2005,15 +2010,17 @@ function template_form_closed(ev) {
     form_fld_idx = 0;
     console.log("******** adding new fields");
     // assume global variable template_data.conditions populated  when creating the form
-    $.each(template_data.conditions, function (cond_idx, rule) {
+    $.each(template_data.rules, function (cond_idx, rule) {
         console.log("cond_idx, rule", cond_idx, rule);
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
-        $.each(rule.statements, function (j, stmt) {
-            stmt_obj = stmt.values;
-            new_value = null;
+        $.each(rule.stmts, function (j, stmt) {
+            // stmt_obj = stmt.values;
+            stmt_obj = stmt;
+            new_value = stmt_obj[2];
 
-            if (stmt.hasOwnProperty('const_prompt')) {
+            //  if (stmt.hasOwnProperty('const_prompt')) {
+            if (stmt_obj.length > 4 && stmt_obj[4].hasOwnProperty('prompt')) {
                 if (document.getElementById(`ch_${channel_idx}_templ_field_${form_fld_idx}_value`)) {
                     new_value = document.getElementById(`ch_${channel_idx}_templ_field_${form_fld_idx}_value`).value;
                     console.log("*******new value", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, new_value);
@@ -2021,14 +2028,17 @@ function template_form_closed(ev) {
                 }
                 else
                     console.log(`no element ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[3]);
-
             }
+
             stmt_obj2 = [stmt_obj[0], stmt_obj[1], null, new_value];
             console.log("before addStmt: ", channel_idx, cond_idx, stmt_obj, stmt_obj2);
             addStmt(channel_idx, cond_idx, j, stmt_obj2);
         });
     });
     var template_modal = bootstrap.Modal.getOrCreateInstance(document.getElementById(`ch_${channel_idx}_tmpl_form`));
+
+    document.getElementById(`ch_${channel_idx}:save`).disabled = false; //todo: could check if parameters have changed
+
     template_modal.hide();
 }
 function do_backup() {
@@ -2158,11 +2168,9 @@ function create_channels() {
     let cm_buttons = document.querySelectorAll("input[id*=':config_mode_']");
 
     for (let i = 0; i < cm_buttons.length; i++) {
-        // console.log(cm_buttons[i].id, "changed_rule_mode");
         cm_buttons[i].addEventListener("click", changed_rule_mode);
     }
 
-    // document.getElementById("do_restore").addEventListener("click", restore_config);
 
     if (typeof feather != "undefined") {
         feather.replace(); // this replaces  <span data-feather="activity">  with svg
@@ -2254,7 +2262,6 @@ function initWifiForm() {
 */
 function init_ui() {
     console.log("init_ui");
-    console.log("whatDecimalSeparator", whatDecimalSeparator());
     get_price_data(); //TODO: also update at 2pm
     $.ajax({
         url: '/application',
@@ -2271,6 +2278,8 @@ function init_ui() {
             console.log("Cannot get g_constants", textStatus, jqXHR.status);
         }
     });
+
+
 
 
 
@@ -2302,6 +2311,7 @@ function init_ui() {
 
     const input_controls = document.querySelectorAll("input, select");
     for (let i = 0; i < input_controls.length; i++) {
+        //  should be input to catch changes before leaving the input field
         if (input_controls[i].type == "radio")
             input_controls[i].addEventListener("click", ctrl_changed);
         else
@@ -2365,18 +2375,11 @@ function find_parent_card(el) {
     }
     return "";
 }
-
+// enables save button after content change
 function ctrl_changed(ev) {
-    /* id_a = ev.target.id.split(":");
-     if (len(id_a) != 2) // not in settings
-         return;*/
+
     let parent_card = find_parent_card(ev.target);
-
-
     if (parent_card) {
-        // if (parent_card.startsWith("sch_")) // no save buttons so far...
-        //     return;
-        // console.log("Found " + ev.target.id + " in parent " + parent_card + ", disabling " + parent_card + ":save");
         save_el = document.getElementById(parent_card + ":save");
         if ((save_el !== null))
             save_el.disabled = false;
@@ -2385,15 +2388,7 @@ function ctrl_changed(ev) {
 function launch_action(action, card_id, params) {
     //  var post_data = { "action": action };
     let post_data = Object.assign({ "action": action }, params);
-
-    // testing a BIG message
-    /* for (i = 0; i < 100; i++) {
-         post_data['property_' + i] = i;
-     }
-     */
-
     console.log("post_data", post_data);
-
     if (card_id)
         live_alert(card_id, "Sending:\n" + JSON.stringify(post_data), 'success');
 
@@ -2429,7 +2424,7 @@ function launch_action(action, card_id, params) {
 }
 function launch_action_evt(ev) {
     id_a = ev.target.id.split(":");
-    card = id_a[0]; // should be "action"
+    card = id_a[0]; // should be "admin"
     action = id_a[1];
     launch_action(action, card, {});
 }
@@ -2491,7 +2486,7 @@ function save_channel(ev) {
 
             if ((!isNaN(parseInt(var_value))) && (var_value > -1) && (!isNaN(parseInt(oper_value))) && (oper_value > -1)) {
                 rule_stmts.push([var_value, oper_value, null, const_value]);
-          //      console.log("A", [var_value, oper_value, null, const_value])
+                //      console.log("A", [var_value, oper_value, null, const_value])
                 stmt_count++;
             }
         }
@@ -2508,7 +2503,7 @@ function save_channel(ev) {
         post_data['property_' + i] = i;
     }
     */
-    
+
     //POST
     console.log("sending post_data", post_data);
 

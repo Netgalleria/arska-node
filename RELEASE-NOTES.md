@@ -1,5 +1,13 @@
 # Arska release notes
 
+## Arska 0.99
+* Major user interface (UI) upgrade. The **Dashboard** contains latest time series for prices, import, production and channel utilization as well as manual scheduling. Time series are not stored in the non-volatile memory so restart of the device will clear them. The **Channels** sections contains relay settings and channel rules. The **Settings** sections is for system parameters and administration tasks.
+* Can read both grid energy meter (Shelly 3EM, HAN P1 telegram) and production inverters (SMA, Fronius). Baseload handling removed 
+* Additional channel variables 	`152 ch up mins in 8 h` and `153 ch up mins in 24 h` store how long time (minutes) each channel has been up during last 8 hours or 24 hours. These uptime counters are initiated with 0 when the device is restarted.
+* A priority value (0-255) added the channels. Channel with the lowest priority value is switched up first and switched down last when there are two or more channels to switch simultanously.
+* Many internal optimizations. Unnecessary/redundant filesystem caches and calculations removed/optimized.
+
+
 ## Arska 0.93 
 
 ### New features (updated 2023-02-04)
