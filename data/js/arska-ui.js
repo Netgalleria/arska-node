@@ -1469,12 +1469,12 @@ function get_template_list() {
         dataType: 'json',
         async: false,
         success: function (data) {
-            g_templates = data;
+            g_templates = data.templates;
             g_template_version = data.info.version;
             if (document.getElementById("version_templates"))
                 document.getElementById("version_templates").innerHTML = g_template_version;
 
-            $.each(data, function (i, row) {
+            $.each(data.templates, function (i, row) {
                 if (row.hasOwnProperty("id")) // no version object 
                     g_template_list.push({ "id": row["id"], "name": _ltext(row, "name") });
             });
@@ -1682,7 +1682,6 @@ function set_template_constants(channel_idx, ask_confirmation) {
         }
     });
 
-    console.log("template_data", template_data);
     $sel = $("#ch_" + channel_idx + "\\:template_id");
 
     /*
@@ -1714,7 +1713,7 @@ function set_template_constants(channel_idx, ask_confirmation) {
 
     if (template_data.hasOwnProperty('desc'))
         document.getElementById(`ch_${channel_idx}:desc`).innerHTML = _ltext(template_data, "desc");
-  
+
     //Create modal form for parameters
     $.each(template_data.rules, function (rule_idx, rule) {
         if (rule.hasOwnProperty('desc')) {
@@ -1742,6 +1741,14 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 field_list.appendChild(document.createElement("br"));
 
                 const value_input = createElem("input", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[2], "form-control", "number");
+                
+                if (stmt_obj[4].hasOwnProperty('min'))
+                    value_input.setAttribute("min", stmt_obj[4].min);
+                if (stmt_obj[4].hasOwnProperty('max'))
+                    value_input.setAttribute("max", stmt_obj[4].max);
+                if (stmt_obj[4].hasOwnProperty('step'))
+                    value_input.setAttribute("step", stmt_obj[4].step);
+
                 field_list.appendChild(value_input);
                 field_list.appendChild(document.createElement("br"));
                 form_fld_idx++;
@@ -2003,32 +2010,49 @@ function focus_oper(ev) {
     sel_ctrl = ev.target;
 }
 
+// Template field modal form for is closed and channel rules are updated with given values 
 function template_form_closed(ev) {
     id_a = ev.target.id.split("_");
     channel_idx = id_a[1];
     delete_stmts_from_UI(channel_idx);
     form_fld_idx = 0;
+    entered_field_values = {}; // given values for copying to other statements, NOTE! A prompt value must be before target in the statement
     console.log("******** adding new fields");
     // assume global variable template_data.conditions populated  when creating the form
     $.each(template_data.rules, function (cond_idx, rule) {
-        console.log("cond_idx, rule", cond_idx, rule);
+      //  console.log("cond_idx, rule", cond_idx, rule);
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
         $.each(rule.stmts, function (j, stmt) {
-            // stmt_obj = stmt.values;
             stmt_obj = stmt;
             new_value = stmt_obj[2];
 
-            //  if (stmt.hasOwnProperty('const_prompt')) {
-            if (stmt_obj.length > 4 && stmt_obj[4].hasOwnProperty('prompt')) {
-                if (document.getElementById(`ch_${channel_idx}_templ_field_${form_fld_idx}_value`)) {
-                    new_value = document.getElementById(`ch_${channel_idx}_templ_field_${form_fld_idx}_value`).value;
-                    console.log("*******new value", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, new_value);
-                    form_fld_idx++;
+            // user entered value handling
+            if (stmt_obj.length > 4) {
+                console.log("Used interaction field,  stmt_obj", stmt_obj);
+                if (stmt_obj[4].hasOwnProperty('prompt')) {
+                    if (document.getElementById(`ch_${channel_idx}_templ_field_${form_fld_idx}_value`)) {
+                        new_value = document.getElementById(`ch_${channel_idx}_templ_field_${form_fld_idx}_value`).value;
+                        if (stmt_obj[4].hasOwnProperty('field_id'))
+                            entered_field_values[stmt_obj[4].field_id] = new_value;
+                        console.log("*******new value", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, new_value);
+                        form_fld_idx++;
+                    }
+                    else
+                        console.log(`no element ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[3]);
                 }
-                else
-                    console.log(`no element ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[3]);
-            }
+                else if (stmt_obj[4].hasOwnProperty('copy_from_field')) {
+                    console.log("Copying value from field",stmt_obj[4].copy_from_field);
+                    multiplier = stmt_obj[4].hasOwnProperty('copy_multiplier') ? stmt_obj[4].copy_multiplier : 1;
+                    if (entered_field_values.hasOwnProperty(stmt_obj[4].copy_from_field)) {
+                        new_value = entered_field_values[stmt_obj[4].copy_from_field] * multiplier;
+                        console.log("New value from the other ",new_value);
+                    }
+                    else
+                        console.log("Cannot copy field value. No field with id ",stmt_obj[4].field_id);
+                }
+        }
+                
 
             stmt_obj2 = [stmt_obj[0], stmt_obj[1], null, new_value];
             console.log("before addStmt: ", channel_idx, cond_idx, stmt_obj, stmt_obj2);

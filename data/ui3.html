@@ -431,7 +431,7 @@
                   <div class="card-body">
                     <div class="mb-2">
                       <label for="entsoe_api_key" class="form-label">ENTSO-E API key</label>
-                      <input type="url" class="form-control" id="entsoe_api_key" placeholder="">
+                      <input type="url" class="form-control" id="entsoe_api_key" placeholder="Enter API key sent by ENTSO-E">
                     </div>
                     <div class="mb-2">
                       <label for="entsoe_area_code" class="form-label">Area code</label>
@@ -669,12 +669,12 @@
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_ip" class="form-label">Energy Meter IP Address</label>
-                      <input type="text" class="form-control" id="energy_meter_ip" placeholder="0.0.0.0"
+                      <input type="text" class="form-control" id="energy_meter_ip" placeholder=""
                         pattern="((^|\.)((25[0-5])|(2[0-4]\d)|(1\d\d)|([1-9]?\d))){4}$">
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_port" class="form-label">Energy Meter IP Port</label>
-                      <input type="number" class="form-control" id="energy_meter_port" placeholder="80" min="1" step="1"
+                      <input type="number" class="form-control" id="energy_meter_port" placeholder="Typically 80" min="1" step="1"
                         max="65536">
                     </div>
                     <div class="mb-2">
@@ -718,11 +718,11 @@
                     </div>
                     <div class="mb-2">
                       <label for="production_meter_port" class="form-label">Inverter IP Port</label>
-                      <input type="number" class="form-control" id="production_meter_port" placeholder="80">
+                      <input type="number" class="form-control" id="production_meter_port" placeholder="defaults 80 for Fronius503 for SMA">
                     </div>
                     <div class="mb-2">
                       <label for="production_meter_id" class="form-label">Inverter IP ID</label>
-                      <input type="number" class="form-control" id="production_meter_id" placeholder="0" min="0"
+                      <input type="number" class="form-control" id="production_meter_id" placeholder="SMA default 3" min="0"
                         step="1" max="255">
                     </div>
                     <!--
@@ -765,7 +765,7 @@
                     </div>
                     <div class="mb-2">
                       <label for="influx_org" class="form-label">Organization</label>
-                      <input type="text" class="form-control" id="influx_org" placeholder="">
+                      <input type="text" class="form-control" id="influx_org" placeholder="Typically your email address">
                     </div>
                     <div class="mb-3">
                       <label for="influx_bucket" class="form-label">Bucket</label>
@@ -810,7 +810,7 @@
                       <label for="lang" class="form-label">Preferred language</label>
                       <select id="lang" class="form-select" aria-label="variable">
                       <option value="en">English</option>
-                    <option value="fi">Suomi (rajoitettu käännös)</option>
+                    <option value="fi">Suomi (vain sääntöpohjat)</option>
                     </select>
                     </div>
               
@@ -940,10 +940,7 @@
                             <td scope="col">Filesystem</td>
                             <th id="version_fs" id_scope="row"></th>
                           </tr>
-                          <tr>
-                            <td scope="col">Rule Templates</td>
-                            <th id="version_templates" id_scope="row"></th>
-                          </tr>
+                      
                           <tr>
                             <td scope="col">System started</td>
                             <th id="started_str" id_scope="row"></th>
