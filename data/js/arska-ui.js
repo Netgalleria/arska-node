@@ -196,17 +196,6 @@ const channel_html = `<div class="col">
                             placeholder="Channel name" maxlength="20">
                     </div>
                     <!--./col-->
-                    <div class="col-auto">
-                        <label for="ch_(ch#):uptime_minimum_m" class="form-label">Minimum uptime
-                            (minutes)</label>
-                        <input id="ch_(ch#):uptime_minimum_m" type="number" class="form-control" placeholder="5" min="0" step="1" max="480" >
-                    </div>
-                    <!--./col-->
-                    <div class="col-auto">
-                        <label for="ch_(ch#):priority" class="form-label">Priority</label>
-                        <input id="ch_(ch#):priority" type="number" class="form-control" placeholder="0" min="0" step="1" max="255" >
-                    </div>
-                    <!--./col-->
                     <div class="col-6 col-lg-auto">
                         <label for="ch_(ch#):channel_color" class="form-label">Channel
                             color</label>
@@ -260,14 +249,33 @@ const channel_html = `<div class="col">
                             type="button" data-bs-toggle="collapse"
                             data-bs-target="#ch_(ch#)_colla_rules" aria-expanded="true"
                             aria-controls="ch_(ch#)_colla_rules">
-                            Channel Rules
+                            Channel Control Rules
                         </button>
                     </h2>
                     
                     <div id="ch_(ch#)_colla_rules" class="accordion-collapse collapse collapsed"
                         aria-labelledby="ch_(ch#)_accordionh3" data-bs-parent="#ch_(ch#)_accordion">
                         <div class="accordion-body">
-                            <div class="row g-3">
+                            <div class="row g-3 mb-3">
+                                <div class="col-auto">
+                                    <label for="ch_(ch#):uptime_minimum_m" class="form-label">Minimum uptime
+                                    (minutes)</label>
+                                    <input id="ch_(ch#):uptime_minimum_m" type="number" class="form-control" placeholder="5" min="0" step="1" max="480" >
+                                </div>
+                            <!--./col-->
+                            <div class="col-auto">
+                                <label for="ch_(ch#):priority" class="form-label">Priority</label>
+                                <input id="ch_(ch#):priority" type="number" class="form-control" placeholder="0" min="0" step="1" max="255" >
+                            </div>
+                            <!--./col--> 
+                            <div class="col-auto">
+                                <label for="ch_(ch#):load" class="form-label">Load (W)</label>
+                                <input id="ch_(ch#):load" type="number" class="form-control" placeholder="0" min="0" step="500" max="50000" >
+                            </div>
+                            <!--./col-->
+                      
+                            </div>
+                            <div class="row mb-3 g-3">
                                 <div class="col">
                                     <div class="input-group mb-3">
                                         <span class="input-group-text"
@@ -554,7 +562,6 @@ function update_status(repeat) {
             // em_period_s_date = new Date(em_period_s * 1000);
             document.getElementById("started_str").innerHTML = ts_date_time(data.started);
 
-
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
             document.getElementById("db:export_v").innerHTML = selling;
 
@@ -570,7 +577,6 @@ function update_status(repeat) {
             if (!isNaN(data.variables[VARIABLE_PRODUCTION_POWER])) {
                 document.getElementById("db:production_v").innerHTML = data.variables[VARIABLE_PRODUCTION_ENERGY] + " Wh";;
             }
-
             price = isNaN(data.variables["0"]) ? '-' : data.variables["0"] + ' ¢/kWh ';
 
             document.getElementById("db:price_v").innerHTML = price;
@@ -583,8 +589,6 @@ function update_status(repeat) {
                 }
                 document.getElementById(`db:s_${s_idx}:div`).style.display = sensor_has_value ? "block" : "none";
             }
-
-
             now_ts = Date.now() / 1000;
             now_period_start = parseInt(now_ts / 3600) * 3000;
             // TODO: update
@@ -593,8 +597,7 @@ function update_status(repeat) {
                 //   document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
                 $("#tblVariables_tb").empty();
                 $.each(data.variables, function (id, variable) {
-                    if (id == 152 || id == 153)
-                        console.log(id, variable);
+                
                     var_this = getVariable(id);
                     variable_name = "";
                     variable_desc = "";
@@ -631,10 +634,6 @@ function update_status(repeat) {
                 //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
                 price_chart_ok = create_price_chart();
             }
-
-
-
-
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get status", Date(Date.now()).toString(), textStatus, jqXHR.status);
@@ -668,7 +667,6 @@ function populate_channel_status(channel_idx, ch) {
     sch_status_label = document.getElementById(`sch_${channel_idx}:status`);
     sch_status_icon_span = document.getElementById(`sch_${channel_idx}:status_icon`);
     sch_status_text_span = document.getElementById(`sch_${channel_idx}:status_txt`);
-
 
     if ((ch.force_up_until > now_ts)) {
         //same duration as scheduled
@@ -760,6 +758,7 @@ function create_price_chart() {
     let now_idx = 0;
     let now_idx_chh = 23;
     now_ts = (Date.now() / 1000);
+    now_period_ts = parseInt(now_ts / 3600) * 3600;
     let price_data_exists = true
 
     if (price_data == null) {
@@ -767,7 +766,6 @@ function create_price_chart() {
         price_data_exists = false;
 
         // 48 periods
-        //  chart_start_ts = parseInt(now_ts / 3600) * 3600 - (24 * 3600);
         chart_start_ts = parseInt(now_ts / 86400) * 86400 + (3600);
         chart_end_excl_ts = chart_start_ts + (48 * 3600);
         chart_resolution_m = 60;
@@ -793,16 +791,15 @@ function create_price_chart() {
     for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_m * 60)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
-        date = new Date(ts * 1000);
-        day_diff_now = parseInt((ts - tz_offset * 60) / 86400) - parseInt(now_ts / 86400);
-        if (day_diff_now != 0)
-            day_str = " (" + ((day_diff_now < 0) ? "" : "+") + day_diff_now + ")";
-        else
-            day_str = " ";
-        time_labels.push(pad_to_2digits(date.getHours()) + ':' + pad_to_2digits(date.getMinutes()) + day_str);
 
-        if (price_data_exists)
-            prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
+
+        time_labels.push(get_time_string_from_ts(ts, false, true));
+
+        if (price_data_exists) {
+            //   prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
+            //    if (ts<now_ts+25*3600 && series_started)
+            prices_out.push({ x: get_time_string_from_ts(ts, false, true), y: Math.round(price_data.prices[idx] / 100) / 10 });
+        }
         idx++;
     }
 
@@ -859,6 +856,58 @@ function create_price_chart() {
                     stepped: false,
                     borderWidth: 2
                 });
+    }
+
+    //experimental solar forecast
+    if (true) {
+
+        $.ajax({
+            url: '/series?solar_fcst=true',
+            cache: false,
+            dataType: 'json',
+            async: false,
+            success: function (data, textStatus, jqXHR) {
+                console.log('got solar forecast', textStatus, jqXHR.status);
+                let fcst_ds = [];
+                if (!data.hasOwnProperty("solar_forecast"))
+                    return false;
+
+                solar_fcst = data.solar_forecast.s;
+                start = data.solar_forecast.start;
+                resolution_sec = data.solar_forecast.resolution_sec;
+                series_started = false;
+                for (idx = 0; idx < solar_fcst.length; idx++) {
+                    ts = (start + idx * 3600);
+                    if (solar_fcst[idx] > 0)
+                        series_started = true;
+                    if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts<= data.solar_forecast.last_set_period)
+                        fcst_ds.push({ x: get_time_string_from_ts(ts, false, true), y: solar_fcst[idx] });
+                }
+                console.log("fcst_ds", fcst_ds);
+                datasets.push(
+                    {
+                        label: 'solar fcst Wh',
+                        data: fcst_ds,
+                        yAxisID: 'y_energy',
+                        cubicInterpolationMode: 'monotone',
+                        borderColor: ['#ffff00'
+                        ],
+                        backgroundColor: '#ffff00',
+                        pointStyle: 'circle',
+                        pointRadius: 1,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        stepped: false,
+                        borderWidth: 2
+                    });
+
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                console.log("Cannot get v", textStatus, jqXHR.status);
+                //  setTimeout(function () { get_price_data(); }, 40000);
+            }
+        });
+
     }
 
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
@@ -1741,7 +1790,7 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 field_list.appendChild(document.createElement("br"));
 
                 const value_input = createElem("input", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[2], "form-control", "number");
-                
+
                 if (stmt_obj[4].hasOwnProperty('min'))
                     value_input.setAttribute("min", stmt_obj[4].min);
                 if (stmt_obj[4].hasOwnProperty('max'))
@@ -1811,15 +1860,15 @@ function populate_channel(channel_idx) {
 
     // end of scheduling
 
-    document.getElementById(`ch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
-    document.getElementById(`ch_${channel_idx}:id_str`).value = g_config.ch[channel_idx]["id_str"];
     document.getElementById(`sch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
 
-    document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value = parseInt(g_config.ch[channel_idx]["uptime_minimum"] / 60);
-
-    // console.log("channel_color", channel_idx, (g_config.ch[channel_idx]["channel_color"]), g_config.ch[channel_idx]["channel_color"]);
+    document.getElementById(`ch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
+    document.getElementById(`ch_${channel_idx}:id_str`).value = g_config.ch[channel_idx]["id_str"];
     document.getElementById(`ch_${channel_idx}:channel_color`).value = (g_config.ch[channel_idx]["channel_color"]);
+
+    document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value = parseInt(g_config.ch[channel_idx]["uptime_minimum"] / 60);
     document.getElementById(`ch_${channel_idx}:priority`).value = (g_config.ch[channel_idx]["priority"]);
+    document.getElementById(`ch_${channel_idx}:load`).value = (g_config.ch[channel_idx]["load"]);
 
     populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), g_config.ch[channel_idx]["template_id"]);
 
@@ -1919,9 +1968,9 @@ function selected_oper_ev(ev) {
 }
 
 function populate_var(sel_ctrl, selected = -1) {
-    // get_idx_from_str(sel_ctrl.id)
+    // TODO: reads currently description from hardcoded source, could read variable-info variable_list
     if (sel_ctrl.options.length == 0) {
-        addOption(sel_ctrl, -1, "remove", false);
+        addOption(sel_ctrl, -1, "-", false);
         for (var i = 0; i < g_constants.variables.length; i++) {
             var type_indi = is_var_logical(g_constants.variables[i][2]) ? "*" : " "; //logical
             var id_str = '(' + g_constants.variables[i][0] + ') ' + g_constants.variables[i][1] + type_indi;
@@ -2020,7 +2069,7 @@ function template_form_closed(ev) {
     console.log("******** adding new fields");
     // assume global variable template_data.conditions populated  when creating the form
     $.each(template_data.rules, function (cond_idx, rule) {
-      //  console.log("cond_idx, rule", cond_idx, rule);
+        //  console.log("cond_idx, rule", cond_idx, rule);
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
         $.each(rule.stmts, function (j, stmt) {
@@ -2042,17 +2091,17 @@ function template_form_closed(ev) {
                         console.log(`no element ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[3]);
                 }
                 else if (stmt_obj[4].hasOwnProperty('copy_from_field')) {
-                    console.log("Copying value from field",stmt_obj[4].copy_from_field);
+                    console.log("Copying value from field", stmt_obj[4].copy_from_field);
                     multiplier = stmt_obj[4].hasOwnProperty('copy_multiplier') ? stmt_obj[4].copy_multiplier : 1;
                     if (entered_field_values.hasOwnProperty(stmt_obj[4].copy_from_field)) {
                         new_value = entered_field_values[stmt_obj[4].copy_from_field] * multiplier;
-                        console.log("New value from the other ",new_value);
+                        console.log("New value from the other ", new_value);
                     }
                     else
-                        console.log("Cannot copy field value. No field with id ",stmt_obj[4].field_id);
+                        console.log("Cannot copy field value. No field with id ", stmt_obj[4].field_id);
                 }
-        }
-                
+            }
+
 
             stmt_obj2 = [stmt_obj[0], stmt_obj[1], null, new_value];
             console.log("before addStmt: ", channel_idx, cond_idx, stmt_obj, stmt_obj2);
@@ -2304,9 +2353,6 @@ function init_ui() {
     });
 
 
-
-
-
     load_application_config();
 
     create_channels();
@@ -2326,21 +2372,21 @@ function init_ui() {
 
     }
 
-
     action_buttons = document.querySelectorAll("button[id^='admin:']");
     for (let i = 0; i < action_buttons.length; i++) {
         action_buttons[i].addEventListener("click", launch_action_evt);
         //  console.log("Action added " + action_buttons[i].id);
     }
 
+    //event listeners for controls for enablin save etc
     const input_controls = document.querySelectorAll("input, select");
     for (let i = 0; i < input_controls.length; i++) {
         //  should be input to catch changes before leaving the input field
         if (input_controls[i].type == "radio")
             input_controls[i].addEventListener("click", ctrl_changed);
-        else
+        else 
             input_controls[i].addEventListener("change", ctrl_changed);
-        // console.log("Action added " + input_controls[i].id);
+     //   console.log("Action added " + input_controls[i].id);
     }
 
     // delay loading
@@ -2394,21 +2440,27 @@ function find_pid(el, id) {
 function find_parent_card(el) {
     var p = el;
     while (p = p.parentNode) {
-        if (p.id && p.id.endsWith(":card"))
+        
+        var colon_count = (p.id.match(/:/g) || []).length; //filter out rule sub cards 
+        if (p.id && p.id.endsWith(":card") && colon_count == 1) {
+         //   console.log("returns:",p.id.replace(":card", ""));
             return p.id.replace(":card", "");
+        }
     }
+    console.log("no parent found");
     return "";
 }
 // enables save button after content change
 function ctrl_changed(ev) {
-
     let parent_card = find_parent_card(ev.target);
+    console.log("ctrl_changed", ev.target.id,parent_card?parent_card:"no parent card");
     if (parent_card) {
         save_el = document.getElementById(parent_card + ":save");
         if ((save_el !== null))
             save_el.disabled = false;
     }
 }
+
 function launch_action(action, card_id, params) {
     //  var post_data = { "action": action };
     let post_data = Object.assign({ "action": action }, params);
@@ -2482,6 +2534,7 @@ function save_channel(ev) {
 
     data_ch["id_str"] = document.getElementById(`ch_${channel_idx}:id_str`).value;
     data_ch["uptime_minimum"] = parseInt(document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value * 60);
+    data_ch["load"] = document.getElementById(`ch_${channel_idx}:load`).value;
 
     data_ch["channel_color"] = document.getElementById(`ch_${channel_idx}:channel_color`).value;
     data_ch["priority"] = document.getElementById(`ch_${channel_idx}:priority`).value;

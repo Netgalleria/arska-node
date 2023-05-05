@@ -8,17 +8,20 @@
   <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
   <meta name="generator" content="Hugo 0.104.2">
   <title>Arska Power Management</title>
-  <!--<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
-  -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+  <!--
   <link href="css/bootstrap.min.css" rel="stylesheet">
+  -->
   <!--
   <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/">
   
   -->
 
+  <!--
   <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
   <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
-  
+
+  -->
 
   <style>
     .bd-placeholder-img {
@@ -82,9 +85,9 @@
       color: #fff;
       cursor: pointer;
       transition: background .2s ease-in-out;
-      width :140px;
+      width: 140px;
       display: block;
-      line-height:1.1;
+      line-height: 1.1;
     }
 
     input[type=file]::file-selector-button:hover {
@@ -305,8 +308,8 @@
                         <span data-feather="activity" style="pointer-events: none;" class="align-text-bottom"></span>
                         <span id="db:price_v"></span> <span id="db:price_period" class="text-muted"></span>
                       </div>
-                    
-                      <div id="db:s_201:div" class="col"  style="display: none;">
+
+                      <div id="db:s_201:div" class="col" style="display: none;">
                         <span data-feather="thermometer" style="pointer-events: none;" class="align-text-bottom"></span>
                         <span id="db:s_201:val"></span><span class="text-muted"> (1)</span>
                       </div>
@@ -318,7 +321,7 @@
                         <span data-feather="thermometer" style="pointer-events: none;" class="align-text-bottom"></span>
                         <span id="db:s_203:val"></span><span class="text-muted"> (3)</span>
                       </div>
-                    
+
 
                     </div>
                     <!--./row-->
@@ -329,7 +332,8 @@
                   </div>
 
                   <div class="card-body" id="chart_container">
-                    <button id="dashboard:refresh" type="button" class="btn btn-primary d-none" onclick="create_price_chart()">
+                    <button id="dashboard:refresh" type="button" class="btn btn-primary d-none"
+                      onclick="create_price_chart()">
                       <span data-feather="refresh-cw" style="pointer-events: none;" class="align-text-bottom"></span>
                     </button>
                     <canvas class="my-4 w-100 chartjs-render-monitor" id="day_ahead_chart" width="1624" height="684"
@@ -421,8 +425,9 @@
                   <div class="card-header">
                     <h5 class="card-title">Price Data</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted">Nordpool price info is updated from ENTSO-E Transparency Platform. <a target="_blank"
-                          href="https://github.com/Netgalleria/arska-node/wiki/Edit-Services">How to get own ENTSO-E API
+                      <span class="text-muted">Nordpool price info is updated from ENTSO-E Transparency Platform. <a
+                          target="_blank" href="https://github.com/Netgalleria/arska-node/wiki/Edit-Services">How to get
+                          own ENTSO-E API
                           key</a></span>
                     </div>
                     <!--./chart-info-->
@@ -431,7 +436,8 @@
                   <div class="card-body">
                     <div class="mb-2">
                       <label for="entsoe_api_key" class="form-label">ENTSO-E API key</label>
-                      <input type="url" class="form-control" id="entsoe_api_key" placeholder="Enter API key sent by ENTSO-E">
+                      <input type="url" class="form-control" id="entsoe_api_key"
+                        placeholder="Enter API key sent by ENTSO-E">
                     </div>
                     <div class="mb-2">
                       <label for="entsoe_area_code" class="form-label">Area code</label>
@@ -508,132 +514,138 @@
                   </div>
                   <!--./card-header-->
                   <div class="card-body">
-
                     <div class="mb-2">
                       <label for="forecast_loc" class="form-label">Forecast location</label>
                       <select id="forecast_loc" class="form-select" aria-label="variable">
                         <option value="#">not in use</option>
-                        <option>Akaa</option>
-                        <option>Alajärvi</option>
-                        <option>Alavus</option>
-                        <option>Espoo</option>
-                        <option>Forssa</option>
-                        <option>Haapajärvi</option>
-                        <option>Haapavesi</option>
-                        <option>Hamina</option>
-                        <option>Hanko</option>
-                        <option>Harjavalta</option>
-                        <option>Heinola</option>
-                        <option>Helsinki</option>
-                        <option>Hetta</option>
-                        <option>Huittinen</option>
-                        <option>Hyvinkää</option>
-                        <option>Hämeenlinna</option>
-                        <option>Iisalmi</option>
-                        <option>Ikaalinen</option>
-                        <option>Imatra</option>
-                        <option>Inari</option>
-                        <option>Jakobstad</option>
-                        <option>Joensuu</option>
-                        <option>Juankoski</option>
-                        <option>Jyväskylä</option>
-                        <option>Jämsä</option>
-                        <option>Järvenpää</option>
-                        <option>Kaarina</option>
-                        <option>Kajaani</option>
-                        <option>Kalajoki</option>
-                        <option>Kankaanpää</option>
-                        <option>Kannus</option>
-                        <option>Karkkila</option>
-                        <option>Kaskinen</option>
-                        <option>Kauhajoki</option>
-                        <option>Kauhava</option>
-                        <option>Kauniainen</option>
-                        <option>Kemi</option>
-                        <option>Kemijärvi</option>
-                        <option>Kerava</option>
-                        <option>Keuruu</option>
-                        <option>Kilpisjärvi</option>
-                        <option>Kitee</option>
-                        <option>Kittilä</option>
-                        <option>Kiuruvesi</option>
-                        <option>Kokemäki</option>
-                        <option>Kokkola</option>
-                        <option>Kotka</option>
-                        <option>Kouvola</option>
-                        <option>Kristinestad</option>
-                        <option>Kuhmo</option>
-                        <option>Kuopio</option>
-                        <option>Kurikka</option>
-                        <option>Kuusamo</option>
-                        <option>Lahti</option>
-                        <option>Laitila</option>
-                        <option>Lappeenranta</option>
-                        <option>Lapua</option>
-                        <option>Lieksa</option>
-                        <option>Lohja</option>
-                        <option>Loimaa</option>
-                        <option>Loviisa</option>
-                        <option>Mariehamn</option>
-                        <option>Mikkeli</option>
-                        <option>Muonio</option>
-                        <option>Mänttä-Vilppula</option>
-                        <option>Naantali</option>
-                        <option>Nilsiä</option>
-                        <option>Nivala</option>
-                        <option>Nokia</option>
-                        <option>Nurmes</option>
-                        <option>Nykarleby</option>
-                        <option>Närpes</option>
-                        <option>Orimattila</option>
-                        <option>Orivesi</option>
-                        <option>Oulainen</option>
-                        <option>Oulu</option>
-                        <option>Outokumpu</option>
-                        <option>Paimio</option>
-                        <option>Pargas</option>
-                        <option>Parkano</option>
-                        <option>Pello</option>
-                        <option>Pieksämäki</option>
-                        <option>Pori</option>
-                        <option>Porvoo</option>
-                        <option>Pudasjärvi</option>
-                        <option>Pyhäjärvi</option>
-                        <option>Raahe</option>
-                        <option>Raisio</option>
-                        <option>Raseborg</option>
-                        <option>Rauma</option>
-                        <option>Riihimäki</option>
-                        <option>Rovaniemi</option>
-                        <option>Saarijärvi</option>
-                        <option>Saariselkä</option>
-                        <option>Salla</option>
-                        <option>Salo</option>
-                        <option>Sastamala</option>
-                        <option>Savonlinna</option>
-                        <option>Seinäjoki</option>
-                        <option>Sodankylä</option>
-                        <option>Somero</option>
-                        <option>Suonenjoki</option>
-                        <option>Tampere</option>
-                        <option>Tornio</option>
-                        <option>Turku</option>
-                        <option>Ulvila</option>
-                        <option>Utsjoki</option>
-                        <option>Uusikaupunki</option>
-                        <option>Vaasa</option>
-                        <option>Valkeakoski</option>
-                        <option>Vantaa</option>
-                        <option>Varkaus</option>
-                        <option>Viitasaari</option>
-                        <option>Vilppula</option>
-                        <option>Virrat</option>
-                        <option>Ylivieska</option>
-                        <option>Ylöjärvi</option>
-                        <option>Ähtäri</option>
-                        <option>Äänekoski</option>
+                        <option value="634317">Akaa</option>
+                        <option value="661576">Alajärvi</option>
+                        <option value="661352">Alavus</option>
+                        <option value="660158">Espoo</option>
+                        <option value="659935">Forssa</option>
+                        <option value="659681">Haapajärvi</option>
+                        <option value="659554">Haapavesi</option>
+                        <option value="659169">Hamina</option>
+                        <option value="659101">Hanko</option>
+                        <option value="658921">Harjavalta</option>
+                        <option value="658288">Heinola</option>
+                        <option value="658225">Helsinki</option>
+                        <option value="658108">Hetta</option>
+                        <option value="657180">Huittinen</option>
+                        <option value="656913">Hyvinkää</option>
+                        <option value="659180">Hämeenlinna</option>
+                        <option value="656820">Iisalmi</option>
+                        <option value="656789">Ikaalinen</option>
+                        <option value="656688">Imatra</option>
+                        <option value="656657">Inari</option>
+                        <option value="655808">Joensuu</option>
+                        <option value="655533">Juankoski</option>
+                        <option value="655194">Jyväskylä</option>
+                        <option value="656083">Jämsä</option>
+                        <option value="655958">Järvenpää</option>
+                        <option value="655130">Kaarina</option>
+                        <option value="654899">Kajaani</option>
+                        <option value="654837">Kalajoki</option>
+                        <option value="654363">Kankaanpää</option>
+                        <option value="654314">Kannus</option>
+                        <option value="653960">Karkkila</option>
+                        <option value="653758">Kaskinen</option>
+                        <option value="653627">Kauhajoki</option>
+                        <option value="653616">Kauhava</option>
+                        <option value="653559">Kauniainen</option>
+                        <option value="653281">Kemi</option>
+                        <option value="653272">Kemijärvi</option>
+                        <option value="653185">Kerava</option>
+                        <option value="652977">Keuruu</option>
+                        <option value="652793">Kilpisjärvi</option>
+                        <option value="652615">Kitee</option>
+                        <option value="652590">Kittilä</option>
+                        <option value="652559">Kiuruvesi</option>
+                        <option value="651980">Kokemäki</option>
+                        <option value="651943">Kokkola</option>
+                        <option value="650946">Kotka</option>
+                        <option value="650859">Kouvola</option>
+                        <option value="650769">Kristiinankaupunki</option>
+                        <option value="650705">Kuhmo</option>
+                        <option value="650224">Kuopio</option>
+                        <option value="650095">Kurikka</option>
+                        <option value="649360">Lahti</option>
+                        <option value="649302">Laitila</option>
+                        <option value="648900">Lappeenranta</option>
+                        <option value="648855">Lapua</option>
+                        <option value="648090">Lieksa</option>
+                        <option value="647751">Lohja</option>
+                        <option value="647731">Loimaa</option>
+                        <option value="647571">Loviisa</option>
+                        <option value="3041732">Mariehamn</option>
+                        <option value="646005">Mikkeli</option>
+                        <option value="645672">Muonio</option>
+                        <option value="646705">Mänttä</option>
+                        <option value="645211">Naantali</option>
+                        <option value="644632">Nilsiä</option>
+                        <option value="644499">Nivala</option>
+                        <option value="644450">Nokia</option>
+                        <option value="644187">Nurmes</option>
+                        <option value="644100">Nykarleby</option>
+                        <option value="645081">Närpes</option>
+                        <option value="643644">Orimattila</option>
+                        <option value="643629">Orivesi</option>
+                        <option value="643497">Oulainen</option>
+                        <option value="643492">Oulu</option>
+                        <option value="643453">Outokumpu</option>
+                        <option value="643153">Paimio</option>
+                        <option value="642673">Parainen</option>
+                        <option value="642657">Parkano</option>
+                        <option value="642367">Pello</option>
+                        <option value="641869">Pieksämäki</option>
+                        <option value="656130">Pietarsaari</option>
+                        <option value="640999">Pori</option>
+                        <option value="660561">Porvoo</option>
+                        <option value="640803">Pudasjärvi</option>
+                        <option value="640441">Pyhäjärvi</option>
+                        <option value="640276">Raahe</option>
+                        <option value="640124">Raisio</option>
+                        <option value="639853">Raseborg</option>
+                        <option value="639734">Rauma</option>
+                        <option value="639406">Riihimäki</option>
+                        <option value="638936">Rovaniemi</option>
+                        <option value="638321">Saarijärvi</option>
+                        <option value="-10017507">Saariselkä</option>
+                        <option value="-10000380">Salla</option>
+                        <option value="637948">Salo</option>
+                        <option value="-16011686">Sastamala</option>
+                        <option value="637292">Savonlinna</option>
+                        <option value="637219">Seinäjoki</option>
+                        <option value="636464">Sodankylä</option>
+                        <option value="636345">Somero</option>
+                        <option value="635692">Suonenjoki</option>
+                        <option value="634963">Tampere</option>
+                        <option value="634093">Tornio</option>
+                        <option value="633679">Turku</option>
+                        <option value="633395">Ulvila</option>
+                        <option value="633268">Utsjoki</option>
+                        <option value="633221">Uusikaupunki</option>
+                        <option value="632978">Vaasa</option>
+                        <option value="632672">Valkeakoski</option>
+                        <option value="632453">Vantaa</option>
+                        <option value="632370">Varkaus</option>
+                        <option value="631560">Viitasaari</option>
+                        <option value="631459">Vilppula</option>
+                        <option value="631376">Virrat</option>
+                        <option value="630768">Ylivieska</option>
+                        <option value="630752">Ylöjärvi</option>
+                        <option value="661896">Ähtäri</option>
+                        <option value="662095">Äänekoski</option>
                       </select>
 
+                    </div>
+                    <div class="mb-2">
+                      <label for="pv_power" class="form-label">Panel peak power (W)</label>
+                      <input type="number" min="0" class="form-control" id="pv_power" placeholder="0">
+                    </div>
+                    <div class="mb-2">
+                      <label for="baseload" class="form-label">Daytime baseload (W)</label>
+                      <input type="number" class="form-control" id="baseload" placeholder="0">
                     </div>
                     <div id="energy_forecast:alert"></div>
                   </div>
@@ -674,8 +686,8 @@
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_port" class="form-label">Energy Meter IP Port</label>
-                      <input type="number" class="form-control" id="energy_meter_port" placeholder="Typically 80" min="1" step="1"
-                        max="65536">
+                      <input type="number" class="form-control" id="energy_meter_port" placeholder="Typically 80"
+                        min="1" step="1" max="65536">
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_password" class="form-label">Energy Meter Password</label>
@@ -718,19 +730,15 @@
                     </div>
                     <div class="mb-2">
                       <label for="production_meter_port" class="form-label">Inverter IP Port</label>
-                      <input type="number" class="form-control" id="production_meter_port" placeholder="defaults 80 for Fronius503 for SMA">
+                      <input type="number" class="form-control" id="production_meter_port"
+                        placeholder="defaults 80 for Fronius503 for SMA">
                     </div>
                     <div class="mb-2">
                       <label for="production_meter_id" class="form-label">Inverter IP ID</label>
-                      <input type="number" class="form-control" id="production_meter_id" placeholder="SMA default 3" min="0"
-                        step="1" max="255">
+                      <input type="number" class="form-control" id="production_meter_id" placeholder="SMA default 3"
+                        min="0" step="1" max="255">
                     </div>
-                    <!--
-                    <div class="mb-2">
-                      <label for="baseload" class="form-label">Baseload (W)</label>
-                      <input type="text" class="form-control" id="baseload" placeholder="0">
-                    </div>
-                    -->
+
                     <div id="production:alert"></div>
                   </div>
                   <!--./card-body-->
@@ -765,7 +773,8 @@
                     </div>
                     <div class="mb-2">
                       <label for="influx_org" class="form-label">Organization</label>
-                      <input type="text" class="form-control" id="influx_org" placeholder="Typically your email address">
+                      <input type="text" class="form-control" id="influx_org"
+                        placeholder="Typically your email address">
                     </div>
                     <div class="mb-3">
                       <label for="influx_bucket" class="form-label">Bucket</label>
@@ -801,24 +810,24 @@
                     <div class="mb-2">
                       <label for="timezone" class="form-label">Timezone</label>
                       <select id="timezone" class="form-select" aria-label="variable">
-                      <option value="EET">EET</option>
-                      <option value="CET">CET</option>
+                        <option value="EET">EET</option>
+                        <option value="CET">CET</option>
                       </select>
 
                     </div>
                     <div class="mb-2">
                       <label for="lang" class="form-label">Preferred language</label>
                       <select id="lang" class="form-select" aria-label="variable">
-                      <option value="en">English</option>
-                    <option value="fi">Suomi (vain sääntöpohjat)</option>
-                    </select>
+                        <option value="en">English</option>
+                        <option value="fi">Suomi (vain sääntöpohjat)</option>
+                      </select>
                     </div>
-              
+
                     <div id="local:alert"></div>
                   </div>
                   <!--./card-body-->
                   <div class="card-footer text-end">
-              
+
                     <button class="btn btn-primary" type="submit" id="local:save" disabled="">
                       <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
                       Save</button>
@@ -852,16 +861,18 @@
                         </datalist>
                       </div>
                     </div>
-                    <div class="mb-2"> 
+                    <div class="mb-2">
                       <label for="wifi_password" class="form-label">Password</label>
                       <div class="input-group mb-0">
                         <input type="password" class="form-control" id="wifi_password" placeholder="">
-                        <button id="wifi_password_show" type="button" class="btn btn-primary" onclick="toggle_show(this);"><span data-feather="eye"
-                          style="pointer-events: none;" class="align-text-bottom"></span></button>
-                      
-                       <button id="wifi_password_hide" type="button" class="btn btn-primary d-none"  onclick="toggle_show(this);"> <span
-                          data-feather="eye-off" style="pointer-events: none;" class="align-text-bottom"></span>
-                        </button> 
+                        <button id="wifi_password_show" type="button" class="btn btn-primary"
+                          onclick="toggle_show(this);"><span data-feather="eye" style="pointer-events: none;"
+                            class="align-text-bottom"></span></button>
+
+                        <button id="wifi_password_hide" type="button" class="btn btn-primary d-none"
+                          onclick="toggle_show(this);"> <span data-feather="eye-off" style="pointer-events: none;"
+                            class="align-text-bottom"></span>
+                        </button>
                       </div>
                     </div>
                     <div id="password_note"></div>
@@ -907,7 +918,8 @@
                     <div class="mb-2">
                       <label class="form-label">Backup configuration</label>
                       <br>
-                      <a href="/settings?format=file"><button class="btn btn-primary" style="line-height:1.1;width:140px;" type="submit" id="do_backup">
+                      <a href="/settings?format=file"><button class="btn btn-primary"
+                          style="line-height:1.1;width:140px;" type="submit" id="do_backup">
                           <span data-feather="download" style="pointer-events: none;" class="align-text-bottom"></span>
                           Backup</button></a>
                     </div>
@@ -920,7 +932,7 @@
 
                           <div class="custom-file">
                             <input type="file" class="custom-file-input" id="restore_config_btn"
-                              aria-describedby="restore_config_btn"  accept='application/json'
+                              aria-describedby="restore_config_btn" accept='application/json'
                               onchange='restore_config(event)'>
                           </div>
                         </div>
@@ -940,7 +952,7 @@
                             <td scope="col">Filesystem</td>
                             <th id="version_fs" id_scope="row"></th>
                           </tr>
-                      
+
                           <tr>
                             <td scope="col">System started</td>
                             <th id="started_str" id_scope="row"></th>
@@ -966,7 +978,7 @@
                           data-bs-title="Start upgrade">
                           <span data-feather="download-cloud" style="pointer-events: none;"
                             class="align-text-bottom"></span> Upgrade</button>
-                      </div>    
+                      </div>
                     </div>
 
                     <div class="accordion" id="adminadv_accordion">
@@ -1001,10 +1013,10 @@
                             <div class="mb-2">
                               <a href="/update">Manual upgrade</a>
                             </div>
-                           
+
                             <div id="admin:alert"></div>
 
-                            
+
                             <button class="btn btn-primary" type="submit" id="admin:save" disabled="">
                               <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
                               Save</button>

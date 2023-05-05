@@ -58,8 +58,8 @@
                             13,
                             null,
                             {
-                                "prompt": "Minimum price to sell own production and not to switch the channel up, e.g. 13 (c/kWh)?",
-                                "prompt_fi": "Vähimmäishinta, esim. 13 (c/kWh), jolla myydään oma tuotanto eikä laiteta kanavaa päälle?",
+                                "prompt": "Minimum price to sell own production and not to switch the channel up, e.g. 13 (¢/kWh)?",
+                                "prompt_fi": "Vähimmäishinta, esim. 13 (¢/kWh), jolla myydään oma tuotanto eikä laiteta kanavaa päälle?",
                                 "min":0,
                                 "max":100,
                                 "step":1
@@ -100,8 +100,8 @@
                             15,
                             null,
                             {
-                                "prompt": "Max price to keep the channel up at daytime,e.g. 15 (c/kWh)?",
-                                "prompt_fi": "Enimmäishinta jolla kanava päällä päivällä, esim. 15 (c/kWh)?" ,
+                                "prompt": "Max price to keep the channel up at daytime,e.g. 15 (¢/kWh)?",
+                                "prompt_fi": "Enimmäishinta jolla kanava päällä päivällä, esim. 15 (¢/kWh)?" ,
                                 "min":0,
                                 "max":100,
                                 "step":1
@@ -112,7 +112,7 @@
                 {
                     "on": true,
                     "desc": "Up at night given number of cheapest hours, if future daytime solar price is over current price x cents.",
-                    "desc_fi": "Päällä yöllä halvimpina tunteina jos tulevan päivän aurinkotuotannon arvioitu keskihinta ylittää nykyisen x sentillä.",
+                    "desc_fi": "Päällä yöllä halvimpina tunteina jos tulevan päivän aurinkotuotannon arvioitu keskihinta ylittää yön hinnan vähintään X sentillä.",
                     "stmts": [
                         [
                             130,
@@ -125,8 +125,8 @@
                             6,
                             null,
                             {
-                                "prompt": "Up at night, if future solar price is over current price, e.g. 6 (c/kWh)",
-                                "prompt_fi": "Montako senttiä tulevan päivän aurinkohinta pitää ylittää nykyisen hinnan, jotta kanava päällä, esim. 6 (c/kWh)",
+                                "prompt": "Up at night, if future solar price is over current price, e.g. 6 (¢/kWh)",
+                                "prompt_fi": "Montako senttiä tulevan päivän aurinkohinta pitää ylittää nykyisen hinnan, jotta kanava päällä yöllä, esim. 6 (¢/kWh)",
                                 "min":0,
                                 "max":100,
                                 "step":1
@@ -138,8 +138,8 @@
                             5,
                             null,
                             {
-                                "prompt": "How many hours up during night (1-9), cheapest hours.",
-                                "prompt_fi": "Montako tuntia päällä yön aikana (1-9), halvimpina tunteina." ,
+                                "prompt": "How many cheapest  hours up during night (1-9).",
+                                "prompt_fi": "Montako halvinta tuntia päällä yön aikana (1-9)." ,
                                 "min":0,
                                 "max":9,
                                 "step":1
@@ -149,8 +149,8 @@
                 },
                 {
                     "on": false,
-                    "desc": "Down at night if forecasted solar production is over",
-                    "desc_fi": "Alhaalla yöllä jos tulevan päivän ennustettu aurinkotuotanto ylittää rajan",
+                    "desc": "Down at night if forecasted solar production is over high enough.",
+                    "desc_fi": "Alhaalla yöllä jos tulevan päivän ennustettu aurinkotuotanto riittävän korkea.",
                     "stmts": [
                         [
                             130,
@@ -163,7 +163,7 @@
                             10,
                             null,
                             {
-                                "prompt": "Minimum future solar to take into consideration, reference value, e.g. 10 (max appr. 25)",
+                                "prompt": "Minimum future solar to take into consideration, e.g. 30 (kWh)",
                                 "prompt_fi": "Minimi huomioitu aurinkoennusteen määrä,  viitearvo esim. 10, (maksimi n. 25)",
                                 "min":0,
                                 "max":25,
@@ -189,7 +189,7 @@
                             null,
                             {
                                 "prompt": "How many hours up during night (0-9), cheapest hours.",
-                                "prompt_fi": "Montako tuntia päällä vähintään halvimpina tunteina yön aikana (0-9).",
+                                "prompt_fi": "Montako tuntia vähintään päällä halvimpina tunteina yön aikana (0-9).",
                                 "min":0,
                                 "max":9,
                                 "step":1
@@ -201,9 +201,9 @@
         },
         {
             "id": 4,
-            "name": "On on during cheapest hours the day (nychthemeron)",
+            "name": "On on during cheapest hours the day",
             "name_fi": "Käytä vain halvimpina vuorokauden tunteina ",
-            "desc": "On during cheapest hours of the day (nychthemeron). You can define number of cheapest hours (rank) and max price. Required data: prices.",
+            "desc": "On during cheapest hours of the day (24 h nychthemeron). You can define number of cheapest hours (rank) and max price. Required data: prices.",
             "desc_fi": "Päällä vuorokauden halvimpina tunteina. Lisäksi päällä jos hinta alittaa antamasi rajahinnnan. Voit määrittää päällä olevien tuntien määrän (rank) ja hintarajan.  Tarvittava data: hintatiedot.",
             "rules": [
                 {
@@ -217,8 +217,8 @@
                             6,
                             null,
                             {
-                                "prompt": "How many hours on at least on during the day (24 h), e.g. 6 h",
-                                "prompt_fi": "Montako tuntia päällä vähintään päällä vuorokauden aikana, esim. 6 h",
+                                "prompt": "How many hours on at least on during the day (24 h), e.g. 6 (h)",
+                                "prompt_fi": "Montako tuntia päällä vähintään päällä vuorokauden aikana, esim. 6 (tuntia)",
                                 "min":0,
                                 "max":24,
                                 "step":1
@@ -228,8 +228,8 @@
                 },
                 {
                     "on": true,
-                    "desc": "Up always if the price is below, e.g. 3.0 (c/kWh)",
-                    "desc_fi": "Päällä aina jos hinta alittaa rajan, esim. 3.0 (c/kWh)",
+                    "desc": "Up always if the price is below, e.g. 3.0 (¢/kWh)",
+                    "desc_fi": "Päällä aina jos hinta alittaa rajan, esim. 3.0 (¢/kWh)",
                     "stmts": [
                         [
                             0,
@@ -237,8 +237,8 @@
                             "3.0",
                             null,
                             {
-                                "prompt": "Maximum price, e.g. 3.0 (c/kWh)",
-                                "prompt_fi": "Enimmäishinta, esim. 3.0 (c/kWh)",
+                                "prompt": "Maximum price, e.g. 3.0 (¢/kWh)",
+                                "prompt_fi": "Enimmäishinta, esim. 3.0 (¢/kWh)",
                                 "min":0,
                                 "max":100,
                                 "step":1
@@ -252,8 +252,8 @@
             "id": 5,
             "name": "On during the day if net sales and additionally at night",
             "name_fi": "Päällä päivällä kun nettomyyntiä ja täydennyksenä yöllä",
-            "desc": "Open during the day if there is net sales and at night during the cheapest hours to get the minimum uptime. Required data: prices, energy metering.",
-            "desc_fi": "Päällä päivällä kun nettomyyntiä ja yöllä halvimpina tunteina, jotta minimipäälläoloaika täyttyisi.  Tarvittava data: hintatiedot, energian mittarointi.",
+            "desc": "Open during the day if there is net sales and at night during the cheapest hours to get the minimum uptime. Required data: prices, net energy info from metering or solar forecast.",
+            "desc_fi": "Päällä päivällä kun nettomyyntiä ja yöllä halvimpina tunteina, jotta minimipäälläoloaika täyttyisi.  Tarvittava data: hintatiedot, nettokulutuksen mittarointi tai arviointi  (tarkista muuttuja 700).",
             "rules": [
                 {
                     "on": true,
@@ -277,7 +277,7 @@
                 {
                     "on": true,
                     "desc": "Up during the cheapest hours of the night so that the minimum uptime of the day would be filled",
-                    "desc_fi": "Päällä yön halvimpina tunteina, jotta vuorokauden kokonaispäälläoloaika täyttyisi",
+                    "desc_fi": "Päällä yön halvimpina tunteina, jotta vuorokauden määritelty vähimmäispäälläolo täyttyisi",
                     "stmts": [
                         [
                             7,
@@ -307,8 +307,6 @@
                             {
                                 "copy_from_field" : 1,
                                 "copy_multiplier" : 60,
-                                "XXprompt": "Up also if the price max X ¢/kWh",
-                                "XXXprompt_fi": "Vähimmäispäälläoloaika vuorokaudessa minuutteina, esim. 240 (4 h)",
                                 "min":0,
                                 "max":1440,
                                 "step":60

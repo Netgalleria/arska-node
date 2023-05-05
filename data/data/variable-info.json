@@ -1,144 +1,185 @@
 {
     "0": {
         "id": "price",
-        "en": "current price c/kWh"
+        "en": "Current NordPool electricity price, tax/margin excluded, ¢/kWh"
     },
     "1": {
         "id": "price rank 9h",
-        "en": "price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest"
+        "en": "Price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest"
     },
     "2": {
         "id": "price rank 24h",
-        "en": "price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest"
+        "en": "Price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest"
     },
     "3": {
         "id": "price rank 24h",
-        "en": "price rank in 24 hours, fixed nychthemeron, 1 if now lowest price, 24 if highest"
+        "en": "Price rank in 24 hours, fixed nychthemeron 00:00-23:59, 1 if now lowest price, 24 if highest"
     },
     "4": {
         "id": "rank in 8 h block",
-        "en": "price rank in fixed 8 hour block"
+        "en": "Price rank in fixed 8 hour block"
     },
     "5": {
         "id": "price average 9h",
-        "en": "average price in 9 hours sliding window"
+        "en": "Average price in 9 hours sliding window, ¢/kWh"
     },
     "6": {
         "id": "price average 24h",
-        "en": "average price in 24 hours sliding window"
+        "en": "Average price in 24 hours sliding window, ¢/kWh"
     },
     "7": {
         "id": "8 h block id",
-        "en": "current 8 hour block id, 23:00-06:59 -> 1 , 07:00-14:59 -> 2, 15:00-22:59 -> 3"
+        "en": "Current 8 hour block id, 1) 23:00-06:59 , 2) 07:00-14:59, 3) 15:00-22:59"
     },
     "9": {
         "id": "price diff to average 9h",
-        "en": "price difference to 9 hours average"
+        "en": "Price difference to 9 hours average, ¢/kWh"
     },
     "10": {
         "id": "price diff to average 24h",
-        "en": "price difference to 24 hours average"
+        "en": "Price difference to 24 hours average, ¢/kWh"
     },
     "13": {
         "id": "price ratio % to average 9h",
-        "en": "price ratio % to sliding 9 hours average,  "
+        "en": "Price ratio % to sliding 9 hours average"
     },
     "14": {
         "id": "price ratio % to average 24h",
-        "en": "price ratio % to sliding 24 hours average"
+        "en": "Price ratio % to sliding 24 hours average"
     },
     "15": {
         "id": "price ratio % to average fixed 24h",
-        "en": "price ratio % to fixed nychthemeron 24h"
+        "en": "Price ratio % to fixed nychthemeron 24h"
     },
     "20": {
         "id": "pv forecast 24 h",
-        "en": "solar power forecast for next 24 hours, 0.. ca.25"
+        "en": "Solar power forecast for local panels, next 24 hours, kWh"
     },
     "21": {
         "id": "pv value 24 h",
-        "en": "value of future solar power, next 24 h, cents"
+        "en": "Value of future solar power, next 24 h, €"
     },
     "22": {
         "id": "pv price avg 24 h",
-        "en": "average price of future solar power, next 24 h, c/kWh"
+        "en": "average price of future solar power, next 24 h, ¢/kWh"
     },
     "23": {
         "id": "future pv higher",
-        "en": "amount future avarage solar power price is higher than current price, +- c/kWh"
+        "en": "Future average solar power price is higher than current price, ¢/kWh"
     },
     "100": {
         "id": "extra production",
-        "en": "true if there is extra production, measured from grid or inverter production"
+        "en": "True if there is extra production, measured from grid or inverter production or estimated from solar forecast. See current source from variable 700."
     },
     "101": {
         "id": "production (per) W",
-        "en": "average production  in current period, W"
+        "en": "Average production during this period, measured W"
     },
     "102": {
         "id": "selling power W",
-        "en": "average power exported to the grid in current period, W"
+        "en": "Average power exported to the grid during this period, measured W"
     },
     "103": {
         "id": "selling Wh",
-        "en": "energy exported to the grid in current period, Wh"
+        "en": "Energy exported to the grid during this period, measured Wh"
     }, 
     "104": {
         "id": "selling now W",
-        "en": "energy exported to the grid, momentary, W"
+        "en": "Energy exported to the grid now, measured W"
     },
     "110": {
         "id": "mm, month",
-        "en": "current month, 1-12"
+        "en": "Current month, 1-12"
     },
     "111": {
         "id": "mmdd",
-        "en": "current month and day, e.g. 501 fir first of May"
+        "en": "Current month and day, e.g. 501 first of May"
     },
     "112": {
         "id": "weekday (1-7)",
-        "en": "weekday, 1-Monday...7-Sunday"
+        "en": "Weekday, 1-Monday...7-Sunday"
     },
     "115": {
         "id": "hh, hour",
-        "en": "current hour, 01-23"
+        "en": "Current hour, 01-23"
     },
     "116": {
         "id": "hhmm",
-        "en": "current hour and minute, e.g. 1200 - noon"
+        "en": "Current hour and minute, e.g. 1200 - noon"
     },
     "117": {
         "id": "minutes",
-        "en": "current minutes, 0-59"
+        "en": "Current minutes, 0-59"
     },
     "130": {
         "id": "day",
-        "en": "true if day tariff (Finnish tariff, 0700-2200) effective"
+        "en": "True if day tariff (Finnish tariff, 0700-2200) effective."
     },
     "140": {
         "id": "winterday",
-        "en": "true if winter day tariff (Finnish) effective"
+        "en": "True if winter day tariff (Finnish) effective"
+    },
+    "150": {
+        "id": "ch up period, min",
+        "en": "Channel uptime (minutes) during this period"
     },
     "152": {
         "id": "ch up mins in 8 h",
-        "en": "channel uptime (minutes) during last 8 h"
+        "en": "Channel uptime (minutes) during last 8 h"
     },
     "153": {
         "id": "ch up mins in 24 h",
-        "en": "channel uptime (minutes) during last 24 h"
+        "en": "Channel uptime (minutes) during last 24 h"
+    },
+    "160": {
+        "id": "Estimated consumption",
+        "en": "Estimated (load*uptime) total consumption of channels during this period, Wh"
     },
     "201": {
         "id": "sensor 1 temperature",
-        "en": "sensor 1 temperature, C"
+        "en": "Sensor 1 temperature, C"
     },
     "202": {
         "id": "sensor 2 temperature",
-        "en": "sensor 2 temperature, C"
+        "en": "Sensor 2 temperature, C"
     },
     "203": {
         "id": "sensor 3 temperature",
-        "en": "sensor 3 temperature, C"
+        "en": "Sensor 3 temperature, C"
     },
+    "401": {
+        "id": "virtual solar count",
+        "en": "Solar forecast based counter for load profile. Counts from 0 to M during this period, where M = (60*day forecasted solar/period forecasted solar)."
+    },
+    "402": {
+        "id": "solar prod. estimate",
+        "en": "Estimated solar production during this period so far, based on local solar forecast, Wh."
+    },
+    "411": {
+        "id": "FI wind d+1",
+        "en": "Average wind power in Finland tomorrow (d+1), MW"
+    },
+    "412": {
+        "id": "FI wind d+2",
+        "en": "Average wind power in Finland the day after tomorrow (d+2) MW"
+    },
+    "421": {
+        "id": "FI wind d+1 bl",
+        "en": "Average wind power in Finland in the same 8 h block tomorrow (d+1) MW"
+    },
+    "422": {
+        "id": "FI wind d+2 bl",
+        "en": "Average wind power in Finland in the same 8 h block the day after tomorrow (d+2) MW"
+    },
+    "430": {
+        "id": "solar rank fix 24h",
+        "en": "Solar volume rank of current period within day (24 h) based on solar forecast."
+    },
+    "701": {
+        "id": "Netting source",
+        "en": "Netting info source, 0) no estimate, 1) grid measurement (103) 2) production MEASUREMENT (105) - (estimated channel consumption (160) + baseload)  3) production FORECAST (402) - (estimated channel consumption (160) + baseload)"
+    },
+    
     "1001": {
         "id": "updated",
         "en": "update time"
