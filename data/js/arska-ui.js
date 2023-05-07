@@ -521,7 +521,7 @@ function update_status(repeat) {
         async: false,
         success: function (data, textStatus, jqXHR) {
             console.log("got status data", textStatus, jqXHR.status);
-            // moved from chart creation create_price_chart
+            // moved from chart creation create_dashboard_chart
             channel_history = data.channel_history;
             variable_history = data.variable_history;
             for (const variable_code in data.variable_history) {
@@ -632,7 +632,7 @@ function update_status(repeat) {
             if (Math.floor(now_ts / 600) != Math.floor(last_chart_update / 600)) {
                 console.log("Interval changed in update_status");
                 //  update_schedule_select_periodical(); //TODO:once after hour/period change should be enough
-                price_chart_ok = create_price_chart();
+                price_chart_ok = create_dashboard_chart();
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -750,7 +750,7 @@ function ts_date_time(ts, include_year = true) {
 
 let price_chart_dataset = [];
 
-function create_price_chart() {
+function create_dashboard_chart() {
     let date;
     let time_labels = [];
     let prices_out = [];
@@ -759,21 +759,24 @@ function create_price_chart() {
     let now_idx_chh = 23;
     now_ts = (Date.now() / 1000);
     now_period_ts = parseInt(now_ts / 3600) * 3600;
-    let price_data_exists = true
+
+    let price_data_exists = (price_data !== null);
+    if (!price_data_exists) { //try to get prices now 
+        get_price_data(false);
+    }
 
     if (price_data == null) {
-        console.log("create_price_chart: no price data");
+        console.log("create_dashboard_chart: no price data, retrying");
         price_data_exists = false;
-
         // 48 periods
         chart_start_ts = parseInt(now_ts / 86400) * 86400 + (3600);
         chart_end_excl_ts = chart_start_ts + (48 * 3600);
         chart_resolution_m = 60;
-        now_idx = 0; //oli 24 pitäisikö olla 23? 
-        now_idx_chh = 23; //oli 23
-        //    return false;
+        now_idx = 0; 
+        now_idx_chh = 23; //oli 23   
     }
     else {
+        price_data_exists = true;
         chart_start_ts = price_data.record_start;
         chart_end_excl_ts = price_data.record_end_excl;
         chart_resolution_m = price_data.resolution_m;
@@ -904,7 +907,6 @@ function create_price_chart() {
             },
             error: function (jqXHR, textStatus, errorThrown) {
                 console.log("Cannot get v", textStatus, jqXHR.status);
-                //  setTimeout(function () { get_price_data(); }, 40000);
             }
         });
 
@@ -1096,16 +1098,15 @@ function create_price_chart() {
 }
 
 
-function get_price_data() {
+function get_price_data(repeat=true) {
     now_ts = Date.now() / 1000;
-    if (prices_expires > now_ts) {
+    if (prices_expires > now_ts) { // not yet expired
         expires_in = (now_ts - prices_expires);
         console.log("Next get_price_data in" + expires_in + "seconds.");
         setTimeout(function () { get_price_data(); }, (1800 * 1000));
         return;
     }
     console.log("get_price_data starting");
-    //await sleep(5000);
 
     $.ajax({
         url: '/prices',
@@ -1120,7 +1121,8 @@ function get_price_data() {
                 prices_resolution_min = data.resolution_m;
                 prices_last_ts = prices_first_ts + (price_data.prices.length - 1) * (prices_resolution_min * 60);
                 prices_expires = data.expires;
-                setTimeout(function () { get_price_data(); }, 1800000);
+                if (repeat)
+                    setTimeout(function () { get_price_data(); }, 1800000);
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -2072,8 +2074,9 @@ function template_form_closed(ev) {
         //  console.log("cond_idx, rule", cond_idx, rule);
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
-        $.each(rule.stmts, function (j, stmt) {
-            stmt_obj = stmt;
+  
+        $.each(rule.stmts, function (j, stmt_obj) {
+           // stmt_obj = stmt;
             new_value = stmt_obj[2];
 
             // user entered value handling
