@@ -2,9 +2,17 @@
 
 ## Arska 0.99
 * Major user interface (UI) upgrade. The **Dashboard** contains latest time series for prices, import, production and channel utilization as well as manual scheduling. Time series are not stored in the non-volatile memory so restart of the device will clear them. The **Channels** sections contains relay settings and channel rules. The **Settings** sections is for system parameters and administration tasks.
-* Can read both grid energy meter (Shelly 3EM, HAN P1 telegram) and production inverters (SMA, Fronius). Baseload handling removed 
-* Additional channel variables 	`152 ch up mins in 8 h` and `153 ch up mins in 24 h` store how long time (minutes) each channel has been up during last 8 hours or 24 hours. These uptime counters are initiated with 0 when the device is restarted.
-* A priority value (0-255) added the channels. Channel with the lowest priority value is switched up first and switched down last when there are two or more channels to switch simultanously.
+* Can read both grid energy meter (Shelly 3EM, HAN P1 telegram) and production inverters (SMA, Fronius). 
+* Rule templates
+  * New UI for template variables. Min, max, step for numeric fields. Copying variable to several conditions, with optonal multiply. 
+  * New rule templates
+* Additional channel variables 	
+  * `152 ch up mins in 8 h` and `153 ch up mins in 24 h` store how long time (minutes) each channel has been up during last 8 hours or 24 hours. These uptime counters are initiated with 0 when the device is restarted.
+  * `160 Consumption estim.` is a summary of total consumption of channels during this period. Based on uptime and load (channel attribute). 
+* New channel attibutes
+  * A priority value (0-255) added the channels. Channel with the lowest priority value is switched up first and switched down last when there are two or more channels to switch simultanously.
+  * Load (Watts) is used to estimate channel energy usage in consumption estimates for optimazed netting.
+  * Channel colour, user defined with default values, is used in graphs and channels lists
 * Many internal optimizations. Unnecessary/redundant filesystem caches and calculations removed/optimized.
 
 
