@@ -9,6 +9,12 @@
 * Additional channel variables 	
   * `152 ch up mins in 8 h` and `153 ch up mins in 24 h` store how long time (minutes) each channel has been up during last 8 hours or 24 hours. These uptime counters are initiated with 0 when the device is restarted.
   * `160 Consumption estim.` is a summary of total consumption of channels during this period. Based on uptime and load (channel attribute). 
+  * `401 virtual solar count` A solar forecast based counter counting from 0 to max 1440 each period. Can be used to distrubute channel uptime to sunny hours. For example rule `(401) virtual solar count < 300` will keep the channel up 5 hours (except dark days) and uptime per period is proportional to forecasted solar energy during that period.
+  * `402 solar prod. estim.`  Estimated solar production during this period so far, based on local solar forecast, Wh.
+  * `411 FI wind d+1, MW` and `412 FI wind d+2, MW` express forecasted average wind power in Finland tomorrow/the day after tomorrow in MW. Data from FMI wind power forecast.
+  * `421 FI wind d+1 bl, MW` and `422 FI wind d+2 bl, MW` express forecasted average wind power in Finland  in the same 8 h tomorrow/the day after tomorrow in MW. Data from FMI wind power forecast.
+  * `430 solar rank fix 24h` Solar volume rank of current period within day (24 h) based on solar forecast.
+  * `700 Netting source` Express data source used to get netting/overproduction data, variable 100.
 * New channel attibutes
   * A priority value (0-255) added the channels. Channel with the lowest priority value is switched up first and switched down last when there are two or more channels to switch simultanously.
   * Load (Watts) is used to estimate channel energy usage in consumption estimates for optimazed netting.
