@@ -1293,13 +1293,13 @@ public:
       for (int i = start_idx; i <= end_idx; i++)
       {
 
-        if (arr[i] < arr[this_period_idx] && i!=this_period_idx)
+        if (arr[i] < arr[this_period_idx] && i != this_period_idx)
         {
           rank++;
         }
       }
       if (descending)
-        return end_idx-start_idx + 2 - rank;
+        return end_idx - start_idx + 2 - rank;
       else
         return rank;
     }
@@ -2039,8 +2039,7 @@ long get_doc_long(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, const char *key
  */
 bool set_netting_source()
 {
-  Serial.println("Entering set_netting_source");
-  // TODO: tähän voisi lisätä myös päättelyn onko sitä ylimääräistä vai ei
+  // TODO: tähän voisi lisätä myös päättelyn onko sitä ylimääräistä vai ei, vai?
 
   // primary grid measurement
   if (s.energy_meter_type != ENERGYM_NONE)
@@ -2621,7 +2620,6 @@ bool read_meter_shelly3em()
 
   float netEnergyInPeriod;
   float netPowerInPeriod;
-  // if (energym_last_period != now_period && (energym_last_period > 0) && energym_period_read_count == 1)
   if (energym_last_period != now_period)
   {
     energym_period_read_count = 0;
@@ -2630,7 +2628,6 @@ bool read_meter_shelly3em()
   if ((energym_last_period > 0) && energym_period_read_count == 1)
   { // new period
     Serial.println(F("****Shelly - new period counter reset"));
-    // energym_last_period = now_period;
     // from this call
     energym_e_in_prev = energym_e_in;
     energym_e_out_prev = energym_e_out;
@@ -2659,7 +2656,7 @@ bool read_meter_shelly3em()
   energym_period_read_count++;
   // read done
 
-  // first query since boot
+  // first query since boot/init
   if (energym_last_period == 0)
   {
     Serial.println(F("Shelly - first query since startup"));
@@ -2668,7 +2665,6 @@ bool read_meter_shelly3em()
     energym_e_in_prev = energym_e_in;
     energym_e_out_prev = energym_e_out;
   }
-  // if ((energym_meter_read_ts - energym_period_first_read_ts) != 0)
 
   get_values_energym(netEnergyInPeriod, netPowerInPeriod);
   vars.set(VARIABLE_OVERPRODUCTION, (long)(netEnergyInPeriod < 0) ? 1L : 0L);
@@ -2839,13 +2835,6 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
  */
 bool read_inverter_sma_data(long int &total_energy, long int &current_power)
 {
-  // uint16_t ip_octets[MAX_SPLIT_ARRAY_SIZE];
-  // char host_ip[16];
-  // strncpy(host_ip, s.energy_meter_host, sizeof(host_ip)); // must be locally allocated
-  // str_to_uint_array(host_ip, ip_octets, ".");
-
-  // IPAddress remote(ip_octets[0], ip_octets[1], ip_octets[2], ip_octets[3]);
-
   uint16_t ip_port = s.production_meter_port;
   uint8_t modbusip_unit = s.production_meter_id;
 
@@ -3007,7 +2996,7 @@ void update_time_based_variables()
     }
 
     uint16_t this_period_power = solar_forecast.get(now_in_func); // assumes 60 minutes period
-    printf("DEBUG day_start_local %lu, day_sum %d, this_period_power %d, period_power_tuned %ld,  day_sum_tuned %ld\n", day_start_local, (int)day_sum, (int)this_period_power, period_power_tuned, day_sum_tuned);
+   // printf("DEBUG day_start_local %lu, day_sum %d, this_period_power %d, period_power_tuned %ld,  day_sum_tuned %ld\n", day_start_local, (int)day_sum, (int)this_period_power, period_power_tuned, day_sum_tuned);
 
     if (period_power_tuned < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)24 * 60);
@@ -3505,7 +3494,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   yield();
 
   // solar_forecast.debug_print();
-  time_series->debug_print();
+  //time_series->debug_print();
 
   yield();
   return true;
@@ -4922,7 +4911,12 @@ void reset_config(bool full_reset)
     strncpy(current_wifi_password, s.wifi_password, sizeof(current_wifi_password));
   }
 
-  if (!full_reset)
+  bool first_reset = (memcmp(s.http_username, "admin", 5) != 0); // if "admin" in the memory
+  if (first_reset)
+  {
+    Serial.println(F("Initializing the eeprom first time."));
+  }
+  else
   {
     strncpy(current_password, s.http_password, sizeof(current_password));
   }
@@ -4931,8 +4925,9 @@ void reset_config(bool full_reset)
   // memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
-  strncpy(s.http_username, "admin", sizeof(s.http_username)); // admin id is fixed
-  if (full_reset)
+  strncpy(s.http_username, "admin", sizeof(s.http_username));     // admin id is fixed
+
+  if (first_reset)
   {
     strncpy(s.http_password, default_http_password, sizeof(s.http_password));
   }
@@ -5322,6 +5317,7 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
   char http_password[MAX_ID_STR_LENGTH];
   char http_password2[MAX_ID_STR_LENGTH];
   int channel_idx_loop = 0;
+  bool reboot = false;
 
   ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
   ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
@@ -5356,7 +5352,6 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
   s.energy_meter_ip = ajson_ip_get(doc, (char *)"energy_meter_ip", s.energy_meter_ip);
   ajson_str_to_mem(doc, (char *)"energy_meter_password", s.energy_meter_password, sizeof(s.energy_meter_password));
-
   s.energy_meter_port = ajson_int_get(doc, (char *)"energy_meter_port", s.energy_meter_port);
   s.energy_meter_id = ajson_int_get(doc, (char *)"energy_meter_id", s.energy_meter_id);
 
@@ -5364,6 +5359,7 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
   s.production_meter_ip = ajson_ip_get(doc, (char *)"production_meter_ip", s.production_meter_ip);
   s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
   s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
+
 
 #ifdef INFLUX_REPORT_ENABLED
   ajson_str_to_mem(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
@@ -6055,11 +6051,10 @@ void setup()
   readFromEEPROM();
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
-    Serial.println(F("Memory structure changed. Resetting settings"));
-    reset_config(true);
+    Serial.printf(PSTR("Memory structure changed. Resetting settings. Current check value %d\n "), s.check_value);
+    reset_config(true); // assume check value -1 on first run after eeprom init
     config_resetted = true;
   }
-
   // Channel init with state DOWN/failsafe
   Serial.println(F("Setting relays default/failsafe."));
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -6088,14 +6083,25 @@ void setup()
   }*/
   // TODO: WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
   WiFi.setHostname("arska");
-  WiFi.begin(s.wifi_ssid, s.wifi_password);
-
-  if ((strlen(s.wifi_ssid) == 0) || WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
+  bool wifi_defined = (strlen(s.wifi_ssid) > 0);
+  if (wifi_defined)
   {
-    Serial.println(F("WiFi Failed!"));
-    delay(1000);
-    WiFi.disconnect();
-    delay(3000);
+    WiFi.begin(s.wifi_ssid, s.wifi_password);
+  }
+  else
+  {
+    Serial.println(F("WiFi undefined!"));
+  }
+
+  if (!wifi_defined || WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
+  {
+    if (wifi_defined)
+    {
+      Serial.println(F("WiFi Failed!"));
+      delay(1000);
+      WiFi.disconnect();
+      delay(3000);
+    }
     wifi_in_setup_mode = true;
     create_wifi_ap = true;
     check_forced_restart(true); // schedule restart
@@ -6462,6 +6468,8 @@ void loop()
     else
       log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
 
+  
+
     // if (!clock_set)
     //   set_time_settings()); // set tz info
     set_time_settings(true, false); // need to set tz
@@ -6564,10 +6572,10 @@ void loop()
     update_time_based_variables();
     calculate_price_ranks_current();
     long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + 23 * 3600, true);
-    if (period_solar_rank==-1)
-       vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24 );
-    else 
-    vars.set(VARIABLE_SOLAR_RANK_FIXED_24,period_solar_rank );
+    if (period_solar_rank == -1)
+      vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
+    else
+      vars.set(VARIABLE_SOLAR_RANK_FIXED_24, period_solar_rank);
     calculate_period_variables();
   }
 

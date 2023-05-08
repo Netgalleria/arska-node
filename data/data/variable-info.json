@@ -1,187 +1,238 @@
 {
     "0": {
         "id": "price",
-        "en": "Current NordPool electricity price, tax/margin excluded, ¢/kWh"
+        "desc": "Current NordPool electricity price, tax/margin excluded, ¢/kWh",
+        "desc_fi": "Tämänhetkinen NordPool-sähköpörssin tuntihinta, ei sisällä veroja tai marginaaleja, ¢/kWh"
     },
     "1": {
         "id": "price rank 9h",
-        "en": "Price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest"
+        "desc": "Price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest",
+        "desc_fi": "Hintasijoitus 9 tunnin liukuvassa aikaikkunassa, 1-9, jossa 1 edullisin ja 9 kallein tunti."
     },
     "2": {
         "id": "price rank 24h",
-        "en": "Price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest"
+        "desc": "Price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest",
+        "desc_fi": "Hintasijoitus 24 tunnin liukuvassa aikaikkunassa, 1-24."
     },
     "3": {
         "id": "price rank 24h",
-        "en": "Price rank in 24 hours, fixed nychthemeron 00:00-23:59, 1 if now lowest price, 24 if highest"
+        "desc": "Price rank in 24 hours, fixed nychthemeron 00:00-23:59, 1 if now lowest price, 24 if highest",
+        "desc_fi": "Hintasijoitus tämän vuorokauden (00-23:59) aikaikkunassa, 1-24."
     },
     "4": {
         "id": "rank in 8 h block",
-        "en": "Price rank in fixed 8 hour block"
+        "desc": "Price rank in fixed 8 hour block",
+        "desc_fi": "Hintasijoitus kiinteän 8 tunnin jakson aikana, 1-8."
     },
     "5": {
         "id": "price average 9h",
-        "en": "Average price in 9 hours sliding window, ¢/kWh"
+        "desc": "Average price in 9 hours sliding window, ¢/kWh",
+        "desc_fi": "9 tunnin liukuvan aikaikkunan keskihinta, ¢/kWh."
+
     },
     "6": {
         "id": "price average 24h",
-        "en": "Average price in 24 hours sliding window, ¢/kWh"
+        "desc": "Average price in 24 hours sliding window, ¢/kWh",
+        "desc_fi": "24 tunnin liukuvan aikaikkunan keskihinta, ¢/kWh."
+
     },
     "7": {
         "id": "8 h block id",
-        "en": "Current 8 hour block id, 1) 23:00-06:59 , 2) 07:00-14:59, 3) 15:00-22:59"
+        "desc": "Current 8 hour block id, 1) 23:00-06:59 , 2) 07:00-14:59, 3) 15:00-22:59",
+        "desc_fi": "Nykyisen 8 tunnin jakson numero: 1) 23:00-06:59 , 2) 07:00-14:59, 3) 15:00-22:59"
     },
     "9": {
         "id": "price diff to average 9h",
-        "en": "Price difference to 9 hours average, ¢/kWh"
+        "desc": "Price difference to 9 hours average, ¢/kWh",
+        "desc_fi": "Nykyhinnan hintaero 9 tunnin liukuvan aikaikkunan keskiarvoon, ¢/kWh"
     },
     "10": {
         "id": "price diff to average 24h",
-        "en": "Price difference to 24 hours average, ¢/kWh"
+        "desc": "Price difference to 24 hours average, ¢/kWh",
+        "desc_fi": "Nykyhinnan hintaero 24 tunnin liukuvan aikaikkunan keskiarvoon, ¢/kWh"
     },
     "13": {
         "id": "price ratio % to average 9h",
-        "en": "Price ratio % to sliding 9 hours average"
+        "desc": "Price ratio % to sliding 9 hours average",
+        "desc_fi": "Nykyhinnan suhde 9 tunnin liukuvan aikaikkunan keskiarvoon, %"
+
     },
     "14": {
         "id": "price ratio % to average 24h",
-        "en": "Price ratio % to sliding 24 hours average"
+        "desc": "Price ratio % to sliding 24 hours average",
+        "desc_fi": "Nykyhinnan suhde 24 tunnin liukuvan aikaikkunan keskiarvoon, %"
     },
     "15": {
         "id": "price ratio % to average fixed 24h",
-        "en": "Price ratio % to fixed nychthemeron 24h"
+        "desc": "Price ratio % to fixed nychthemeron 24h",
+        "desc_fi": "Nykyhinnan suhde tämän vuorokauden (00-23:59) keskiarvoon, %"
     },
     "20": {
         "id": "pv forecast 24 h",
-        "en": "Solar power forecast for local panels, next 24 hours, kWh"
+        "desc": "Solar power forecast for local panels, next 24 hours, kWh",
+        "desc_fi": "Aurinkoenergian tuotantoennuste seuraavaksi 24 tunniksi. Riippuu <a href='https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste'>Ilmatieteen laitoksen paikallisesta aurinkosääennusteesta</a> ja antamastasi paneelitehosta, kWh"
     },
     "21": {
         "id": "pv value 24 h",
-        "en": "Value of future solar power, next 24 h, €"
+        "desc": "Value of future solar power, next 24 h, €",
+        "desc_fi" : "Ennustettu tulevan 24 tunnin aurinkotuotannon arvo, €"
     },
     "22": {
         "id": "pv price avg 24 h",
-        "en": "average price of future solar power, next 24 h, ¢/kWh"
+        "desc": "Average price of future solar power, next 24 h, ¢/kWh",
+        "desc_fi": "Tulevan 24 tunnin aikana tuotetun aurinkosähkön keskihinta, ¢/kWh"
     },
     "23": {
         "id": "future pv higher",
-        "en": "Future average solar power price is higher than current price, ¢/kWh"
+        "desc": "Future average solar power price is higher than current price, ¢/kWh",
+        "desc_fi": "Hintaero nykyhinnan ja tulevan 24 h aurinkosähkön hinnan (muuttuja 22) välillä, ¢/kWh"
     },
     "100": {
         "id": "extra production",
-        "en": "True if there is extra production, measured from grid or inverter production or estimated from solar forecast. See current source from variable 700."
+        "desc": "True if there is extra production, measured from grid or inverter production or estimated from solar forecast. See current source from variable 700.",
+        "desc_fi" : "Tosi, jos 'ylituotantoa' eli oma tuotanto ylittää kulutuksen. Saadaan joko mittaustuloksista tai arvioimalla. Katso tiedon lähde muuttujasta 700."
     },
     "101": {
         "id": "production (per) W",
-        "en": "Average production during this period, measured W"
+        "desc": "Average production during this period, measured W",
+        "desc_fi": "Mitattu keskikulutus tämän periodin (tunnin) aikana, W"
     },
     "102": {
         "id": "selling power W",
-        "en": "Average power exported to the grid during this period, measured W"
+        "desc": "Average power exported to the grid during this period, measured W. Negative value indicate net consumption.",
+        "desc_fi": "Mitattu verkkoon myyty energia tämän periodin aikana, W. Negatiivinen arvo osoittaa, että netto-ostoa."
     },
     "103": {
         "id": "selling Wh",
-        "en": "Energy exported to the grid during this period, measured Wh"
+        "desc": "Energy exported to the grid during this period, measured Wh",
+        "desc_fi": "Verkkoon viety energia tämän periodin aikana, mitattu, Wh"
     }, 
     "104": {
         "id": "selling now W",
-        "en": "Energy exported to the grid now, measured W"
+        "desc": "Energy exported to the grid now, measured W",
+        "desc_fi": "Verkkoon viety teho tällä hetkellä, mitattu, W"
     },
     "110": {
         "id": "mm, month",
-        "en": "Current month, 1-12"
+        "desc": "Current month, 1-12",
+        "desc_fi": "Kuluva kuukausi, 1-12"
     },
     "111": {
         "id": "mmdd",
-        "en": "Current month and day, e.g. 501 first of May"
+        "desc": "Current month and day, e.g. 501 first of May",
+        "desc_fi": "Kuluva kuukausi ja päivä, esim 501 on  1 toukokuuta (Vappu, Valborg)"
     },
     "112": {
         "id": "weekday (1-7)",
-        "en": "Weekday, 1-Monday...7-Sunday"
+        "desc": "Weekday, 1-Monday...7-Sunday",
+        "desc_fi" :  "Viikonpäivä, 1-Maanantai...7-Sunnuntai"
     },
     "115": {
         "id": "hh, hour",
-        "en": "Current hour, 01-23"
+        "desc": "Current hour, 00-23",
+        "desc_fi" : "Kuluva tunti, 00-23"
     },
     "116": {
         "id": "hhmm",
-        "en": "Current hour and minute, e.g. 1200 - noon"
+        "desc": "Current hour and minute, e.g. 1200 - noon",
+        "desc_fi" : "Kuluva tunti ja minuutti, esim. 1200 keskipäivä"
     },
     "117": {
         "id": "minutes",
-        "en": "Current minutes, 0-59"
+        "desc": "Current minutes, 0-59",
+        "desc_fi" : "Kuluva minuutti, 0-59"
     },
     "130": {
         "id": "day",
-        "en": "True if day tariff (Finnish tariff, 0700-2200) effective."
+        "desc": "True if day tariff (Finnish tariff, 0700-2200) effective.",
+        "desc_fi": "Tosi, jos Suomen päivätariffi voimassa (0700-2200)."
     },
     "140": {
         "id": "winterday",
-        "en": "True if winter day tariff (Finnish) effective"
+        "desc": "True if winter day tariff (Finnish) effective",
+        "desc_fi": "Tosi, jos Suomen talvipäivän tariffi voimassa."
     },
     "150": {
         "id": "ch up period, min",
-        "en": "Channel uptime (minutes) during this period"
+        "desc": "Channel uptime (minutes) during this period",
+        "desc_fi" : "Kanavan päälläoloaika tämän periodin aikana, minuuttia."
     },
     "152": {
         "id": "ch up mins in 8 h",
-        "en": "Channel uptime (minutes) during last 8 h"
+        "desc": "Channel uptime (minutes) during last 8 h",
+        "desc_fi" : "Kanavan päälläoloaika viimeisimmän 8 tunnin aikana, minuuttia."
     },
     "153": {
         "id": "ch up mins in 24 h",
-        "en": "Channel uptime (minutes) during last 24 h"
+        "desc": "Channel uptime (minutes) during last 24 h",
+        "desc_fi" : "Kanavan päälläoloaika viimeisimmän 24 tunnin aikana, minuuttia."
     },
     "160": {
         "id": "Estimated consumption",
-        "en": "Estimated (load*uptime) total consumption of channels during this period, Wh"
+        "desc": "Estimated (load*uptime) total consumption of channels during this period, Wh.",
+        "desc_fi": "Arvioitu kanavien kokonaiskulutus (load*uptime) tämän periodin aikana, Wh."
     },
     "201": {
         "id": "sensor 1 temperature",
-        "en": "Sensor 1 temperature, C"
+        "desc": "Sensor 1 temperature, C",
+        "desc_fi": "Anturi 1 lämpötila, C"
     },
     "202": {
         "id": "sensor 2 temperature",
-        "en": "Sensor 2 temperature, C"
+        "desc": "Sensor 2 temperature, C",
+        "desc_fi": "Anturi 2 lämpötila, C"
     },
     "203": {
         "id": "sensor 3 temperature",
-        "en": "Sensor 3 temperature, C"
+        "desc": "Sensor 3 temperature, C",
+        "desc_fi": "Anturi 3 lämpötila, C"
     },
     "401": {
         "id": "virtual solar count",
-        "en": "Solar forecast based counter for load profile. Counts from 0 to M during this period, where M = (60*day forecasted solar/period forecasted solar)."
+        "desc": "Solar forecast based counter for load profile. Counts from 0 to M during this period, where M = (60*day forecasted solar/period forecasted solar)."
     },
     "402": {
         "id": "solar prod. estimate",
-        "en": "Estimated solar production during this period so far, based on local solar forecast, Wh."
+        "desc": "Estimated solar production during this period so far, based on local solar forecast, Wh.",
+        "desc_fi" : "Ennusteen mukainen tuotettu aurinkoenergian määrä nykyisen periodin aikana tähän mennessä."
     },
     "411": {
         "id": "FI wind d+1",
-        "en": "Average wind power in Finland tomorrow (d+1), MW"
+        "desc": "Average wind power in Finland tomorrow (d+1), MW",
+        "desc_fi" : "Keskimääräinen ennustettu tuulituotannon teho huomenna (d+1) Suomessa, MW"
     },
     "412": {
         "id": "FI wind d+2",
-        "en": "Average wind power in Finland the day after tomorrow (d+2) MW"
+        "desc": "Average wind power in Finland the day after tomorrow (d+2) MW",
+        "desc_fi" : "Keskimääräinen ennustettu tuulituotannon teho ylihuomenna (d+2) Suomessa, MW"
     },
     "421": {
         "id": "FI wind d+1 bl",
-        "en": "Average wind power in Finland in the same 8 h block tomorrow (d+1) MW"
+        "desc": "Average wind power in Finland in the same 8 h block tomorrow (d+1) MW",
+        "desc_fi" : "Keskimääräinen ennustettu tuulituotannon teho huomenna (d+1) Suomessa saman 8 tunnin jakson aikana, MW"
     },
     "422": {
         "id": "FI wind d+2 bl",
-        "en": "Average wind power in Finland in the same 8 h block the day after tomorrow (d+2) MW"
+        "desc": "Average wind power in Finland in the same 8 h block the day after tomorrow (d+2) MW",
+        "desc_fi" : "Keskimääräinen ennustettu tuulituotannon teho ylihuomenna (d+2) Suomessa saman 8 tunnin jakson aikana, MW"
+
     },
     "430": {
         "id": "solar rank fix 24h",
-        "en": "Solar volume rank of current period within day (24 h) based on solar forecast."
+        "desc": "Solar volume rank of current period within day (24 h) based on solar forecast.",
+        "desc_fi": "Tunnin aurinkotuotannon voluumisijoitus tämän vuorokauden (00:00-23:59) aikana. 1 jos ennusteen mukaan tuottoisin tunti, 24 jos ei tuotantoa."
+
     },
     "701": {
         "id": "Netting source",
-        "en": "Netting info source, 0) no estimate, 1) grid measurement (103) 2) production MEASUREMENT (105) - (estimated channel consumption (160) + baseload)  3) production FORECAST (402) - (estimated channel consumption (160) + baseload)"
+        "desc": "Netting info source: 0) no estimate, 1) grid measurement (103) 2) production MEASUREMENT (105) - (estimated channel consumption (160) + baseload)  3) production FORECAST (402) - (estimated channel consumption (160) + baseload)",
+        "desc_fi": "Netotustiedon lähde, 0) ei tietoa käytössä 1) mittaus verkosta(103) 2) tuotannon mittaus invertteriltä (105) - (arvioitu kanavien kulutus (160) + peruskuorma)  3) tuotantoennuste  (402) - (arvioitu kanavien kulutus (160) + peruskuorma)"
+
     },
     
     "1001": {
         "id": "updated",
-        "en": "update time"
+        "desc": "update time",
+        "desc_fi" : "tietojen päivitysaika"
     }
 }

@@ -540,6 +540,15 @@ function update_status(repeat) {
             if (data.hasOwnProperty('next_process_in'))
                 next_query_in = data.next_process_in + process_time_s + Math.floor(Math.random() * 10);
 
+            if (g_config.wifi_in_setup_mode)
+                extra_message = " <a class='chlink' onclick='jump(\"admin:network\");'>Configure Wi-Fi settings.</a>";
+            else if (g_config.using_default_password) {
+                extra_message = " <a class='chlink' onclick='jump(\"admin:network\");'>Change</a> your admin password - now using default password!";
+            }
+            else {
+                extra_message = "";
+            }
+
             if (msgdiv && (data.last_msg_ts > getCookie("msg_read"))) {
                 if (data.last_msg_type == 1)
                     msg_type = 'info';
@@ -551,15 +560,15 @@ function update_status(repeat) {
                     msg_type = 'success';
 
                 msgDateStr = get_time_string_from_ts(data.last_msg_ts, true, true);
-                live_alert("dashboard", msgDateStr + ' ' + data.last_msg_msg, msg_type);
+
+                live_alert("dashboard", msgDateStr + ' ' + data.last_msg_msg + extra_message, msg_type);
+
                 $('#dashboard\\:alert_i').on('closed.bs.alert', function () {
                     setCookie("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
                     //   document.getElementById("msgdiv").innerHTML = "";
                 })
             }
-            // "db:production_period"
-            // em_period_s = parseInt(data.energym_read_last / 3600) * 3600; 
-            // em_period_s_date = new Date(em_period_s * 1000);
+
             document.getElementById("started_str").innerHTML = ts_date_time(data.started);
 
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
@@ -597,13 +606,14 @@ function update_status(repeat) {
                 //   document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
                 $("#tblVariables_tb").empty();
                 $.each(data.variables, function (id, variable) {
-                
+
                     var_this = getVariable(id);
                     variable_name = "";
                     variable_desc = "";
                     if (var_this) {
                         if (var_this[0] in variable_list) {
-                            variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                           // variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                            variable_desc = _ltext(variable_list[var_this[0]], "desc");
                         }
                         if (Array.isArray(variable)) {
                             var_value = JSON.stringify(variable);
@@ -766,13 +776,13 @@ function create_dashboard_chart() {
     }
 
     if (price_data == null) {
-        console.log("create_dashboard_chart: no price data, retrying");
+        console.log("create_dashboard_chart: no price data");
         price_data_exists = false;
         // 48 periods
         chart_start_ts = parseInt(now_ts / 86400) * 86400 + (3600);
         chart_end_excl_ts = chart_start_ts + (48 * 3600);
         chart_resolution_m = 60;
-        now_idx = 0; 
+        now_idx = 0;
         now_idx_chh = 23; //oli 23   
     }
     else {
@@ -861,7 +871,7 @@ function create_dashboard_chart() {
                 });
     }
 
-    //experimental solar forecast
+    //experimental solar forecast, could be combinet with get_price_data
     if (true) {
 
         $.ajax({
@@ -883,7 +893,7 @@ function create_dashboard_chart() {
                     ts = (start + idx * 3600);
                     if (solar_fcst[idx] > 0)
                         series_started = true;
-                    if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts<= data.solar_forecast.last_set_period)
+                    if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period)
                         fcst_ds.push({ x: get_time_string_from_ts(ts, false, true), y: solar_fcst[idx] });
                 }
                 console.log("fcst_ds", fcst_ds);
@@ -1098,7 +1108,7 @@ function create_dashboard_chart() {
 }
 
 
-function get_price_data(repeat=true) {
+function get_price_data(repeat = true) {
     now_ts = Date.now() / 1000;
     if (prices_expires > now_ts) { // not yet expired
         expires_in = (now_ts - prices_expires);
@@ -1735,13 +1745,6 @@ function set_template_constants(channel_idx, ask_confirmation) {
 
     $sel = $("#ch_" + channel_idx + "\\:template_id");
 
-    /*
-    if (!confirm('Use template ' + _ltext(template_data, "name") + " \n" + _ltext(template_data, "desc"))) {
-        console.log("set back to", $sel.val(), "->", $sel.data('current'));
-        $sel.val($sel.data('current')); //back current
-        return false;
-    }
-*/
     $sel.data('current', $sel.val()); // now fix current value
 
     //one time is enough?, wait for confirmed results
@@ -1771,10 +1774,7 @@ function set_template_constants(channel_idx, ask_confirmation) {
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = _ltext(rule, "desc");
         }
 
-        $.each(rule.stmts, function (j, stmt) {
-            stmt_obj = stmt;
-
-            // if (stmt.hasOwnProperty('const_prompt')) {
+        $.each(rule.stmts, function (stmt_idx, stmt_obj) {
             if (stmt_obj.length > 4 && stmt_obj[4].hasOwnProperty('prompt')) {
                 hasPrompts = true;
                 console.log(form_fld_idx, stmt_obj);
@@ -1786,12 +1786,16 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 field_list.appendChild(name_label);
 
                 const desc_span = createElem("span", `ch_${channel_idx}_templ_field_${form_fld_idx}_desc`, null, "text-muted", null);
-                //desc_span.innerHTML = "<br>" + _ltext(stmt, "const_prompt"); //template variable prompt
                 desc_span.innerHTML = "<br>" + _ltext(stmt_obj[4], "prompt"); //template variable prompt
                 field_list.appendChild(desc_span);
                 field_list.appendChild(document.createElement("br"));
 
                 const value_input = createElem("input", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[2], "form-control", "number");
+
+                const value_in_rule_ctrl = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
+                if (value_in_rule_ctrl.value.toString().length > 0) {
+                    value_input.value = value_in_rule_ctrl.value;
+                }
 
                 if (stmt_obj[4].hasOwnProperty('min'))
                     value_input.setAttribute("min", stmt_obj[4].min);
@@ -2074,9 +2078,9 @@ function template_form_closed(ev) {
         //  console.log("cond_idx, rule", cond_idx, rule);
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
         document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
-  
+
         $.each(rule.stmts, function (j, stmt_obj) {
-           // stmt_obj = stmt;
+            // stmt_obj = stmt;
             new_value = stmt_obj[2];
 
             // user entered value handling
@@ -2269,26 +2273,36 @@ function jump(section_id_full) {
 
     console.log("Jumping to section " + section_id);
     $('#' + section_id + '-tab').trigger('click');
-
     // show new section div….
     let section_divs = document.querySelectorAll("div[id^='section_']");
     for (i = 0; i < section_divs.length; i++) {
         is_active_div = section_divs[i].id == "section_" + section_id;
         section_divs[i].style.display = (is_active_div ? "block" : "none");
     }
-    if (section_id == "channels" && url_a.length == 3) {
-        rule_accordion = document.getElementById(`${url_a[1]}_colla_rules`);
-        rule_accordion.classList.remove("collapse");
-        rule_accordion.classList.remove("open");
 
-        var scroll_element = document.getElementById(`${url_a[1]}:${url_a[2]}:title`);
-        console.log("Try to scroll", scroll_element.id);
+    if (section_id == 'channels') {
 
+        if (section_id == "channels" && url_a.length == 3) {
+            rule_accordion = document.getElementById(`${url_a[1]}_colla_rules`);
+            rule_accordion.classList.remove("collapse");
+            rule_accordion.classList.remove("open");
+
+            var scroll_element = document.getElementById(`${url_a[1]}:${url_a[2]}:title`);
+            console.log("Try to scroll", scroll_element.id);
+
+            if (scroll_element)
+                scroll_element.scrollIntoView();
+           
+        }
+    }
+    else if (section_id == 'admin') {
+        console.log("Scrolling to ", `${url_a[1]}:title`);
+        var scroll_element = document.getElementById(`${url_a[1]}:title`);
         if (scroll_element)
             scroll_element.scrollIntoView();
+        else
+            console.log("Scrolling element not found.");
     }
-    //  else
-    //      console.log("No scroll", section_id_full);
 }
 
 
@@ -2337,7 +2351,7 @@ function initWifiForm() {
 }
 */
 function init_ui() {
-    console.log("init_ui");
+    console.log("Init ui");
     get_price_data(); //TODO: also update at 2pm
     $.ajax({
         url: '/application',
@@ -2378,7 +2392,6 @@ function init_ui() {
     action_buttons = document.querySelectorAll("button[id^='admin:']");
     for (let i = 0; i < action_buttons.length; i++) {
         action_buttons[i].addEventListener("click", launch_action_evt);
-        //  console.log("Action added " + action_buttons[i].id);
     }
 
     //event listeners for controls for enablin save etc
@@ -2387,9 +2400,8 @@ function init_ui() {
         //  should be input to catch changes before leaving the input field
         if (input_controls[i].type == "radio")
             input_controls[i].addEventListener("click", ctrl_changed);
-        else 
+        else
             input_controls[i].addEventListener("change", ctrl_changed);
-     //   console.log("Action added " + input_controls[i].id);
     }
 
     // delay loading
@@ -2397,12 +2409,11 @@ function init_ui() {
     script.src = "/js/chart.min.3.9.1.js";
     document.getElementsByTagName('body')[0].appendChild(script);
 
-
     setTimeout(function () { populate_channels(); update_status(true); }, 2 * 1000);
+    setTimeout(function () { create_dashboard_chart(); }, 45000); //one time, hopefully with all data
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
-
 }
 
 function live_alert(card_idstr, message, type) {
@@ -2443,10 +2454,10 @@ function find_pid(el, id) {
 function find_parent_card(el) {
     var p = el;
     while (p = p.parentNode) {
-        
+
         var colon_count = (p.id.match(/:/g) || []).length; //filter out rule sub cards 
         if (p.id && p.id.endsWith(":card") && colon_count == 1) {
-         //   console.log("returns:",p.id.replace(":card", ""));
+            //   console.log("returns:",p.id.replace(":card", ""));
             return p.id.replace(":card", "");
         }
     }
@@ -2456,7 +2467,7 @@ function find_parent_card(el) {
 // enables save button after content change
 function ctrl_changed(ev) {
     let parent_card = find_parent_card(ev.target);
-    console.log("ctrl_changed", ev.target.id,parent_card?parent_card:"no parent card");
+    console.log("ctrl_changed", ev.target.id, parent_card ? parent_card : "no parent card");
     if (parent_card) {
         save_el = document.getElementById(parent_card + ":save");
         if ((save_el !== null))
@@ -2470,7 +2481,6 @@ function launch_action(action, card_id, params) {
     console.log("post_data", post_data);
     if (card_id)
         live_alert(card_id, "Sending:\n" + JSON.stringify(post_data), 'success');
-
 
     $.ajax({
         type: "POST",
@@ -2490,7 +2500,7 @@ function launch_action(action, card_id, params) {
                 if (data.refresh > 0) {
                     console.log("Reloaded in ", data.refresh, "seconds");
                     setTimeout(function () { location.reload(); }, data.refresh * 1000);
-
+                    live_alert(card_id, "Restarting...wait for a while.", 'success');
                 }
             }
         },
@@ -2505,6 +2515,10 @@ function launch_action_evt(ev) {
     id_a = ev.target.id.split(":");
     card = id_a[0]; // should be "admin"
     action = id_a[1];
+    if (action == "restart" && !confirm("Do you want to restart the system?"))
+        return;
+    if (action == "reset" && !confirm("Take a backup before reset. Do you want reset all system settings? "))
+        return;
     launch_action(action, card, {});
 }
 
@@ -2518,6 +2532,7 @@ function start_fw_update() {
     else {
         if (confirm("Update firmware to " + new_version)) {
             launch_action("update", "", { "version": new_version });
+
         }
         else
             return;
@@ -2677,10 +2692,16 @@ function save_card(ev) {
         contentType: "application/json",
         dataType: "json",
         success: function (data) {
-            live_alert(card, "Updated", 'success');
-            console.log("success, card ", card, data);
             document.getElementById(card + ":save").disabled = true;
-            console.log("save_channel save disabled");
+            if (["metering", "production", "network"].includes(card)) {
+                let do_restart = confirm("Settings updated. Do you want to restart?");
+                if (do_restart) {
+                    launch_action("restart", card, {});
+                    return;
+                }
+            }
+            live_alert(card, "Settings updated", 'success');
+            console.log("success, card ", card, data);
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);

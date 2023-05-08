@@ -41,7 +41,7 @@
         },
         {
             "id": 2,
-            "name": "Use cheap own solar production, sell expensive",
+            "name": "Use cheap solar production, sell expensive",
             "name_fi": "Käytä halpa aurinkosähkö, myy kallis",
             "desc": "On only when there is own overproduction and price is not high. Required data: prices, metering or solar forecast.",
             "desc_fi": "Päällä ainoastaan kun oman tuotannon ylijäämää, mutta kalliin sähkön aikana myydään oma tuotanto. Tarvittava data: hintatiedot, energian mittarointi tai energiasääennuste.",
@@ -91,8 +91,8 @@
             "rules": [
                 {
                     "on": false,
-                    "desc": "Down if price is below the limit",
-                    "desc_fi": "Alhaalla jos hinta ylittää rajan",
+                    "desc": "Down if the price exceeds the maximum allowed purchase price",
+                    "desc_fi": "Alhaalla jos hinta ylittää sallitun maksimiostohinnan",
                     "stmts": [
                         [
                             0,
@@ -100,8 +100,8 @@
                             15,
                             null,
                             {
-                                "prompt": "Max price to keep the channel up at daytime,e.g. 15 (¢/kWh)?",
-                                "prompt_fi": "Enimmäishinta jolla kanava päällä päivällä, esim. 15 (¢/kWh)?",
+                                "prompt": "Max price to keep the channel up, e.g. 15 (¢/kWh)?",
+                                "prompt_fi": "Enimmäishinta, jolla kanava voi olla päällä, esim. 15 (¢/kWh)?",
                                 "min": 0,
                                 "max": 100,
                                 "step": 1
@@ -389,7 +389,7 @@
         },
         {
             "id": 401,
-            "name": "On during the sunniest hours",
+            "name": "On during the sunniest hours, according to the forecast",
             "name_fi": "Ennusteen mukaan aurinkoisimpina tunteina",
             "desc": "Up during the most during sunny hours according to the forecast",
             "desc_fi": "Päällä päivällä ennusteen mukaan aurinkoisimpina tunteina. Tarvittava data: FMI energiasääennuste.",
@@ -492,11 +492,11 @@
             "name": "On when overproduction and additionally at night",
             "name_fi": "Oman ylituotannnon aikana ja täydennyksenä yöllä",
             "desc": "On when there is own overproduction and at night during the cheapest hours to get the minimum uptime. Required data: prices, net energy info from metering or solar forecast.",
-            "desc_fi": "Päällä  kun omaa ylituotantoa ja yöllä halvimpina tunteina, jotta minimipäälläoloaika täyttyisi.  Tarvittava data: hintatiedot, ylituotantotieot (mittarointi tai arviointi, tarkista muuttuja 700).",
+            "desc_fi": "Päällä kun omaa ylituotantoa ja yöllä halvimpina tunteina, jotta minimipäälläoloaika täyttyisi.  Tarvittava data: hintatiedot, ylituotantotieot (mittarointi tai arviointi, tarkista muuttuja 700).",
             "rules": [
                 {
                     "on": true,
-                    "desc": "Up when  own overproduction",
+                    "desc": "Up when own overproduction",
                     "desc_fi": "Päällä kun omaa ylituotantoa",
                     "stmts": [
                         [
@@ -551,14 +551,14 @@
         },
         {
             "id": 510,
-            "name": "empty",
+            "name": "Overproduction, cheap nightly price and waiting for the strong winds",
             "name_fi": "Ylituotanto, halpa yöhinta ja tuulen odotus",
-            "desc": "empty",
+            "desc": "On whenever there is an overproduction of solar energy and the price is very low. In addition, at night in the cheapest hours when the price is not particularly high. If the night price is expensive and the next night's wind power production is high, expect a possibly cheap price the next night. This can be suitable if the property has, for example, a large water storage tank that does not need to be heated every day. High wind power production does not automatically mean cheap prices, although this is often the case at night. In an exceptional situation, you can schedule manually.",
             "desc_fi": "Päällä aina kun  aurinkoenergian ylituotantoa ja hinta erittäin alhainen. Lisäksi yöllä halvimpina tunteina kun hinta ei erityisen korkea. Mikäli yöhinta kallis ja seuraavana yönä tuulivoiman tuotanto on suurta, odotetaan seuraavan yön mahdollisesti halpaa hintaa. Tämä voi sopia jos kiinteistössä esim. suuri vesivaraaja, jota ei tarvitse lämmittää joka päivä. Korkea tuulivoimatuotanto ei automaattisesti tarkoita halpoja hintoja, vaikka yöllä usein näin onkin. Poikkeustilanteessa voit ajastaa manuaalisesti.",
             "rules": [
                 {
                     "on": true,
-                    "desc": "",
+                    "desc": "Up when own overproduction",
                     "desc_fi": "Päällä kun omaa ylituotantoa.",
                     "stmts": [
                         [
@@ -570,7 +570,7 @@
                 },
                 {
                     "on": true,
-                    "desc": "",
+                    "desc": "On all the time if the price is very low.",
                     "desc_fi": "Päällä koko ajan jos hinta erittäin alhainen.",
                     "stmts": [
                         [
@@ -579,8 +579,8 @@
                             1,
                             null,
                             {
-                                "prompt": "",
-                                "prompt_fi": "Päällä koko ajan jos hinta alle (esim. 1, ¢/kWh).",
+                                "prompt": "On all the time if the price is below, e.g. 1 (¢/kWh).",
+                                "prompt_fi": "Päällä koko ajan jos hinta alle, esim. 1 (¢/kWh).",
                                 "min": 0,
                                 "max": 100,
                                 "step": 1
@@ -590,8 +590,8 @@
                 },
                 {
                     "on": false,
-                    "desc": "",
-                    "desc_fi": "Pois päältä odotellessa mahdollisesti halvempaa hintaa seuraava yönä.",
+                    "desc": "Off, waiting for a possibly cheaper price the next night.",
+                    "desc_fi": "Pois päältä odotellessa mahdollisesti halvempaa hintaa seuraavana yönä.",
                     "stmts": [
                         [
                             0,
@@ -599,7 +599,7 @@
                             10,
                             null,
                             {
-                                "prompt": "",
+                                "prompt": "On at night (no windier night is waited) in the cheapest hours if the price falls below (e.g. 10, ¢/kWh).",
                                 "prompt_fi": "Yöllä päällä (ei odoteta tuulisempaa yötä) halvimpina tunteina jos hinta alittaa (esim. 10, ¢/kWh). ",
                                 "min": 0,
                                 "max": 100,
@@ -613,7 +613,7 @@
                             null,
                             {
                                 "prompt": "",
-                                "prompt_fi": "Voidaan odotella seuraavaan yöhön, jos silloin keskituuliteho ylittää (esim. 3500, MWh). Anna korkea raja (esim. 10000) jos et halua odotella mahdollisesti halvempaa yötä.",
+                                "prompt_fi": "It can be waited until the following night, if then the average wind power exceeds in Finland, e.g. 3500, MWh. Enter a high limit (e.g. 10000) if you don't want to wait for a possibly cheaper night. ",
                                 "min": 0,
                                 "max": 100000,
                                 "step": 500
@@ -633,7 +633,7 @@
                 },
                 {
                     "on": true,
-                    "desc": "",
+                    "desc": "Open at night in the cheapest hours when other conditions are met.",
                     "desc_fi": "Päällä yöllä halvimpina tunteina kun muut ehdot täyttyvät.",
                     "stmts": [
                         [
@@ -647,60 +647,11 @@
                             5,
                             null,
                             {
-                                "prompt": "",
+                                "prompt": "On at night for X hours. Enter 0 if not on at night at all.",
                                 "prompt_fi": "Yöllä päällä X tuntia. Anna 0 jos ei lainkaan yöllä päällä.",
                                 "min": 0,
                                 "max": 7,
                                 "step": 1
-                            }
-                        ]
-                    ]
-                }
-            ]
-        },
-        {
-            "id": 999,
-            "name": "empty",
-            "name_fi": "",
-            "desc": "empty",
-            "desc_fi": "",
-            "rules": [
-                {
-                    "on": true,
-                    "desc": "",
-                    "desc_fi": "",
-                    "stmts": [
-                        [
-                            7,
-                            0,
-                            "1",
-                            1
-                        ],
-                        [
-                            4,
-                            4,
-                            "4",
-                            null,
-                            {
-                                "field_id": 1,
-                                "prompt": "",
-                                "prompt_fi": "",
-                                "min": 0,
-                                "max": 9,
-                                "step": 1
-                            }
-                        ],
-                        [
-                            153,
-                            4,
-                            "240",
-                            null,
-                            {
-                                "copy_from_field": 1,
-                                "copy_multiplier": 60,
-                                "min": 0,
-                                "max": 1440,
-                                "step": 60
                             }
                         ]
                     ]
