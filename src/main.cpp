@@ -275,6 +275,7 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HISTORY_VARIABLE_COUNT 2
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
+//new time series, remove
 long prices[MAX_PRICE_PERIODS];
 
 bool prices_initiated = false;
@@ -1190,6 +1191,16 @@ public:
       return arr[idx];
   }
 
+  T get(time_t ts,T default_value)
+  {
+    int idx = get_idx(ts);
+    if (idx == -1)
+      return default_value;
+    else
+      return arr[idx];
+  }
+
+
   T avg(time_t start_ts, time_t end_ts_incl)
   {
     return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / resolution_sec_ + 1);
@@ -1838,18 +1849,21 @@ bool update_prices_to_influx()
 
   Point point_period_price("period_price");
 
+//new time series: 
+//for (time_t current_period_start_ts = prices2.start(); current_period_start_ts<=prices2.end();current_period_start_ts+=prices2.resolution_sec()) 
+
   for (uint16_t i = 0; 0 < MAX_PRICE_PERIODS; i++)
   {
     current_period_start_ts = prices_record_start + (prices_resolution_m * 60 * i);
     ts_to_date_str(&current_period_start_ts, datebuff);
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
-
+//new time series:
+//    current_price = prices2.get(current_period_start_ts);
     current_price = (long)prices[i];
     Serial.println(current_price);
     point_period_price.addField("price", (float)(current_price / 1000.0));
     point_period_price.setTime(current_period_start_ts);
-    // point_period_price.setTime(current_period_start_ts + (resolution_secs / 2));
     Serial.print("Writing: ");
     Serial.println(ifclient.pointToLineProtocol(point_period_price));
     // Write point
@@ -2984,7 +2998,7 @@ void update_time_based_variables()
   if (solar_forecast.start() > 0)
   { // we have a solar forecast
     time_t day_end_local = day_start_local + 23 * 3600;
-    uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
+   // uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
     long period_power = max((long)0, (long)(solar_forecast.get(now_in_func) * s.pv_power / 1000));
     long period_power_tuned = max((long)0, (long)(solar_forecast.get(now_in_func) * s.pv_power / 1000 - (s.baseload * NETTING_PERIOD_SEC / 3600)));
 
@@ -2995,7 +3009,7 @@ void update_time_based_variables()
       day_sum_tuned += max((long)0, (long)(solar_forecast.get(period) * s.pv_power / 1000 - s.baseload));
     }
 
-    uint16_t this_period_power = solar_forecast.get(now_in_func); // assumes 60 minutes period
+  //  uint16_t this_period_power = solar_forecast.get(now_in_func); // assumes 60 minutes period
    // printf("DEBUG day_start_local %lu, day_sum %d, this_period_power %d, period_power_tuned %ld,  day_sum_tuned %ld\n", day_start_local, (int)day_sum, (int)this_period_power, period_power_tuned, day_sum_tuned);
 
     if (period_power_tuned < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
@@ -3019,7 +3033,6 @@ void update_time_based_variables()
   vars.set(VARIABLE_DAYENERGY_FI, (long)(is_day ? 1L : 0L));
   vars.set(VARIABLE_WINTERDAY_FI, (long)(is_winterday ? 1L : 0L));
 #endif
-  printf("+");
 }
 /**
  * @brief Updates global variables based inverter readings.
@@ -3049,9 +3062,10 @@ void update_meter_based_variables()
  * @param ts
  * @return long current price (long), VARIABLE_LONG_UNKNOWN if unavailable
  */
-
+//new time series, remove, change call
 long get_price_for_time(time_t ts)
 {
+  
   // use global prices, prices_first_period
   int price_idx = (int)(ts - prices_first_period) / (PRICE_PERIOD_SEC);
   if (price_idx < 0 || price_idx >= MAX_PRICE_PERIODS)
@@ -3064,6 +3078,7 @@ long get_price_for_time(time_t ts)
   }
 }
 
+
 /**
  * @brief Get price rank (1 is best price etc.) of given period within given period window
  * @details  Get entries from now to requested duration in the future. \n
@@ -3074,6 +3089,8 @@ If not enough future periods exist, include periods from history to get full win
  * @param prices
  * @return int
  */
+//new time series: toteuta aikasarjaan differs avg ja ratio avg, joko erillisinä tai yhteen stats_funkkarina, joka toimisi pitkälti kuten tämä, mutta geneerisenä
+
 int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg, long *price_ratio_avg) //[MAX_PRICE_PERIODS]
 {
   yield();
@@ -3133,6 +3150,8 @@ void calculate_period_variables()
   //  next 24 h
   for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION)
   {
+    //new time series
+    //price = prices2.get(period,VARIABLE_LONG_UNKNOWN);
     price = get_price_for_time(period);
     if (price != VARIABLE_LONG_UNKNOWN)
     {
@@ -3190,7 +3209,8 @@ void calculate_price_ranks_current()
   int time_idx = int((now_infunc - prices_record_start) / PRICE_PERIOD_SEC);
 
   Serial.printf("calculate_price_ranks_current start: %ld, end: %ld, time_idx: %d\n", prices_record_start, prices_record_end_excl, time_idx);
-
+//new time series
+//if (prices2.get(now_infunc,VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
   if (time_idx < 0 || time_idx >= MAX_PRICE_PERIODS)
   {
     Serial.printf("Cannot get price info for current period time_idx %d , prices_expires %lu, now_infunc %lu \n", time_idx, prices_expires, now_infunc);
@@ -3226,12 +3246,16 @@ void calculate_price_ranks_current()
   delay(5);
 
   // snprintf(var_code, sizeof(var_code), "%ld", time);
+//new time series
+//  vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc)+ 50) / 100));
 
   vars.set(VARIABLE_PRICE, (long)((prices[time_idx] + 50) / 100));
   localtime_r(&time, &tm_struct_l);
 
   Serial.printf("\n\ntime: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, \n", time, time_idx, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
-  // Serial.printf("price: %f \n", energyPriceSpot);
+
+//new time series, uusi versio funkkarista get_period_price_rank_in_window
+// voi hoitua myös pitkälti nykyisillä time series rank ja avg
 
   // 9
   rank = get_period_price_rank_in_window(time_idx, 9, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
@@ -3500,187 +3524,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   return true;
 }
 
-/**
- * @brief Get solar forecast for next 24 hours from BCDC energia web service
- * @details Uses setting  s.forecast_loc for location
- *
- * @return true - success
- * @return false - failed
- */
 
-/*
-bool get_solar_forecast()
-{
-  DynamicJsonDocument doc(3072);
-  char fcst_url[100];
-
-  if (strlen(s.forecast_loc) < 2)
-  {
-    Serial.println(F("Forecast location undefined. Quitting"));
-    return false;
-  }
-
-  time_t now_in_func;
-  time(&now_in_func);
-
-  // adjust store window to start of the day,
-  solar_forecast.set_store_start((SECONDS_IN_DAY * (time_t)(current_period_start / SECONDS_IN_DAY)));
-
-  char query_data_cha[70];
-  snprintf(query_data_cha, sizeof(query_data_cha), "action=getChartData&loc=%s", s.forecast_loc);
-
-  WiFiClient wifi_client;
-
-  HTTPClient client_http;
-  client_http.setReuse(false);
-  client_http.useHTTP10(true); // for json input, not chunked
-  // Your Domain name with URL path or IP address with path
-
-  // reset variables
-  vars.set(VARIABLE_PVFORECAST_SUM24, (long)VARIABLE_LONG_UNKNOWN);
-  vars.set(VARIABLE_PVFORECAST_VALUE24, (long)VARIABLE_LONG_UNKNOWN);
-  vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (long)VARIABLE_LONG_UNKNOWN);
-
-  strncpy(fcst_url, fcst_url_base, sizeof(fcst_url));
-  client_http.begin(wifi_client, fcst_url);
-  Serial.printf("Solar forecast url: %s\n", fcst_url);
-
-  // Specify content-type header
-  client_http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  client_http.setUserAgent("ArskaESP");
-
-  // Send HTTP POST request
-  client_http.POST(query_data_cha);
-
-  DeserializationError error = deserializeJson(doc, client_http.getStream());
-  if (error)
-  {
-    log_msg(MSG_TYPE_WARN, PSTR("Failed to read energy forecast data"));
-    Serial.println(error.c_str());
-    return false;
-  }
-
-  time_t first_ts = 0;
-  int j = 0;
-  float pv_fcst[PV_FORECAST_HOURS];
-  float sum_pv_fcst = 0;
-  float pv_value_hour;
-  float pv_fcst_hour;
-  float pv_value = 0;
-  float sum_pv_fcst_with_price = 0;
-  long price;
-  long long pvenergy_item_time;
-  time_t pvenergy_time;
-  bool got_future_prices = false;
-
-  for (JsonObject pvenergy_item : doc["pvenergy"].as<JsonArray>())
-  {
-    // TODO:FIX DST
-    // bcdc antaa timestampin eet:ssä, ei utc:ssä; TODO: localize DST
-    pvenergy_item_time = pvenergy_item["time"];
-    pvenergy_time = (pvenergy_item_time / 1000) - (3 * 3600);
-
-    Serial.print(pvenergy_time);
-
-    if (first_ts == 0)
-      first_ts = pvenergy_time;
-
-    if (j < PV_FORECAST_HOURS)
-      pv_fcst[j] = pvenergy_item["value"];
-
-    Serial.print(" value:");
-    Serial.println((float)pvenergy_item["value"]);
-    pv_fcst_hour = (float)pvenergy_item["value"];
-
-    if (pvenergy_item["value"] > 0.01)
-      solar_forecast.set(pvenergy_time, (uint16_t)((float)pvenergy_item["value"] * 400)); ///  1000/2.5 = 400
-
-    sum_pv_fcst += pv_fcst_hour;
-    price = get_price_for_time(pvenergy_time);
-
-    if (price != VARIABLE_LONG_UNKNOWN)
-    {
-      sum_pv_fcst_with_price += (float)pv_fcst_hour;
-      pv_value_hour = price * pv_fcst_hour / 1000;
-      pv_value += pv_value_hour;
-      got_future_prices = true; // we got some price data
-      //  Serial.printf("j: %d, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
-    }
-    j++;
-  }
-
-  yield();
-  Serial.printf("avg solar price: %f = %f / %f \n", pv_value / sum_pv_fcst_with_price, pv_value, sum_pv_fcst_with_price);
-
-  vars.set(VARIABLE_PVFORECAST_SUM24, (float)sum_pv_fcst);
-  if (got_future_prices)
-  {
-    vars.set(VARIABLE_PVFORECAST_VALUE24, (float)(pv_value));
-    vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (float)(pv_value / sum_pv_fcst_with_price));
-  }
-  else
-  {
-    vars.set_NA(VARIABLE_PVFORECAST_VALUE24);
-    vars.set_NA(VARIABLE_PVFORECAST_AVGPRICE24);
-  }
-  doc.clear();
-  yield();
-
-
-  vars.set(VARIABLE_PVFORECAST_SUM24, sum_pv_fcst);
-
-  // Free resources
-  client_http.end();
-
-  Serial.println("****Solar forecast time-series");
-  solar_forecast.debug_print();
-
-  return true;
-}
-*/
-
-// Prototype code for potential new price variables, not in use
-/*
-long get_avg_price_for_segment(int start_idx_incl, int end_idx_incl)
-{
-  int price_count = 0;
-  long price_sum = 0;
-
-  for (int cur_idx = start_idx_incl; cur_idx <= end_idx_incl; cur_idx++)
-  {
-    price_sum += prices[cur_idx];
-    price_count++;
-  }
-  long segment_price_avg = (price_sum / price_count); // / 1000;
-  return segment_price_avg;
-}
-
-bool is_in_cheapest_segment(int start_idx_incl, int end_idx_incl, int time_idx, int segment_size)
-{
-  if ((start_idx_incl < 0) || end_idx_incl >= MAX_PRICE_PERIODS)
-    return false;
-  long segment_price;
-  long segment_price_cheapest = LONG_MAX;
-  int cheapest_idx = 0;
-  for (int price_idx = start_idx_incl; price_idx <= (end_idx_incl + 1 - segment_size); price_idx++)
-  {
-    segment_price = get_avg_price_for_segment(price_idx, price_idx + segment_size - 1);
-    if (segment_price < segment_price_cheapest)
-    {
-      segment_price_cheapest = segment_price;
-      cheapest_idx = price_idx;
-    }
-  }
-  // Serial.printf("segment_price_cheapest: %ld, cheapest_idx: %d\n", segment_price_cheapest, cheapest_idx);
-  //  is time_idx within segment (of segment size) starting from cheapest_idx
-  if ((time_idx >= cheapest_idx) && (time_idx < cheapest_idx + segment_size))
-  {
-    //   Serial.printf("Segment starting with time_idx %d is within %d h segment in the block\n", segment_size, time_idx);
-    return true;
-  }
-  return false;
-}
-*/
 
 /**
  * @brief Gets SPOT-prices from EntroE to a json file  (price_data_file_name)
@@ -3728,6 +3572,7 @@ bool get_price_data()
   long price = VARIABLE_LONG_UNKNOWN;
 
   // initiate prices
+  // new time series, remove
   for (int price_idx = 0; price_idx < MAX_PRICE_PERIODS; price_idx++)
     prices[price_idx] = VARIABLE_LONG_UNKNOWN;
 
@@ -3805,36 +3650,7 @@ bool get_price_data()
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
-    /*
-        if (!line_incomplete)
-        {
-          line = client_https.readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
-
-          if (line.charAt(line.length() - 1) == 13)
-          {
-            if (is_chunksize_line(line)) // skip error status "garbage" line, probably chuck size to read
-              continue;
-            line.trim();            // remove cr and mark line incomplete
-            line_incomplete = true; // we do not have whole line yet
-          }
-        }
-        else // line is incomplete, we will get more to add
-        {
-          line2 = client_https.readStringUntil('\n');
-          if (line2.charAt(line2.length() - 1) == 13)
-          {
-            if (is_chunksize_line(line2)) // skip error status "garbage" line
-              continue;
-          }
-          else
-            line_incomplete = false; // ended normally
-
-          line2.trim(); // remove cr
-          line = line + line2;
-          Serial.print("Combined line:");
-          Serial.println(line);
-        }
-    */
+    
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
     if (line.indexOf("</Publication_MarketDocument>") > -1)
@@ -3880,7 +3696,7 @@ bool get_price_data()
       int period_idx = pos - 1 + (period_start - record_start) / PRICE_PERIOD_SEC;
       if (period_idx >= 0 && period_idx < MAX_PRICE_PERIODS)
       {
-
+//new time series, remove
         prices[period_idx] = price;
         Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
         //    price_array.add(price);
@@ -4751,7 +4567,7 @@ void update_firmware_partition(bool cmd = U_FLASH)
     {
       Serial.println(F("Filesystem update requested but phase does not match."));
       Serial.println(s.ota_update_phase);
-      return; // not correct update phase, should not normalyy end up here
+      return; // not correct update phase, should not normally end up here
     }
   }
   switch (update_result)
@@ -4774,7 +4590,7 @@ void update_firmware_partition(bool cmd = U_FLASH)
 
 // minimized from/data/update.html with https://www.textfixer.com/html/compress-html-compression.php
 //  no double quotes, no onload etc with strinbg params, no double slash // comments
-// const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2022, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => {init_document();}); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { document.getElementById('frm2').addEventListener('submit', (event) => {return confirm('Update software. This can take 5-10 minutes. Patience is a Virtue');}); $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; console.log('got ui-constants.json', VERSION_SHORT); $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get ui-constants.json', textStatus, jqXHR.status); } }); load_releases(); } else { document.getElementById('div_upd2').style.display = 'none'; console.log('Cannot load jQuery library'); } } function load_releases() { $.ajax({ url: '/releases', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { load_count++; console.log('got releases'); hw = data.hw; if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/ if (load_count < 5) setTimeout(function () { load_releases(); }, 5000); else document.getElementById('div_upd2').style.display = 'none'; } else { $.each(data.releases, function (i, release) { d = new Date(release[1] * 1000); $('#sel_releases').append($('<option>', { value: release[0], text: release[0] + ' ' + d.toLocaleDateString() })); }); $('#btn_update').prop('disabled', (!(data.hasOwnProperty('releases')))); $('#sel_releases').prop('disabled', (!(data.hasOwnProperty('releases')))); if (VERSION_SHORT) { version_base = VERSION_SHORT.substring(0, VERSION_SHORT.lastIndexOf('.')); console.log('version_base', version_base); $('#sel_releases option:contains(' + version_base + ')').append(' ***'); } $('#div_upd2').css('opacity', '1'); } }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get releases', textStatus, jqXHR.status); document.getElementById('div_upd2').style.display = 'none'; } }); }; function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/#admin'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h2>Upload firmware files</h2> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div></div> <div id='div_upd2' style='opacity: 0.5;'> <h2>Automatic update</h2> <div class='indent'> <form method='post' id='frm2' action='/update'> <select name='release' id='sel_releases'> <option value=''>select release</option> </select> <input type='submit' id='btn_update' value='Update'> </form> </div></div> <br>Software: <span id='ver_sw'>*</span>, Filesystem: <span id='ver_fs'>*</span> - <a href='/#admin'>Return to Admin</a></body></html>";
+
 // only manual update, automatic is integrated
 const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => { init_document(); }); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { /* document.getElementById('frm2').addEventListener('submit', (event) => { return confirm('Update software, this can take several minutes.'); });*/ $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get /application', textStatus, jqXHR.status); } }); } else { console.log('Cannot load jQuery library'); } } function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/update'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Arska firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h3>Upload firmware files</h3> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div> </div> Current versions:<br> <table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table> <br><a href='/'>Return to Arska</a></body></html>";
 #include <Update.h>
@@ -4921,7 +4737,10 @@ void reset_config(bool full_reset)
     strncpy(current_password, s.http_password, sizeof(current_password));
   }
 
+  uint8_t ota_update_phase = s.ota_update_phase; // keep the phase over config reset
   memset(&s, 0, sizeof(s));
+  s.ota_update_phase = ota_update_phase;
+
   // memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
@@ -5313,11 +5132,9 @@ bool ajson_bool_get(JsonVariant parent_node, char *doc_key, bool default_val)
  */
 bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
 {
-
   char http_password[MAX_ID_STR_LENGTH];
   char http_password2[MAX_ID_STR_LENGTH];
   int channel_idx_loop = 0;
-  bool reboot = false;
 
   ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
   ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
@@ -5749,10 +5566,18 @@ void onWebPricesGet(AsyncWebServerRequest *request)
   String output;
 
   JsonArray prices_a = doc.createNestedArray("prices");
-  for (uint16_t i = 0; i < MAX_PRICE_PERIODS; i++)
+  //new time series, replace
+  /*int i = 0;
+  for (time_t period = prices2.start();period <= prices2.end(); period += prices2.resolution_sec())
   {
-    prices_a[i] = prices[i];
+    prices_a[i++] = prices2.get(period);
   }
+  */
+    for (uint16_t i = 0; i < MAX_PRICE_PERIODS; i++)
+    {
+      prices_a[i] = prices[i];
+    }
+
 
   time_t current_time;
   time(&current_time);

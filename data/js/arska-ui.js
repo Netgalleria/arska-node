@@ -51,6 +51,11 @@ function populate_releases() {
                 //     document.getElementById('div_upd2').style.display = 'none';
             }
             else {
+               
+                $('#sel_releases').find('option').remove().end().append($('<option>', {
+                    value: "#",
+                    text: 'select version'
+                }));
                 $.each(data.releases, function (i, release) {
                     d = new Date(release[1] * 1000);
                     $('#sel_releases').append($('<option>', {
@@ -58,19 +63,18 @@ function populate_releases() {
                         text: release[0] + ' ' + d.toLocaleDateString()
                     }));
                 });
+                 $('#releases\\:refresh').prop('disabled', true);
                 $('#releases\\:update').prop('disabled', false);
                 $('#sel_releases').prop('disabled', false);
-
 
                 if (g_constants.VERSION_SHORT) {
                     version_base = g_constants.VERSION_SHORT.substring(0, g_constants.VERSION_SHORT.lastIndexOf('.'));
                     console.log('version_base', version_base);
                     $('#sel_releases option:contains(' + version_base + ')').append(' ***');
-                    $('#sel_releases').val(version_base);
+                  //  $('#sel_releases').val(version_base);
                 }
-
-
-                //   $('#div_upd2').css('opacity', '1');
+                $('#sel_releases').val("#");
+               
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -1230,7 +1234,6 @@ const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 144
 
 function post_schedule_update(channel_idx, duration, start, duration_old) {
     var scheds = [];
-    // live_alert(`sch_${channel_idx}`, "Updating... 'success'");
     scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start });
     console.log(scheds);
 
@@ -1247,9 +1250,6 @@ function post_schedule_update(channel_idx, duration, start, duration_old) {
             document.getElementById(`sch_${channel_idx}:duration`).value = (duration == 0) ? 60 : duration;
             document.getElementById(`sch_${channel_idx}:start`).value = 0;
             document.getElementById(`sch_${channel_idx}:save`).disabled = false; // should not be needed
-            // console.log("success", data);
-            //      live_alert(`sch_${channel_idx}`, duration > 0 ? "Schedule updated." : "Schedule deleted.", "success");
-
         },
         error: function (errMsg) {
             console.log(errMsg);
@@ -2524,15 +2524,19 @@ function launch_action_evt(ev) {
 
 function start_fw_update() {
     new_version = document.getElementById("sel_releases").value;
+    if (new_version.length<2) {
+        alert("Refresh available software versions and select version from the list.");
+        return;
+    }
+        
     console.log("new_version, g_constants.VERSION_SHORT", new_version, g_constants.VERSION_SHORT);
     if (g_constants.VERSION_SHORT.startsWith(new_version)) {
         alert("Firmware version is already " + g_constants.VERSION_SHORT + ". Cannot start update.");
         return;
     }
     else {
-        if (confirm("Update firmware to " + new_version)) {
+        if (confirm("Backup your configuration before update!\r\r Update firmware to " + new_version + " now?")) {
             launch_action("update", "", { "version": new_version });
-
         }
         else
             return;

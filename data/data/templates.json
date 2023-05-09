@@ -554,17 +554,30 @@
             "name": "Overproduction, cheap nightly price and waiting for the strong winds",
             "name_fi": "Ylituotanto, halpa yöhinta ja tuulen odotus",
             "desc": "On whenever there is an overproduction of solar energy and the price is very low. In addition, at night in the cheapest hours when the price is not particularly high. If the night price is expensive and the next night's wind power production is high, expect a possibly cheap price the next night. This can be suitable if the property has, for example, a large water storage tank that does not need to be heated every day. High wind power production does not automatically mean cheap prices, although this is often the case at night. In an exceptional situation, you can schedule manually.",
-            "desc_fi": "Päällä aina kun  aurinkoenergian ylituotantoa ja hinta erittäin alhainen. Lisäksi yöllä halvimpina tunteina kun hinta ei erityisen korkea. Mikäli yöhinta kallis ja seuraavana yönä tuulivoiman tuotanto on suurta, odotetaan seuraavan yön mahdollisesti halpaa hintaa. Tämä voi sopia jos kiinteistössä esim. suuri vesivaraaja, jota ei tarvitse lämmittää joka päivä. Korkea tuulivoimatuotanto ei automaattisesti tarkoita halpoja hintoja, vaikka yöllä usein näin onkin. Poikkeustilanteessa voit ajastaa manuaalisesti.",
+            "desc_fi": "Päällä kun aurinkoenergian ylituotantoa mutta kalleimmat tunnit voidaan ohjata myyntiin.Lisäksi kun hinta erittäin alhainen. Lisäksi yöllä halvimpina tunteina kun hinta ei erityisen korkea. Mikäli yöhinta kallis ja seuraavana yönä tuulivoiman tuotanto on suurta, odotetaan seuraavan yön mahdollisesti halpaa hintaa. Tämä voi sopia jos kiinteistössä esim. suuri vesivaraaja, jota ei tarvitse lämmittää joka päivä. Korkea tuulivoimatuotanto ei automaattisesti tarkoita halpoja hintoja, vaikka yöllä usein näin onkin. Poikkeustilanteessa voit ajastaa manuaalisesti.",
             "rules": [
                 {
                     "on": true,
-                    "desc": "Up when own overproduction",
-                    "desc_fi": "Päällä kun omaa ylituotantoa.",
+                    "desc": "Up when own overproduction. You can also limit by price ranking",
+                    "desc_fi": "Päällä kun omaa ylituotantoa. Voit rajata myös korkeimmat hinnat pois omasta käytöstä.",
                     "stmts": [
                         [
                             100,
                             6,
                             0
+                        ],
+                        [
+                            1,
+                            4,
+                            24,
+                            null,
+                            {
+                                "prompt": "How many cheapest hours of day can be up. For example 20 means that 4 most expensive hours are down even there is overproduction. 24 - no limit ",
+                                "prompt_fi": "Montako vuorokauden halvinta tuntia päällä kun ylituotantoa. Esim. 20 tarkoittaa että vuorokauden 4 kalleimpana tuntina ei päällä. 24 jos ei hintarankingrajausta.",
+                                "min": 0,
+                                "max": 24,
+                                "step": 1
+                            }
                         ]
                     ]
                 },

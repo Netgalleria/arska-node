@@ -830,7 +830,7 @@
                       <label for="lang" class="form-label">Preferred language</label>
                       <select id="lang" class="form-select" aria-label="variable">
                         <option value="en">English</option>
-                        <option value="fi">Suomi (vain sääntöpohjat)</option>
+                        <option value="fi">Suomi (vain sääntöpohjat ja muuttujat)</option>
                       </select>
                     </div>
 
@@ -983,6 +983,7 @@
                             class="align-text-bottom"></span>
                         </button>
                         <select id="sel_releases" class="form-select" aria-label="variable" disabled="">
+                          <option value="#">Refresh versions</option>
                         </select>
                         <button id="releases:update" type="button" class="btn btn-primary" onclick="start_fw_update();"
                           disabled="" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
