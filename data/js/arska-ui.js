@@ -51,19 +51,14 @@ function populate_releases() {
                 //     document.getElementById('div_upd2').style.display = 'none';
             }
             else {
-               
-                $('#sel_releases').find('option').remove().end().append($('<option>', {
-                    value: "#",
-                    text: 'select version'
-                }));
+                releases_select_ctrl = document.getElementById("sel_releases");
+                remove_select_options(releases_select_ctrl);
+                addOption(releases_select_ctrl, "#", 'select version', true);
                 $.each(data.releases, function (i, release) {
                     d = new Date(release[1] * 1000);
-                    $('#sel_releases').append($('<option>', {
-                        value: release[0],
-                        text: release[0] + ' ' + d.toLocaleDateString()
-                    }));
+                    addOption(releases_select_ctrl, release[0], release[0] + ' ' + d.toLocaleDateString());
                 });
-                 $('#releases\\:refresh').prop('disabled', true);
+                $('#releases\\:refresh').prop('disabled', true);
                 $('#releases\\:update').prop('disabled', false);
                 $('#sel_releases').prop('disabled', false);
 
@@ -71,10 +66,10 @@ function populate_releases() {
                     version_base = g_constants.VERSION_SHORT.substring(0, g_constants.VERSION_SHORT.lastIndexOf('.'));
                     console.log('version_base', version_base);
                     $('#sel_releases option:contains(' + version_base + ')').append(' ***');
-                  //  $('#sel_releases').val(version_base);
+                    //  $('#sel_releases').val(version_base);
                 }
                 $('#sel_releases').val("#");
-               
+
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -573,7 +568,8 @@ function update_status(repeat) {
                 })
             }
 
-            document.getElementById("started_str").innerHTML = ts_date_time(data.started);
+            if (document.getElementById("started_str"))
+                document.getElementById("started_str").innerHTML = ts_date_time(data.started);
 
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
             document.getElementById("db:export_v").innerHTML = selling;
@@ -616,7 +612,7 @@ function update_status(repeat) {
                     variable_desc = "";
                     if (var_this) {
                         if (var_this[0] in variable_list) {
-                           // variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
+                            // variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
                             variable_desc = _ltext(variable_list[var_this[0]], "desc");
                         }
                         if (Array.isArray(variable)) {
@@ -631,12 +627,8 @@ function update_status(repeat) {
 
                 });
 
-                // $('#vars_updated').text('updated: ' + data.localtime.substring(11));
-
                 $('#vars_updated').text('updated: ' + ts_date_time(data.ts, include_year = true));
-                //$('<tr><td></td><td>updated</td><td>' + data.localtime.substring(11) + '</td><td></td><td></td></tr></table>').appendTo($("#tblVariables_tb"));
             }
-            // TODO: update
             //console.log("Starting populate_channel_status loop");
             $.each(data.ch, function (i, ch) {
                 populate_channel_status(i, ch)
@@ -1443,35 +1435,6 @@ function set_relay_field_visibility(channel_idx, ch_type) {
     document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type));
     document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type));
 
-    /*
-
-    document.getElementById(`ch_${channel_idx}:r_ip_div`).style.display = is_relay_ip_used(ch_type) ? "segment" : "none";
-    document.getElementById("d_rid_" + channel_idx).style.display = is_relay_id_used(ch_type) ? "segment" : "none";
-    document.getElementById("d_ruid_" + channel_idx).style.display = is_relay_uid_used(ch_type) ? "segment" : "none";
-    relay_id_caption_span = document.getElementById("ch_ridcap_" + channel_idx);
-
-    if (is_relay_id_used(ch_type)) {
-        max_rid = ([CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(ch_type)) ? 39 : 255); //GPIO max 39
-        document.getElementById("ch_rid_" + channel_idx).setAttribute("max", max_rid);
-    }
-    if (is_relay_uid_used(ch_type)) {
-        min_ruid = (ch_type == (CH_TYPE_TASMOTA) ? 1 : 0); //Shelly min 0, Tasmota 1
-        cur_ruid = document.getElementById("ch_ruid_" + channel_idx).value;
-        document.getElementById("ch_ruid_" + channel_idx).setAttribute("min", min_ruid);
-        document.getElementById("ch_ruid_" + channel_idx).value = Math.max(min_ruid, cur_ruid); //for min value
-    }
-
-    if ([CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(chtype))) {
-        relay_id_caption_span.innerHTML = "gpio:<br>";
-    }
-    else if (chtype == CH_TYPE_GPIO_FIXED) {
-        relay_id_caption_span.innerHTML = "gpio (fixed):<br>";
-        $('#ch_rid_' + channel_idx).attr('disabled', true);
-    }
-    else
-        relay_id_caption_span.innerHTML = "device id:"; //TODO: later modbus...
-    
-    */
 }
 
 
@@ -2130,6 +2093,18 @@ function do_backup() {
         })
         .fail(function () { alert('File download failed!'); });
 }
+function check_restart_request(data, card_id) {
+    if ("refresh" in data) {
+        if (data.refresh > 0) {
+            console.log("Reloaded in ", data.refresh, "seconds");
+            setTimeout(function () { location.reload(); }, data.refresh * 1000);
+            live_alert("config", "Updating system...wait patiently...", 'success');
+            document.getElementById("config_spinner").style.display = "block";
+           // $("#config_spinner").show();
+        }
+    }
+}
+
 
 //https://stackoverflow.com/questions/14446447/how-to-read-a-local-text-file-in-the-browser
 // restore config (with reset)
@@ -2141,6 +2116,8 @@ var restore_config = function (event) {
         //  var node = document.getElementById('output');
         //  node.innerText = text;
         console.log(reader.result.substring(0, 200));
+        if (!confirm("Restore from settings from the file and overwrite current settings. The system will restart after the restore.\r\rAre you sure?"))
+            return;
 
         $.ajax({
             url: "/settings-restore", //window.location.pathname,
@@ -2152,12 +2129,13 @@ var restore_config = function (event) {
             processData: false,
             success: function (data) {
                 // alert(data)
-                console.log("posted", text);
-                live_alert("admin", "Settings restored", 'success');
+                //console.log("posted", text);
+                live_alert("config", "Settings restored", 'success');
+                check_restart_request(data, "config");
             },
             error: function (jqXHR, textStatus, errorThrown) {
                 console.log("Cannot post config", textStatus, jqXHR.status);
-                live_alert("admin", "Cannot restore settings.", 'warning');
+                live_alert("config", "Cannot restore settings.", 'warning');
             },
             cache: false,
             contentType: false,
@@ -2292,7 +2270,7 @@ function jump(section_id_full) {
 
             if (scroll_element)
                 scroll_element.scrollIntoView();
-           
+
         }
     }
     else if (section_id == 'admin') {
@@ -2323,7 +2301,7 @@ function initWifiForm() {
             console.log("Cannot get wifis", textStatus, jqXHR.status);
         }
     });
-
+ 
     if (!wifisp) {
         console.log("initWifiForm: No wifis.");
         return;
@@ -2332,12 +2310,12 @@ function initWifiForm() {
     wifisp.sort(compare_wifis);
     var wifi_sel = document.getElementById("wifi_ssid");
     var wifi_ssid_db = g_config.wifi_ssid;// document.getElementById("wifi_ssid_db");
-
+ 
     wifisp.forEach(function (wifi, i) {
         if (wifi.id) {
             var opt = document.createElement("option");
             opt.value = wifi.id;
-
+ 
             if (g_config.wifi_in_setup_mode && i == 0)
                 opt.selected = true;
             else if (wifi_ssid_db.value == wifi.id) {
@@ -2360,9 +2338,11 @@ function init_ui() {
         success: function (data) {
             g_constants = data; console.log("got g_constants");
             // versions
-            document.getElementById("version").innerHTML = g_constants.VERSION;
-            document.getElementById("version_fs").innerHTML = g_constants.version_fs;
-
+            let version_str = "Current version: " + g_constants.VERSION;
+            if (g_constants.VERSION.localeCompare(g_constants.version_fs) != 0) {
+                version_str += ` <span class="text-warning">Filesystem version '${g_constants.version_fs}' differs!</span>`;
+            }
+            document.getElementById("version").innerHTML = version_str;
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get g_constants", textStatus, jqXHR.status);
@@ -2429,7 +2409,6 @@ function live_alert(card_idstr, message, type) {
         ].join('');
         alertPlaceholder.innerHTML = ""; // do not cumulate messages
         alertPlaceholder.append(wrapper);
-
     }
     else { // no placeholder
         alert(message + " . " + card_idstr + ':alert');
@@ -2495,14 +2474,9 @@ function launch_action(action, card_id, params) {
 
             if (card_id)
                 live_alert(card_id, "Action launched", 'success');
+            check_restart_request(data, card_id);
 
-            if ("refresh" in data) {
-                if (data.refresh > 0) {
-                    console.log("Reloaded in ", data.refresh, "seconds");
-                    setTimeout(function () { location.reload(); }, data.refresh * 1000);
-                    live_alert(card_id, "Restarting...wait for a while.", 'success');
-                }
-            }
+
         },
         error: function (requestObject, error, errorThrown) {
             if (card_id)
@@ -2524,23 +2498,23 @@ function launch_action_evt(ev) {
 
 function start_fw_update() {
     new_version = document.getElementById("sel_releases").value;
-    if (new_version.length<2) {
+    if (new_version.length < 2) {
         alert("Refresh available software versions and select version from the list.");
         return;
     }
-        
+
     console.log("new_version, g_constants.VERSION_SHORT", new_version, g_constants.VERSION_SHORT);
     if (g_constants.VERSION_SHORT.startsWith(new_version)) {
-        alert("Firmware version is already " + g_constants.VERSION_SHORT + ". Cannot start update.");
+        if (!confirm("Firmware version is already " + g_constants.VERSION_SHORT + ". Do you want to reinstall?"))
         return;
     }
-    else {
-        if (confirm("Backup your configuration before update!\r\r Update firmware to " + new_version + " now?")) {
-            launch_action("update", "", { "version": new_version });
-        }
-        else
-            return;
+    if (confirm("Backup your configuration before update!\r\r Update firmware to " + new_version + " now?")) {
+        $('#releases\\:update').prop('disabled', true);
+        launch_action("update", "", { "version": new_version });
     }
+    else
+        return;
+
 }
 
 

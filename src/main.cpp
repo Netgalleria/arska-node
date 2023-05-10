@@ -23,8 +23,8 @@ DEVEL BRANCH
 #define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
 10.11.2022 removed esp8266 options
 */
-
-#define EEPROM_CHECK_VALUE 10101
+//oli 10101
+#define EEPROM_CHECK_VALUE 10102
 #define DEBUG_MODE
 
 #include <Arduino.h>
@@ -83,6 +83,7 @@ const char *default_http_password PROGMEM = "arska";
 const char *wifis_filename PROGMEM = "/cache/wifis.json";
 
 const char *template_filename PROGMEM = "/data/templates.json";
+const char *shadow_settings_filename PROGMEM = "/shadow_settings.json";
 
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
@@ -275,7 +276,7 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HISTORY_VARIABLE_COUNT 2
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
-//new time series, remove
+// new time series, remove
 long prices[MAX_PRICE_PERIODS];
 
 bool prices_initiated = false;
@@ -411,7 +412,7 @@ void getRTC()
 #endif // rtc
 
 /**
- * @brief Check whether file system is up-to-date
+ * @brief Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
  *
  * @return true
  * @return false
@@ -426,7 +427,7 @@ bool check_filesystem_version()
   {
     String current_fs_version = info_file.readStringUntil('\n'); // e.g. 0.92.0-rc1.1102 - 2022-09-28 12:24:56
     version_fs_base = current_fs_version.substring(0, current_fs_version.lastIndexOf('.'));
-    Serial.printf("version_fs_base: %s , VERSION_BASE %s\n", version_fs_base.c_str(), VERSION_BASE);
+    Serial.printf("version_fs_base: %s ,  VERSION_BASE %s\n", version_fs_base.c_str(), VERSION_BASE);
     strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
     is_ok = version_fs_base.equals(VERSION_BASE);
     if (is_ok)
@@ -1191,7 +1192,7 @@ public:
       return arr[idx];
   }
 
-  T get(time_t ts,T default_value)
+  T get(time_t ts, T default_value)
   {
     int idx = get_idx(ts);
     if (idx == -1)
@@ -1199,7 +1200,6 @@ public:
     else
       return arr[idx];
   }
-
 
   T avg(time_t start_ts, time_t end_ts_incl)
   {
@@ -1849,8 +1849,8 @@ bool update_prices_to_influx()
 
   Point point_period_price("period_price");
 
-//new time series: 
-//for (time_t current_period_start_ts = prices2.start(); current_period_start_ts<=prices2.end();current_period_start_ts+=prices2.resolution_sec()) 
+  // new time series:
+  // for (time_t current_period_start_ts = prices2.start(); current_period_start_ts<=prices2.end();current_period_start_ts+=prices2.resolution_sec())
 
   for (uint16_t i = 0; 0 < MAX_PRICE_PERIODS; i++)
   {
@@ -1858,8 +1858,8 @@ bool update_prices_to_influx()
     ts_to_date_str(&current_period_start_ts, datebuff);
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
-//new time series:
-//    current_price = prices2.get(current_period_start_ts);
+    // new time series:
+    //     current_price = prices2.get(current_period_start_ts);
     current_price = (long)prices[i];
     Serial.println(current_price);
     point_period_price.addField("price", (float)(current_price / 1000.0));
@@ -2998,7 +2998,7 @@ void update_time_based_variables()
   if (solar_forecast.start() > 0)
   { // we have a solar forecast
     time_t day_end_local = day_start_local + 23 * 3600;
-   // uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
+    // uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
     long period_power = max((long)0, (long)(solar_forecast.get(now_in_func) * s.pv_power / 1000));
     long period_power_tuned = max((long)0, (long)(solar_forecast.get(now_in_func) * s.pv_power / 1000 - (s.baseload * NETTING_PERIOD_SEC / 3600)));
 
@@ -3009,8 +3009,8 @@ void update_time_based_variables()
       day_sum_tuned += max((long)0, (long)(solar_forecast.get(period) * s.pv_power / 1000 - s.baseload));
     }
 
-  //  uint16_t this_period_power = solar_forecast.get(now_in_func); // assumes 60 minutes period
-   // printf("DEBUG day_start_local %lu, day_sum %d, this_period_power %d, period_power_tuned %ld,  day_sum_tuned %ld\n", day_start_local, (int)day_sum, (int)this_period_power, period_power_tuned, day_sum_tuned);
+    //  uint16_t this_period_power = solar_forecast.get(now_in_func); // assumes 60 minutes period
+    // printf("DEBUG day_start_local %lu, day_sum %d, this_period_power %d, period_power_tuned %ld,  day_sum_tuned %ld\n", day_start_local, (int)day_sum, (int)this_period_power, period_power_tuned, day_sum_tuned);
 
     if (period_power_tuned < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)24 * 60);
@@ -3062,10 +3062,10 @@ void update_meter_based_variables()
  * @param ts
  * @return long current price (long), VARIABLE_LONG_UNKNOWN if unavailable
  */
-//new time series, remove, change call
+// new time series, remove, change call
 long get_price_for_time(time_t ts)
 {
-  
+
   // use global prices, prices_first_period
   int price_idx = (int)(ts - prices_first_period) / (PRICE_PERIOD_SEC);
   if (price_idx < 0 || price_idx >= MAX_PRICE_PERIODS)
@@ -3078,7 +3078,6 @@ long get_price_for_time(time_t ts)
   }
 }
 
-
 /**
  * @brief Get price rank (1 is best price etc.) of given period within given period window
  * @details  Get entries from now to requested duration in the future. \n
@@ -3089,7 +3088,7 @@ If not enough future periods exist, include periods from history to get full win
  * @param prices
  * @return int
  */
-//new time series: toteuta aikasarjaan differs avg ja ratio avg, joko erillisinä tai yhteen stats_funkkarina, joka toimisi pitkälti kuten tämä, mutta geneerisenä
+// new time series: toteuta aikasarjaan differs avg ja ratio avg, joko erillisinä tai yhteen stats_funkkarina, joka toimisi pitkälti kuten tämä, mutta geneerisenä
 
 int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg, long *price_ratio_avg) //[MAX_PRICE_PERIODS]
 {
@@ -3150,8 +3149,8 @@ void calculate_period_variables()
   //  next 24 h
   for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION)
   {
-    //new time series
-    //price = prices2.get(period,VARIABLE_LONG_UNKNOWN);
+    // new time series
+    // price = prices2.get(period,VARIABLE_LONG_UNKNOWN);
     price = get_price_for_time(period);
     if (price != VARIABLE_LONG_UNKNOWN)
     {
@@ -3209,8 +3208,8 @@ void calculate_price_ranks_current()
   int time_idx = int((now_infunc - prices_record_start) / PRICE_PERIOD_SEC);
 
   Serial.printf("calculate_price_ranks_current start: %ld, end: %ld, time_idx: %d\n", prices_record_start, prices_record_end_excl, time_idx);
-//new time series
-//if (prices2.get(now_infunc,VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
+  // new time series
+  // if (prices2.get(now_infunc,VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
   if (time_idx < 0 || time_idx >= MAX_PRICE_PERIODS)
   {
     Serial.printf("Cannot get price info for current period time_idx %d , prices_expires %lu, now_infunc %lu \n", time_idx, prices_expires, now_infunc);
@@ -3233,7 +3232,7 @@ void calculate_price_ranks_current()
     vars.set_NA(VARIABLE_PRICERANK_FIXED_8_BLOCKID);
   }
   else if (prices_expires + 3600 * 1 < now_infunc)
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot fetch price data for next day from Entso-E. Check availability from https://transparency.entsoe.eu/ ."));
+    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
 
   long window_price_avg;
   long price_differs_avg;
@@ -3246,16 +3245,16 @@ void calculate_price_ranks_current()
   delay(5);
 
   // snprintf(var_code, sizeof(var_code), "%ld", time);
-//new time series
-//  vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc)+ 50) / 100));
+  // new time series
+  //   vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc)+ 50) / 100));
 
   vars.set(VARIABLE_PRICE, (long)((prices[time_idx] + 50) / 100));
   localtime_r(&time, &tm_struct_l);
 
   Serial.printf("\n\ntime: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, \n", time, time_idx, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
 
-//new time series, uusi versio funkkarista get_period_price_rank_in_window
-// voi hoitua myös pitkälti nykyisillä time series rank ja avg
+  // new time series, uusi versio funkkarista get_period_price_rank_in_window
+  //  voi hoitua myös pitkälti nykyisillä time series rank ja avg
 
   // 9
   rank = get_period_price_rank_in_window(time_idx, 9, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
@@ -3518,13 +3517,11 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   yield();
 
   // solar_forecast.debug_print();
-  //time_series->debug_print();
+  // time_series->debug_print();
 
   yield();
   return true;
 }
-
-
 
 /**
  * @brief Gets SPOT-prices from EntroE to a json file  (price_data_file_name)
@@ -3650,7 +3647,7 @@ bool get_price_data()
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
-    
+
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
     if (line.indexOf("</Publication_MarketDocument>") > -1)
@@ -3696,7 +3693,7 @@ bool get_price_data()
       int period_idx = pos - 1 + (period_start - record_start) / PRICE_PERIOD_SEC;
       if (period_idx >= 0 && period_idx < MAX_PRICE_PERIODS)
       {
-//new time series, remove
+        // new time series, remove
         prices[period_idx] = price;
         Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
         //    price_array.add(price);
@@ -3744,8 +3741,9 @@ bool get_price_data()
     prices_ts = now_infunc;
 
     if (contains_zero_prices)
-    { // potential problem in latest fetch, give shorter validity time
-      Serial.println("Contains zero prices! Retry in 4 hours.");
+    { // potential problem in the latest fetch, give shorter validity time
+      Serial.println("Contains zero prices. Could be still ok. Retry in 4 hours.");
+      prices_expires = now_infunc + (4 * 3600);
       //  doc["expires"] = now_infunc + (4 * 3600);
     }
     else
@@ -4414,6 +4412,7 @@ const char *letsencrypt_ca_certificate =
 
 String update_releases = "{}"; // software releases for updates, cached in RAM
 String update_release_selected = "";
+time_t release_cache_expires = 0;
 /**
  * @brief Get firmware releases from download web server
  *
@@ -4422,6 +4421,14 @@ String update_release_selected = "";
  */
 bool get_releases()
 {
+  time_t current_time;
+  time(&current_time);
+  if (release_cache_expires>current_time) {
+     Serial.println(F("Release cache still valid. No query."));
+     return true;
+  }
+    
+
   WiFiClientSecure client_https;
   client_https.setCACert(letsencrypt_ca_certificate);
   if (!client_https.connect(RELEASES_HOST, 443))
@@ -4448,10 +4455,12 @@ bool get_releases()
   {
     update_releases = client_https.readString();
     Serial.println(update_releases);
+    release_cache_expires = current_time+2*3600;
   }
 
   client_https.stop();
-  Serial.println("last");
+ 
+
   return true;
 }
 /**
@@ -4460,13 +4469,17 @@ bool get_releases()
  */
 void flash_update_ended()
 {
-  Serial.println("CALLBACK:  HTTP update process finished");
+  Serial.println("flash_update_ended:HTTP update process finished");
   // set phase to enable fs version check after next boot
   s.ota_update_phase = OTA_PHASE_FWUPDATED_CHECKFS;
   writeToEEPROM();
   delay(1000);
   todo_in_loop_restart = true;
 }
+
+// declare
+bool create_shadow_settings();
+
 
 /**
  * @brief Download and update flash(program), restarts the device if successful
@@ -4482,6 +4495,9 @@ t_httpUpdate_return update_program()
     Serial.println(F("No need for firmware update."));
     return HTTP_UPDATE_NO_UPDATES;
   }
+  // create shadow settings file
+  create_shadow_settings();
+
   WiFiClientSecure client_https;
   Serial.println("update_program");
   client_https.setCACert(letsencrypt_ca_certificate);
@@ -4489,6 +4505,7 @@ t_httpUpdate_return update_program()
   String file_to_download = "/arska-install/files/" + String(HWID) + "/" + update_release_selected + "/firmware.bin";
   Serial.println(file_to_download);
 
+  // TODO: maybe not call from web fetch update
   httpUpdate.onEnd(flash_update_ended); // change update phase after succesful update but before restart
   t_httpUpdate_return result = httpUpdate.update(client_https, host_releases, 443, file_to_download);
 
@@ -4513,8 +4530,8 @@ void fs_update_ended()
  */
 t_httpUpdate_return update_fs()
 {
-  Serial.printf(PSTR("Updating filesystem to version %s\n"), VERSION_BASE);
-  if (String(VERSION_BASE).equals(version_fs_base))
+  Serial.printf(PSTR("Updating filesystem to version %s\n"), VERSION_BASE); //oli VERSION_BASE
+ if (String(VERSION_BASE).equals(version_fs_base))
   {
     Serial.println(F("No need for filesystem update."));
     return HTTP_UPDATE_NO_UPDATES;
@@ -4524,9 +4541,7 @@ t_httpUpdate_return update_fs()
 
   // TODO: update to new version without String when you can test it
   String file_to_download = "http://" + String(host_releases) + "/arska-install/files/" + String(HWID) + "/" + String(VERSION_BASE) + "/littlefs.bin";
-  // char const *file_to_download = "http://" RELEASES_HOST "/arska-install/files/" HWID "/" VERSION_BASE "/littlefs.bin";
   Serial.println(file_to_download);
-  // Serial.println(file_to_download_new);
 
   httpUpdate.onEnd(fs_update_ended); // change update phase after succesful update but before restart
   t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, file_to_download.c_str(), "");
@@ -4549,23 +4564,23 @@ t_httpUpdate_return update_fs()
  *
  * @param cmd
  */
-void update_firmware_partition(bool cmd = U_FLASH)
+void update_firmware_partition(uint8_t partition_type = U_FLASH)
 {
-  Serial.println("update_firmware_partition");
+  Serial.printf(PSTR("update_firmware_partition cmd %d, ota_update_phase %d"), (int)partition_type, s.ota_update_phase);
   t_httpUpdate_return update_result;
-  if (cmd == U_FLASH)
+  if (partition_type == U_FLASH)
   {
     update_result = update_program();
   }
   else
   {
-    if (s.ota_update_phase == OTA_PHASE_FWUPDATED_CHECKFS)
+    if (s.ota_update_phase == OTA_PHASE_FWUPDATED_CHECKFS || true) // phase check disabled, maybe not always updated
     {
       update_result = update_fs();
     }
     else
     {
-      Serial.println(F("Filesystem update requested but phase does not match."));
+      Serial.printf(PSTR("Filesystem update requested but phase %d does not match.\n"), (int)s.ota_update_phase);
       Serial.println(s.ota_update_phase);
       return; // not correct update phase, should not normally end up here
     }
@@ -4647,12 +4662,15 @@ void onWebUpdateGet(AsyncWebServerRequest *request)
 void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
   size_t content_len;
-
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
-  if (!index)
+
+  
+
+  if (!index) //first
   {
     Serial.println("Update");
+    
     content_len = request->contentLength();
     int cmd = (filename.indexOf("littlefs") > -1) ? U_PART : U_FLASH;
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
@@ -4681,6 +4699,7 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
       Serial.flush();
       WiFi.disconnect();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."), true);
+      create_shadow_settings();
       delay(2000);
       ESP.restart();
     }
@@ -4744,7 +4763,7 @@ void reset_config(bool full_reset)
   // memset(&s_influx, 0, sizeof(s_influx));
   s.check_value = EEPROM_CHECK_VALUE;
 
-  strncpy(s.http_username, "admin", sizeof(s.http_username));     // admin id is fixed
+  strncpy(s.http_username, "admin", sizeof(s.http_username)); // admin id is fixed
 
   if (first_reset)
   {
@@ -4839,38 +4858,44 @@ void clean_str(char *str)
 }
 
 /**
- * @brief Export current configuration in json to web response
+ * @brief Copies string value from a json node to a char buffer.
  *
- * @param request
+ * @param parent_node
+ * @param doc_key
+ * @param tostr
+ * @param buffer_length
+ * @return true
+ * @return false
  */
-void onWebSettingsGet(AsyncWebServerRequest *request)
+bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length)
 {
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-
-  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
-
-  String output;
-  char export_time[20];
+  JsonVariant element = parent_node[doc_key];
+  if (!element.isNull())
+  {
+    Serial.println(element.as<const char *>());
+    strncpy(tostr, element.as<const char *>(), buffer_length - 1); // leave one char for a null-character
+    return true;
+  }
+  // Serial.printf("Element %s isNull.\n", doc_key);
+  return false;
+}
+// new settings doc creation
+void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
+{
+  int active_condition_idx;
   char char_buffer[20];
+
+  char export_time[20];
   time_t current_time;
   time(&current_time);
-  int active_condition_idx;
-
-  uint8_t format = 0;
-  if (request->hasParam("format"))
-  {
-    if (request->getParam("format")->value() == "file")
-      format = 1;
-  }
-
   localtime_r(&current_time, &tm_struct);
   snprintf(export_time, 20, "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+
   doc["export_time"] = export_time;
 
   doc["check_value"] = s.check_value;
 
-  if (format != 1)
+  if (include_password)
   { // no wifi parameters
     doc["wifi_ssid"] = s.wifi_ssid;
     doc["wifi_password"] = s.wifi_password;
@@ -4881,8 +4906,6 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
   doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
   doc["using_default_password"] = String(s.http_password).equals(default_http_password);
   //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
-
-  // doc["variable_mode"] = VARIABLE_MODE_SOURCE; // no selection
 
   doc["entsoe_api_key"] = s.entsoe_api_key;
   doc["entsoe_area_code"] = s.entsoe_area_code;
@@ -4928,18 +4951,6 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
     //  Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
 
     doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
-    // Debug
-    /*
-    Serial.println(s.ch[channel_idx].id_str);
-    clean_str(s.ch[channel_idx].id_str);
-    Serial.println(s.ch[channel_idx].id_str);
-    for (int j = 0; j < strlen(s.ch[channel_idx].id_str); j++)
-    {
-      Serial.printf("%c (%x) ", s.ch[channel_idx].id_str[j], s.ch[channel_idx].id_str[j]);
-    }
-    Serial.println();
-    */
-
     doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
     doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
@@ -4948,7 +4959,6 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
     snprintf(char_buffer, 8, "#%06x", s.ch[channel_idx].channel_color);
     doc["ch"][channel_idx]["channel_color"] = char_buffer;
     doc["ch"][channel_idx]["priority"] = s.ch[channel_idx].priority;
-    ;
 
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
     // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
@@ -4981,11 +4991,198 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
         {
           // Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
           vars.to_str(stmt->variable_id, char_buffer, true, stmt->const_val, sizeof(char_buffer));
-
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][1] = stmt->oper_id;
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][2] = stmt->const_val;
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][3] = char_buffer;
+          stmt_count++;
+        }
+      }
+      if (stmt_count > 0)
+      {
+        doc["ch"][channel_idx]["rules"][rule_idx_output]["on"] = s.ch[channel_idx].conditions[rule_idx].on;
+        rule_idx_output++;
+        active_rule_count++;
+      }
+    }
+    // Serial.printf("Channel: %d,active_rule_count %d \n", channel_idx, active_rule_count);
+    if (active_rule_count > 0)
+    {
+      doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
+    }
+  }
+}
 
+void onWebSettingsGet(AsyncWebServerRequest *request)
+{
+  uint8_t format = 0;
+  String output;
+
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+
+  if (request->hasParam("format"))
+  {
+    if (request->getParam("format")->value() == "file")
+      format = 1;
+  }
+  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
+
+  create_settings_doc(doc, (format == 0));
+
+  serializeJson(doc, output);
+  if (format == 0)
+  {
+    request->send(200, "application/json;charset=UTF-8", output);
+  }
+  else
+  {
+    char Content_Disposition[70];
+    char export_time[20];
+
+    ajson_str_to_mem(doc, (char *)"export_time", export_time, sizeof(export_time));
+
+    snprintf(Content_Disposition, 70, "attachment; filename=\"arska-config-%s.json\"", export_time);
+    // AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output); //text
+    AsyncWebServerResponse *response = request->beginResponse(200, "application/octet-stream", output); // file
+    response->addHeader("Content-Disposition", Content_Disposition);
+    request->send(response);
+  }
+}
+
+/**
+ * @brief Export current configuration in json to web response
+ *
+ * @param request
+ */
+/*
+void onWebSettingsGet(AsyncWebServerRequest *request)
+{
+  if (!request->authenticate(s.http_username, s.http_password))
+    return request->requestAuthentication();
+
+  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
+
+  String output;
+  char export_time[20];
+  char char_buffer[20];
+  time_t current_time;
+  time(&current_time);
+  int active_condition_idx;
+
+  uint8_t format = 0;
+  if (request->hasParam("format"))
+  {
+    if (request->getParam("format")->value() == "file")
+      format = 1;
+  }
+
+  localtime_r(&current_time, &tm_struct);
+  snprintf(export_time, 20, "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  doc["export_time"] = export_time;
+
+  doc["check_value"] = s.check_value;
+
+  if (format != 1)
+  { // no wifi parameters
+    doc["wifi_ssid"] = s.wifi_ssid;
+    doc["wifi_password"] = s.wifi_password;
+  }
+  doc["http_username"] = s.http_username;
+
+  // current status, do not import
+  doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
+  doc["using_default_password"] = String(s.http_password).equals(default_http_password);
+  //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
+
+
+  doc["entsoe_api_key"] = s.entsoe_api_key;
+  doc["entsoe_area_code"] = s.entsoe_area_code;
+  //  if (s.variable_mode == VARIABLE_MODE_REPLICA)
+  //   doc["variable_server"] = s.variable_server;
+  doc["custom_ntp_server"] = s.custom_ntp_server;
+  doc["timezone"] = s.timezone;
+  doc["baseload"] = s.baseload;
+  doc["pv_power"] = s.pv_power;
+  doc["energy_meter_type"] = s.energy_meter_type;
+  if (s.energy_meter_type != ENERGYM_NONE)
+  {
+    doc["energy_meter_ip"] = s.energy_meter_ip.toString();
+    doc["energy_meter_port"] = s.energy_meter_port;
+    doc["energy_meter_password"] = s.energy_meter_password;
+  }
+
+  doc["production_meter_type"] = s.production_meter_type;
+  if (s.production_meter_type != PRODUCTIONM_NONE)
+  {
+    doc["production_meter_ip"] = s.production_meter_ip.toString();
+    doc["production_meter_port"] = s.production_meter_port;
+  }
+  if (s.production_meter_type == PRODUCTIONM_SMA_MODBUS_TCP)
+  {
+    doc["production_meter_id"] = s.production_meter_id;
+  }
+
+  doc["forecast_loc"] = s.forecast_loc;
+  doc["lang"] = s.lang;
+  doc["hw_template_id"] = s.hw_template_id;
+
+#ifdef INFLUX_REPORT_ENABLED
+  doc["influx_url"] = s.influx_url;
+  doc["influx_token"] = s.influx_token;
+  doc["influx_org"] = s.influx_org;
+  doc["influx_bucket"] = s.influx_bucket;
+#endif
+
+  int rule_idx_output;
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    //  Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
+
+    doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
+    doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
+    doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
+    doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
+    doc["ch"][channel_idx]["uptime_minimum"] = int(s.ch[channel_idx].uptime_minimum);
+    doc["ch"][channel_idx]["load"] = int(s.ch[channel_idx].load);
+    snprintf(char_buffer, 8, "#%06x", s.ch[channel_idx].channel_color);
+    doc["ch"][channel_idx]["channel_color"] = char_buffer;
+    doc["ch"][channel_idx]["priority"] = s.ch[channel_idx].priority;
+
+    doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
+    // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
+    doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
+    doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
+    doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
+    doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
+    doc["ch"][channel_idx]["r_id"] = s.ch[channel_idx].relay_id;
+    doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
+    doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
+    doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
+
+    // conditions[condition_idx].condition_active
+    active_condition_idx = -1;
+
+    rule_idx_output = 0; //***
+
+    int active_rule_count = 0;
+    for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
+    {
+      if (s.ch[channel_idx].conditions[rule_idx].condition_active)
+        active_condition_idx = rule_idx_output;
+
+      int stmt_count = 0;
+      for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+      {
+        statement_st *stmt = &s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx];
+        // is there any statements for the rule
+        if (stmt->variable_id != -1 && stmt->oper_id != 255)
+        {
+          // Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
+          vars.to_str(stmt->variable_id, char_buffer, true, stmt->const_val, sizeof(char_buffer));
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][1] = stmt->oper_id;
+          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][2] = stmt->const_val;
           doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][3] = char_buffer;
           stmt_count++;
         }
@@ -5020,29 +5217,8 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
     request->send(response);
   }
 }
-/**
- * @brief Copies string value from a json node to a char buffer.
- *
- * @param parent_node
- * @param doc_key
- * @param tostr
- * @param buffer_length
- * @return true
- * @return false
- */
-bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length)
-{
-  JsonVariant element = parent_node[doc_key];
-  if (!element.isNull())
-  {
-    Serial.println(element.as<const char *>());
-    strncpy(tostr, element.as<const char *>(), buffer_length - 1); // leave one char for a null-character
-    return true;
-  }
-  // Serial.printf("Element %s isNull.\n", doc_key);
-  return false;
-}
 
+*/
 /**
  * @brief Gets integer value from a json node.
  *
@@ -5130,7 +5306,8 @@ bool ajson_bool_get(JsonVariant parent_node, char *doc_key, bool default_val)
  * @return true
  * @return false
  */
-bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
+/*
+bool store_settings_from_json_doc(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
 {
   char http_password[MAX_ID_STR_LENGTH];
   char http_password2[MAX_ID_STR_LENGTH];
@@ -5177,6 +5354,154 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
   s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
   s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
 
+#ifdef INFLUX_REPORT_ENABLED
+  ajson_str_to_mem(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
+  ajson_str_to_mem(doc, (char *)"influx_token", s.influx_token, sizeof(s.influx_token));
+  ajson_str_to_mem(doc, (char *)"influx_org", s.influx_org, sizeof(s.influx_org));
+  ajson_str_to_mem(doc, (char *)"influx_bucket", s.influx_bucket, sizeof(s.influx_bucket));
+#endif
+
+  int channel_idx;
+  int rule_idx = 0;
+  int stmt_idx = 0;
+  char hex_buffer[8];
+
+  int32_t hw_template_id;
+
+  if (!doc["hw_template_id"].isNull())
+  {
+    hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
+    s.hw_template_id = hw_template_id;
+    if ((hw_template_id != s.hw_template_id) && hw_template_id > 0)
+    {
+      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+      {
+        if (channel_idx < HW_TEMPLATE_GPIO_COUNT)
+        { // touch only channel which could have gpio definitions
+          if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255)
+          {
+            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF; // was CH_TYPE_GPIO_FIXED;
+            s.ch[channel_idx].relay_id = hw_templates[s.hw_template_id].gpios[channel_idx];
+          }
+          else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) // deprecate CH_TYPE_GPIO_FIXED
+          {                                                      // fixed gpio -> user defined, new way
+            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
+          }
+        }
+      }
+    }
+  }
+
+  for (JsonObject ch : doc["ch"].as<JsonArray>())
+  {
+    channel_idx = ajson_int_get(ch, (char *)"idx", channel_idx_loop);
+    ajson_str_to_mem(ch, (char *)"id_str", s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str));
+    Serial.printf("s.ch[channel_idx].id_str %s\n", s.ch[channel_idx].id_str);
+
+    s.ch[channel_idx].type = ajson_int_get(ch, (char *)"type", s.ch[channel_idx].type);
+    s.ch[channel_idx].config_mode = ajson_int_get(ch, (char *)"config_mode", s.ch[channel_idx].config_mode);
+    s.ch[channel_idx].template_id = ajson_int_get(ch, (char *)"template_id", s.ch[channel_idx].template_id);
+    s.ch[channel_idx].uptime_minimum = ajson_int_get(ch, (char *)"uptime_minimum", s.ch[channel_idx].uptime_minimum);
+    s.ch[channel_idx].load = ajson_int_get(ch, (char *)"load", s.ch[channel_idx].load);
+
+    if (ch.containsKey("channel_color"))
+    {
+      ajson_str_to_mem(ch, (char *)"channel_color", hex_buffer, sizeof(hex_buffer));
+      s.ch[channel_idx].channel_color = (uint32_t)strtol(hex_buffer + 1, NULL, 16);
+    }
+
+    s.ch[channel_idx].priority = ajson_int_get(ch, (char *)"priority", s.ch[channel_idx].priority);
+    s.ch[channel_idx].relay_id = ajson_int_get(ch, (char *)"r_id", s.ch[channel_idx].relay_id);
+    s.ch[channel_idx].relay_ip = ajson_ip_get(ch, (char *)"r_ip", s.ch[channel_idx].relay_ip);
+    s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
+
+    // clear  statements
+    // TODO: add to new version
+    for (rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
+    {
+      for (stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
+      {
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = -1;
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = -1;
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = VARIABLE_LONG_UNKNOWN;
+      }
+    }
+
+    // channel rulesq
+    rule_idx = 0;
+
+    // channel rules
+    for (JsonObject ch_rule : ch["rules"].as<JsonArray>())
+    {
+      s.ch[channel_idx].conditions[rule_idx].on = ch_rule["on"];
+      stmt_idx = 0;
+      Serial.printf("rule on %s", s.ch[channel_idx].conditions[rule_idx].on ? "true" : "false");
+
+      for (JsonArray ch_rule_stmt : ch_rule["stmts"].as<JsonArray>())
+      {
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2];
+        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = vars.float_to_internal_l(ch_rule_stmt[0], ch_rule_stmt[3]);
+        Serial.printf("rules/stmts: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
+        stmt_idx++;
+      }
+      rule_idx++;
+    }
+    channel_idx++;
+    channel_idx_loop++;
+  }
+
+  writeToEEPROM();
+  return true;
+}
+*/
+bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
+{
+  char http_password[MAX_ID_STR_LENGTH];
+  char http_password2[MAX_ID_STR_LENGTH];
+  int channel_idx_loop = 0;
+
+  ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
+  ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
+  //  s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
+  ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
+  ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
+
+  // copy_doc_str(doc, (char *)"variable_server", s.variable_server, sizeof(s.variable_server));
+  ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
+  ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
+  ajson_str_to_mem(doc, (char *)"lang", s.lang, sizeof(s.lang));
+
+  ajson_str_to_mem(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
+  s.baseload = ajson_int_get(doc, (char *)"baseload", s.baseload);
+  s.pv_power = ajson_int_get(doc, (char *)"pv_power", s.pv_power);
+
+  if (ajson_str_to_mem(doc, (char *)"http_password", http_password, sizeof(http_password)))
+  {
+    if (ajson_str_to_mem(doc, (char *)"http_password2", http_password2, sizeof(http_password2)))
+    {
+      if ((strcmp(http_password, http_password2) == 0) && strlen(http_password) > 0 && strlen(http_password2) > 0)
+      { // equal
+        strncpy(s.http_password, http_password, sizeof(s.http_password));
+        Serial.println("Password changed");
+      }
+    }
+  }
+
+  s.hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
+
+  s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
+  Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
+  s.energy_meter_ip = ajson_ip_get(doc, (char *)"energy_meter_ip", s.energy_meter_ip);
+  ajson_str_to_mem(doc, (char *)"energy_meter_password", s.energy_meter_password, sizeof(s.energy_meter_password));
+  s.energy_meter_port = ajson_int_get(doc, (char *)"energy_meter_port", s.energy_meter_port);
+  s.energy_meter_id = ajson_int_get(doc, (char *)"energy_meter_id", s.energy_meter_id);
+
+  s.production_meter_type = ajson_int_get(doc, (char *)"production_meter_type", s.production_meter_type);
+  s.production_meter_ip = ajson_ip_get(doc, (char *)"production_meter_ip", s.production_meter_ip);
+  s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
+  s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
 
 #ifdef INFLUX_REPORT_ENABLED
   ajson_str_to_mem(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
@@ -5280,6 +5605,47 @@ bool store_settings_json(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
   return true;
 }
 
+
+
+// Write settings to a local file. Can be read after upgrade.
+bool create_shadow_settings()
+{
+  Serial.printf(PSTR("create_shadow_settings %s\n"), shadow_settings_filename);
+  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
+  File settings_file = LittleFS.open(shadow_settings_filename, "w"); // Open file for writing
+  create_settings_doc(doc, true);
+  serializeJson(doc, settings_file);
+  settings_file.close();
+  return true;
+}
+
+bool read_shadow_settings()
+{
+  Serial.println("read_shadow_settings ");
+ // StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
+  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
+
+  if (!LittleFS.exists(shadow_settings_filename))
+  {
+    Serial.println("Shadow settings file does not exist.");
+    return false;
+  }
+  File config_file = LittleFS.open(shadow_settings_filename, "r");
+  DeserializationError error = deserializeJson(doc, config_file);
+  if (error)
+  {
+    Serial.println("Cannot get settings from shadow file");
+    Serial.println(error.f_str());
+    return false;
+  }
+  else
+  {
+      store_settings_from_json_doc_dyn(doc);
+      Serial.println("Got settings from shadow file - dynamic");
+      return true;
+  }
+}
+
 /*
 //
 
@@ -5328,7 +5694,8 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     request->_tempFile.close();
 
     File config_file = LittleFS.open(filename_internal, "r");
-    StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc;
+    //StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc;
+    DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
     DeserializationError error = deserializeJson(doc, config_file);
     if (error)
     {
@@ -5338,9 +5705,10 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     else
     {
       reset_config(false);
-      store_settings_json(doc);
-      request->send(200, "application/json", "{\"status\":\"ok\"}");
-    }
+      store_settings_from_json_doc_dyn(doc);
+      todo_in_loop_restart = true; //restart
+      request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 30}");
+        }
   }
 }
 /**
@@ -5463,7 +5831,7 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     update_release_selected = String((const char *)doc["version"]);
     todo_in_loop_update_firmware_partition = true;
     Serial.println(update_release_selected);
-    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 300}");
+    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 240}");
   }
 
   if (doc["action"] == "restart")
@@ -5526,7 +5894,9 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
     StaticJsonDocument<256> out_doc; // global doc to discoveries
     String output;
 
-    StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
+  //  StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
+    DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
+    
     DeserializationError error = deserializeJson(doc, in_buffer);
     if (error)
     {
@@ -5541,7 +5911,7 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
       return;
     }
 
-    store_settings_json(doc);
+    store_settings_from_json_doc_dyn(doc);
 
     out_doc["rc"] = 0;
     out_doc["msg"] = "ok";
@@ -5566,18 +5936,17 @@ void onWebPricesGet(AsyncWebServerRequest *request)
   String output;
 
   JsonArray prices_a = doc.createNestedArray("prices");
-  //new time series, replace
+  // new time series, replace
   /*int i = 0;
   for (time_t period = prices2.start();period <= prices2.end(); period += prices2.resolution_sec())
   {
     prices_a[i++] = prices2.get(period);
   }
   */
-    for (uint16_t i = 0; i < MAX_PRICE_PERIODS; i++)
-    {
-      prices_a[i] = prices[i];
-    }
-
+  for (uint16_t i = 0; i < MAX_PRICE_PERIODS; i++)
+  {
+    prices_a[i] = prices[i];
+  }
 
   time_t current_time;
   time(&current_time);
@@ -5876,10 +6245,14 @@ void setup()
   readFromEEPROM();
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
-    Serial.printf(PSTR("Memory structure changed. Resetting settings. Current check value %d\n "), s.check_value);
+    Serial.printf(PSTR("Memory structure changed. Resetting settings. Current check value %d, new %d\n "), s.check_value,(int)EEPROM_CHECK_VALUE);
     reset_config(true); // assume check value -1 on first run after eeprom init
     config_resetted = true;
+    read_shadow_settings(); // try to get save settings from shadow settings file
   }
+  else 
+    Serial.printf(PSTR("Current check value %d match with firmware check value.\n "), s.check_value);
+
   // Channel init with state DOWN/failsafe
   Serial.println(F("Setting relays default/failsafe."));
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -6260,6 +6633,28 @@ void loop()
     delay(500);
     return;
   }
+#ifdef OTA_UPDATE_ENABLED
+  // Note:  was earlier after time setup
+  if (todo_in_loop_update_firmware_partition)
+  {
+    todo_in_loop_update_firmware_partition = false;
+    Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE, version_fs_base.c_str(), update_release_selected.c_str());
+
+    // experimental, we should check the phase or have two different todo_in variables
+    // TODO: check that there is no upload in process at the same time (especially filesystem)
+    if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length() > 0) // update firmware if requested and needed
+    {
+      Serial.println(F("Starting firmware update."));
+      update_firmware_partition(U_FLASH);
+    }
+    else
+    {
+      Serial.println(F("Starting filesystem update."));
+      update_firmware_partition(U_PART); // update fs if needed
+      check_filesystem_version();        // update variables to see if  version is updated
+    }
+  }
+#endif
 
   // no other operations allowed before the clock is set
   time(&now);
@@ -6293,8 +6688,6 @@ void loop()
     else
       log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
 
-  
-
     // if (!clock_set)
     //   set_time_settings()); // set tz info
     set_time_settings(true, false); // need to set tz
@@ -6304,27 +6697,6 @@ void loop()
     next_query_fcst_data = now;
   }
 
-#ifdef OTA_UPDATE_ENABLED
-  if (todo_in_loop_update_firmware_partition)
-  {
-    todo_in_loop_update_firmware_partition = false;
-    Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE, version_fs_base.c_str(), update_release_selected.c_str());
-
-    // experimental, we should check the phase or have two different todo_in variables
-    // TODO: check that there is no upload in process at the same time (especially filesystem)
-    if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length() > 0) // update firmware if requested and needed
-    {
-      Serial.println(F("Starting firmware update."));
-      update_firmware_partition(U_FLASH);
-    }
-    else
-    {
-      Serial.println(F("Starting filesystem update."));
-      update_firmware_partition(U_PART); // update fs if needed
-      check_filesystem_version();        // update variables to see if  version is updated
-    }
-  }
-#endif
   // reapply current relay states (if relay parameters are changed)
   if (todo_in_loop_reapply_relay_states)
   {

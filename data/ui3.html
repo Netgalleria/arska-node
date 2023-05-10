@@ -153,7 +153,7 @@
   </script>
   <script>
     // load arska-ui.js with version number in the query string
-    var version_a = $.ajax({ type: "GET", url: "/data/version.txt?rnd="+(Math.floor(Math.random() * 100)), async: false }).responseText.split(' ');
+    var version_a = $.ajax({ type: "GET", url: "/data/version.txt?rnd=" + (Math.floor(Math.random() * 100)), async: false }).responseText.split(' ');
     let version = version_a[0];
     console.log("Arska  version", version);
     script = document.createElement("script");
@@ -940,56 +940,58 @@
                       <form id="restore_form" method="post" enctype="multipart/form-data" style="display: inline;">
 
                         <div class="input-group">
-
                           <div class="custom-file">
                             <input type="file" class="custom-file-input" id="restore_config_btn"
                               aria-describedby="restore_config_btn" accept='application/json'
                               onchange='restore_config(event)'>
                           </div>
                         </div>
-
                       </form>
                     </div>
+                    <div id="config:alert"></div>
+                    <div id="config_spinner" class="spinner-grow" role="status" style="display: none;">
+                      <span class="sr-only">.</span>
+                    </div>
+
                     <br>
+                    <!--
                     <div class="mb-2">
-                      <label class="form-label">Current version</label>
+                      <label class="form-label">System version</label>
+                      <span id="version" class="text-muted"></span>
                       <table id="version_table" class="table">
                         <tbody>
                           <tr>
-                            <td scope="col">Software</td>
-                            <th id="version" scope="row"></th>
-                          </tr>
-                          <tr>
-                            <td scope="col">Filesystem</td>
-                            <th id="version_fs" id_scope="row"></th>
-                          </tr>
-
-                          <tr>
-                            <td scope="col">System started</td>
-                            <th id="started_str" id_scope="row"></th>
+                            <td id="version" scope="row"></td>
                           </tr>
                         </tbody>
                       </table>
                     </div>
+                    -->
 
                     <div class="mb-2">
-                      <label for="sel_releases" class="form-label">Upgrade</label>
-                      <div class="input-group mb-0">
+                      <label for="sel_releases" class="form-label">System Update</label>
+                      <div class="row">
+                        <span id="version" class="text-muted"></span>
+                      </div>
+                      <div class="input-group mb-0 mt-3">
 
+                        
                         <button id="releases:refresh" type="button" class="btn btn-primary"
-                          onclick="populate_releases()" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
-                          data-bs-placement="top" data-bs-title="Get available firmware versions">
-                          <span data-feather="refresh-ccw" style="pointer-events: none;"
-                            class="align-text-bottom"></span>
-                        </button>
-                        <select id="sel_releases" class="form-select" aria-label="variable" disabled="">
-                          <option value="#">Refresh versions</option>
-                        </select>
-                        <button id="releases:update" type="button" class="btn btn-primary" onclick="start_fw_update();"
-                          disabled="" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
-                          data-bs-title="Start upgrade">
-                          <span data-feather="download-cloud" style="pointer-events: none;"
-                            class="align-text-bottom"></span> Upgrade</button>
+                        onclick="populate_releases()" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
+                        data-bs-placement="top" data-bs-title="Get available firmware versions">
+                        <span data-feather="refresh-ccw" style="pointer-events: none;"
+                          class="align-text-bottom"></span>
+                      </button>
+                      <select id="sel_releases" class="form-select" aria-label="variable" disabled="">
+                        <option value="#">Refresh versions</option>
+                      </select>
+                      <button id="releases:update" type="button" class="btn btn-primary" onclick="start_fw_update();"
+                        disabled="" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
+                        data-bs-title="Start upgrade">
+                        <span data-feather="download-cloud" style="pointer-events: none;"
+                          class="align-text-bottom"></span> Upgrade</button>
+
+
                       </div>
                     </div>
 
