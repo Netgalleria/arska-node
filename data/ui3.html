@@ -375,23 +375,24 @@
                 <h5 class="card-title">Channel rules and definitions</h5>
               </div>
               <div class="card-body">
-                <p>Channel states are calculated based on channel rules and current variable values.</p>
-                <p>In template configuration mode select rule template and give required parameters. In advanced mode
-                  you can enter the rules you want at a detailed level.</p>
-                <p>The rules are checked in order, and the first rule whose conditions are met determines the state of
-                  the channel.</p>
+              
 
                 <div class="accordion" id="variables_accordion">
                   <div class="accordion-item">
                     <h2 class="accordion-header" id="variables_accordionh3">
                       <button class="accordion-button" type="button" data-bs-toggle="collapse"
                         data-bs-target="#variables_acc" aria-expanded="true" aria-controls="variables_acc">
-                        Variable descriptions and current values
+                        Rule info and variable list
                       </button>
                     </h2>
                     <div id="variables_acc" class="accordion-collapse collapsed collapse collapsed"
                       aria-labelledby="variables_accordionh3" data-bs-parent="#variables_accordion">
                       <div class="accordion-body">
+                        <p>Channel states are calculated based on channel rules and current variable values.</p>
+                        <p>In template configuration mode select rule template and give required parameters. In advanced mode
+                          you can enter the rules at a detailed level.</p>
+                        <p>The rules are checked in order, and the first rule whose conditions are met determines the state of
+                          the channel.</p>
                         <span id="vars_updated"></span>
                         <table id="tblVariables" class="table">
                           <thead>

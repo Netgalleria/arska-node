@@ -81,7 +81,7 @@ function populate_releases() {
 function _(el) { return document.getElementById(el); }
 function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); }
 function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; }
-function reloadAdmin() { window.location.href = '/#admin'; }
+function reloadAdmin() { window.location.href = '/'; }
 function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); }
 function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; }
 function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; }
@@ -2093,6 +2093,37 @@ function do_backup() {
         })
         .fail(function () { alert('File download failed!'); });
 }
+
+/* WiP
+function reload_when_site_up_again(require_version_base) {
+    $.ajax({
+        url: '/application',
+        dataType: 'json',
+        async: true,
+        timeout: 3000,
+        success: function (data) {
+            version = data.version.split(" ")[0];
+            version_fs = data.version_fs.split(" ")[0];
+            if (require_version_base.length>0) {
+                if (!version.startsWith(require_version_base) || !version_fs.startsWith(require_version_base)) {
+                    setTimeout(function () { reload_when_site_up_again(require_version_base); }, 5000);
+                    console.log("The site is up but versions don't match, reloading", require_version_base, version, version_fs);
+                    return;
+                }
+            }
+            console.log("The site is up, reloading", version, version_fs);
+            //href_a = window.location.href.split("?");
+           // window.location.href = href_a[0] + "?rnd=" + Math.floor(Math.random() * 1000);
+            location.reload();
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("The site is down. Retrying in ", loop_freq);
+            setTimeout(function () { reload_when_site_up_again(require_version_base); }, 5000);
+        }
+    });
+}
+*/
+
 function check_restart_request(data, card_id) {
     if ("refresh" in data) {
         if (data.refresh > 0) {
@@ -2100,7 +2131,7 @@ function check_restart_request(data, card_id) {
             setTimeout(function () { location.reload(); }, data.refresh * 1000);
             live_alert("config", "Updating system...wait patiently...", 'success');
             document.getElementById("config_spinner").style.display = "block";
-           // $("#config_spinner").show();
+            // $("#config_spinner").show();
         }
     }
 }
@@ -2471,12 +2502,14 @@ function launch_action(action, card_id, params) {
         dataType: "json",
         success: function (data) {
             console.log("action response", data);
-
             if (card_id)
                 live_alert(card_id, "Action launched", 'success');
+            
+            // could poll status / version and reboot 
+            //if (action == "update")
+            //    setTimeout(function () { reload_when_site_up_again(params.version); }, 5000);
+            
             check_restart_request(data, card_id);
-
-
         },
         error: function (requestObject, error, errorThrown) {
             if (card_id)
@@ -2506,7 +2539,7 @@ function start_fw_update() {
     console.log("new_version, g_constants.VERSION_SHORT", new_version, g_constants.VERSION_SHORT);
     if (g_constants.VERSION_SHORT.startsWith(new_version)) {
         if (!confirm("Firmware version is already " + g_constants.VERSION_SHORT + ". Do you want to reinstall?"))
-        return;
+            return;
     }
     if (confirm("Backup your configuration before update!\r\r Update firmware to " + new_version + " now?")) {
         $('#releases\\:update').prop('disabled', true);

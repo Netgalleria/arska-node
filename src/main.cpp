@@ -650,15 +650,15 @@ struct channel_type_st
 {
   uint8_t id;
   const char *name;
+  bool inversed;
 };
 // #define CH_TYPE_SHELLY_ONOFF 2  -> 10
 // #define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
 #define CHANNEL_TYPE_COUNT 7
 
-// channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_FIXED, "GPIO fixed"}, {CH_TYPE_GPIO_USER_DEF, "GPIO"}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed"}};
 
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined"}, {CH_TYPE_GPIO_USER_DEF, "GPIO"}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1"}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2"}, {CH_TYPE_TASMOTA, "Tasmota"}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed"}};
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined",false}, {CH_TYPE_GPIO_USER_DEF, "GPIO",false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1",false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2",false}, {CH_TYPE_TASMOTA, "Tasmota",false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed",true}};
 
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
 
