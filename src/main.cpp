@@ -679,8 +679,8 @@ struct hw_template_st
   const char *name;
   uint8_t gpios[HW_TEMPLATE_GPIO_COUNT];
 };
-
-hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {255, 255, 255, 255}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
+#define ID_NA 255
+hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -734,8 +734,8 @@ typedef struct
 {
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
-  uint8_t relay_id;       //!< relay id, eg. number modbus server id
-  uint8_t relay_unit_id;  //!<  unit id, eg. port in a relay
+  uint8_t relay_id;       //!< relay id, eg. gpio, number modbus server id
+  uint8_t relay_unit_id;  //!<  unit id, eg. port id in a relay device
   uint8_t relay_iface_id; // RFU, interface, eg eth, wifi
   IPAddress relay_ip;     //!< relay ip address
   bool is_up;             //!< is channel currently up
@@ -4969,7 +4969,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["ch"][channel_idx]["r_id"] = s.ch[channel_idx].relay_id;
     doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
     doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
-    doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
+   // doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
@@ -5012,6 +5012,13 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     }
   }
 }
+
+
+/**
+ * @brief Export current configuration in json to web response
+ *
+ * @param request
+ */
 
 void onWebSettingsGet(AsyncWebServerRequest *request)
 {
@@ -5050,175 +5057,6 @@ void onWebSettingsGet(AsyncWebServerRequest *request)
   }
 }
 
-/**
- * @brief Export current configuration in json to web response
- *
- * @param request
- */
-/*
-void onWebSettingsGet(AsyncWebServerRequest *request)
-{
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-
-  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
-
-  String output;
-  char export_time[20];
-  char char_buffer[20];
-  time_t current_time;
-  time(&current_time);
-  int active_condition_idx;
-
-  uint8_t format = 0;
-  if (request->hasParam("format"))
-  {
-    if (request->getParam("format")->value() == "file")
-      format = 1;
-  }
-
-  localtime_r(&current_time, &tm_struct);
-  snprintf(export_time, 20, "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
-  doc["export_time"] = export_time;
-
-  doc["check_value"] = s.check_value;
-
-  if (format != 1)
-  { // no wifi parameters
-    doc["wifi_ssid"] = s.wifi_ssid;
-    doc["wifi_password"] = s.wifi_password;
-  }
-  doc["http_username"] = s.http_username;
-
-  // current status, do not import
-  doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
-  doc["using_default_password"] = String(s.http_password).equals(default_http_password);
-  //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
-
-
-  doc["entsoe_api_key"] = s.entsoe_api_key;
-  doc["entsoe_area_code"] = s.entsoe_area_code;
-  //  if (s.variable_mode == VARIABLE_MODE_REPLICA)
-  //   doc["variable_server"] = s.variable_server;
-  doc["custom_ntp_server"] = s.custom_ntp_server;
-  doc["timezone"] = s.timezone;
-  doc["baseload"] = s.baseload;
-  doc["pv_power"] = s.pv_power;
-  doc["energy_meter_type"] = s.energy_meter_type;
-  if (s.energy_meter_type != ENERGYM_NONE)
-  {
-    doc["energy_meter_ip"] = s.energy_meter_ip.toString();
-    doc["energy_meter_port"] = s.energy_meter_port;
-    doc["energy_meter_password"] = s.energy_meter_password;
-  }
-
-  doc["production_meter_type"] = s.production_meter_type;
-  if (s.production_meter_type != PRODUCTIONM_NONE)
-  {
-    doc["production_meter_ip"] = s.production_meter_ip.toString();
-    doc["production_meter_port"] = s.production_meter_port;
-  }
-  if (s.production_meter_type == PRODUCTIONM_SMA_MODBUS_TCP)
-  {
-    doc["production_meter_id"] = s.production_meter_id;
-  }
-
-  doc["forecast_loc"] = s.forecast_loc;
-  doc["lang"] = s.lang;
-  doc["hw_template_id"] = s.hw_template_id;
-
-#ifdef INFLUX_REPORT_ENABLED
-  doc["influx_url"] = s.influx_url;
-  doc["influx_token"] = s.influx_token;
-  doc["influx_org"] = s.influx_org;
-  doc["influx_bucket"] = s.influx_bucket;
-#endif
-
-  int rule_idx_output;
-  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {
-    //  Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
-
-    doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
-    doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
-    doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
-    doc["ch"][channel_idx]["template_id"] = s.ch[channel_idx].template_id;
-    doc["ch"][channel_idx]["uptime_minimum"] = int(s.ch[channel_idx].uptime_minimum);
-    doc["ch"][channel_idx]["load"] = int(s.ch[channel_idx].load);
-    snprintf(char_buffer, 8, "#%06x", s.ch[channel_idx].channel_color);
-    doc["ch"][channel_idx]["channel_color"] = char_buffer;
-    doc["ch"][channel_idx]["priority"] = s.ch[channel_idx].priority;
-
-    doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
-    // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
-    doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from;
-    doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
-    doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
-    doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
-    doc["ch"][channel_idx]["r_id"] = s.ch[channel_idx].relay_id;
-    doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
-    doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
-    doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
-
-    // conditions[condition_idx].condition_active
-    active_condition_idx = -1;
-
-    rule_idx_output = 0; //***
-
-    int active_rule_count = 0;
-    for (int rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
-    {
-      if (s.ch[channel_idx].conditions[rule_idx].condition_active)
-        active_condition_idx = rule_idx_output;
-
-      int stmt_count = 0;
-      for (int stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-      {
-        statement_st *stmt = &s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx];
-        // is there any statements for the rule
-        if (stmt->variable_id != -1 && stmt->oper_id != 255)
-        {
-          // Serial.printf("Active statement %d %d \n", (int)stmt->variable_id, (int)stmt->oper_id);
-          vars.to_str(stmt->variable_id, char_buffer, true, stmt->const_val, sizeof(char_buffer));
-          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][0] = stmt->variable_id;
-          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][1] = stmt->oper_id;
-          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][2] = stmt->const_val;
-          doc["ch"][channel_idx]["rules"][rule_idx_output]["stmts"][stmt_count][3] = char_buffer;
-          stmt_count++;
-        }
-      }
-      if (stmt_count > 0)
-      {
-        doc["ch"][channel_idx]["rules"][rule_idx_output]["on"] = s.ch[channel_idx].conditions[rule_idx].on;
-        rule_idx_output++;
-        active_rule_count++;
-      }
-    }
-    // Serial.printf("Channel: %d,active_rule_count %d \n", channel_idx, active_rule_count);
-    if (active_rule_count > 0)
-    {
-      doc["ch"][channel_idx]["active_condition_idx"] = active_condition_idx;
-    }
-  }
-
-  serializeJson(doc, output);
-
-  if (format == 0)
-  {
-    request->send(200, "application/json;charset=UTF-8", output);
-  }
-  else
-  {
-    char Content_Disposition[70];
-    snprintf(Content_Disposition, 70, "attachment; filename=\"arska-config-%s.json\"", export_time);
-    // AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output); //text
-    AsyncWebServerResponse *response = request->beginResponse(200, "application/octet-stream", output); // file
-    response->addHeader("Content-Disposition", Content_Disposition);
-    request->send(response);
-  }
-}
-
-*/
 /**
  * @brief Gets integer value from a json node.
  *
@@ -5306,156 +5144,6 @@ bool ajson_bool_get(JsonVariant parent_node, char *doc_key, bool default_val)
  * @return true
  * @return false
  */
-/*
-bool store_settings_from_json_doc(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc)
-{
-  char http_password[MAX_ID_STR_LENGTH];
-  char http_password2[MAX_ID_STR_LENGTH];
-  int channel_idx_loop = 0;
-
-  ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
-  ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
-  //  s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
-  ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
-  ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
-
-  // copy_doc_str(doc, (char *)"variable_server", s.variable_server, sizeof(s.variable_server));
-  ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
-  ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
-  ajson_str_to_mem(doc, (char *)"lang", s.lang, sizeof(s.lang));
-
-  ajson_str_to_mem(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
-  s.baseload = ajson_int_get(doc, (char *)"baseload", s.baseload);
-  s.pv_power = ajson_int_get(doc, (char *)"pv_power", s.pv_power);
-
-  if (ajson_str_to_mem(doc, (char *)"http_password", http_password, sizeof(http_password)))
-  {
-    if (ajson_str_to_mem(doc, (char *)"http_password2", http_password2, sizeof(http_password2)))
-    {
-      if ((strcmp(http_password, http_password2) == 0) && strlen(http_password) > 0 && strlen(http_password2) > 0)
-      { // equal
-        strncpy(s.http_password, http_password, sizeof(s.http_password));
-        Serial.println("Password changed");
-      }
-    }
-  }
-
-  s.hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
-
-  s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
-  Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
-  s.energy_meter_ip = ajson_ip_get(doc, (char *)"energy_meter_ip", s.energy_meter_ip);
-  ajson_str_to_mem(doc, (char *)"energy_meter_password", s.energy_meter_password, sizeof(s.energy_meter_password));
-  s.energy_meter_port = ajson_int_get(doc, (char *)"energy_meter_port", s.energy_meter_port);
-  s.energy_meter_id = ajson_int_get(doc, (char *)"energy_meter_id", s.energy_meter_id);
-
-  s.production_meter_type = ajson_int_get(doc, (char *)"production_meter_type", s.production_meter_type);
-  s.production_meter_ip = ajson_ip_get(doc, (char *)"production_meter_ip", s.production_meter_ip);
-  s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
-  s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
-
-#ifdef INFLUX_REPORT_ENABLED
-  ajson_str_to_mem(doc, (char *)"influx_url", s.influx_url, sizeof(s.influx_url));
-  ajson_str_to_mem(doc, (char *)"influx_token", s.influx_token, sizeof(s.influx_token));
-  ajson_str_to_mem(doc, (char *)"influx_org", s.influx_org, sizeof(s.influx_org));
-  ajson_str_to_mem(doc, (char *)"influx_bucket", s.influx_bucket, sizeof(s.influx_bucket));
-#endif
-
-  int channel_idx;
-  int rule_idx = 0;
-  int stmt_idx = 0;
-  char hex_buffer[8];
-
-  int32_t hw_template_id;
-
-  if (!doc["hw_template_id"].isNull())
-  {
-    hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
-    s.hw_template_id = hw_template_id;
-    if ((hw_template_id != s.hw_template_id) && hw_template_id > 0)
-    {
-      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-      {
-        if (channel_idx < HW_TEMPLATE_GPIO_COUNT)
-        { // touch only channel which could have gpio definitions
-          if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255)
-          {
-            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF; // was CH_TYPE_GPIO_FIXED;
-            s.ch[channel_idx].relay_id = hw_templates[s.hw_template_id].gpios[channel_idx];
-          }
-          else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) // deprecate CH_TYPE_GPIO_FIXED
-          {                                                      // fixed gpio -> user defined, new way
-            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
-          }
-        }
-      }
-    }
-  }
-
-  for (JsonObject ch : doc["ch"].as<JsonArray>())
-  {
-    channel_idx = ajson_int_get(ch, (char *)"idx", channel_idx_loop);
-    ajson_str_to_mem(ch, (char *)"id_str", s.ch[channel_idx].id_str, sizeof(s.ch[channel_idx].id_str));
-    Serial.printf("s.ch[channel_idx].id_str %s\n", s.ch[channel_idx].id_str);
-
-    s.ch[channel_idx].type = ajson_int_get(ch, (char *)"type", s.ch[channel_idx].type);
-    s.ch[channel_idx].config_mode = ajson_int_get(ch, (char *)"config_mode", s.ch[channel_idx].config_mode);
-    s.ch[channel_idx].template_id = ajson_int_get(ch, (char *)"template_id", s.ch[channel_idx].template_id);
-    s.ch[channel_idx].uptime_minimum = ajson_int_get(ch, (char *)"uptime_minimum", s.ch[channel_idx].uptime_minimum);
-    s.ch[channel_idx].load = ajson_int_get(ch, (char *)"load", s.ch[channel_idx].load);
-
-    if (ch.containsKey("channel_color"))
-    {
-      ajson_str_to_mem(ch, (char *)"channel_color", hex_buffer, sizeof(hex_buffer));
-      s.ch[channel_idx].channel_color = (uint32_t)strtol(hex_buffer + 1, NULL, 16);
-    }
-
-    s.ch[channel_idx].priority = ajson_int_get(ch, (char *)"priority", s.ch[channel_idx].priority);
-    s.ch[channel_idx].relay_id = ajson_int_get(ch, (char *)"r_id", s.ch[channel_idx].relay_id);
-    s.ch[channel_idx].relay_ip = ajson_ip_get(ch, (char *)"r_ip", s.ch[channel_idx].relay_ip);
-    s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
-
-    // clear  statements
-    // TODO: add to new version
-    for (rule_idx = 0; rule_idx < CHANNEL_CONDITIONS_MAX; rule_idx++)
-    {
-      for (stmt_idx = 0; stmt_idx < RULE_STATEMENTS_MAX; stmt_idx++)
-      {
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = -1;
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = -1;
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = VARIABLE_LONG_UNKNOWN;
-      }
-    }
-
-    // channel rulesq
-    rule_idx = 0;
-
-    // channel rules
-    for (JsonObject ch_rule : ch["rules"].as<JsonArray>())
-    {
-      s.ch[channel_idx].conditions[rule_idx].on = ch_rule["on"];
-      stmt_idx = 0;
-      Serial.printf("rule on %s", s.ch[channel_idx].conditions[rule_idx].on ? "true" : "false");
-
-      for (JsonArray ch_rule_stmt : ch_rule["stmts"].as<JsonArray>())
-      {
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2];
-        s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val = vars.float_to_internal_l(ch_rule_stmt[0], ch_rule_stmt[3]);
-        Serial.printf("rules/stmts: [%d, %d, %ld]", s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].conditions[rule_idx].statements[stmt_idx].const_val);
-        stmt_idx++;
-      }
-      rule_idx++;
-    }
-    channel_idx++;
-    channel_idx_loop++;
-  }
-
-  writeToEEPROM();
-  return true;
-}
-*/
 bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
 {
   char http_password[MAX_ID_STR_LENGTH];
