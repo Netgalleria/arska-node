@@ -52,6 +52,7 @@ def before_upload(source, target, env):
             shutil.copyfile(compile_folder+"firmware.bin", dest_dir+"firmware.bin")
             shutil.copyfile(compile_folder+"littlefs.bin", dest_dir+"littlefs.bin")
             shutil.copyfile(compile_folder+"partitions.bin", dest_dir+"partitions.bin")
+            shutil.copyfile(compile_folder+"bootloader.bin", dest_dir+"bootloader.bin")
 
             manifest_from_path =  "install/" + env_id + "/manifest.json"
             manifest_to_path = dest_dir + "manifest.json"
