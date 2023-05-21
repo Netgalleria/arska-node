@@ -1,6 +1,7 @@
 # Arska release notes
 
 ## Arska 0.99
+* Please note that upgrade from earlier version (before  0.99) requires a cable connection.
 * Major user interface (UI) upgrade. The **Dashboard** contains latest time series for prices, import, production and channel utilization as well as manual scheduling. Time series are not stored in the non-volatile memory so restart of the device will clear them. The **Channels** sections contains relay settings and channel rules. The **Settings** sections is for system parameters and administration tasks.
 * Can read both grid energy meter (Shelly 3EM, HAN P1 telegram) and production inverters (SMA, Fronius). 
 * Rule templates
@@ -20,6 +21,13 @@
   * Load (Watts) is used to estimate channel energy usage in consumption estimates for optimazed netting.
   * Channel colour, user defined with default values, is used in graphs and channels lists
 * Many internal optimizations. Unnecessary/redundant filesystem caches and calculations removed/optimized.
+### Bug Fixes
+* Memory leak in /application request fixed, file close added in several places  (2023-05-20)
+* Portrait mode works in the UI; mobile menu, the dashboard graph is hidden in narrow display (2023-05-20).
+* Rule constants were left disabled when switching from rule mode to advanced moe. now fixed.
+
+### Other Changes
+* Removed wifi list cache file (called in several places) - less writes to littlefs in general. Now a a few wifis stored in memory structure. (2023-05-20)
 
 
 ## Arska 0.93 

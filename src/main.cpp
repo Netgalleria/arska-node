@@ -3,7 +3,6 @@
 
 Resource files (see data subfolder):
 - arska-ui.js - web UI Javascript routines
-- style.css - web UI styles
 - ui3.html
 - js/arska-ui.js - main javascript code template //TODO:separate variable(constant) and code
 - js/jquery-3.6.0.min.js - jquery library
@@ -23,7 +22,6 @@ DEVEL BRANCH
 #define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
 10.11.2022 removed esp8266 options
 */
-//oli 10101
 #define EEPROM_CHECK_VALUE 10102
 #define DEBUG_MODE
 
@@ -66,11 +64,6 @@ String version_fs_base; //= "";
 #define MDNS_ENABLED_NOTENABLED // experimental, disabled due to stability concerns
 #define PING_ENABLED            // for testing if internet connection etc ok
 
-// TODO: replica mode will be probably removed later
-// #define VARIABLE_SOURCE_ENABLED //!< this calculates variables (not just replica) only ESP32
-// #define VARIABLE_MODE_SOURCE 0
-// #define VARIABLE_MODE_REPLICA 1
-
 #define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to variables
 
 #define OTA_UPDATE_ENABLED // OTA general
@@ -80,8 +73,7 @@ String version_fs_base; //= "";
 #define WATT_EPSILON 50
 
 const char *default_http_password PROGMEM = "arska";
-const char *wifis_filename PROGMEM = "/cache/wifis.json";
-
+const char *filename_config_in = "/cache/config_in.json";
 const char *template_filename PROGMEM = "/data/templates.json";
 const char *shadow_settings_filename PROGMEM = "/shadow_settings.json";
 
@@ -144,6 +136,7 @@ bool wifi_connection_succeeded = false;
 time_t last_wifi_connect_tried = 0;
 bool clock_set = false;       // true if we have get (more or less) correct time from net or rtc
 bool config_resetted = false; // true if configuration cleared when version upgraded
+bool fs_mounted = false; // true
 
 #define ERROR_MSG_LEN 100
 #define DEBUG_FILE_ENABLED
@@ -190,13 +183,9 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
   last_msg.type = type;
   time(&last_msg.ts);
 
-  // localtime_r(&last_msg.ts, &tm_struct_g);
-
-  // Serial.printf("%02d:%02d:%02d %s\n", tm_struct_g.tm_hour, tm_struct_g.tm_min, tm_struct_g.tm_sec, msg);
-
 #ifdef DEBUG_FILE_ENABLED
   char datebuff[35];
-  if (write_to_file)
+  if (write_to_file && fs_mounted)
   {
     File log_file = LittleFS.open(debug_filename, "a");
     if (!log_file)
@@ -204,13 +193,10 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
       Serial.println(F("Cannot open the log file."));
       return;
     }
-    //  ts_to_date_str(&last_msg.ts, datebuff);
-
-    //   tm tm_local;
     gmtime_r(&last_msg.ts, &tm_struct_g);
     sprintf(datebuff, "%04d-%02d-%02dT%02d:%02d:%02dZ (%lu)", tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour, tm_struct_g.tm_min, tm_struct_g.tm_sec, millis());
-
     log_file.printf("%s %d %s\n", datebuff, (int)type, msg);
+    log_file.close();
     // debug debug
     Serial.println("Writing to log file:");
     Serial.printf("%s %d %s\n", datebuff, (int)type, msg);
@@ -275,6 +261,9 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define MAX_HISTORY_PERIODS 24
 #define HISTORY_VARIABLE_COUNT 2
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
+
+#define HW_TEMPLATE_COUNT 5
+#define HW_TEMPLATE_GPIO_COUNT 4
 
 // new time series, remove
 long prices[MAX_PRICE_PERIODS];
@@ -411,6 +400,71 @@ void getRTC()
 
 #endif // rtc
 
+#define HW_EXTENSIONS_ENABLED_NOT_YET
+
+#define MAX_LED_COUNT 3
+struct hw_io_struct
+{
+  uint8_t reset_button_gpio;
+  bool output_register; // false
+  uint8_t rclk_gpio;    // if shifted
+  uint8_t ser_gpio;
+  uint8_t srclk_gpio;
+  uint8_t status_led_type; // STATUS_LED_TYPE_...
+  uint8_t status_led_ids[MAX_LED_COUNT];
+};
+// temperature, updated only if hw extensions
+uint8_t cpu_temp_f = 128;
+
+#ifdef HW_EXTENSIONS_ENABLED
+
+// Hardware extension
+
+
+#define STATUS_LED_TYPE_NONE 0
+#define STATUS_LED_TYPE_RGB3 30
+
+#define RGB_NONE 0
+#define RGB_BLUE 1
+#define RGB_GREEN 2
+#define RGB_CYAN 3
+#define RGB_RED 4
+#define RGB_PURPLE 5
+#define RGB_YELLOW 6
+#define RGB_WHITE 7
+
+#define BIT_RELAY 0     // Qa
+#define BIT_LED_OUT2 1  // Qb
+#define BIT_LED_BLUE 2  // Qc
+#define BIT_LED_GREEN 3 // Qd
+#define BIT_LED_RED 4   // Qe
+
+#define MAX_REGISTER_BITS 8
+uint8_t register_out = 0;
+
+
+// Shelly 1 Pro , hw_io_struct hw_io = {{0, ID_NA, ID_NA, ID_NA}, 35, true, 4, 13, 14, 30, {4, 3, 2}};
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+  uint8_t temprature_sens_read();
+#ifdef __cplusplus
+}
+#endif
+uint8_t temprature_sens_read();
+
+// reset button
+unsigned long state_started = millis();
+int reset_button_triggering_state = HIGH;
+int reset_button_previous_state = reset_button_triggering_state;
+
+
+unsigned long last_temp_read = millis();
+
+#endif // hw_extensions
+
 /**
  * @brief Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
  *
@@ -420,6 +474,9 @@ void getRTC()
 bool check_filesystem_version()
 {
   bool is_ok;
+  if (!fs_mounted)
+    return false;
+    
   String current_version;
   File info_file = LittleFS.open("/data/version.txt", "r");
 
@@ -560,7 +617,7 @@ struct statement_st
 #define VARIABLE_NET_ESTIMATE_SOURCE_SOLAR_FORECAST 3L
 
 long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
-uint8_t channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
+//uint8_t channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 uint16_t channel_history_s[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY}; // oli VARIABLE_SELLING_POWER,VARIABLE_PRODUCTION_POWER,
 int get_variable_history_idx(int id)
@@ -655,13 +712,12 @@ struct channel_type_st
 // #define CH_TYPE_SHELLY_ONOFF 2  -> 10
 // #define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
-#define CHANNEL_TYPE_COUNT 7
+#define CHANNEL_TYPE_COUNT 6
 
-
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined",false}, {CH_TYPE_GPIO_USER_DEF, "GPIO",false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1",false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2",false}, {CH_TYPE_TASMOTA, "Tasmota",false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed",true}};
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 
 // later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
-
+/*
 struct device_db_struct
 {
   const char *app;
@@ -670,17 +726,23 @@ struct device_db_struct
 };
 
 device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
-
-#define HW_TEMPLATE_COUNT 4
-#define HW_TEMPLATE_GPIO_COUNT 4
+*/
 struct hw_template_st
 {
   int id;
   const char *name;
-  uint8_t gpios[HW_TEMPLATE_GPIO_COUNT];
+  uint8_t locked_channels;
+  uint8_t relay_id[HW_TEMPLATE_GPIO_COUNT];
+  hw_io_struct hw_io;
 };
 #define ID_NA 255
-hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
+// hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
+hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
+    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {4, "shelly-1-pro ", 1, {0, ID_NA, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}}};
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -747,9 +809,9 @@ typedef struct
   time_t force_up_until;  //<! force channel up until
   uint8_t config_mode;    //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
   int template_id;        //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
-  uint32_t channel_color; // UI color in graphs etc
-  uint8_t priority;       // channel switching priority, channel with the lowest priority value is switched on first and off last
-  uint16_t load;          // load in Watts
+  uint32_t channel_color; //<! channel UI color in graphs etc
+  uint8_t priority;       //<! channel switching priority, channel with the lowest priority value is switched on first and off last
+  uint16_t load;          //<! estimated device load in Watts
 } channel_struct;
 
 #ifdef SENSOR_DS18B20_ENABLED
@@ -787,8 +849,7 @@ typedef struct
   uint16_t production_meter_port;
   uint8_t production_meter_id;
   char forecast_loc[MAX_ID_STR_LENGTH]; //!< Energy forecast location, BCDC-energy location
-  // uint8_t variable_mode;                // VARIABLE_MODE_SOURCE (currently only supported), VARIABLE_MODE_REPLICA (not implemented)
-  char lang[3]; //<! preferred language
+  char lang[3];                         //<! preferred language
 #ifdef SENSOR_DS18B20_ENABLED
   sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
 #endif
@@ -806,6 +867,211 @@ typedef struct
 
 // this stores settings also to eeprom
 settings_struct s;
+int hw_template_idx = -1; // cached hw_io copied from hw_template if id > 0
+
+int get_hw_template_idx(int id)
+{
+  for (int i = 0; i < HW_TEMPLATE_COUNT; i++)
+  {
+    if (id == hw_templates[i].id)
+    {
+      return i;
+    }
+  }
+  return -1;
+}
+// HW extensions shift register, led etc...
+#define STATE_NA 0
+#define STATE_NONE 1
+#define STATE_INIT 2
+#define STATE_CONNECTING 10
+#define STATE_PROCESSING 50
+#define STATE_UPLOADING 90
+#define STATE_COOLING 99
+
+#define COOLING_PANIC_SHUTDOWN_F 248 // 120
+#define COOLING_START_F 230          // 110C
+#define COOLING_RECOVER_TO_F 203     // 95C
+
+
+#ifdef HW_EXTENSIONS_ENABLED
+
+/*
+ * updateShiftRegister()
+ */
+void updateShiftRegister()
+{
+  if (hw_template_idx == -1)
+    return; // no valid template idx in cached
+  // Sets the hw_io.rclk_gpio to low, hides register write results so far
+  digitalWrite(hw_templates[hw_template_idx].hw_io.rclk_gpio, LOW);
+
+  // Arduino 'shiftOut' to shifts out contents of variable 'register_out' in the shift register
+  shiftOut(hw_templates[hw_template_idx].hw_io.ser_gpio, hw_templates[hw_template_idx].hw_io.srclk_gpio, MSBFIRST, register_out);
+
+  // hw_io.rclk_gpio high shows latest register content in the output pins
+  digitalWrite(hw_templates[hw_template_idx].hw_io.rclk_gpio, HIGH); // makes changes visible to output
+                                                                     // Serial.printf("register_out %d\n", (int)register_out);
+}
+
+unsigned long io_tasks_last = 0;
+bool led_swing = false;
+uint8_t rgb_value_prev = 0;
+
+bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode);
+void reset_config();
+void cooling(uint8_t cool_down_to_f, unsigned long max_wait_ms);
+
+void io_tasks(uint8_t state = STATE_NA)
+{
+  if (!(millis() - io_tasks_last > 500)) // this should handle overflow https://www.norwegiancreations.com/2018/10/arduino-tutorial-avoiding-the-overflow-issue-when-using-millis-and-micros/
+    return;
+  io_tasks_last = millis();
+
+  // Serial.print(".");
+  uint8_t cpu_temp_read;
+  if (millis() - last_temp_read > 5000)
+  {
+    cpu_temp_read = temprature_sens_read();
+    if (cpu_temp_read != 128)
+    {
+      cpu_temp_f = cpu_temp_read;
+      if (cpu_temp_f > COOLING_START_F && state != STATE_COOLING)
+      { // avoid recursion
+        cooling(COOLING_RECOVER_TO_F, 3600000LU);
+      }
+    }
+    last_temp_read = millis();
+  }
+
+  if (hw_template_idx < 1)
+    return; // no hw_template defined (0-manual is currently undefined too)
+
+  // led
+  led_swing = !led_swing;
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3)
+  {
+    uint8_t rgb_value = 0;
+    if (state == STATE_NONE)
+      rgb_value = RGB_NONE;
+    else if (state == STATE_CONNECTING)
+      rgb_value = led_swing ? RGB_YELLOW : RGB_NONE;
+    else if (state == STATE_PROCESSING)
+      rgb_value = RGB_WHITE;
+    else if (state == STATE_UPLOADING)
+      rgb_value = led_swing ? RGB_PURPLE : RGB_NONE;
+    else if (state == STATE_COOLING)
+      rgb_value = led_swing ? RGB_RED : RGB_YELLOW;
+    else if (wifi_in_setup_mode) // Blue -AP mode.
+      rgb_value = RGB_BLUE;
+    else if (started > 0) // global timestamp
+      rgb_value = RGB_GREEN;
+    else if (wifi_connection_succeeded)
+    { // Yellow Wifi succeeded
+      rgb_value = RGB_YELLOW;
+    }
+    // More to come, could indicate with green if internet connections are ok (last query eg..)
+    //  also ota update
+    //  to be defined
+    if (rgb_value_prev != rgb_value)
+    {
+      bitWrite(register_out, hw_templates[hw_template_idx].hw_io.status_led_ids[0], !bitRead(rgb_value, 2)); // Red
+      bitWrite(register_out, hw_templates[hw_template_idx].hw_io.status_led_ids[1], !bitRead(rgb_value, 1)); // Green
+      bitWrite(register_out, hw_templates[hw_template_idx].hw_io.status_led_ids[2], !bitRead(rgb_value, 0)); // Blue
+
+      // Serial.printf("register_out %d, rgb_value: %d\n", (int)register_out, (int)rgb_value);
+      // Serial.printf("R: %d, G: %d, B: %d\n", (int)bitRead(rgb_value, 2), (int)bitRead(rgb_value, 1), (int)bitRead(rgb_value, 0));
+
+      updateShiftRegister();
+      rgb_value_prev = rgb_value;
+    }
+  }
+
+  // reset button
+  if (hw_templates[hw_template_idx].hw_io.reset_button_gpio != ID_NA)
+  {
+    int reset_current_state = digitalRead(hw_templates[hw_template_idx].hw_io.reset_button_gpio);
+    if (reset_current_state != reset_button_previous_state)
+    {
+      if (reset_current_state == reset_button_triggering_state)
+      {
+        // check how long was up
+        if (millis() - state_started > 10000)
+        {
+          // TODO: add reset
+          WiFi.disconnect();
+          log_msg(MSG_TYPE_FATAL, PSTR("Resetting, user pressed reset button a loong time."), true);
+          reset_config();
+          delay(2000);
+          ESP.restart();
+        }
+        else if (millis() - state_started > 5000)
+        {
+          WiFi.disconnect();
+          log_msg(MSG_TYPE_FATAL, PSTR("Resetting, user pressed reset button."), true);
+          delay(2000);
+          ESP.restart();
+        } // else do nothing, was up not long enough
+      }
+      state_started = millis();
+      reset_button_previous_state = reset_current_state;
+    }
+  }
+}
+
+void cooling(uint8_t cool_down_to_f, unsigned long max_wait_ms)
+{
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
+    {
+      relay_state_reapply_required[channel_idx] = true; // try to recover after cool down
+      if (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register)
+      {
+        if (s.ch[channel_idx].relay_id < MAX_REGISTER_BITS)
+        {
+          bitWrite(register_out, s.ch[channel_idx].relay_id, LOW);
+          updateShiftRegister();
+        }
+      }
+      else
+      {
+        if (test_set_gpio_pinmode(channel_idx, false))
+          digitalWrite(s.ch[channel_idx].relay_id, LOW);
+      }
+    }
+  }
+  unsigned long wait_started = millis();
+  log_msg(MSG_TYPE_FATAL, PSTR("Cooling down, all local relays switched off."), true);
+  while (cpu_temp_f > cool_down_to_f)
+  {
+    delay(5000);
+    io_tasks(STATE_COOLING);
+    if (cpu_temp_f > COOLING_PANIC_SHUTDOWN_F)
+    {
+      esp_sleep_enable_timer_wakeup(900 * 1000000ULL);
+      log_msg(MSG_TYPE_FATAL, PSTR("HOT! Panic deep-sleep for 15 minutes."), true);
+      delay(1000);
+      Serial.flush();
+      esp_deep_sleep_start();
+    }
+    if ((millis() - wait_started) > max_wait_ms)
+    {
+      WiFi.disconnect();
+      log_msg(MSG_TYPE_FATAL, PSTR("Restarting, waited max cooling time."), true);
+      ESP.restart();
+    }
+  }
+  log_msg(MSG_TYPE_FATAL, PSTR("Recovering after cooling."), true);
+
+  todo_in_loop_reapply_relay_states = true;
+};
+#else
+void io_tasks(uint8_t state = STATE_NA)
+{
+  return;
+}; // do nothing if extensions are not enabled
+#endif // HW_EXTENSIONS_ENABLED
 
 #ifdef INFLUX_REPORT_ENABLED
 #include <InfluxDbClient.h>
@@ -857,11 +1123,10 @@ private:
 typedef struct
 {
   bool state;
-  time_t this_state_started_period;
+  time_t this_state_started_period; //!< current state start time within period (minimum period start)
   time_t this_state_started_epoch;
   int on_time;
   int off_time;
-  uint8_t utilization_;
 } channel_log_struct;
 
 /**
@@ -877,9 +1142,9 @@ public:
   }
   void init();
   void new_log_period(time_t ts_report);
+  void update_times(int channel_idx);
   void set_state(int channel_idx, bool new_state);
   time_t get_duration_in_this_state(int channel_idx);
-  uint8_t get_utilization(int channel_idx) { return channel_logs[channel_idx].utilization_; }
   uint16_t get_period_uptime(int channel_idx);
   void update_utilization(int channel_idx);
 
@@ -1368,17 +1633,18 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
   time_t current_period_start = get_netting_period_start_time(now_local);
 
   // u32_t util_history_pros_cum;
-  u32_t history_cum;
+  u32_t history_cum_secs;
   u32_t period_time;
   time_t period_start, period_end;
   u32_t periods_from_current;
 
-  ch_counters.update_utilization(channel_idx);
+  //ch_counters.update_utilization(channel_idx);
+  ch_counters.update_times(channel_idx);
 
   // this period
   period_time = now_local - max(current_period_start, started);
-  // util_history_pros_cum = (ch_counters.get_utilization(channel_idx) * period_time / 3600);
-  history_cum = ch_counters.get_period_uptime(channel_idx);
+  history_cum_secs = ch_counters.get_period_uptime(channel_idx); 
+
 
   for (int h_idx = MAX_HISTORY_PERIODS - 2; h_idx > MAX_HISTORY_PERIODS - periods - 1; h_idx--)
   {
@@ -1390,12 +1656,10 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
     period_start = max(started, (period_end - 3600));
     period_time = period_end - period_start;
     // util_history_pros_cum += channel_history[channel_idx][h_idx] * period_time / 3600;
-    history_cum += channel_history_s[channel_idx][h_idx];
-    //   Serial.printf("channel_history_cumulative_minutes %u, period_time %d, %d start %lu end %lu\n",periods_from_current,period_time,(int)(channel_history[channel_idx][h_idx]*period_time/3600),period_start,period_end);
+    history_cum_secs += channel_history_s[channel_idx][h_idx];
   }
-  // Serial.printf("%d, history_cum %u ", channel_idx, history_cum);
-  // return (long)util_history_pros_cum * 60 / 100;
-  return (long)((history_cum + 30) / 60);
+
+  return (long)((history_cum_secs + 30) / 60);
 }
 /**
  * @brief Returns variable index (idx) and copies variable content to given memory address based on variable id and channel idx
@@ -1545,15 +1809,15 @@ time_t ChannelCounters::get_duration_in_this_state(int channel_idx)
  *
  * @param channel_idx
  */
+/*
 void ChannelCounters::update_utilization(int channel_idx)
 {
   float utilization = 0;
   set_state(channel_idx, channel_logs[channel_idx].state); // this will update counters without changing state
   if ((channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time) > 0)
     utilization = (float)channel_logs[channel_idx].on_time / (float)(channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time);
-  channel_logs[channel_idx].utilization_ = (uint8_t)(utilization * 100 + 0.001);
 }
-
+*/
 /**
  * @brief Returns channel uptime in current period in minutes
  *
@@ -1562,7 +1826,9 @@ void ChannelCounters::update_utilization(int channel_idx)
  */
 uint16_t ChannelCounters::get_period_uptime(int channel_idx)
 {
-  set_state(channel_idx, channel_logs[channel_idx].state); // this will update counters without changing state
+ // set_state(channel_idx, channel_logs[channel_idx].state); // this will update counters without changing state
+  update_times(channel_idx);
+ // if (channel_logs[channel_idx].on_time>60) --> debug
   return channel_logs[channel_idx].on_time;
 }
 /**
@@ -1573,46 +1839,48 @@ uint16_t ChannelCounters::get_period_uptime(int channel_idx)
 void ChannelCounters::new_log_period(time_t ts_report)
 {
   time_t now_l;
-  float utilization;
+ // float utilization;
   time(&now_l);
 
   // influx buffer
   if (!point_period_avg.hasTime())
     point_period_avg.setTime(ts_report);
   char field_name[10];
-  for (int i = 0; i < CHANNEL_COUNT; i++)
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     // update current (old) period utilization
-    set_state(i, channel_logs[i].state); // this will update counters without changing state
-    if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
+   // set_state(i, channel_logs[i].state); // this will update counters without changing state
+    update_times(channel_idx);
+
+   /* if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
       utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
     else
       utilization = 0;
 
-    channel_logs[i].utilization_ = (uint8_t)(utilization * 100 + 0.001);
-
-    snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
-    point_period_avg.addField(field_name, utilization);
+   // snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
+   // point_period_avg.addField(field_name, utilization);*/
+    snprintf(field_name, sizeof(field_name), "chup%d", channel_idx + 1); // 1-indexed channel numbers in UI
+    point_period_avg.addField(field_name, channel_logs[channel_idx].on_time ); // now minutes
 
     // rotate to channel history
-    channel_history[i][MAX_HISTORY_PERIODS - 1] = (uint8_t)(utilization * 100 + 0.001);
-    channel_history_s[i][MAX_HISTORY_PERIODS - 1] = channel_logs[i].on_time;
+    //channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = (uint8_t)(utilization * 100 + 0.001);
+    channel_history_s[channel_idx][MAX_HISTORY_PERIODS - 1] = channel_logs[channel_idx].on_time;
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
     {
-      channel_history[i][h_idx] = channel_history[i][h_idx + 1];
-      channel_history_s[i][h_idx] = channel_history_s[i][h_idx + 1];
+    //  channel_history[channel_idx][h_idx] = channel_history[i][h_idx + 1];
+      channel_history_s[channel_idx][h_idx] = channel_history_s[channel_idx][h_idx + 1];
     }
 
-    channel_history[i][MAX_HISTORY_PERIODS - 1] = 0;
-    channel_history_s[i][MAX_HISTORY_PERIODS - 1] = 0;
+  //  channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = 0;
+    channel_history_s[channel_idx][MAX_HISTORY_PERIODS - 1] = 0;
   }
 
-  // then reset
-  for (int i = 0; i < CHANNEL_COUNT; i++)
+  // then reset this period time counters 
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    channel_logs[i].off_time = 0;
-    channel_logs[i].on_time = 0;
-    channel_logs[i].this_state_started_period = now_l;
+    channel_logs[channel_idx].off_time = 0;
+    channel_logs[channel_idx].on_time = 0;
+    channel_logs[channel_idx].this_state_started_period = now_l;
   }
   // write buffer
 }
@@ -1623,34 +1891,38 @@ void ChannelCounters::new_log_period(time_t ts_report)
  * @param channel_idx
  * @param new_state
  */
-void ChannelCounters::set_state(int channel_idx, bool new_state)
+void ChannelCounters::update_times(int channel_idx) // no state change, just update times
 {
-  time_t now_l;
-  time(&now_l);
+ time_t now_l = time(NULL);
+ // time(&now_l);
   int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started_period);
   if (channel_logs[channel_idx].state)
     channel_logs[channel_idx].on_time += previous_state_duration;
   else
     channel_logs[channel_idx].off_time += previous_state_duration;
-
-  float utilization;
-  if ((channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time) > 0)
-  {
-    utilization = (float)channel_logs[channel_idx].on_time / (float)(channel_logs[channel_idx].off_time + channel_logs[channel_idx].on_time);
-  }
-  else
-  {
-    utilization = 0;
-  }
-  channel_logs[channel_idx].utilization_ = (uint8_t)(utilization * 100 + 0.001);
-
-  // Serial.printf("%d, (on: %d / off: %d ) = %f, (uint8_t)%d\n", channel_idx, channel_logs[channel_idx].on_time, channel_logs[channel_idx].off_time, utilization, (int)channel_logs[channel_idx].utilization_);
-
-  bool old_state = channel_logs[channel_idx].state;
-  channel_logs[channel_idx].state = new_state;
   channel_logs[channel_idx].this_state_started_period = now_l;
-  if (old_state != new_state)
-    channel_logs[channel_idx].this_state_started_epoch = now_l;
+}
+
+void ChannelCounters::set_state(int channel_idx, bool new_state)
+{
+//  time_t now_l;
+//  time(&now_l);
+  
+ /* int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started_period);
+  if (channel_logs[channel_idx].state)
+    channel_logs[channel_idx].on_time += previous_state_duration;
+  else
+    channel_logs[channel_idx].off_time += previous_state_duration;
+    */
+
+ // bool old_state = channel_logs[channel_idx].state;
+  //channel_logs[channel_idx].state = new_state;
+ // channel_logs[channel_idx].this_state_started_period = now_l;
+ update_times(channel_idx);
+  if (channel_logs[channel_idx].state != new_state) {
+    channel_logs[channel_idx].state = new_state;
+    channel_logs[channel_idx].this_state_started_epoch = time(NULL);
+  }
 }
 
 /**
@@ -1920,62 +2192,32 @@ void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SI
   return;
 }
 
-/**
- * @brief Checks if given cache files exists and is not expired
- *
- * @param cache_file_name file name in liitlefs
- * @return true  if valid
- * @return false if not valid
- */
-bool is_cache_file_valid(const char *cache_file_name)
-{
-  time_t now_in_func;
-  if (!LittleFS.exists(cache_file_name))
-  {
-    Serial.println(F("No cache file."));
-    return false;
-  }
-  File cache_file = LittleFS.open(cache_file_name, "r");
-  if (!cache_file)
-  { // failed to open the file, retrn empty result
-    Serial.println(F("Failed to open cache file. "));
-    return false;
-  }
-  StaticJsonDocument<16> filter;
-  filter["expires"] = true; // first check expires timestamp field
-
-  StaticJsonDocument<50> doc_ts;
-
-  DeserializationError error = deserializeJson(doc_ts, cache_file, DeserializationOption::Filter(filter));
-  cache_file.close();
-
-  if (error)
-  {
-    Serial.print(F("Arska server deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    return false;
-  }
-
-  unsigned long expires = doc_ts["expires"];
-  time(&now_in_func);
-  return expires > now_in_func;
-}
-
 // Serial command interface
 String serial_command;
 uint8_t serial_command_state = 0;
 int network_count = 0;
+
+#define WIFI_LIST_COUNT 6
+struct wifi_st
+{
+  char ssid[MAX_ID_STR_LENGTH]; //!< WiFi SSID
+  int32_t rssi;
+};
+wifi_st wifis[WIFI_LIST_COUNT];
 
 /**
  * @brief Scans wireless networks on the area and stores list to a file.
  * @details description Started from loop-function. Do not run interactively (from a http call).
  *
  */
-void scan_and_store_wifis(bool print_out)
+void scan_and_store_wifis(bool print_out, bool store)
 {
+  int array_i = 0;
   network_count = WiFi.scanNetworks();
-  int good_wifi_count = 0;
-  StaticJsonDocument<1248> doc;
+  if (store)
+    memset(wifis, 0, sizeof(wifis));
+
+  //  StaticJsonDocument<1248> doc;
 
   if (print_out)
     Serial.println("Available WiFi networks:\n");
@@ -1984,13 +2226,17 @@ void scan_and_store_wifis(bool print_out)
   {
     if (WiFi.RSSI(i) < -80) // too weak signals not listed, could be actually -75
       continue;
-    good_wifi_count++;
-    JsonObject json_wifi = doc.createNestedObject();
-    json_wifi["id"] = WiFi.SSID(i);
-    json_wifi["rssi"] = WiFi.RSSI(i);
-
     if (print_out)
       Serial.printf("%d - %s (%ld)\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+    if (store & array_i < WIFI_LIST_COUNT)
+    {
+      wifis[array_i].rssi = WiFi.RSSI(i);
+      strncpy(wifis[array_i].ssid, WiFi.SSID(i).c_str(), MAX_ID_STR_LENGTH - 1);
+    }
+    array_i++;
+    // JsonObject json_wifi = doc.createNestedObject();
+    // json_wifi["id"] = WiFi.SSID(i);
+    // json_wifi["rssi"] = WiFi.RSSI(i);
   }
 
   if (print_out)
@@ -1998,10 +2244,12 @@ void scan_and_store_wifis(bool print_out)
     Serial.println("-");
     Serial.flush();
   }
-
-  File wifi_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
-  serializeJson(doc, wifi_file);
-  wifi_file.close();
+  /** if (store)
+   {
+     File wifi_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
+     serializeJson(doc, wifi_file);
+     wifi_file.close();
+   }*/
 }
 
 #define CONFIG_JSON_SIZE_MAX 6144
@@ -2091,12 +2339,9 @@ void readFromEEPROM()
   EEPROM.get(eepromaddr, s);
   Serial.printf(PSTR("readFromEEPROM: Reading settings from eeprom, Size: %d\n"), eeprom_used_size);
   EEPROM.end();
+  hw_template_idx = get_hw_template_idx(s.hw_template_id); // update cached variable
   set_netting_source();
 }
-
-time_t last_eeprom_write = 0;
-// bool eeprom_noncritical_cache_dirty = false;
-#define EEPROM_CACHE_TIME_CONDITIONAL (15 * 60) // max interval of non-critical writes to eeprom
 
 /**
  * @brief Writes settings to eeprom
@@ -2108,9 +2353,6 @@ void writeToEEPROM()
   // is directly called for critical update
   time_t now_infunc;
   time(&now_infunc);
-  last_eeprom_write = now_infunc;
-  // eeprom_noncritical_cache_dirty = false;
-
   int eeprom_used_size = sizeof(s);
   EEPROM.begin(eeprom_used_size);
   EEPROM.put(eepromaddr, s); // write data to array in ram
@@ -2118,28 +2360,16 @@ void writeToEEPROM()
   Serial.printf(PSTR("writeToEEPROM: Writing %d bytes to eeprom. Result %s\n"), eeprom_used_size, commit_ok ? "OK" : "FAILED");
   EEPROM.end();
 }
-/**
- * @brief Delayed write to eeprom
- *
- */
-/*
-void flush_noncritical_eeprom_cache()
-{
-  time_t now_infunc;
-  time(&now_infunc);
-  if (((last_eeprom_write + EEPROM_CACHE_TIME_CONDITIONAL) < now_infunc) && eeprom_noncritical_cache_dirty)
-    writeToEEPROM();
-}
-*/
 
 /**
  * @brief Utility function to make http request, stores result to a cache file if defined
  *
  * @param url Url to call
- * @param cache_file_name optional cache file name to store result
+ * //@param cache_file_name optional cache file name to store result
  * @return String
  */
-String httpGETRequest(const char *url, const char *cache_file_name, int32_t connect_timeout = 30000)
+// String httpGETRequest(const char *url, const char *cache_file_name, int32_t connect_timeout = 30000)
+String httpGETRequest(const char *url, int32_t connect_timeout = 30000)
 {
   unsigned long call_started = millis();
   WiFiClient wifi_client;
@@ -2159,28 +2389,6 @@ String httpGETRequest(const char *url, const char *cache_file_name, int32_t conn
   if (httpResponseCode > 0)
   {
     payload = http.getString();
-
-    if (strlen(cache_file_name) > 0) // write to a cache file
-    {
-      LittleFS.remove(cache_file_name); // Delete existing file, otherwise the configuration is appended to the file
-
-      File cache_file = LittleFS.open(cache_file_name, "w"); // Open file for writing
-      if (!cache_file)
-      {
-        Serial.println(F("Failed to create a cache file:"));
-        Serial.println(cache_file_name);
-        http.end();
-        return String("");
-      }
-      int bytesWritten = cache_file.print(http.getString());
-      Serial.print(F("Wrote to cache file bytes:"));
-      Serial.println(bytesWritten);
-
-      if (bytesWritten > 0)
-      {
-        cache_file.close();
-      }
-    }
   }
   else
   {
@@ -2444,7 +2652,7 @@ bool read_meter_han()
   Serial.println(url);
 
   yield();
-  String telegram = httpGETRequest(url, "");
+  String telegram = httpGETRequest(url);
   yield();
 
   time_t now_in_func;
@@ -2618,7 +2826,7 @@ bool read_meter_shelly3em()
   Serial.println(url);
 
   yield();
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url, ""));
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url));
   yield();
 
   if (error)
@@ -2727,7 +2935,7 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   Serial.println(inverter_url);
 
   yield();
-  DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url, ""), DeserializationOption::Filter(filter));
+  DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url), DeserializationOption::Filter(filter));
   yield();
 
   if (error)
@@ -3379,6 +3587,7 @@ char in_buffer[2048]; // common buffer for multi chunk response and multiline in
  */
 bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_series)
 {
+  Serial.printf("get_renewable_forecast start getFreeHeap: %du\n", ESP.getFreeHeap());
   if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR && strlen(s.forecast_loc) < 2)
   {
     Serial.println(F("Forecast location undefined. Quitting"));
@@ -3388,6 +3597,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   WiFiClientSecure client_https;
   char fcst_url[120];
   DynamicJsonDocument doc(4096);
+  // doc.garbageCollect();
 
   // reset variables
   if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
@@ -3407,6 +3617,12 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   }
 
   String ca_cert = LittleFS.open(fmi_ca_filename, "r").readString();
+
+  // explicit close, better?
+  // File ca_cert_file = LittleFS.open(fmi_ca_filename, "r");
+  // String ca_cert = ca_cert_file.readString();
+  // ca_cert_file.close();
+
   // Serial.println(ca_cert);
   client_https.setCACert(ca_cert.c_str());
 
@@ -3424,7 +3640,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
       log_msg(MSG_TYPE_ERROR, error_buf);
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Quitting forecast query."));
-
+    client_https.stop();
     return false;
   }
   yield();
@@ -3435,8 +3651,6 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
     snprintf(fcst_url, sizeof(fcst_url), "/products/renewable-energy-forecasts/wind/windpower_fi_latest.json");
 
   Serial.printf("Requesting URL: %s\n", fcst_url);
-
-  //
 
   // #pragma message("EXPERIMENTAL http 1.0 , was 1.1")
   client_https.print(String("GET ") + fcst_url + " HTTP/1.0\r\n" +
@@ -3508,18 +3722,13 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
     period = (time_t)elem[0] - 3600; // The value represent previous hour, Anders Lindfors 3.5.2023
     energy = elem[1];
     if (energy > 0.001)
-      //  solar_forecast.set(period, energy * 1000);
       time_series->set(period, energy * 1000);
-    //   Serial.printf("period %lu, energy: %f\n", period, energy);
   }
   // Free resources
   client_https.stop();
-  yield();
-
-  // solar_forecast.debug_print();
-  // time_series->debug_print();
 
   yield();
+  Serial.printf("get_renewable_forecast end getFreeHeap: %du\n", ESP.getFreeHeap());
   return true;
 }
 
@@ -3532,6 +3741,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
  */
 bool get_price_data()
 {
+  Serial.printf("get_price_data start getFreeHeap: %du\n", ESP.getFreeHeap());
   time_t now_in_func;
   time(&now_in_func);
   // if (is_cache_file_valid(price_data_filename) && prices_initiated) // "/price_data.json"
@@ -3603,7 +3813,7 @@ bool get_price_data()
       log_msg(MSG_TYPE_ERROR, error_buf);
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Quitting price query."));
-
+    client_https.stop();
     return false;
   }
   char url[220];
@@ -3755,16 +3965,12 @@ bool get_price_data()
       Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
 
-    /*   File prices_file = LittleFS.open(price_data_filename, "w"); // Open file for writing "/price_data.json"
-       serializeJson(doc, prices_file);
-       prices_file.close();
-     */
     Serial.println(F("Finished succesfully get_price_data."));
     prices2.debug_print();
 
-    // TEST INFLUX
+    // update to Influx if defined
     update_prices_to_influx();
-
+    Serial.printf("get_price_data end getFreeHeap: %du\n", ESP.getFreeHeap());
     return true;
   }
   else
@@ -3807,6 +4013,8 @@ int active_condition(int channel_idx)
  * @return false
  */
 
+//   /application
+
 void onWebApplicationGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -3815,7 +4023,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   }
 
   // No up-to-date json cache file, let's create one
-  DynamicJsonDocument doc(8192);
+  // DynamicJsonDocument doc(8192);
+  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
   doc["compile_date"] = compile_date;
   doc["HWID"] = HWID;
 
@@ -3825,6 +4034,14 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   doc["RULE_STATEMENTS_MAX"] = RULE_STATEMENTS_MAX;
   doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
   doc["CHANNEL_CONDITIONS_MAX"] = CHANNEL_CONDITIONS_MAX;
+
+  // some debug info
+  time_t current_time;
+  time(&current_time);
+
+  doc["ts"] = current_time;
+  doc["free_heap"] = ESP.getFreeHeap();
+  doc["fs_mounted"] = fs_mounted;
 
 #ifdef INFLUX_REPORT_ENABLED
   doc["INFLUX_REPORT_ENABLED"] = true;
@@ -3876,6 +4093,10 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
   for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
   {
+#ifndef HW_EXTENSIONS_ENABLED // skip register templates
+    if (hw_templates[hw_template_idx].hw_io.output_register)
+      continue;
+#endif
     JsonObject json_hs_template = json_hs_templates.createNestedObject();
     json_hs_template["id"] = (int)hw_templates[hw_template_idx].id;
     json_hs_template["name"] = hw_templates[hw_template_idx].name;
@@ -3883,7 +4104,23 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   serializeJson(doc, output);
 
   request->send(200, "application/json", output);
-  request->send(200, "application/json;charset=UTF-8", output);
+}
+
+void onWebWifisGet(AsyncWebServerRequest *request)
+{
+  StaticJsonDocument<512> doc;
+  String output;
+  for (int i = 0; i < WIFI_LIST_COUNT; i++)
+  {
+    if (strlen(wifis[i].ssid) > 0)
+    {
+      JsonObject json_wifi = doc.createNestedObject();
+      json_wifi["id"] = wifis[i].ssid;
+      json_wifi["rssi"] = wifis[i].rssi;
+    }
+  }
+  serializeJson(doc, output);
+  request->send(200, "application/json", output);
 }
 
 /**
@@ -3932,7 +4169,9 @@ void read_energy_meter()
       { // connected earlier, but now many unsuccesfull reads
         WiFi.disconnect();
         log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter connections."), true);
+
         delay(2000);
+
         ESP.restart();
       }
       else
@@ -4117,7 +4356,7 @@ bool switch_http_relay(int channel_idx, bool up)
   Serial.printf("url_to_call    :%s\n", url_to_call);
 
   StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call, "", 5000)); // shorter connect timeout for a local switch
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call, 5000)); // shorter connect timeout for a local switch
   if (error)
   {
     snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
@@ -4178,7 +4417,6 @@ bool apply_relay_state(int channel_idx, bool init_relay)
   if (!init_relay && !up)
   { // channel goes normally down, (removed: record last time seen up and queue for delayd eeprom write)
     s.ch[channel_idx].up_last = now_in_func;
-    // eeprom_noncritical_cache_dirty = true;
     Serial.printf("Channel %d seen up now at %ld \n", channel_idx, (long)s.ch[channel_idx].up_last);
   }
   Serial.printf("ch%d ->%s", channel_idx, up ? "HIGH  " : "LOW  ");
@@ -4186,18 +4424,42 @@ bool apply_relay_state(int channel_idx, bool init_relay)
   ch_counters.set_state(channel_idx, up); // counters
   if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
   {
-    if (test_set_gpio_pinmode(channel_idx, init_relay))
-    {
-      uint8_t pin_val;
-      if ((s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
-        pin_val = (up ? LOW : HIGH);
-      else
-        pin_val = (up ? HIGH : LOW);
-      digitalWrite(s.ch[channel_idx].relay_id, pin_val);
-      return true;
-    }
+    uint8_t pin_val;
+    if ((s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
+      pin_val = (up ? LOW : HIGH);
     else
-      return false; // invalid gpio
+      pin_val = (up ? HIGH : LOW);
+#ifdef HW_EXTENSIONS_ENABLED
+    if (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register)
+    {
+      if (s.ch[channel_idx].relay_id < MAX_REGISTER_BITS)
+      {
+        Serial.printf("Setting register bit %d %s\n", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW");
+        bitWrite(register_out, s.ch[channel_idx].relay_id, pin_val); // TODO: add mapping from relay_id to bit, it is not necessarily same bits, or lock the ui
+
+        // Serial.printf("register_out %d\n", (int)register_out);
+        updateShiftRegister();
+        return true;
+      }
+      else
+        return false;
+    }
+#else
+    if (false){
+      ; // extensions not yet enabled
+  }
+#endif
+    else
+    {
+      if (test_set_gpio_pinmode(channel_idx, init_relay))
+      {
+        Serial.printf("Setting gpio  %d %s\n", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW");
+        digitalWrite(s.ch[channel_idx].relay_id, pin_val);
+        return true;
+      }
+      else
+        return false; // invalid gpio
+    }
   }
   // do not try to connect if there is no wifi stack initiated
   else if (wifi_connection_succeeded && (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN || s.ch[channel_idx].type == CH_TYPE_TASMOTA))
@@ -4423,11 +4685,11 @@ bool get_releases()
 {
   time_t current_time;
   time(&current_time);
-  if (release_cache_expires>current_time) {
-     Serial.println(F("Release cache still valid. No query."));
-     return true;
+  if (release_cache_expires > current_time)
+  {
+    Serial.println(F("Release cache still valid. No query."));
+    return true;
   }
-    
 
   WiFiClientSecure client_https;
   client_https.setCACert(letsencrypt_ca_certificate);
@@ -4455,11 +4717,10 @@ bool get_releases()
   {
     update_releases = client_https.readString();
     Serial.println(update_releases);
-    release_cache_expires = current_time+2*3600;
+    release_cache_expires = current_time + 2 * 3600;
   }
 
   client_https.stop();
- 
 
   return true;
 }
@@ -4479,7 +4740,6 @@ void flash_update_ended()
 
 // declare
 bool create_shadow_settings();
-
 
 /**
  * @brief Download and update flash(program), restarts the device if successful
@@ -4530,8 +4790,8 @@ void fs_update_ended()
  */
 t_httpUpdate_return update_fs()
 {
-  Serial.printf(PSTR("Updating filesystem to version %s\n"), VERSION_BASE); //oli VERSION_BASE
- if (String(VERSION_BASE).equals(version_fs_base))
+  Serial.printf(PSTR("Updating filesystem to version %s\n"), VERSION_BASE); // oli VERSION_BASE
+  if (String(VERSION_BASE).equals(version_fs_base))
   {
     Serial.println(F("No need for filesystem update."));
     return HTTP_UPDATE_NO_UPDATES;
@@ -4553,7 +4813,7 @@ t_httpUpdate_return update_fs()
   if (update_ok == HTTP_UPDATE_OK)
   {
     Serial.println(F("Restarting after filesystem update."));
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after filesystem update."), true);
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after filesystem update."), false);
 
     ESP.restart(); // Restart to recreate cache files etc
   }
@@ -4635,6 +4895,7 @@ void onWebUpdatePost(AsyncWebServerRequest *request)
 }
 
 #endif // OTA_DOWNLOAD_ENABLED
+
 #ifdef OTA_UPDATE_ENABLED
 
 /**
@@ -4661,16 +4922,15 @@ void onWebUpdateGet(AsyncWebServerRequest *request)
  */
 void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
+  io_tasks(STATE_UPLOADING);
   size_t content_len;
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
 
-  
-
-  if (!index) //first
+  if (!index) // first
   {
     Serial.println("Update");
-    
+
     content_len = request->contentLength();
     int cmd = (filename.indexOf("littlefs") > -1) ? U_PART : U_FLASH;
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
@@ -4711,10 +4971,10 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
 /**
  * @brief Reset config variables to defaults
  *
- * @param full_reset Is admin password also resetted
+ *
  */
 #define DEFAULT_COLOR_COUNT 9
-void reset_config(bool full_reset)
+void reset_config()
 {
   Serial.println(F("Starting reset_config"));
 
@@ -4778,8 +5038,6 @@ void reset_config(bool full_reset)
   strncpy(s.wifi_ssid, current_wifi_ssid, sizeof(s.wifi_ssid));
   strncpy(s.wifi_password, current_wifi_password, sizeof(s.wifi_password));
 
-  // s.variable_mode = VARIABLE_MODE_SOURCE; // this mode only supported now
-
   strncpy(s.custom_ntp_server, "", sizeof(s.custom_ntp_server));
 
   s.baseload = 0;
@@ -4797,6 +5055,7 @@ void reset_config(bool full_reset)
   strcpy(s.timezone, "EET");
 
   s.hw_template_id = 0; // undefined my default
+  hw_template_idx = -1;
 
   bool gpios_defined = false; // if CH_GPIOS array hardcoded (in platformio.ini)
   uint16_t channel_gpios[CHANNEL_COUNT];
@@ -4923,6 +5182,10 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["energy_meter_password"] = s.energy_meter_password;
   }
 
+#ifdef HW_EXTENSIONS_ENABLED
+  doc["output_register"] = (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register);
+#endif
+
   doc["production_meter_type"] = s.production_meter_type;
   if (s.production_meter_type != PRODUCTIONM_NONE)
   {
@@ -4950,6 +5213,8 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   {
     //  Serial.printf(PSTR("Exporting channel %d\n"), channel_idx);
 
+    doc["ch"][channel_idx]["locked"] = (hw_template_idx != -1 && hw_templates[hw_template_idx].locked_channels >= (channel_idx + 1));
+
     doc["ch"][channel_idx]["id_str"] = s.ch[channel_idx].id_str;
     doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
     doc["ch"][channel_idx]["config_mode"] = s.ch[channel_idx].config_mode;
@@ -4969,7 +5234,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["ch"][channel_idx]["r_id"] = s.ch[channel_idx].relay_id;
     doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
     doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
-   // doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
+    // doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
@@ -5012,7 +5277,6 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     }
   }
 }
-
 
 /**
  * @brief Export current configuration in json to web response
@@ -5152,7 +5416,6 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
 
   ajson_str_to_mem(doc, (char *)"wifi_ssid", s.wifi_ssid, sizeof(s.wifi_ssid));
   ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
-  //  s.variable_mode = VARIABLE_MODE_SOURCE; // get_doc_long(doc, "variable_mode", VARIABLE_MODE_SOURCE);
   ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
   ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
 
@@ -5178,6 +5441,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   }
 
   s.hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
+  hw_template_idx = get_hw_template_idx(s.hw_template_id); // update cached variable
 
   s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
@@ -5203,29 +5467,32 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   int stmt_idx = 0;
   char hex_buffer[8];
 
-  int32_t hw_template_id;
-
   if (!doc["hw_template_id"].isNull())
   {
-    hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
-    s.hw_template_id = hw_template_id;
-    if ((hw_template_id != s.hw_template_id) && hw_template_id > 0)
+    Serial.printf("hw_template_idx %d, s.hw_template_id %d\n", hw_template_idx, s.hw_template_id);
+    if (hw_template_idx != -1)
     {
+      // copy template id:s (gpio)
       for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
       {
         if (channel_idx < HW_TEMPLATE_GPIO_COUNT)
         { // touch only channel which could have gpio definitions
-          if (hw_templates[s.hw_template_id].gpios[channel_idx] < 255)
+          if (hw_templates[hw_template_idx].relay_id[channel_idx] < ID_NA)
           {
             s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF; // was CH_TYPE_GPIO_FIXED;
-            s.ch[channel_idx].relay_id = hw_templates[s.hw_template_id].gpios[channel_idx];
+            s.ch[channel_idx].relay_id = hw_templates[hw_template_idx].relay_id[channel_idx];
+            Serial.printf("New value for s.ch[channel_idx].relay_id  %d\n", (int)hw_templates[hw_template_idx].relay_id[channel_idx]);
           }
           else if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) // deprecate CH_TYPE_GPIO_FIXED
           {                                                      // fixed gpio -> user defined, new way
-            s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
+            s.ch[channel_idx].type = CH_TYPE_UNDEFINED;          // CH_TYPE_GPIO_USER_DEF;
           }
         }
       }
+    }
+    else
+    {
+      Serial.printf("Cannot find hw_template with id %d\n", s.hw_template_id);
     }
   }
 
@@ -5285,15 +5552,16 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
       }
       rule_idx++;
     }
+    // just in case if the are changes in relay config
+    relay_state_reapply_required[channel_idx] = true;
+    todo_in_loop_reapply_relay_states = true;
+
     channel_idx++;
     channel_idx_loop++;
   }
-
   writeToEEPROM();
   return true;
 }
-
-
 
 // Write settings to a local file. Can be read after upgrade.
 bool create_shadow_settings()
@@ -5304,13 +5572,14 @@ bool create_shadow_settings()
   create_settings_doc(doc, true);
   serializeJson(doc, settings_file);
   settings_file.close();
+  delay(2000);
   return true;
 }
 
 bool read_shadow_settings()
 {
   Serial.println("read_shadow_settings ");
- // StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
+  // StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
   DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
 
   if (!LittleFS.exists(shadow_settings_filename))
@@ -5320,6 +5589,7 @@ bool read_shadow_settings()
   }
   File config_file = LittleFS.open(shadow_settings_filename, "r");
   DeserializationError error = deserializeJson(doc, config_file);
+  config_file.close();
   if (error)
   {
     Serial.println("Cannot get settings from shadow file");
@@ -5328,9 +5598,9 @@ bool read_shadow_settings()
   }
   else
   {
-      store_settings_from_json_doc_dyn(doc);
-      Serial.println("Got settings from shadow file - dynamic");
-      return true;
+    store_settings_from_json_doc_dyn(doc);
+    Serial.println("Got settings from shadow file - dynamic");
+    return true;
   }
 }
 
@@ -5354,19 +5624,11 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     return request->requestAuthentication();
 
   bool final = ((len + index) == total);
-  Serial.println("onWebUploadConfig   len,  index,  total final ");
-  Serial.println(len);
-  Serial.println(index);
-  Serial.println(total);
-  Serial.println(final);
-  Serial.println();
-
-  const char *filename_internal = "/cache/config_in.json";
 
   if (!index) // first
   {
     //  open the file on first call and store the file handle in the request object
-    request->_tempFile = LittleFS.open(filename_internal, "w");
+    request->_tempFile = LittleFS.open(filename_config_in, "w");
   }
 
   if (len) // contains data
@@ -5381,10 +5643,10 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     // close the file handle as the upload is now done
     request->_tempFile.close();
 
-    File config_file = LittleFS.open(filename_internal, "r");
-    //StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc;
+    File config_file = LittleFS.open(filename_config_in, "r");
     DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
     DeserializationError error = deserializeJson(doc, config_file);
+    config_file.close();
     if (error)
     {
       Serial.println(error.f_str());
@@ -5392,11 +5654,11 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     }
     else
     {
-      reset_config(false);
+      reset_config();
       store_settings_from_json_doc_dyn(doc);
-      todo_in_loop_restart = true; //restart
+      todo_in_loop_restart = true; // restart
       request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 30}");
-        }
+    }
   }
 }
 /**
@@ -5535,7 +5797,7 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
 
   if (doc["action"] == "reset")
   {
-    reset_config(false);
+    reset_config();
     todo_in_loop_restart_local = true;
     writeToEEPROM();
   }
@@ -5582,9 +5844,9 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
     StaticJsonDocument<256> out_doc; // global doc to discoveries
     String output;
 
-  //  StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
+    //  StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
     DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
-    
+
     DeserializationError error = deserializeJson(doc, in_buffer);
     if (error)
     {
@@ -5697,13 +5959,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
   JsonObject var_obj = doc.createNestedObject("variables");
 
-  /*
-  #ifdef INVERTER_FRONIUS_SOLARAPI_ENABLED
-    variables["energyProducedPeriod"] = energy_produced_period;
-    variables["powerProducedPeriodAvg"] = power_produced_period_avg;
-  #endif
-  */
-
   char id_str[6];
   char buff_value[20];
   variable_st variable;
@@ -5776,9 +6031,10 @@ void onWebStatusGet(AsyncWebServerRequest *request)
       doc["channel_history"][channel_idx][h_idx] = (uint8_t)((channel_history_s[channel_idx][h_idx] + 30) / 60);
     }
 
-    ch_counters.update_utilization(channel_idx);
-    // doc["channel_history"][channel_idx][MAX_HISTORY_PERIODS - 1] = ch_counters.get_utilization(channel_idx);
-    doc["channel_history"][channel_idx][MAX_HISTORY_PERIODS - 1] = (uint8_t)((ch_counters.get_period_uptime(channel_idx) + 30) / 60);
+   // ch_counters.update_utilization(channel_idx);
+    ch_counters.update_times(channel_idx);
+    // this could cause too big value, maybe overflow, was  uint8_t
+    doc["channel_history"][channel_idx][MAX_HISTORY_PERIODS - 1] = (int16_t)((ch_counters.get_period_uptime(channel_idx) + 30) / 60);
   }
 
   time_t current_time;
@@ -5789,13 +6045,14 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
   doc["ts"] = current_time;
   doc["started"] = started;
-
+  doc["temp_f"] = cpu_temp_f;
   doc["last_msg_msg"] = last_msg.msg;
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
   doc["energym_read_last"] = energym_read_last;
   doc["productionm_read_last"] = productionm_read_last;
   doc["next_process_in"] = max((long)0, (long)next_process_ts - current_time);
+  doc["free_heap"] = ESP.getFreeHeap();
 
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -5889,7 +6146,6 @@ void wifi_event_handler(WiFiEvent_t event)
 void setup()
 {
   bool create_wifi_ap = false;
-  // s.variable_mode = VARIABLE_MODE_SOURCE;
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
 
@@ -5898,23 +6154,33 @@ void setup()
 
   String wifi_mac_short = WiFi.macAddress();
   Serial.printf(PSTR("Device mac address: %s\n"), WiFi.macAddress().c_str());
-
-  // Experimental
-  grid_protection_delay_interval = random(0, grid_protection_delay_max / PROCESS_INTERVAL_SECS) * PROCESS_INTERVAL_SECS;
-  Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
-
   for (int i = 14; i > 0; i -= 3)
   {
     wifi_mac_short.remove(i, 1);
   }
 
-  while (!LittleFS.begin())
+  // Experimental
+  grid_protection_delay_interval = random(0, grid_protection_delay_max / PROCESS_INTERVAL_SECS) * PROCESS_INTERVAL_SECS;
+  Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
+
+  if (!LittleFS.begin())
   {
-    Serial.println(F("Failed to initialize LittleFS library, restarting..."));
+
     delay(5000);
-    ESP.restart();
+    if (!LittleFS.begin())
+    {
+      Serial.println(F("Failed to initialize LittleFS library,."));
+      log_msg(MSG_TYPE_FATAL, "Cannot use corrupted filesystem! Update the system!");
+      // delay(5000);
+      //  ESP.restart();
+    }
   }
-  Serial.println(F("LittleFS initialized"));
+  else {
+    fs_mounted = true;
+    Serial.println(F("LittleFS initialized"));
+  }
+
+
   log_msg(MSG_TYPE_INFO, PSTR("Started setup"), true);
 
 #ifdef SENSOR_DS18B20_ENABLED
@@ -5931,14 +6197,17 @@ void setup()
   todo_in_loop_update_firmware_partition = !(check_filesystem_version());
 
   readFromEEPROM();
+
+  io_tasks();
+
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
   {
-    Serial.printf(PSTR("Memory structure changed. Resetting settings. Current check value %d, new %d\n "), s.check_value,(int)EEPROM_CHECK_VALUE);
-    reset_config(true); // assume check value -1 on first run after eeprom init
+    Serial.printf(PSTR("Memory structure changed. Resetting settings. Current check value %d, new %d\n "), s.check_value, (int)EEPROM_CHECK_VALUE);
+    reset_config(); // assume check value -1 on first run after eeprom init
     config_resetted = true;
     read_shadow_settings(); // try to get save settings from shadow settings file
   }
-  else 
+  else
     Serial.printf(PSTR("Current check value %d match with firmware check value.\n "), s.check_value);
 
   // Channel init with state DOWN/failsafe
@@ -5955,8 +6224,34 @@ void setup()
     relay_state_reapply_required[channel_idx] = false;
   }
 
+// HW EXTENSIONS setup()
+#ifdef HW_EXTENSIONS_ENABLED
+  if (hw_template_idx != -1)
+  {
+    io_tasks();
+    // reset button
+    if (hw_templates[hw_template_idx].hw_io.reset_button_gpio != ID_NA)
+    {
+      pinMode(hw_templates[hw_template_idx].hw_io.reset_button_gpio, INPUT_PULLDOWN);
+      reset_button_previous_state = digitalRead(hw_templates[hw_template_idx].hw_io.reset_button_gpio);
+    }
+    // Set all the pins of 74HC595 as OUTPUT
+    if (hw_templates[hw_template_idx].hw_io.output_register)
+    {
+      pinMode(hw_templates[hw_template_idx].hw_io.rclk_gpio, OUTPUT);
+      pinMode(hw_templates[hw_template_idx].hw_io.ser_gpio, OUTPUT);
+      pinMode(hw_templates[hw_template_idx].hw_io.srclk_gpio, OUTPUT);
+      register_out = 0; // all down
+
+      //   Serial.printf("register_out %d\n", (int)register_out);
+
+      updateShiftRegister();
+    }
+  }
+#endif
+
   Serial.println("Starting wifi");
-  scan_and_store_wifis(true); // testing this in the beginning
+  scan_and_store_wifis(true, false); // testing this in the beginning
 
   WiFi.onEvent(wifi_event_handler);
 
@@ -5973,21 +6268,28 @@ void setup()
   if (wifi_defined)
   {
     WiFi.begin(s.wifi_ssid, s.wifi_password);
+    unsigned long connect_started = millis();
+    while (WiFi.status() != WL_CONNECTED)
+    { // Wait for the Wi-Fi to connect
+      if (millis() - connect_started > 60000)
+      {
+        Serial.println(F("WiFi Failed!"));
+        delay(1000);
+        WiFi.disconnect();
+        delay(3000);
+        break;
+      }
+      io_tasks(STATE_CONNECTING); // leds, reset
+      delay(500);
+    }
   }
   else
   {
-    Serial.println(F("WiFi undefined!"));
+    Serial.println(F("WiFi SSID undefined!"));
   }
 
-  if (!wifi_defined || WiFi.waitForConnectResult(60000L) != WL_CONNECTED)
+  if (WiFi.status() != WL_CONNECTED)
   {
-    if (wifi_defined)
-    {
-      Serial.println(F("WiFi Failed!"));
-      delay(1000);
-      WiFi.disconnect();
-      delay(3000);
-    }
     wifi_in_setup_mode = true;
     create_wifi_ap = true;
     check_forced_restart(true); // schedule restart
@@ -5998,12 +6300,13 @@ void setup()
     wifi_connection_succeeded = true;
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
-
-    if (!LittleFS.exists(wifis_filename))
-    { // no wifi list found
-      Serial.println("No wifi list found - rescanning...");
-      scan_and_store_wifis(false);
-    }
+    /*
+        if (!LittleFS.exists(wifis_filename))
+        { // no wifi list found
+          Serial.println("No wifi list found - rescanning...");
+          scan_and_store_wifis(false);
+        }
+    */
   }
 
   // if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
@@ -6030,6 +6333,7 @@ void setup()
       log_msg(MSG_TYPE_FATAL, PSTR("Cannot create AP, restarting."), true);
 
       delay(2000); // cannot create AP, restart
+
       ESP.restart();
     }
   }
@@ -6053,8 +6357,10 @@ void setup()
   }
 #endif
 
+  io_tasks(); // starting leds
+
 #ifdef OTA_UPDATE_ENABLED
-  // update form
+              //  update form
   server_web.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
                 { onWebUpdateGet(request); });
 
@@ -6107,6 +6413,7 @@ void setup()
   server_web.on("/application", HTTP_GET, onWebApplicationGet);
 
   server_web.on("/settings", HTTP_GET, onWebSettingsGet);
+  server_web.on("/wifis", HTTP_GET, onWebWifisGet);
 
   server_web.on(
       "/settings", HTTP_POST,
@@ -6163,12 +6470,12 @@ void setup()
                 {  request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon-16x16.png"), F("image/png")); });
 
   // refresh test
-  server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, wifis_filename, "text/json"); });
+  // server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
+  //              { request->send(LittleFS, wifis_filename, "text/json"); });
 
-  // debug
-  server_web.on("/cache/config_in.json", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, "/cache/config_in.json", F("application/json")); });
+  // debug /cache/config_in.json
+  // server_web.on(filename_config_in, HTTP_GET, [](AsyncWebServerRequest *request)
+  //              { request->send(LittleFS, filename_config_in, F("application/json")); });
 
   // templates
   server_web.on(template_filename, HTTP_GET, [](AsyncWebServerRequest *request)
@@ -6207,6 +6514,8 @@ void loop()
 {
   bool got_new_external_data_ok;
 
+  io_tasks();
+
   //  handle initial wifi setting from the serial console command line
   if (wifi_in_setup_mode && Serial.available())
   {
@@ -6215,7 +6524,7 @@ void loop()
     {
       if (serial_command.c_str()[0] == 's')
       {
-        scan_and_store_wifis(true);
+        scan_and_store_wifis(true, false);
         return;
       }
       if (isdigit(serial_command[0]))
@@ -6254,24 +6563,6 @@ void loop()
     writeToEEPROM();
   }
 
-#ifdef DEBUG_MODE
-  // test gpio, started from admin UI
-  /*if (todo_in_loop_test_gpio)
-  {
-    Serial.printf(PSTR("Testing gpio %d\n"), gpio_to_test_in_loop);
-    pinMode(gpio_to_test_in_loop, OUTPUT);
-    for (int j = 0; j < 3; j++)
-    {
-      digitalWrite(gpio_to_test_in_loop, LOW);
-      delay(1000);
-      digitalWrite(gpio_to_test_in_loop, HIGH);
-      delay(500);
-    }
-    todo_in_loop_test_gpio = false;
-    Serial.println(F("GPIO Testing ready"));
-  }*/
-#endif
-
   if (todo_in_loop_restart)
   {
     delay(1000);
@@ -6283,7 +6574,7 @@ void loop()
   if (todo_in_loop_scan_wifis)
   {
     todo_in_loop_scan_wifis = false;
-    scan_and_store_wifis(false);
+    scan_and_store_wifis(true, true);
   }
   /*
   #ifdef MDNS_ENABLED
@@ -6299,10 +6590,9 @@ void loop()
   if (todo_in_loop_get_releases)
   {
     todo_in_loop_get_releases = false;
-    if (update_releases.length() < 10)
-    {
+
       get_releases();
-    }
+    
   }
 #endif
 
@@ -6438,11 +6728,13 @@ void loop()
   if (next_query_price_data <= now)
   {
     //   Serial.printf("next_query_price_data now: %ld \n", now);
+    io_tasks(STATE_PROCESSING);
     got_new_external_data_ok = get_price_data();
+    io_tasks(STATE_PROCESSING);
     // todo_in_loop_update_price_rank_variables = got_new_external_data_ok;
     if (got_new_external_data_ok)
       todo_calculate_ranks_period_variables = true;
-    next_query_price_data = now + (got_new_external_data_ok ? (1200 + random(0, 300)) : (120 + random(0, 60))); // random, to prevent query peak
+    next_query_price_data = now + (got_new_external_data_ok ? (1200 + random(0, 300)) : (600 + random(0, 60))); // random, to prevent query peak
     Serial.printf("next_query_price_data: %ld \n", next_query_price_data);
   }
 
@@ -6475,23 +6767,17 @@ void loop()
   if (next_query_fcst_data <= now) // got solar fcsts
   {
     // got_new_external_data_ok = get_solar_forecast();
+    io_tasks(STATE_PROCESSING);
     got_new_external_data_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     todo_calculate_ranks_period_variables = true;
 
-    next_query_fcst_data = now + (got_new_external_data_ok ? (3500 + random(0, 200)) : 100 + random(0, 100));
+    next_query_fcst_data = now + (got_new_external_data_ok ? (3 * 3600 + random(0, 200)) : 600 + random(0, 100));
   }
-  /*
-    if (todo_in_loop_update_price_rank_variables)
-    {
-      todo_in_loop_update_price_rank_variables = false;
-      // updated_ok = update_price_rank_variables();
-      calculate_price_ranks_current(); // just in case update current
-      return;
-    }
-  */
+
   if (todo_calculate_ranks_period_variables)
   {
+    io_tasks(STATE_PROCESSING);
     todo_calculate_ranks_period_variables = false;
     calculate_price_ranks_current();
     yield();
@@ -6502,6 +6788,7 @@ void loop()
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
   if (next_process_ts <= now) // time to process
   {
+    io_tasks(STATE_PROCESSING);
     localtime_r(&now, &tm_struct);
     Serial.printf(PSTR("%02d:%02d:%02d Reading sensor and meter data... \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
     if (s.energy_meter_type != ENERGYM_NONE)
@@ -6549,4 +6836,5 @@ void loop()
 #endif
   yield();
   delay(50);
+  io_tasks();
 }
