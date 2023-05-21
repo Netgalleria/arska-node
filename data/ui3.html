@@ -18,11 +18,12 @@
   
   -->
 
-  <!--
+  
   <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
   <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
+  <link rel="shortcut icon" href="/favicon.ico">
 
-  -->
+  
 
   <style>
     .bd-placeholder-img {
@@ -145,6 +146,13 @@
       left: 0;
       top: 0
     }
+
+#chart_container {display: none; }
+@media only screen and (min-width: 500px) {
+    #chart_container {
+        display: block;
+    }
+}
   </style>
 </head>
 
@@ -175,7 +183,7 @@
       <a class="mobile-menu-btn mx-2" data-bs-toggle="offcanvas" href="#mobileMenu" role="button"
         aria-controls="mobileMenu">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
-          class="mobile-menu-icon bi bi-list" viewBox="0 0 16 16">
+          class="mobile-menu-icon bi bi-list" style="pointer-events: none;" viewBox="0 0 16 16">
           <path fill-rule="evenodd"
             d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z" />
         </svg>
@@ -188,15 +196,15 @@
     <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu" aria-labelledby="mobileMenu">
       <div class="offcanvas-header px-4 pb-0">
         <h5 class="offcanvas-title" id="mobileMenuLabel">Valikko</h5>
-        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <button type="button" id="mobileMenuClose" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body">
         <div>
           <ul class="mobile-menu">
-            <li class="menu-item active"><a href="#">Dashboard</a></li>
-            <li class="menu-item"><a href="#">Channels</a></li>
-            <li class="menu-item"><a href="#">Settings</a></li>
-            <li class="menu-item"><a href="#">Arska Wiki</a></li>
+            <li class="menu-item active"><a href="#" onclick="jump('dashboard');">Dashboard</a></li>
+            <li class="menu-item"><a href="#" onclick="jump('channels');">Channels</a></li>
+            <li class="menu-item"><a href="#" onclick="jump('admin');" >Settings</a></li>
+            <li class="menu-item"><a href="https://github.com/Netgalleria/arska-node/wiki">Arska Wiki</a></li>
           </ul>
         </div>
       </div>
@@ -1007,9 +1015,12 @@
                         <div id="adminadv_acc" class="accordion-collapse collapsed collapse collapsed"
                           aria-labelledby="adminadv_accordionh3" data-bs-parent="#adminadv_accordion">
                           <div class="accordion-body">
+                            <div class="mb-2">
+                              <span id="cpu_temp" class="text-muted"></span>
+                            </div>
                             <div class="d-grid gap-2 d-md-block text-end">
                               <label class="form-label">Special actions</label><br>
-
+                          
                               <button type="button" id="admin:restart" class="btn btn-secondary">Restart and clear
                                 cache</button>
                               <button type="button" id="admin:reset" class="btn btn-secondary">Reset Settings</button>
