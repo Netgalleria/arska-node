@@ -23,5 +23,6 @@
         "sntp_opts.h": "c"
     },
     "C_Cpp.dimInactiveRegions": false,
-    "liveServer.settings.port": 5501
+    "liveServer.settings.port": 5501,
+    "python.formatting.provider": "yapf"
 }

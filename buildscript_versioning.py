@@ -6,7 +6,7 @@ FILENAME_VERSION_H = 'include/version.h'
 # phases alpha, beta, rc, stable,  
 # e.g. 0.93.0-alpha1,  0.93.0-beta1,  0.93.0-rc1,  0.93.0-stable, 0.93.1-stable  
 
-version = '0.99.0-beta1'
+version = '0.99.0-alfa3'
 #version = '0.92.0-rc2'
 #version = '0.92.0-stable'
 
@@ -65,6 +65,11 @@ else:
       f.write(hffs)
 
   import os
-  print("Rebuilding filesystem file littlefs.bin")
+  env = DefaultEnvironment()
+  
+  filesystem = env.GetProjectOption("board_build.filesystem")   
+  fs_filename = filesystem + ".bin"
+
+  print("Rebuilding filesystem file n"+fs_filename)
   returned_value = os.system("platformio run --target buildfs --environment esp32-generic-6ch")
     

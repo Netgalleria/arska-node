@@ -25,15 +25,30 @@ DEVEL BRANCH
 #define EEPROM_CHECK_VALUE 10102
 #define DEBUG_MODE
 
+#define FILESYSTEM_LITTLEFS
+
+#ifdef FILESYSTEM_LITTLEFS
+#pragma message("FILESYSTEM_LITTLEFS")
+#include <LittleFS.h>
+#define FILESYSTEM LittleFS
+#define fs_filename "littlefs.bin"
+#else
+#pragma message("FILESYSTEM_SPIFFS")
+#include "SPIFFS.h"
+#define FILESYSTEM SPIFFS
+#define fs_filename "spiffs.bin"
+#endif
+
 #include <Arduino.h>
 #include <math.h> //round
 #include <EEPROM.h>
-#include <LittleFS.h>
+
 #include "WebAuthentication.h"
 
 #include "ArskaGeneric.h"
 
 #include "version.h"
+
 const char compile_date[] = __DATE__ " " __TIME__;
 char version_fs[40];
 String version_fs_base; //= "";
@@ -136,7 +151,7 @@ bool wifi_connection_succeeded = false;
 time_t last_wifi_connect_tried = 0;
 bool clock_set = false;       // true if we have get (more or less) correct time from net or rtc
 bool config_resetted = false; // true if configuration cleared when version upgraded
-bool fs_mounted = false; // true
+bool fs_mounted = false;      // true
 
 #define ERROR_MSG_LEN 100
 #define DEBUG_FILE_ENABLED
@@ -187,7 +202,7 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
   char datebuff[35];
   if (write_to_file && fs_mounted)
   {
-    File log_file = LittleFS.open(debug_filename, "a");
+    File log_file = FILESYSTEM.open(debug_filename, "a");
     if (!log_file)
     {
       Serial.println(F("Cannot open the log file."));
@@ -265,8 +280,13 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HW_TEMPLATE_COUNT 5
 #define HW_TEMPLATE_GPIO_COUNT 4
 
-// new time series, remove
+// work in progress, use new (and remove old) when ready and tested
+#define PRICE_SERIES_OLD
+#define PRICE_SERIES_NEW_NOT_YET
+
+#ifdef PRICE_SERIES_OLD
 long prices[MAX_PRICE_PERIODS];
+#endif
 
 bool prices_initiated = false;
 time_t prices_first_period = 0;
@@ -287,8 +307,12 @@ const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *fmi_ca_filename PROGMEM = "/data/GEANTOVRSACA4.cer";
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
+#define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
 #define RELEASES_HOST "iot.netgalleria.fi"
-#define RELEASES_URL "/arska-install/releases.php?pre_releases=true"
+#define RELEASES_URL_BASE "/arska-install/releases.php?pre_releases=true&bl="
+#define VERSION_SEPARATOR "&version="
+
+#define RELEASES_URL RELEASES_URL_BASE OTA_BOOTLOADER VERSION_SEPARATOR VERSION_BASE
 
 const char *fcst_url_base PROGMEM = "http://www.bcdcenergia.fi/wp-admin/admin-ajax.php?action=getChartData"; //<! base url for Solar forecast from BCDC
 
@@ -400,7 +424,9 @@ void getRTC()
 
 #endif // rtc
 
-#define HW_EXTENSIONS_ENABLED_NOT_YET
+// uncomment following line to enable SN74HC595, LED and reset button functionality
+//  The device must be defined in  hw_templates array
+// #define HW_EXTENSIONS_ENABLED
 
 #define MAX_LED_COUNT 3
 struct hw_io_struct
@@ -419,7 +445,6 @@ uint8_t cpu_temp_f = 128;
 #ifdef HW_EXTENSIONS_ENABLED
 
 // Hardware extension
-
 
 #define STATUS_LED_TYPE_NONE 0
 #define STATUS_LED_TYPE_RGB3 30
@@ -442,9 +467,6 @@ uint8_t cpu_temp_f = 128;
 #define MAX_REGISTER_BITS 8
 uint8_t register_out = 0;
 
-
-// Shelly 1 Pro , hw_io_struct hw_io = {{0, ID_NA, ID_NA, ID_NA}, 35, true, 4, 13, 14, 30, {4, 3, 2}};
-
 #ifdef __cplusplus
 extern "C"
 {
@@ -459,7 +481,6 @@ uint8_t temprature_sens_read();
 unsigned long state_started = millis();
 int reset_button_triggering_state = HIGH;
 int reset_button_previous_state = reset_button_triggering_state;
-
 
 unsigned long last_temp_read = millis();
 
@@ -476,9 +497,9 @@ bool check_filesystem_version()
   bool is_ok;
   if (!fs_mounted)
     return false;
-    
+
   String current_version;
-  File info_file = LittleFS.open("/data/version.txt", "r");
+  File info_file = FILESYSTEM.open("/data/version.txt", "r");
 
   if (info_file.available())
   {
@@ -617,7 +638,7 @@ struct statement_st
 #define VARIABLE_NET_ESTIMATE_SOURCE_SOLAR_FORECAST 3L
 
 long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
-//uint8_t channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
+// uint8_t channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 uint16_t channel_history_s[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY}; // oli VARIABLE_SELLING_POWER,VARIABLE_PRODUCTION_POWER,
 int get_variable_history_idx(int id)
@@ -892,7 +913,6 @@ int get_hw_template_idx(int id)
 #define COOLING_PANIC_SHUTDOWN_F 248 // 120
 #define COOLING_START_F 230          // 110C
 #define COOLING_RECOVER_TO_F 203     // 95C
-
 
 #ifdef HW_EXTENSIONS_ENABLED
 
@@ -1471,6 +1491,19 @@ public:
     return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / resolution_sec_ + 1);
   }
 
+  void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
+  {
+    *avg_ = avg(start_ts, end_ts_incl);
+    *differs_avg = get(ts) - *avg_;
+    T suma = sum(start_ts, end_ts_incl);
+    if (abs(suma) > 0)
+    {
+      *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (get(ts) * 1000) / suma;
+    }
+    else
+      *ratio_avg = VARIABLE_LONG_UNKNOWN;
+  }
+
   // oli T datatyyppiä
   int32_t sum(time_t start_ts, time_t end_ts_incl)
   { // TODO: check DST change nights
@@ -1603,6 +1636,7 @@ private:
       return index_candidate;
   };
 };
+// Time series globals
 timeSeries<int32_t> prices2(0, MAX_PRICE_PERIODS, PRICE_PERIOD_SEC, 0);
 timeSeries<uint16_t> solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION, 0);
 timeSeries<uint16_t> wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION, 0);
@@ -1638,13 +1672,12 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
   time_t period_start, period_end;
   u32_t periods_from_current;
 
-  //ch_counters.update_utilization(channel_idx);
+  // ch_counters.update_utilization(channel_idx);
   ch_counters.update_times(channel_idx);
 
   // this period
   period_time = now_local - max(current_period_start, started);
-  history_cum_secs = ch_counters.get_period_uptime(channel_idx); 
-
+  history_cum_secs = ch_counters.get_period_uptime(channel_idx);
 
   for (int h_idx = MAX_HISTORY_PERIODS - 2; h_idx > MAX_HISTORY_PERIODS - periods - 1; h_idx--)
   {
@@ -1826,9 +1859,9 @@ void ChannelCounters::update_utilization(int channel_idx)
  */
 uint16_t ChannelCounters::get_period_uptime(int channel_idx)
 {
- // set_state(channel_idx, channel_logs[channel_idx].state); // this will update counters without changing state
+  // set_state(channel_idx, channel_logs[channel_idx].state); // this will update counters without changing state
   update_times(channel_idx);
- // if (channel_logs[channel_idx].on_time>60) --> debug
+  // if (channel_logs[channel_idx].on_time>60) --> debug
   return channel_logs[channel_idx].on_time;
 }
 /**
@@ -1839,7 +1872,7 @@ uint16_t ChannelCounters::get_period_uptime(int channel_idx)
 void ChannelCounters::new_log_period(time_t ts_report)
 {
   time_t now_l;
- // float utilization;
+  // float utilization;
   time(&now_l);
 
   // influx buffer
@@ -1849,33 +1882,33 @@ void ChannelCounters::new_log_period(time_t ts_report)
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     // update current (old) period utilization
-   // set_state(i, channel_logs[i].state); // this will update counters without changing state
+    // set_state(i, channel_logs[i].state); // this will update counters without changing state
     update_times(channel_idx);
 
-   /* if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
-      utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
-    else
-      utilization = 0;
+    /* if ((channel_logs[i].off_time + channel_logs[i].on_time) > 0)
+       utilization = (float)channel_logs[i].on_time / (float)(channel_logs[i].off_time + channel_logs[i].on_time);
+     else
+       utilization = 0;
 
-   // snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
-   // point_period_avg.addField(field_name, utilization);*/
-    snprintf(field_name, sizeof(field_name), "chup%d", channel_idx + 1); // 1-indexed channel numbers in UI
-    point_period_avg.addField(field_name, channel_logs[channel_idx].on_time ); // now minutes
+    // snprintf(field_name, sizeof(field_name), "ch%d", i + 1); // 1-indexed channel numbers in UI
+    // point_period_avg.addField(field_name, utilization);*/
+    snprintf(field_name, sizeof(field_name), "chup%d", channel_idx + 1);      // 1-indexed channel numbers in UI
+    point_period_avg.addField(field_name, channel_logs[channel_idx].on_time); // now minutes
 
     // rotate to channel history
-    //channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = (uint8_t)(utilization * 100 + 0.001);
+    // channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = (uint8_t)(utilization * 100 + 0.001);
     channel_history_s[channel_idx][MAX_HISTORY_PERIODS - 1] = channel_logs[channel_idx].on_time;
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
     {
-    //  channel_history[channel_idx][h_idx] = channel_history[i][h_idx + 1];
+      //  channel_history[channel_idx][h_idx] = channel_history[i][h_idx + 1];
       channel_history_s[channel_idx][h_idx] = channel_history_s[channel_idx][h_idx + 1];
     }
 
-  //  channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = 0;
+    //  channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = 0;
     channel_history_s[channel_idx][MAX_HISTORY_PERIODS - 1] = 0;
   }
 
-  // then reset this period time counters 
+  // then reset this period time counters
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     channel_logs[channel_idx].off_time = 0;
@@ -1893,8 +1926,8 @@ void ChannelCounters::new_log_period(time_t ts_report)
  */
 void ChannelCounters::update_times(int channel_idx) // no state change, just update times
 {
- time_t now_l = time(NULL);
- // time(&now_l);
+  time_t now_l = time(NULL);
+  // time(&now_l);
   int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started_period);
   if (channel_logs[channel_idx].state)
     channel_logs[channel_idx].on_time += previous_state_duration;
@@ -1905,21 +1938,22 @@ void ChannelCounters::update_times(int channel_idx) // no state change, just upd
 
 void ChannelCounters::set_state(int channel_idx, bool new_state)
 {
-//  time_t now_l;
-//  time(&now_l);
-  
- /* int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started_period);
-  if (channel_logs[channel_idx].state)
-    channel_logs[channel_idx].on_time += previous_state_duration;
-  else
-    channel_logs[channel_idx].off_time += previous_state_duration;
-    */
+  //  time_t now_l;
+  //  time(&now_l);
 
- // bool old_state = channel_logs[channel_idx].state;
-  //channel_logs[channel_idx].state = new_state;
- // channel_logs[channel_idx].this_state_started_period = now_l;
- update_times(channel_idx);
-  if (channel_logs[channel_idx].state != new_state) {
+  /* int previous_state_duration = (now_l - channel_logs[channel_idx].this_state_started_period);
+   if (channel_logs[channel_idx].state)
+     channel_logs[channel_idx].on_time += previous_state_duration;
+   else
+     channel_logs[channel_idx].off_time += previous_state_duration;
+     */
+
+  // bool old_state = channel_logs[channel_idx].state;
+  // channel_logs[channel_idx].state = new_state;
+  // channel_logs[channel_idx].this_state_started_period = now_l;
+  update_times(channel_idx);
+  if (channel_logs[channel_idx].state != new_state)
+  {
     channel_logs[channel_idx].state = new_state;
     channel_logs[channel_idx].this_state_started_epoch = time(NULL);
   }
@@ -2121,18 +2155,23 @@ bool update_prices_to_influx()
 
   Point point_period_price("period_price");
 
-  // new time series:
-  // for (time_t current_period_start_ts = prices2.start(); current_period_start_ts<=prices2.end();current_period_start_ts+=prices2.resolution_sec())
-
+#ifdef PRICE_SERIES_OLD
   for (uint16_t i = 0; 0 < MAX_PRICE_PERIODS; i++)
+#else
+  for (time_t current_period_start_ts = prices2.start(); current_period_start_ts <= prices2.end(); current_period_start_ts += prices2.resolution_sec())
+#endif
   {
     current_period_start_ts = prices_record_start + (prices_resolution_m * 60 * i);
     ts_to_date_str(&current_period_start_ts, datebuff);
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
-    // new time series:
-    //     current_price = prices2.get(current_period_start_ts);
+
+#ifdef PRICE_SERIES_OLD
+    current_price = prices2.get(current_period_start_ts);
+#else
     current_price = (long)prices[i];
+#endif
+
     Serial.println(current_price);
     point_period_price.addField("price", (float)(current_price / 1000.0));
     point_period_price.setTime(current_period_start_ts);
@@ -2246,7 +2285,7 @@ void scan_and_store_wifis(bool print_out, bool store)
   }
   /** if (store)
    {
-     File wifi_file = LittleFS.open(wifis_filename, "w"); // Open file for writing
+     File wifi_file = FILESYSTEM.open(wifis_filename, "w"); // Open file for writing
      serializeJson(doc, wifi_file);
      wifi_file.close();
    }*/
@@ -3264,16 +3303,16 @@ void update_meter_based_variables()
 #endif
 }
 
+#ifdef PRICE_SERIES_OLD
+
 /**
  * @brief Get the price for given time
  *
  * @param ts
  * @return long current price (long), VARIABLE_LONG_UNKNOWN if unavailable
  */
-// new time series, remove, change call
 long get_price_for_time(time_t ts)
 {
-
   // use global prices, prices_first_period
   int price_idx = (int)(ts - prices_first_period) / (PRICE_PERIOD_SEC);
   if (price_idx < 0 || price_idx >= MAX_PRICE_PERIODS)
@@ -3296,7 +3335,6 @@ If not enough future periods exist, include periods from history to get full win
  * @param prices
  * @return int
  */
-// new time series: toteuta aikasarjaan differs avg ja ratio avg, joko erillisinä tai yhteen stats_funkkarina, joka toimisi pitkälti kuten tämä, mutta geneerisenä
 
 int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int window_duration_hours, int time_price_idx, long prices[], long *window_price_avg, long *price_differs_avg, long *price_ratio_avg) //[MAX_PRICE_PERIODS]
 {
@@ -3328,6 +3366,8 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   yield();
   return rank;
 }
+
+#endif
 /**
  * @brief Utility function to round both positive and negative long values
  *
@@ -3357,9 +3397,11 @@ void calculate_period_variables()
   //  next 24 h
   for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION)
   {
-    // new time series
-    // price = prices2.get(period,VARIABLE_LONG_UNKNOWN);
+#ifdef PRICE_SERIES_OLD
     price = get_price_for_time(period);
+#else
+    price = prices2.get(period, VARIABLE_LONG_UNKNOWN);
+#endif
     if (price != VARIABLE_LONG_UNKNOWN)
     {
       sum_pv_fcst_with_price += (float)solar_forecast.get(period);
@@ -3416,9 +3458,11 @@ void calculate_price_ranks_current()
   int time_idx = int((now_infunc - prices_record_start) / PRICE_PERIOD_SEC);
 
   Serial.printf("calculate_price_ranks_current start: %ld, end: %ld, time_idx: %d\n", prices_record_start, prices_record_end_excl, time_idx);
-  // new time series
-  // if (prices2.get(now_infunc,VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
+#ifdef PRICE_SERIES_OLD
   if (time_idx < 0 || time_idx >= MAX_PRICE_PERIODS)
+#else
+  if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
+#endif
   {
     Serial.printf("Cannot get price info for current period time_idx %d , prices_expires %lu, now_infunc %lu \n", time_idx, prices_expires, now_infunc);
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price info for current period."));
@@ -3452,11 +3496,12 @@ void calculate_price_ranks_current()
 
   delay(5);
 
-  // snprintf(var_code, sizeof(var_code), "%ld", time);
-  // new time series
-  //   vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc)+ 50) / 100));
-
+#ifdef PRICE_SERIES_OLD
   vars.set(VARIABLE_PRICE, (long)((prices[time_idx] + 50) / 100));
+#else
+  vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc) + 50) / 100));
+#endif
+
   localtime_r(&time, &tm_struct_l);
 
   Serial.printf("\n\ntime: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, \n", time, time_idx, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
@@ -3471,6 +3516,21 @@ void calculate_price_ranks_current()
   vars.set(VARIABLE_PRICEDIFF_9, (long)round_divide(price_differs_avg, 100));
   vars.set(VARIABLE_PRICERATIO_9, (long)price_ratio_avg);
 
+#ifdef PRICE_SERIES_NEW
+  // new way testing
+  int32_t price_avg;
+  int32_t differs_avg;
+  long ratio_avg;
+  time_t first_ts_in_window;
+  time_t last_ts_in_window;
+  // 9 h sliding , eka testi ok
+  Serial.printf("Old way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  last_ts_in_window = min(current_period_start + 8 * prices2.resolution_sec(), prices2.last_set_period());
+  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
+  prices2.stats(current_period_start, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &price_avg, &differs_avg, &ratio_avg);
+  Serial.printf("New way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, price_avg, differs_avg, ratio_avg);
+#endif
+
   // 24
   rank = get_period_price_rank_in_window(time_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   vars.set(VARIABLE_PRICERANK_24, (long)rank);
@@ -3478,11 +3538,29 @@ void calculate_price_ranks_current()
   vars.set(VARIABLE_PRICEDIFF_24, (long)round_divide(price_differs_avg, 100));
   vars.set(VARIABLE_PRICERATIO_24, (long)price_ratio_avg);
 
+#ifdef PRICE_SERIES_NEW
+  // 24 h sliding, new
+  Serial.printf("Old way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  last_ts_in_window = min(current_period_start + 23 * prices2.resolution_sec(), prices2.last_set_period());
+  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
+  prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &price_avg, &differs_avg, &ratio_avg);
+  Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, price_avg, differs_avg, ratio_avg);
+#endif
+
   window_start_incl_idx = time_idx - tm_struct_l.tm_hour; // first hour of the day/nychthemeron
   rank = get_period_price_rank_in_window(window_start_incl_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
-  // experimental rank within fixed 8 h block, e.g. 23-07,07-15, 15-23
+
+#ifdef PRICE_SERIES_NEW
+  // 24 h fixed new, tässä eroa vanhaan differs ja ratio, hieman
+  Serial.printf("Old way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  first_ts_in_window = current_period_start - tm_struct_l.tm_hour * prices2.resolution_sec();
+  last_ts_in_window = first_ts_in_window + prices2.resolution_sec() * 23;
+  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
+  prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &price_avg, &differs_avg, &ratio_avg);
+  Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, price_avg, differs_avg, ratio_avg);
+#endif
 
   // 8 h blocks
   int block_idx = (int)((24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (24 / DAY_BLOCK_SIZE_HOURS);
@@ -3491,10 +3569,17 @@ void calculate_price_ranks_current()
   // Serial.printf("\n block_idx %d, block_start_before_this_idx %d\n",block_idx,block_start_before_this_idx);
   rank = get_period_price_rank_in_window(window_start_incl_idx, DAY_BLOCK_SIZE_HOURS, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
 
-  // Serial.printf("price %ld, price rank: %d in [%d - x[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_idx], time_idx, window_start_incl_idx, rank, price_ratio_avg, window_price_avg, price_differs_avg);
-
   vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
+
+#ifdef PRICE_SERIES_NEW
+  // 8 h block new,
+  Serial.printf("Old way 8 h block rank %ld\n", (long)rank);
+  first_ts_in_window = current_period_start - 3600 * block_start_before_this_idx;
+  last_ts_in_window = first_ts_in_window + 7 * 3600;
+  rank = prices2.get_period_rank(current_period_start, first_ts_in_window, last_ts_in_window);
+  Serial.printf("New way 8 h block rank %ld\n", (long)rank);
+#endif
 
   if (vars.is_set(VARIABLE_PVFORECAST_AVGPRICE24) && vars.is_set(VARIABLE_PRICE))
     vars.set(VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, (long)vars.get_l(VARIABLE_PVFORECAST_AVGPRICE24) - (vars.get_l(VARIABLE_PRICE)));
@@ -3610,16 +3695,16 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
     time_series->set_store_start(day_start_local + 23 * 3600); // next day first block
   }
 
-  if (!LittleFS.exists(fmi_ca_filename))
+  if (!FILESYSTEM.exists(fmi_ca_filename))
   {
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Certificate file is missing."));
     return false;
   }
 
-  String ca_cert = LittleFS.open(fmi_ca_filename, "r").readString();
+  String ca_cert = FILESYSTEM.open(fmi_ca_filename, "r").readString();
 
   // explicit close, better?
-  // File ca_cert_file = LittleFS.open(fmi_ca_filename, "r");
+  // File ca_cert_file = FILESYSTEM.open(fmi_ca_filename, "r");
   // String ca_cert = ca_cert_file.readString();
   // ca_cert_file.close();
 
@@ -3772,16 +3857,18 @@ bool get_price_data()
   time_t now_infunc;
 
   time(&now_infunc);
-  start_ts = now_infunc - (3600 * 18); // no previous day after 18h, assume we have data ready for next day
+  start_ts = now_infunc - (3600 * 22); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
   int pos = -1;
   long price = VARIABLE_LONG_UNKNOWN;
 
   // initiate prices
-  // new time series, remove
+
+#ifdef PRICE_SERIES_OLD
   for (int price_idx = 0; price_idx < MAX_PRICE_PERIODS; price_idx++)
     prices[price_idx] = VARIABLE_LONG_UNKNOWN;
+#endif
 
   localtime_r(&start_ts, &tm_struct);
   Serial.println(start_ts);
@@ -3790,13 +3877,13 @@ bool get_price_data()
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
-  if (!LittleFS.exists(entsoe_ca_filename))
+  if (!FILESYSTEM.exists(entsoe_ca_filename))
   {
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
     return false;
   }
 
-  String ca_cert = LittleFS.open(entsoe_ca_filename, "r").readString();
+  String ca_cert = FILESYSTEM.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
 
   client_https.setTimeout(5); // was 15 Seconds
@@ -3900,17 +3987,15 @@ bool get_price_data()
     }
     else if (line.endsWith("</Point>"))
     {
+#ifdef PRICE_SERIES_OLD
       int period_idx = pos - 1 + (period_start - record_start) / PRICE_PERIOD_SEC;
       if (period_idx >= 0 && period_idx < MAX_PRICE_PERIODS)
       {
-        // new time series, remove
         prices[period_idx] = price;
         Serial.printf("period_idx %d, price: %f\n", period_idx, (float)price / 100);
-        //    price_array.add(price);
       }
+#endif
       prices2.set(period_start + (pos - 1) * PRICE_PERIOD_SEC, price);
-      // else
-      //   Serial.printf("Cannot store price, period_idx: %d\n", period_idx);
 
       pos = -1;
       price = VARIABLE_LONG_UNKNOWN;
@@ -4445,9 +4530,10 @@ bool apply_relay_state(int channel_idx, bool init_relay)
         return false;
     }
 #else
-    if (false){
+    if (false)
+    {
       ; // extensions not yet enabled
-  }
+    }
 #endif
     else
     {
@@ -4797,17 +4883,17 @@ t_httpUpdate_return update_fs()
     return HTTP_UPDATE_NO_UPDATES;
   }
   WiFiClient wifi_client;
-  LittleFS.end();
+  FILESYSTEM.end();
 
   // TODO: update to new version without String when you can test it
-  String file_to_download = "http://" + String(host_releases) + "/arska-install/files/" + String(HWID) + "/" + String(VERSION_BASE) + "/littlefs.bin";
+  String file_to_download = "http://" + String(host_releases) + "/arska-install/files/" + String(HWID) + "/" + String(VERSION_BASE) + "/" + fs_filename;
   Serial.println(file_to_download);
 
   httpUpdate.onEnd(fs_update_ended); // change update phase after succesful update but before restart
   t_httpUpdate_return update_ok = httpUpdate.updateSpiffs(wifi_client, file_to_download.c_str(), "");
   if (update_ok == HTTP_UPDATE_FAILED)
   {
-    Serial.println(F("LittleFS update failed!"));
+    Serial.println(F("Filesystem update failed!"));
     return update_ok;
   }
   if (update_ok == HTTP_UPDATE_OK)
@@ -4932,7 +5018,7 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
     Serial.println("Update");
 
     content_len = request->contentLength();
-    int cmd = (filename.indexOf("littlefs") > -1) ? U_PART : U_FLASH;
+    int cmd = (filename.indexOf("firmware") > -1) ? U_FLASH : U_PART;
     if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd))
     {
       Update.printError(Serial);
@@ -5568,7 +5654,7 @@ bool create_shadow_settings()
 {
   Serial.printf(PSTR("create_shadow_settings %s\n"), shadow_settings_filename);
   DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
-  File settings_file = LittleFS.open(shadow_settings_filename, "w"); // Open file for writing
+  File settings_file = FILESYSTEM.open(shadow_settings_filename, "w"); // Open file for writing
   create_settings_doc(doc, true);
   serializeJson(doc, settings_file);
   settings_file.close();
@@ -5582,12 +5668,12 @@ bool read_shadow_settings()
   // StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
   DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
 
-  if (!LittleFS.exists(shadow_settings_filename))
+  if (!FILESYSTEM.exists(shadow_settings_filename))
   {
     Serial.println("Shadow settings file does not exist.");
     return false;
   }
-  File config_file = LittleFS.open(shadow_settings_filename, "r");
+  File config_file = FILESYSTEM.open(shadow_settings_filename, "r");
   DeserializationError error = deserializeJson(doc, config_file);
   config_file.close();
   if (error)
@@ -5628,7 +5714,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
   if (!index) // first
   {
     //  open the file on first call and store the file handle in the request object
-    request->_tempFile = LittleFS.open(filename_config_in, "w");
+    request->_tempFile = FILESYSTEM.open(filename_config_in, "w");
   }
 
   if (len) // contains data
@@ -5643,7 +5729,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     // close the file handle as the upload is now done
     request->_tempFile.close();
 
-    File config_file = LittleFS.open(filename_config_in, "r");
+    File config_file = FILESYSTEM.open(filename_config_in, "r");
     DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
     DeserializationError error = deserializeJson(doc, config_file);
     config_file.close();
@@ -5661,20 +5747,6 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
     }
   }
 }
-/**
- * @brief
- *
- * @param request
- */
-/*
-void onWebUIGet(AsyncWebServerRequest *request)
-{
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
-  check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
-  request->send(LittleFS, "/ui3.html", "text/html");
-}
-*/
 
 /**
  * @brief Process dashboard form, forcing channels up, JSON update, work in progress
@@ -5704,7 +5776,6 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
 
   if (final) // last chunk, process
   {
-
     DeserializationError error = deserializeJson(doc, (const char *)in_buffer);
     if (error)
     {
@@ -5886,21 +5957,23 @@ void onWebPricesGet(AsyncWebServerRequest *request)
   String output;
 
   JsonArray prices_a = doc.createNestedArray("prices");
-  // new time series, replace
-  /*int i = 0;
-  for (time_t period = prices2.start();period <= prices2.end(); period += prices2.resolution_sec())
-  {
-    prices_a[i++] = prices2.get(period);
-  }
-  */
+#ifdef PRICE_SERIES_OLD
   for (uint16_t i = 0; i < MAX_PRICE_PERIODS; i++)
   {
     prices_a[i] = prices[i];
   }
+#else
+  int i = 0;
+  for (time_t period = prices2.start(); period <= prices2.end(); period += prices2.resolution_sec())
+  {
+    prices_a[i++] = prices2.get(period);
+  }
+#endif
 
   time_t current_time;
   time(&current_time);
 
+  // new time series, mieti miten nämä korvataan, myös UI
   doc["record_start"] = prices_record_start;
   doc["record_end_excl"] = prices_record_end_excl;
   doc["resolution_m"] = prices_resolution_m;
@@ -6031,7 +6104,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
       doc["channel_history"][channel_idx][h_idx] = (uint8_t)((channel_history_s[channel_idx][h_idx] + 30) / 60);
     }
 
-   // ch_counters.update_utilization(channel_idx);
+    // ch_counters.update_utilization(channel_idx);
     ch_counters.update_times(channel_idx);
     // this could cause too big value, maybe overflow, was  uint8_t
     doc["channel_history"][channel_idx][MAX_HISTORY_PERIODS - 1] = (int16_t)((ch_counters.get_period_uptime(channel_idx) + 30) / 60);
@@ -6163,23 +6236,23 @@ void setup()
   grid_protection_delay_interval = random(0, grid_protection_delay_max / PROCESS_INTERVAL_SECS) * PROCESS_INTERVAL_SECS;
   Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
 
-  if (!LittleFS.begin())
+  if (!FILESYSTEM.begin(false))
   {
 
     delay(5000);
-    if (!LittleFS.begin())
+    if (!FILESYSTEM.begin(false))
     {
-      Serial.println(F("Failed to initialize LittleFS library,."));
+      Serial.println(F("Failed to initialize filesystem library,."));
       log_msg(MSG_TYPE_FATAL, "Cannot use corrupted filesystem! Update the system!");
       // delay(5000);
       //  ESP.restart();
     }
   }
-  else {
+  else
+  {
     fs_mounted = true;
-    Serial.println(F("LittleFS initialized"));
+    Serial.println(F("Filesystem initialized"));
   }
-
 
   log_msg(MSG_TYPE_INFO, PSTR("Started setup"), true);
 
@@ -6194,7 +6267,8 @@ void setup()
 
   // Check if filesystem update is needed
   Serial.println(F("Checking filesystem version"));
-  todo_in_loop_update_firmware_partition = !(check_filesystem_version());
+
+  todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
 
@@ -6301,7 +6375,7 @@ void setup()
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
     /*
-        if (!LittleFS.exists(wifis_filename))
+        if (!FILESYSTEM.exists(wifis_filename))
         { // no wifi list found
           Serial.println("No wifi list found - rescanning...");
           scan_and_store_wifis(false);
@@ -6447,7 +6521,7 @@ void setup()
                 { if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();   
     check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
-  request->send(LittleFS, "/ui3.html", "text/html"); });
+  request->send(FILESYSTEM, "/ui3.html", "text/html"); });
 
   server_web.on(
       "/update.schedule", HTTP_POST,
@@ -6456,30 +6530,22 @@ void setup()
          size_t len, bool final) {},
       onScheduleUpdate);
 
-  server_web.serveStatic("/js/", LittleFS, "/js/").setCacheControl("max-age=84600, public");
-  server_web.serveStatic("/css/", LittleFS, "/css/").setCacheControl("max-age=84600, public");
+  server_web.serveStatic("/js/", FILESYSTEM, "/js/").setCacheControl("max-age=84600, public");
+  server_web.serveStatic("/css/", FILESYSTEM, "/css/").setCacheControl("max-age=84600, public");
   // TODO: check authentication for files in /cache
-  server_web.serveStatic("/data/", LittleFS, "/data/").setCacheControl("max-age=84600, public");
-  server_web.serveStatic("/cache/", LittleFS, "/cache/");
+  server_web.serveStatic("/data/", FILESYSTEM, "/data/").setCacheControl("max-age=84600, public");
+  server_web.serveStatic("/cache/", FILESYSTEM, "/cache/");
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon.ico"), F("image/x-icon")); });
+                { request->header("Cache-Control: max-age=86400, public"); request->send(FILESYSTEM, F("/data/favicon.ico"), F("image/x-icon")); });
   server_web.on("/favicon-32x32.png", HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon-32x32.png"), F("image/png")); });
+                { request->header("Cache-Control: max-age=86400, public"); request->send(FILESYSTEM, F("/data/favicon-32x32.png"), F("image/png")); });
   server_web.on("/favicon-16x16.png", HTTP_GET, [](AsyncWebServerRequest *request)
-                {  request->header("Cache-Control: max-age=86400, public"); request->send(LittleFS, F("/data/favicon-16x16.png"), F("image/png")); });
-
-  // refresh test
-  // server_web.on(wifis_filename, HTTP_GET, [](AsyncWebServerRequest *request)
-  //              { request->send(LittleFS, wifis_filename, "text/json"); });
-
-  // debug /cache/config_in.json
-  // server_web.on(filename_config_in, HTTP_GET, [](AsyncWebServerRequest *request)
-  //              { request->send(LittleFS, filename_config_in, F("application/json")); });
+                {  request->header("Cache-Control: max-age=86400, public"); request->send(FILESYSTEM, F("/data/favicon-16x16.png"), F("image/png")); });
 
   // templates
   server_web.on(template_filename, HTTP_GET, [](AsyncWebServerRequest *request)
-                { request->send(LittleFS, template_filename, "text/json"); });
+                { request->send(FILESYSTEM, template_filename, "text/json"); });
   //
 
   // TODO: remove function notfound
@@ -6591,8 +6657,7 @@ void loop()
   {
     todo_in_loop_get_releases = false;
 
-      get_releases();
-    
+    get_releases();
   }
 #endif
 
@@ -6780,7 +6845,7 @@ void loop()
     io_tasks(STATE_PROCESSING);
     todo_calculate_ranks_period_variables = false;
     calculate_price_ranks_current();
-    yield();
+    delay(1000);
     calculate_period_variables();
     return;
   }

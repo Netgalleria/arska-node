@@ -55,8 +55,9 @@ function populate_releases() {
                 remove_select_options(releases_select_ctrl);
                 addOption(releases_select_ctrl, "#", 'select version', true);
                 $.each(data.releases, function (i, release) {
+                    use_cable = (parseInt(release[2]) == 0);
                     d = new Date(release[1] * 1000);
-                    addOption(releases_select_ctrl, release[0], release[0] + ' ' + d.toLocaleDateString());
+                    addOption(releases_select_ctrl, release[0], release[0] + ' ' + d.toLocaleDateString() + (use_cable ? " (cable)" : ""), false, use_cable);
                 });
                 $('#releases\\:refresh').prop('disabled', true);
                 $('#releases\\:update').prop('disabled', false);
@@ -218,7 +219,7 @@ const channel_html = `<div class="col">
                     </div>
                     <!--./col-->
                     <div id="ch_(ch#):r_id_div" class="col-md-3">
-                        <label for="ch_(ch#):r_id" class="form-label">GPIO:</label>
+                        <label id="ch_(ch#):r_id_lbl" for="ch_(ch#):r_id" class="form-label">GPIO:</label>
                         <input id="ch_(ch#):r_id" type="number" class="form-control" disabled=""  placeholder="33" min="0" step="1" max="33">
                        
                     </div>
@@ -530,8 +531,12 @@ function update_status(repeat) {
                         break;
                     }
                 }
+                console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
             }
             //** 
+
+            if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
+                document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
             msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
@@ -950,31 +955,41 @@ function create_dashboard_chart() {
     var channel_dataset;
     now_period_start = parseInt(now_ts / 3600) * 3600;
     first_chh_period = now_period_start - 23 * 3600;
-    console.log("now_idx", now_idx, "now_idx_chh", now_idx_chh);
+    console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
             continue;
         channel_dataset = [];
         dataset_started = false;
 
-        console.log("chh_idx [x - x [", now_idx_chh - now_idx, 35 + now_idx_chh - now_idx);
-        for (h_idx = 0; h_idx < 36; h_idx++) {
-            chh_idx = h_idx + now_idx_chh - now_idx;
-            //  console.log("chh_idx",chh_idx);
-            if (chh_idx < 0)
-                channel_dataset.push(null);
-            else if (chh_idx > 23) //?
-                break;
-            else {
-                if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
-                    dataset_started = true;
-                channel_dataset.push(dataset_started ? channel_history[channel_idx][chh_idx] : null);
-                //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
+        // console.log("chh_idx [x - x [",   now_idx_chh - now_idx, 35  + now_idx_chh - now_idx);
+        /*   for (h_idx = 0; h_idx < 36; h_idx++) {
+               chh_idx = h_idx + now_idx_chh - now_idx;
+               //  console.log("chh_idx",chh_idx);
+               if (chh_idx < 0)
+                   channel_dataset.push(null);
+               else if (chh_idx > 23) {//?
+                   console.log("chh_idx > 23", chh_idx);
+                   break;
+               }
+               else {
+                   if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
+                       dataset_started = true;
+                   channel_dataset.push(dataset_started ? channel_history[channel_idx][chh_idx] : null);
+                   //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
+               }
+           } */
+        for (chh_idx = 0; chh_idx < 24; chh_idx++) {
+            ts = now_period_start - (chh_idx - 23) * 3600;
+            if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
+                dataset_started = true;
+            if (dataset_started) {
+                channel_dataset.push({ x: get_time_string_from_ts(ts, false, true), y: channel_history[channel_idx][chh_idx] });
             }
         }
 
         // console.log("channel_history", channel_idx, channel_history[channel_idx]);
-        // console.log("channel_dataset", channel_dataset);
+        console.log("channel_dataset", channel_dataset);
         datasets.push({
             label: g_config.ch[channel_idx]["id_str"],
             hidden: true,
@@ -1093,7 +1108,7 @@ function create_dashboard_chart() {
 
     Chart.defaults.color = '#0a0a03';
     Chart.defaults.scales.borderColor = '#262623';
-    document.getElementById("chart_container").style.display = "block";
+    //document.getElementById("chart_container").style.display = "block";
 
     last_chart_update = Date.now() / 1000;
 
@@ -1120,15 +1135,17 @@ function get_price_data(repeat = true) {
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            if (data.expires > now_ts + (-3600 * 4)) {
+            // if (data.expires > now_ts + (-3600 * 4)) {
+            if (data.record_end_excl > now_ts) {
                 console.log('got /prices', textStatus, jqXHR.status);
                 price_data = data; //TODO: remove redundancy in variables
                 prices_first_ts = data.record_start;
                 prices_resolution_min = data.resolution_m;
                 prices_last_ts = prices_first_ts + (price_data.prices.length - 1) * (prices_resolution_min * 60);
                 prices_expires = data.expires;
+                expired = (data.expires < now_ts);
                 if (repeat)
-                    setTimeout(function () { get_price_data(); }, 1800000);
+                    setTimeout(function () { get_price_data(); }, expired ? 900000 : 3600000);
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -1192,7 +1209,7 @@ function populate_wifi_ssid_list_2() {
     console.log("populate_wifi_ssid_list_2");
     $.ajax({
         type: "GET",
-        url: "/cache/wifis.json",
+        url: "/wifis", //"/cache/wifis.json",
         cache: false,
         dataType: 'json',
         async: false,
@@ -1200,7 +1217,6 @@ function populate_wifi_ssid_list_2() {
             wifi_ssid_list = document.getElementById('wifi_ssid_list');
             wifi_ssid_list.innerHTML = '';
             $.each(data, function (i, row) {
-                console.log(row);
                 addOption(wifi_ssid_list, row["id"], row["id"] + "(" + row["rssi"] + ")");
             });
         },
@@ -1209,8 +1225,6 @@ function populate_wifi_ssid_list_2() {
         }
     });
 }
-
-
 
 function populate_wifi_ssid_list() {
     console.log("populate_wifi_ssid_list");
@@ -1408,16 +1422,19 @@ function getVariable(variable_id) {
 }
 
 // Add option to a given select element
-function addOption(el, value, text, selected = false) {
+function addOption(el, value, text, selected = false, disabled = false) {
     var opt = document.createElement("option");
     opt.value = value;
     opt.selected = selected;
     opt.innerHTML = text
+    opt.disabled = disabled;
+    //console.log(text, disabled, opt.disabled);
     // then append it to the select element
     el.appendChild(opt);
 }
 
 function is_relay_id_used(channel_type) { // id required
+
     return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
 }
 function is_relay_ip_used(channel_type) { //ip required
@@ -1431,9 +1448,10 @@ function is_relay_uid_used(channel_type) { //unit_id required
 }
 
 function set_relay_field_visibility(channel_idx, ch_type) {
-    document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type));
-    document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type));
-    document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type));
+    var locked = g_config.ch[channel_idx].hasOwnProperty("locked") ? g_config.ch[channel_idx].locked : false;
+    document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type) || locked);
+    document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type) || locked);
+    document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type) || locked);
 
 }
 
@@ -1566,12 +1584,11 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
 
     rules_div = document.getElementById(`ch_${channel_idx}:rules`);
 
-    //experimental
     $(`[id^=ch_${channel_idx}\\:r_] input[type='radio']`).attr('disabled', (rule_mode != 0)); //up/down
 
     $(`#ch_${channel_idx}\\:rules select`).attr('disabled', (rule_mode != 0));
-    $(`#ch_${channel_idx}\\:rules input[type='text']`).attr('disabled', (rule_mode != 0)); //jos ei iteroi?
-    $(`#ch_${channel_idx}\\:rules input[type='text']`).prop('readonly', (rule_mode != 0));
+    $(`#ch_${channel_idx}\\:rules input[type='number']`).attr('disabled', (rule_mode != 0)); //jos ei iteroi?
+    $(`#ch_${channel_idx}\\:rules input[type='number']`).prop('readonly', (rule_mode != 0));
 
     //$('#rts_' + channel_idx).css({ "display": ((rule_mode == CHANNEL_CONFIG_MODE_RULE) ? "none" : "segment") });
     template_id_ctrl.disabled = (rule_mode == CHANNEL_CONFIG_MODE_RULE);
@@ -2199,8 +2216,21 @@ function create_channels() {
         //    `ch_${channel_idx}:type`
         channel_type_ctrl = document.getElementById(`ch_${channel_idx}:type`);
         //  console.log(`ch_${channel_idx}:type`);
+        var locked = g_config.ch[channel_idx].locked;
+        // add right type to select list, right captions/texts
         for (var i = 0; i < g_constants.channel_types.length; i++) {
-            addOption(channel_type_ctrl, g_constants.channel_types[i].id, g_constants.channel_types[i].name, (g_config.ch[channel_idx]["type"] == g_constants.channel_types[i].id));
+            var type_name = g_constants.channel_types[i].name;
+            var type_id = g_constants.channel_types[i].id;
+            var output_register = g_config.hasOwnProperty("output_register") ? g_config.output_register : false;
+            if (output_register) {
+                type_name = type_name.replaceAll("GPIO", "internal"); // use different term with shift register relays
+                document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Bit:";
+            }
+
+            var internal_relay = [CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(type_id));
+            if ((locked && internal_relay) || (!locked && !internal_relay) || (g_config.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
+                addOption(channel_type_ctrl, type_id, type_name, (g_config.ch[channel_idx]["type"] == type_id));
+
         }
 
         sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
@@ -2280,6 +2310,10 @@ function jump(section_id_full) {
     url_a = section_id_full.split(":");
     section_id = url_a[0];
 
+    // hide mobileMenu, just in case
+    //document.getElementById("mobileMenu").classList.remove("show");
+    $('#mobileMenuClose').trigger('click');
+
     console.log("Jumping to section " + section_id);
     $('#' + section_id + '-tab').trigger('click');
     // show new section div….
@@ -2319,46 +2353,7 @@ function jump(section_id_full) {
 function compare_wifis(a, b) {
     return ((a.rssi > b.rssi) ? -1 : 1);
 }
-/*
-function initWifiForm() {
-    var wifisp = null;
-    $.ajax({
-        url: '/cache/wifis.json',
-        cache: false,
-        dataType: 'json',
-        async: false,
-        success: function (data) { wifisp = data; console.log("got wifis"); },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get wifis", textStatus, jqXHR.status);
-        }
-    });
- 
-    if (!wifisp) {
-        console.log("initWifiForm: No wifis.");
-        return;
-    }
-    //  wifisp = JSON.parse(wifis);
-    wifisp.sort(compare_wifis);
-    var wifi_sel = document.getElementById("wifi_ssid");
-    var wifi_ssid_db = g_config.wifi_ssid;// document.getElementById("wifi_ssid_db");
- 
-    wifisp.forEach(function (wifi, i) {
-        if (wifi.id) {
-            var opt = document.createElement("option");
-            opt.value = wifi.id;
- 
-            if (g_config.wifi_in_setup_mode && i == 0)
-                opt.selected = true;
-            else if (wifi_ssid_db.value == wifi.id) {
-                opt.selected = true;
-                opt.value = "NA";
-            }
-            opt.innerHTML = wifi.id + ' (' + wifi.rssi + ')';
-            wifi_sel.appendChild(opt);
-        }
-    });
-}
-*/
+
 function init_ui() {
     console.log("Init ui");
     get_price_data(); //TODO: also update at 2pm
@@ -2383,6 +2378,13 @@ function init_ui() {
 
     load_application_config();
 
+    //   hw templates from the app 
+    hw_template_ctrl = document.getElementById(`hw_template_id`);
+    remove_select_options(hw_template_ctrl);
+    for (var i = 0; i < g_constants.hw_templates.length; i++) {
+        addOption(hw_template_ctrl, g_constants.hw_templates[i].id, g_constants.hw_templates[i].name, (g_config.hw_template_id == g_constants.hw_templates[i].id));
+    }
+
     create_channels();
 
     save_buttons = document.querySelectorAll("[id$=':save']");
@@ -2402,6 +2404,8 @@ function init_ui() {
 
     action_buttons = document.querySelectorAll("button[id^='admin:']");
     for (let i = 0; i < action_buttons.length; i++) {
+        if (action_buttons[i].id.startsWith("admin:save"))
+            continue; // save is normal save, no action launched
         action_buttons[i].addEventListener("click", launch_action_evt);
     }
 
@@ -2504,11 +2508,9 @@ function launch_action(action, card_id, params) {
             console.log("action response", data);
             if (card_id)
                 live_alert(card_id, "Action launched", 'success');
-            
             // could poll status / version and reboot 
             //if (action == "update")
             //    setTimeout(function () { reload_when_site_up_again(params.version); }, 5000);
-            
             check_restart_request(data, card_id);
         },
         error: function (requestObject, error, errorThrown) {

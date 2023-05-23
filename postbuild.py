@@ -8,6 +8,7 @@ envs = ['esp32-generic-6ch']
 import shutil
 import os.path
 from os import path
+import os
 
 # We may need params like PROJECT_BUILD_DIR later
 #from SCons.Script import DefaultEnvironment  # pylint: disable=import-error
@@ -16,9 +17,16 @@ env = DefaultEnvironment()
 #PROJECT_BUILD_DIR=config.get("platformio", "build_dir")
 #print(PROJECT_BUILD_DIR)
 
+
 # we will wait the firmware.bin to be created 
 def before_upload(source, target, env):
-    print("before_upload")
+    #print("before_upload")
+    # env.Dump()
+    filesystem = env.GetProjectOption("board_build.filesystem")
+    
+    fs_filename = filesystem + ".bin"
+    print (fs_filename)
+
     # do some actions
        # print("Post build. Building firmware.  DEFAULT_TARGETS:")
     build_no = 0
@@ -50,17 +58,38 @@ def before_upload(source, target, env):
 
             print (compile_folder+"firmware.bin"," -> ", dest_dir )
             shutil.copyfile(compile_folder+"firmware.bin", dest_dir+"firmware.bin")
-            shutil.copyfile(compile_folder+"littlefs.bin", dest_dir+"littlefs.bin")
+            shutil.copyfile(compile_folder+fs_filename, dest_dir+fs_filename)
             shutil.copyfile(compile_folder+"partitions.bin", dest_dir+"partitions.bin")
             shutil.copyfile(compile_folder+"bootloader.bin", dest_dir+"bootloader.bin")
 
-            manifest_from_path =  "install/" + env_id + "/manifest.json"
+            #manifest_from_path =  "install/" + env_id + "/manifest.json"
             manifest_to_path = dest_dir + "manifest.json"
-            print (manifest_from_path + " --> "+manifest_to_path)
-            if path.exists(manifest_from_path) and not path.exists(manifest_to_path):
-                shutil.copyfile(manifest_from_path, manifest_to_path)
-               
+            #print (manifest_from_path + " --> "+manifest_to_path)
+            #if path.exists(manifest_from_path) and not path.exists(manifest_to_path):
+            #    shutil.copyfile(manifest_from_path, manifest_to_path)
 
+
+            manifest_txt = """{
+            "name": "Arska",
+            "new_install_prompt_erase": true,
+            "builds": [
+            {
+                "chipFamily": "ESP32",
+                "parts": [
+                {"path": "bootloader.bin", "offset" :4096},
+                {"path": "partitions.bin", "offset" :32768},
+                {"path": "../boot_app0.bin", "offset" :57344},
+                { "path": "firmware.bin", "offset": 65536 },
+                { "path": "FILESYSTEM_FILE_NAME", "offset": 2686976 }
+                ]
+            }
+            ]
+            }""".replace("FILESYSTEM_FILE_NAME",fs_filename)
+            with open(manifest_to_path, 'w+') as f:
+                f.write(manifest_txt)
+            
+            print("md5 -q "+ dest_dir+"bootloader.bin >" + dest_dir + "bootloader.md5")
+            os.system("md5 -q "+ dest_dir+"bootloader.bin >" + dest_dir + "bootloader.md5" ) 
 
 
 if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
