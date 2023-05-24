@@ -281,8 +281,7 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HW_TEMPLATE_GPIO_COUNT 4
 
 // work in progress, use new (and remove old code) when ready and tested
-#define PRICE_SERIES_DEPRECATED
-#define PRICE_SERIES_NEW
+#define PRICE_SERIES_OLD_DEPRECATED
 
 #ifdef PRICE_SERIES_OLD
 long prices[MAX_PRICE_PERIODS];
@@ -1595,7 +1594,7 @@ public:
     int start_idx = max(0, get_idx(start_ts));
     int end_idx = min(get_idx(end_ts_incl), n_);
     int this_period_idx = get_idx(period_ts);
-  //  Serial.printf("get_period_rank start_idx %d, this_period_idx %d, end_idx %d\n", start_idx, end_idx, this_period_idx);
+    //  Serial.printf("get_period_rank start_idx %d, this_period_idx %d, end_idx %d\n", start_idx, end_idx, this_period_idx);
 
     if (start_idx <= this_period_idx && this_period_idx <= end_idx)
     {
@@ -2135,6 +2134,7 @@ bool update_prices_to_influx()
     }
     if (last_price_in_db > String(datebuff))
     {
+      Serial.print("Last ts in the file greater than one in the influxdb");
       return false;
     }
     else
@@ -2159,29 +2159,36 @@ bool update_prices_to_influx()
   {
     current_period_start_ts = prices_record_start + (prices_resolution_m * 60 * i);
 #else
+  // Serial.printf("DEBUG prices2.start() %lu  prices2.end() %lu \n",prices2.start(),prices2.end());
   for (time_t current_period_start_ts = prices2.start(); current_period_start_ts <= prices2.end(); current_period_start_ts += prices2.resolution_sec())
   {
+    //  Serial.printf("DEBUG current_period_start_ts %lu \n",current_period_start_ts);
+
 #endif
 
     ts_to_date_str(&current_period_start_ts, datebuff);
+
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
 
 #ifdef PRICE_SERIES_OLD
     current_price = (long)prices[i];
 #else
-    current_price = prices2.get(current_period_start_ts);
-#endif
+    current_price = (long)prices2.get(current_period_start_ts);
 
+#endif
     Serial.println(current_price);
-    point_period_price.addField("price", (float)(current_price / 1000.0));
-    point_period_price.setTime(current_period_start_ts);
-    Serial.print("Writing: ");
-    Serial.println(ifclient.pointToLineProtocol(point_period_price));
-    // Write point
-    write_ok = ifclient.writePoint(point_period_price);
-    Serial.println(write_ok ? "write_ok" : "write not ok");
-    point_period_price.clearFields();
+    if (current_price != VARIABLE_LONG_UNKNOWN)
+    {
+      point_period_price.addField("price", (float)(current_price / 1000.0));
+      point_period_price.setTime(current_period_start_ts);
+      Serial.print("Writing: ");
+      Serial.println(ifclient.pointToLineProtocol(point_period_price));
+      // Write point
+      write_ok = ifclient.writePoint(point_period_price);
+      Serial.println(write_ok ? "write_ok" : "write not ok");
+      point_period_price.clearFields();
+    }
   }
 
   ifclient.flushBuffer();
@@ -3506,7 +3513,7 @@ void calculate_price_ranks_current()
   // new time series, uusi versio funkkarista get_period_price_rank_in_window
   //  voi hoitua myös pitkälti nykyisillä time series rank ja avg
 
-#ifdef PRICE_SERIES_NEW
+#ifndef PRICE_SERIES_OLD
   time_t first_ts_in_window;
   time_t last_ts_in_window;
 #endif
