@@ -280,9 +280,9 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HW_TEMPLATE_COUNT 5
 #define HW_TEMPLATE_GPIO_COUNT 4
 
-// work in progress, use new (and remove old) when ready and tested
-#define PRICE_SERIES_OLD
-#define PRICE_SERIES_NEW_NOT_YET
+// work in progress, use new (and remove old code) when ready and tested
+#define PRICE_SERIES_DEPRECATED
+#define PRICE_SERIES_NEW
 
 #ifdef PRICE_SERIES_OLD
 long prices[MAX_PRICE_PERIODS];
@@ -1595,7 +1595,7 @@ public:
     int start_idx = max(0, get_idx(start_ts));
     int end_idx = min(get_idx(end_ts_incl), n_);
     int this_period_idx = get_idx(period_ts);
-    Serial.printf("get_period_rank start_idx %d, this_period_idx %d, end_idx %d\n", start_idx, end_idx, this_period_idx);
+  //  Serial.printf("get_period_rank start_idx %d, this_period_idx %d, end_idx %d\n", start_idx, end_idx, this_period_idx);
 
     if (start_idx <= this_period_idx && this_period_idx <= end_idx)
     {
@@ -2081,8 +2081,6 @@ bool write_buffer_to_influx()
  */
 bool update_prices_to_influx()
 {
-  // time_t record_start = 0;
-  time_t current_period_start_ts;
   long current_price;
   // int resolution_secs;
   bool write_ok;
@@ -2156,20 +2154,23 @@ bool update_prices_to_influx()
   Point point_period_price("period_price");
 
 #ifdef PRICE_SERIES_OLD
+  time_t current_period_start_ts;
   for (uint16_t i = 0; 0 < MAX_PRICE_PERIODS; i++)
-#else
-  for (time_t current_period_start_ts = prices2.start(); current_period_start_ts <= prices2.end(); current_period_start_ts += prices2.resolution_sec())
-#endif
   {
     current_period_start_ts = prices_record_start + (prices_resolution_m * 60 * i);
+#else
+  for (time_t current_period_start_ts = prices2.start(); current_period_start_ts <= prices2.end(); current_period_start_ts += prices2.resolution_sec())
+  {
+#endif
+
     ts_to_date_str(&current_period_start_ts, datebuff);
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
 
 #ifdef PRICE_SERIES_OLD
-    current_price = prices2.get(current_period_start_ts);
-#else
     current_price = (long)prices[i];
+#else
+    current_price = prices2.get(current_period_start_ts);
 #endif
 
     Serial.println(current_price);
@@ -3362,7 +3363,7 @@ int get_period_price_rank_in_window(int window_start_incl_suggested_idx, int win
   else
     *price_ratio_avg = VARIABLE_LONG_UNKNOWN;
 
-  Serial.printf("price %ld, price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_price_idx], time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg, *window_price_avg, *price_differs_avg);
+  // Serial.printf("price %ld, price rank: %d in [%d - %d[  --> rank: %d, price ratio %ld, window_price_avg %ld, price_differs_avg %ld \n", prices[time_price_idx], time_price_idx, window_start_incl_idx, window_end_excl_idx, rank, *price_ratio_avg, *window_price_avg, *price_differs_avg);
   yield();
   return rank;
 }
@@ -3433,16 +3434,6 @@ void calculate_period_variables()
 
   vars.set(VARIABLE_WIND_AVG_DAY1B_FI, (long)wind_forecast.avg(this_block_starts + 24 * 3600, this_block_starts + (24 + DAY_BLOCK_SIZE_HOURS - 1) * 3600));
   vars.set(VARIABLE_WIND_AVG_DAY2B_FI, (long)wind_forecast.avg(this_block_starts + 48 * 3600, this_block_starts + (48 + DAY_BLOCK_SIZE_HOURS - 1) * 3600));
-  /*
-    Serial.println("DEBUG VARIABLE_WIND_AVG_DAY1_FI 411");
-    time_series->debug_print(day_start_local + 24 * 3600, day_start_local + 47 * 3600);
-     Serial.println("DEBUG VARIABLE_WIND_AVG_DAY2_FI 412");
-    time_series->debug_print(day_start_local + 48 * 3600, day_start_local + 71 * 3600);
-    Serial.println("DEBUG VARIABLE_WIND_AVG_DAY1B_FI 421");
-    time_series->debug_print(this_block_starts + 24 * 3600, this_block_starts + (24+DAY_BLOCK_SIZE_HOURS-1) * 3600);
-     Serial.println("DEBUG VARIABLE_WIND_AVG_DAY2B_FI 422");
-    time_series->debug_print(this_block_starts + 48 * 3600, this_block_starts + (48+DAY_BLOCK_SIZE_HOURS-1) * 3600);
-    */
 }
 /**
  * @brief Calculate price rank variables for current period
@@ -3486,11 +3477,17 @@ void calculate_price_ranks_current()
   else if (prices_expires + 3600 * 1 < now_infunc)
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
 
+  int rank;
+  long price_ratio_avg;
+#ifdef PRICE_SERIES_OLD
   long window_price_avg;
   long price_differs_avg;
-  long price_ratio_avg;
-  int rank;
   int window_start_incl_idx;
+#else
+  int32_t window_price_avg;
+  int32_t price_differs_avg;
+
+#endif
 
   time_t time = prices_record_start + time_idx * PRICE_PERIOD_SEC;
 
@@ -3509,77 +3506,73 @@ void calculate_price_ranks_current()
   // new time series, uusi versio funkkarista get_period_price_rank_in_window
   //  voi hoitua myös pitkälti nykyisillä time series rank ja avg
 
-  // 9
+#ifdef PRICE_SERIES_NEW
+  time_t first_ts_in_window;
+  time_t last_ts_in_window;
+#endif
+
+  // 9 h sliding
+#ifdef PRICE_SERIES_OLD
   rank = get_period_price_rank_in_window(time_idx, 9, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  Serial.printf("Old way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+#else
+  last_ts_in_window = min(current_period_start + 8 * prices2.resolution_sec(), prices2.last_set_period());
+  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
+  prices2.stats(current_period_start, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  Serial.printf("New way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+#endif
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
   vars.set(VARIABLE_PRICEDIFF_9, (long)round_divide(price_differs_avg, 100));
   vars.set(VARIABLE_PRICERATIO_9, (long)price_ratio_avg);
 
-#ifdef PRICE_SERIES_NEW
-  // new way testing
-  int32_t price_avg;
-  int32_t differs_avg;
-  long ratio_avg;
-  time_t first_ts_in_window;
-  time_t last_ts_in_window;
-  // 9 h sliding , eka testi ok
-  Serial.printf("Old way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
-  last_ts_in_window = min(current_period_start + 8 * prices2.resolution_sec(), prices2.last_set_period());
-  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
-  prices2.stats(current_period_start, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &price_avg, &differs_avg, &ratio_avg);
-  Serial.printf("New way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, price_avg, differs_avg, ratio_avg);
-#endif
-
-  // 24
+  // 24 h sliding
+#ifdef PRICE_SERIES_OLD
   rank = get_period_price_rank_in_window(time_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  Serial.printf("Old way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+#else
+  last_ts_in_window = min(current_period_start + 23 * prices2.resolution_sec(), prices2.last_set_period());
+  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
+  prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+#endif
   vars.set(VARIABLE_PRICERANK_24, (long)rank);
   vars.set(VARIABLE_PRICEAVG_24, (long)round_divide(window_price_avg, 100));
   vars.set(VARIABLE_PRICEDIFF_24, (long)round_divide(price_differs_avg, 100));
   vars.set(VARIABLE_PRICERATIO_24, (long)price_ratio_avg);
 
-#ifdef PRICE_SERIES_NEW
-  // 24 h sliding, new
-  Serial.printf("Old way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
-  last_ts_in_window = min(current_period_start + 23 * prices2.resolution_sec(), prices2.last_set_period());
-  rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
-  prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &price_avg, &differs_avg, &ratio_avg);
-  Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, price_avg, differs_avg, ratio_avg);
-#endif
-
+// 24 h fixed nychthemeron
+#ifdef PRICE_SERIES_OLD
   window_start_incl_idx = time_idx - tm_struct_l.tm_hour; // first hour of the day/nychthemeron
   rank = get_period_price_rank_in_window(window_start_incl_idx, 24, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
-  vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
-
-#ifdef PRICE_SERIES_NEW
-  // 24 h fixed new, tässä eroa vanhaan differs ja ratio, hieman
   Serial.printf("Old way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+#else
+  // 24 h fixed new,
   first_ts_in_window = current_period_start - tm_struct_l.tm_hour * prices2.resolution_sec();
   last_ts_in_window = first_ts_in_window + prices2.resolution_sec() * 23;
   rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
-  prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &price_avg, &differs_avg, &ratio_avg);
-  Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, price_avg, differs_avg, ratio_avg);
+  prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 #endif
+  vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
+  vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
 
   // 8 h blocks
   int block_idx = (int)((24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (24 / DAY_BLOCK_SIZE_HOURS);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
+
+#ifdef PRICE_SERIES_OLD
   window_start_incl_idx = time_idx - block_start_before_this_idx;
-  // Serial.printf("\n block_idx %d, block_start_before_this_idx %d\n",block_idx,block_start_before_this_idx);
   rank = get_period_price_rank_in_window(window_start_incl_idx, DAY_BLOCK_SIZE_HOURS, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-
-  vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
-  vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
-
-#ifdef PRICE_SERIES_NEW
-  // 8 h block new,
   Serial.printf("Old way 8 h block rank %ld\n", (long)rank);
+#else
   first_ts_in_window = current_period_start - 3600 * block_start_before_this_idx;
   last_ts_in_window = first_ts_in_window + 7 * 3600;
   rank = prices2.get_period_rank(current_period_start, first_ts_in_window, last_ts_in_window);
   Serial.printf("New way 8 h block rank %ld\n", (long)rank);
 #endif
+  vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
+  vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
 
   if (vars.is_set(VARIABLE_PVFORECAST_AVGPRICE24) && vars.is_set(VARIABLE_PRICE))
     vars.set(VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, (long)vars.get_l(VARIABLE_PVFORECAST_AVGPRICE24) - (vars.get_l(VARIABLE_PRICE)));
@@ -4023,12 +4016,6 @@ bool get_price_data()
   if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
   {
     time(&now_infunc);
-    /*
-     doc["record_start"] = record_start;
-     doc["record_end_excl"] = record_end_excl;
-     doc["resolution_m"] = NETTING_PERIOD_MIN;
-     doc["ts"] = now_infunc;
-     */
 
     prices_record_start = record_start;
     prices_record_end_excl = record_end_excl;

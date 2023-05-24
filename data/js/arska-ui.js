@@ -34,7 +34,7 @@ window.onload = function () {
     init_ui();
 }
 
-let load_count = 0;
+let load_count = 0; 
 function populate_releases() {
     $.ajax({
         url: '/releases',

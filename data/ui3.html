@@ -163,7 +163,7 @@
     // load arska-ui.js with version number in the query string
     var version_a = $.ajax({ type: "GET", url: "/data/version.txt?rnd=" + (Math.floor(Math.random() * 100)), async: false }).responseText.split(' ');
     let version = version_a[0];
-    console.log("Arska  version", version);
+    console.log("Arska version", version);
     script = document.createElement("script");
     script.src = "js/arska-ui.js?" + version;
     document.getElementsByTagName("body")[0].appendChild(script);
