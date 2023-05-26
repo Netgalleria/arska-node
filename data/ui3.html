@@ -445,20 +445,16 @@
                   <div class="card-header">
                     <h5 class="card-title">Price Data</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted">Nordpool price info is updated from ENTSO-E Transparency Platform. <a
-                          target="_blank" href="https://github.com/Netgalleria/arska-node/wiki/Edit-Services">How to get
-                          own ENTSO-E API
-                          key</a></span>
+                      <span id="price_data:info" class="text-muted">Nordpool price data updated from ENTSO-E Transparency Platform requires an API-key. <a
+                          target="_blank" href="https://github.com/Netgalleria/arska-node/wiki/Settings">How to get
+                          an ENTSO-E API
+                          key.</a></span>
                     </div>
                     <!--./chart-info-->
                   </div>
                   <!--./card-header-->
                   <div class="card-body">
-                    <div class="mb-2">
-                      <label for="entsoe_api_key" class="form-label">ENTSO-E API key</label>
-                      <input type="url" class="form-control" id="entsoe_api_key"
-                        placeholder="Enter API key sent by ENTSO-E">
-                    </div>
+                 
                     <div class="mb-2">
                       <label for="entsoe_area_code" class="form-label">Area code</label>
                       <select id="entsoe_area_code" class="form-select" aria-label="variable">
@@ -508,6 +504,11 @@
                         <option value="10YES-REE------0">Spain, REE 🇪🇸</option>
                         <option value="10YCH-SWISSGRIDZ">Switzerland, Swissgrid 🇨🇭</option>
                       </select>
+                    </div>
+                    <div class="mb-2">
+                      <label for="entsoe_api_key" class="form-label">ENTSO-E API key</label>
+                      <input type="url" class="form-control" id="entsoe_api_key"
+                        placeholder="Enter API key sent by ENTSO-E">
                     </div>
                     <div id="price_data:alert"></div>
                   </div>

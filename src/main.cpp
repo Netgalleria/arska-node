@@ -81,6 +81,8 @@ String version_fs_base; //= "";
 
 #define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to variables
 
+#define PRICE_ELERING_ENABLED // Experimental price query from Elering
+
 #define OTA_UPDATE_ENABLED // OTA general
 // #define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
 
@@ -300,6 +302,7 @@ time_t prices_expires = 0;
 // const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
 // fixed 14.2.2023, see https://transparency.entsoe.eu/news/widget?id=63eb9d10f9b76c35f7d06f2e
 const char *host_prices PROGMEM = "web-api.tp.entsoe.eu";
+const char *host_prices_elering PROGMEM = "dashboard.elering.ee";
 const char *host_fcst_fmi PROGMEM = "cdn.fmi.fi";
 
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
@@ -2178,7 +2181,7 @@ bool update_prices_to_influx()
 
 #endif
     Serial.println(current_price);
-    if (current_price != VARIABLE_LONG_UNKNOWN)
+    if (current_price != VARIABLE_LONG_UNKNOWN) // do not write undefined values
     {
       point_period_price.addField("price", (float)(current_price / 1000.0));
       point_period_price.setTime(current_period_start_ts);
@@ -2189,6 +2192,8 @@ bool update_prices_to_influx()
       Serial.println(write_ok ? "write_ok" : "write not ok");
       point_period_price.clearFields();
     }
+    else
+      break; // do not continue pushing stuff to influx
   }
 
   ifclient.flushBuffer();
@@ -3482,6 +3487,9 @@ void calculate_price_ranks_current()
     vars.set_NA(VARIABLE_PRICERANK_FIXED_8_BLOCKID);
   }
   else if (prices_expires + 3600 * 1 < now_infunc)
+      if (strncmp(s.entsoe_area_code, "elering:",8) == 0)
+         log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
+      else
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
 
   int rank;
@@ -3824,9 +3832,9 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
  * @return true
  * @return false
  */
-bool get_price_data()
+bool get_price_data_entsoe()
 {
-  Serial.printf("get_price_data start getFreeHeap: %du\n", ESP.getFreeHeap());
+  Serial.printf("get_price_data_entsoe start\n");
   time_t now_in_func;
   time(&now_in_func);
   // if (is_cache_file_valid(price_data_filename) && prices_initiated) // "/price_data.json"
@@ -4044,12 +4052,12 @@ bool get_price_data()
       Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
 
-    Serial.println(F("Finished succesfully get_price_data."));
+    Serial.println(F("Finished succesfully get_price_data_entsoe."));
     prices2.debug_print();
 
     // update to Influx if defined
     update_prices_to_influx();
-    Serial.printf("get_price_data end getFreeHeap: %du\n", ESP.getFreeHeap());
+    Serial.printf("get_price_data_entsoe end.\n");
     return true;
   }
   else
@@ -4093,7 +4101,6 @@ int active_condition(int channel_idx)
  */
 
 //   /application
-
 void onWebApplicationGet(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -4128,6 +4135,10 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   doc["INFLUX_REPORT_ENABLED"] = false;
 #endif
 
+#ifdef PRICE_ELERING_ENABLED
+  doc["PRICE_ELERING_ENABLED"] = true;
+#endif
+
 #ifdef DEBUG_MODE
   doc["DEBUG_MODE"] = true;
 #else
@@ -4139,7 +4150,6 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   {
     JsonArray json_oper = json_opers.createNestedArray();
     json_oper.add(opers[i].id);
-
     json_oper.add(opers[i].code);
     json_oper.add(opers[i].gt);
     json_oper.add(opers[i].eq);
@@ -4715,9 +4725,6 @@ void set_relays(bool grid_protection_delay_used)
   }
 }
 
-#ifdef OTA_DOWNLOAD_ENABLED
-#include <HTTPUpdate.h> //
-
 // We keep the CA certificate in program code to avoid potential littlefs-hack
 // Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
 const char *letsencrypt_ca_certificate =
@@ -4751,6 +4758,181 @@ const char *letsencrypt_ca_certificate =
     "MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX\n"
     "nLRbwHOoq7hHwg==\n"
     "-----END CERTIFICATE-----\n";
+
+#ifdef PRICE_ELERING_ENABLED
+bool get_price_data_elering()
+{
+  Serial.printf("get_price_data_elering \n");
+  time_t now_in_func;
+  time(&now_in_func);
+  if (prices_expires > now_in_func && prices_initiated) 
+  {
+    Serial.println(F("Price data not expired, returning"));
+    return false;
+  }
+
+  WiFiClientSecure client_https;
+  char url[120];
+  char country_code[3];
+  strncpy(country_code, &s.entsoe_area_code[8], 3);
+  Serial.printf("Elering country code: %s\n", country_code);
+
+  time_t start_ts, end_ts; // this is the epoch
+  tm tm_struct;
+  time_t now_infunc;
+  String line;
+  int sep1, sep2;
+  String ts_string, val_string;
+  time_t ts; 
+  float price;
+  char date_str_start[30];
+  char date_str_end[30];
+  int price_rows = 0, price_idx;
+  time_t ts_min = 4102444800; // in the future
+  time_t ts_max = 0;
+  long prices_local[MAX_PRICE_PERIODS];
+
+
+
+
+  client_https.setCACert(letsencrypt_ca_certificate);
+
+  client_https.setTimeout(15); // was 15 Seconds
+  yield();
+  Serial.println(F("Connecting Elering with CA check."));
+
+  if (!client_https.connect(host_prices_elering, httpsPort))
+  {
+    int err;
+    char error_buf[70];
+    err = client_https.lastError(error_buf, sizeof(error_buf));
+    if (err != 0)
+      log_msg(MSG_TYPE_ERROR, error_buf);
+    else
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Quitting price query."));
+    client_https.stop();
+    return false;
+  }
+  yield();
+  time(&now_infunc);
+  start_ts = now_infunc - (3600 * (22+24)); // no previous day after 22h, assume we have data ready for next day
+  end_ts = start_ts + SECONDS_IN_DAY * 3;
+
+  localtime_r(&start_ts, &tm_struct);
+  Serial.println(start_ts);
+  snprintf(date_str_start, sizeof(date_str_start), "%04d-%02d-%02dT21%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
+  localtime_r(&end_ts, &tm_struct);
+  snprintf(date_str_end, sizeof(date_str_end), "%04d-%02d-%02dT21%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
+
+  Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
+
+  client_https.setTimeout(10); // was 15 Seconds
+  delay(1000);
+  Serial.println(F("Connecting with CA check."));
+
+  /// api/nps/price/csv?start=2020-05-31T20%3A59%3A59.999Z&end=2020-06-30T20%3A59%3A59.999Z&fields=fi
+  snprintf(url, sizeof(url), "/api/nps/price/csv?start=%s&end=%s&fields=%s", date_str_start, date_str_end, country_code);
+
+  Serial.printf("Requesting URL: %s\n", url);
+
+  client_https.print(String("GET ") + url + " HTTP/1.0\r\n" +
+                     "Host: " + host_prices_elering + "\r\n" +
+                     "User-Agent: ArskaNodeESP\r\n" +
+                     "Connection: close\r\n\r\n");
+
+  // Serial.println("request sent");
+  if (client_https.connected())
+    Serial.println("client_https connected");
+  else {
+    Serial.println("client_https not connected");
+    return false;
+  }
+  yield();
+  while (client_https.connected())
+  {
+    String lineh = client_https.readStringUntil('\n');
+    if (lineh == "\r")
+    {
+      break; //headers received
+    }
+  }
+  yield();
+  Serial.println(F("Waiting the document"));
+
+  delay(1000);
+  while (client_https.available())
+  {
+    line = client_https.readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
+    // Serial.println(line);
+    line.trim();
+    line.replace("\"", "");
+    sep1 = line.indexOf(";");
+    sep2 = line.lastIndexOf(";");
+    // Serial.printf("%s  (%d,%d)\n ",line.c_str(),sep1,sep2);
+    if (sep1 > -1 && sep2 > -1 && sep2 > sep1)
+    {
+      ts_string = line.substring(0, sep1);
+      ts_string.trim(); // remove?
+
+      val_string = line.substring(sep2 + 1);
+      val_string.trim(); // remove?
+      val_string.replace(",", ".");
+
+      ts = ts_string.toInt();
+      if (ts > ACCEPTED_TIMESTAMP_MINIMUM)
+      {
+        price = val_string.toFloat();
+        // Serial.printf("-> |%s],  |%s| -> ",  ts_string.c_str(), val_string.c_str());
+        Serial.printf("%lu,  %f\n", ts, price);
+        price_idx = price_rows % MAX_PRICE_PERIODS;
+        prices_local[price_idx] = (long)(price * 100 + 0.5);
+        price_rows++;
+        ts_min = min(ts_min, ts);
+        ts_max = max(ts_max, ts);
+      }
+    }
+  }
+  client_https.stop();
+  yield();
+
+  Serial.printf("price_rows %d, price_idx %d\n", price_rows, price_idx);
+
+
+  if (price_rows >= MAX_PRICE_PERIODS)
+  {
+    time_t ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * 3600;
+    int price_idx2 = ((price_idx + 1) % MAX_PRICE_PERIODS);
+    prices2.set_store_start(ts_min_stored);
+    for (int i = 0;i<MAX_PRICE_PERIODS;i++) { //cyclic use of prices_local array
+      ts = ts_min_stored + i * 3600;
+      prices2.set(ts, prices_local[price_idx2]);
+      price_idx2++;
+      price_idx2 = price_idx2 % MAX_PRICE_PERIODS;
+    }
+
+    time(&now_infunc);
+    prices_record_start = ts_min_stored;
+    prices_record_end_excl = ts_max + NETTING_PERIOD_MIN * 60;
+    prices_resolution_m = NETTING_PERIOD_MIN;
+    prices_ts = now_infunc;
+
+    prices_expires = prices_record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+
+    Serial.println(F("Finished succesfully get_price_data_elering."));
+    prices2.debug_print();
+
+    // update to Influx if defined
+    update_prices_to_influx();
+    Serial.printf("get_price_data_elering end.\n");
+    return true;
+  }
+
+  return false;
+}
+#endif
+
+#ifdef OTA_DOWNLOAD_ENABLED
+#include <HTTPUpdate.h> //
 
 String update_releases = "{}"; // software releases for updates, cached in RAM
 String update_release_selected = "";
@@ -6788,7 +6970,16 @@ void loop()
   {
     //   Serial.printf("next_query_price_data now: %ld \n", now);
     io_tasks(STATE_PROCESSING);
-    got_new_external_data_ok = get_price_data();
+
+#ifdef PRICE_ELERING_ENABLED
+    if (strncmp(s.entsoe_area_code, "elering:",8) == 0)
+      got_new_external_data_ok = get_price_data_elering(); // experimental
+    else
+      got_new_external_data_ok = get_price_data_entsoe();
+#else
+    got_new_external_data_ok = get_price_data_entsoe();
+#endif
+
     io_tasks(STATE_PROCESSING);
     // todo_in_loop_update_price_rank_variables = got_new_external_data_ok;
     if (got_new_external_data_ok)

@@ -2,6 +2,8 @@ var g_config;
 var g_constants;
 var g_templates;
 
+var g_price_elering_enabled;
+
 var day_ahead_chart_obj;
 
 const VARIABLE_LONG_UNKNOWN = -2147483648;
@@ -1124,7 +1126,7 @@ function get_price_data(repeat = true) {
     if (prices_expires > now_ts) { // not yet expired
         expires_in = (now_ts - prices_expires);
         console.log("Next get_price_data in" + expires_in + "seconds.");
-        setTimeout(function () { get_price_data(); }, (1800 * 1000));
+        setTimeout(function () { get_price_data(true); }, (1800 * 1000));
         return;
     }
     console.log("get_price_data starting");
@@ -1145,7 +1147,7 @@ function get_price_data(repeat = true) {
                 prices_expires = data.expires;
                 expired = (data.expires < now_ts);
                 if (repeat)
-                    setTimeout(function () { get_price_data(); }, expired ? 900000 : 3600000);
+                    setTimeout(function () { get_price_data(true); }, expired ? 900000 : 3600000);
             }
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -1381,6 +1383,53 @@ function remove_select_options(select_element) {
 //End of scheduling functions
 
 function load_application_config() {
+    // application config
+    $.ajax({
+        url: '/application',
+        dataType: 'json',
+        async: false,
+        success: function (data) {
+            g_constants = data; console.log("got g_constants");
+            // versions
+            let version_str = "Current version: " + g_constants.VERSION;
+            if (g_constants.VERSION.localeCompare(g_constants.version_fs) != 0) {
+                version_str += ` <span class="text-warning">Filesystem version '${g_constants.version_fs}' differs!</span>`;
+            }
+            document.getElementById("version").innerHTML = version_str;
+
+            g_price_elering_enabled = g_constants.hasOwnProperty("PRICE_ELERING_ENABLED") ? g_constants.PRICE_ELERING_ENABLED : false;
+
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get g_constants", textStatus, jqXHR.status);
+        }
+    });
+
+    //Add UI price area fields to enable Elering price query
+    if (g_price_elering_enabled) {
+        var price_area_ctrl = document.getElementById("entsoe_area_code");
+        price_area_ctrl.options.add(new Option("Price source ENTSO-E", "entsoe"), price_area_ctrl.options[1]);
+        price_area_ctrl.options[1].disabled = true;
+        price_area_ctrl.options.add(new Option("Latvia, AST 🇱🇻", "elering:lv"), price_area_ctrl.options[1]);
+        price_area_ctrl.options.add(new Option("Lithuania, Litgrid 🇱🇹", "elering:lt"), price_area_ctrl.options[1]);
+        price_area_ctrl.options.add(new Option("Finland, Fingrid 🇫🇮", "elering:fi"), price_area_ctrl.options[1]);
+        price_area_ctrl.options.add(new Option("Estonia, Elering 🇪🇪", "elering:ee"), price_area_ctrl.options[1]);
+        price_area_ctrl.options.add(new Option("Price source Elering", "elering"), price_area_ctrl.options[1]);
+        price_area_ctrl.options[1].disabled = true;   
+        
+        // Elering does not need an API key
+        price_area_ctrl.addEventListener(
+            "change",
+            function () {
+                document.getElementById("entsoe_api_key").disabled = price_area_ctrl.value.startsWith("elering:");
+            },
+            false
+        );
+        var info_span = document.getElementById("price_data:info");
+        info_span.innerHTML = info_span.innerHTML + " Elering provides price data for Estonia, Finland, Lithuania and Latvia without an API key."
+      
+    }
+
     //current config
     $.ajax({
         type: "GET",
@@ -2356,25 +2405,6 @@ function compare_wifis(a, b) {
 
 function init_ui() {
     console.log("Init ui");
-    get_price_data(); //TODO: also update at 2pm
-    $.ajax({
-        url: '/application',
-        dataType: 'json',
-        async: false,
-        success: function (data) {
-            g_constants = data; console.log("got g_constants");
-            // versions
-            let version_str = "Current version: " + g_constants.VERSION;
-            if (g_constants.VERSION.localeCompare(g_constants.version_fs) != 0) {
-                version_str += ` <span class="text-warning">Filesystem version '${g_constants.version_fs}' differs!</span>`;
-            }
-            document.getElementById("version").innerHTML = version_str;
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_constants", textStatus, jqXHR.status);
-        }
-    });
-
 
     load_application_config();
 
@@ -2399,7 +2429,6 @@ function init_ui() {
             save_buttons[i].disabled = true;
             console.log("save_buttons[i].disabled");
         }
-
     }
 
     action_buttons = document.querySelectorAll("button[id^='admin:']");
@@ -2429,6 +2458,11 @@ function init_ui() {
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+
+    get_price_data(true); //TODO: also update at 2pm
+
+    document.getElementById("entsoe_api_key").disabled = document.getElementById("entsoe_area_code").value.startsWith("elering:");
+
 }
 
 function live_alert(card_idstr, message, type) {
