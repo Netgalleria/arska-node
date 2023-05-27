@@ -3942,7 +3942,6 @@ bool get_price_data_entsoe()
       break;
     }
   }
-
   Serial.println(F("Waiting the document"));
   String line;
   String line2;
@@ -3952,7 +3951,6 @@ bool get_price_data_entsoe()
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
-
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
     if (line.indexOf("</Publication_MarketDocument>") > -1)
@@ -3963,7 +3961,6 @@ bool get_price_data_entsoe()
 
     if (line.endsWith(F("</period.timeInterval>")))
     { // header dates
-
       record_end_excl = period_end;
       prices2.set_store_start(period_end - prices2.n() * prices2.resolution_sec());
       record_start = record_end_excl - (PRICE_PERIOD_SEC * MAX_PRICE_PERIODS);
@@ -3980,18 +3977,14 @@ bool get_price_data_entsoe()
     if (line.endsWith(F("</position>")))
     {
       pos = getElementValue(line).toInt();
-      //    Serial.println(pos);
     }
 
     else if (line.endsWith(F("</price.amount>")))
     {
       price = int(getElementValue(line).toFloat() * 100);
-
       if (abs(price) < 0.001) // suspicious value, could be parsing/data error
         contains_zero_prices = true;
-
       price_rows++;
-      //   Serial.println(line);
     }
     else if (line.endsWith("</Point>"))
     {
@@ -4004,7 +3997,6 @@ bool get_price_data_entsoe()
       }
 #endif
       prices2.set(period_start + (pos - 1) * PRICE_PERIOD_SEC, price);
-
       pos = -1;
       price = VARIABLE_LONG_UNKNOWN;
     }
