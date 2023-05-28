@@ -28,12 +28,10 @@ DEVEL BRANCH
 #define FILESYSTEM_LITTLEFS
 
 #ifdef FILESYSTEM_LITTLEFS
-#pragma message("FILESYSTEM_LITTLEFS")
 #include <LittleFS.h>
 #define FILESYSTEM LittleFS
 #define fs_filename "littlefs.bin"
 #else
-#pragma message("FILESYSTEM_SPIFFS")
 #include "SPIFFS.h"
 #define FILESYSTEM SPIFFS
 #define fs_filename "spiffs.bin"
@@ -154,6 +152,7 @@ time_t last_wifi_connect_tried = 0;
 bool clock_set = false;       // true if we have get (more or less) correct time from net or rtc
 bool config_resetted = false; // true if configuration cleared when version upgraded
 bool fs_mounted = false;      // true
+bool cooling_down_state = false;
 
 #define ERROR_MSG_LEN 100
 #define DEBUG_FILE_ENABLED
@@ -448,6 +447,7 @@ struct hw_io_struct
 uint8_t cpu_temp_f = 128;
 
 #ifdef HW_EXTENSIONS_ENABLED
+#pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
 
 // Hardware extension
 
@@ -915,9 +915,14 @@ int get_hw_template_idx(int id)
 #define STATE_UPLOADING 90
 #define STATE_COOLING 99
 
-#define COOLING_PANIC_SHUTDOWN_F 212 // 100 C
-#define COOLING_START_F 203     // 95C
-#define COOLING_RECOVER_TO_F 185 //85
+#define COOLING_PANIC_SHUTDOWN_F 203 // 95C
+#define COOLING_START_F 194          // 90C
+#define COOLING_RECOVER_TO_F 185     // 85 C
+/*  Testing
+#define COOLING_PANIC_SHUTDOWN_F 167 // 75 C
+#define COOLING_START_F 149          // 65C
+#define COOLING_RECOVER_TO_F 131     // 55
+*/
 
 #ifdef HW_EXTENSIONS_ENABLED
 
@@ -955,17 +960,24 @@ void io_tasks(uint8_t state = STATE_NA)
 
   // Serial.print(".");
   uint8_t cpu_temp_read;
-  if (millis() - last_temp_read > 5000)
+  if (!cooling_down_state && (millis() - last_temp_read) > 30000)
   {
+    adc_power_acquire();
     cpu_temp_read = temprature_sens_read();
+    adc_power_release();
     if (cpu_temp_read != 128)
     {
       cpu_temp_f = cpu_temp_read;
+      // DEBUG
+      Serial.printf("io_tasks(), temp %dF / %dC\n", (int)cpu_temp_f, (int)((cpu_temp_f - 32) * 5 / 9));
+
       if (cpu_temp_f > COOLING_START_F && state != STATE_COOLING)
       { // avoid recursion
-        cooling(COOLING_RECOVER_TO_F, 3600000LU);
+        cooling(COOLING_RECOVER_TO_F, 900000LU);
       }
     }
+    else
+      Serial.print(".");
     last_temp_read = millis();
   }
 
@@ -1046,11 +1058,14 @@ void io_tasks(uint8_t state = STATE_NA)
 
 void cooling(uint8_t cool_down_to_f, unsigned long max_wait_ms)
 {
+  uint8_t cpu_temp_read;
+  cooling_down_state = true; // global cooling state variable true,
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
     {
       relay_state_reapply_required[channel_idx] = true; // try to recover after cool down
+      Serial.printf(PSTR("Taking local channel %d down for cooling.\n"), channel_idx);
       if (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register)
       {
         if (s.ch[channel_idx].relay_id < MAX_REGISTER_BITS)
@@ -1070,25 +1085,35 @@ void cooling(uint8_t cool_down_to_f, unsigned long max_wait_ms)
   log_msg(MSG_TYPE_FATAL, PSTR("Cooling down, all local relays switched off."), true);
   while (cpu_temp_f > cool_down_to_f)
   {
-    delay(5000);
     io_tasks(STATE_COOLING);
-    if (cpu_temp_f > COOLING_PANIC_SHUTDOWN_F)
+    //Goes down for immediately if over PINIC limit or tried to cool down too long without success
+    // It is possible that temprature_sens_read() reading cannot go down without reset, so this would be the harder way
+    if ((cpu_temp_f > COOLING_PANIC_SHUTDOWN_F) || ((millis() - wait_started) > max_wait_ms))
     {
       esp_sleep_enable_timer_wakeup(900 * 1000000ULL);
-      log_msg(MSG_TYPE_FATAL, PSTR("HOT! Panic deep-sleep for 15 minutes."), true);
+      log_msg(MSG_TYPE_FATAL, PSTR("HOT SHUTDOWN! Panic deep-sleep for 15 minutes cooling down period."), true);
       delay(1000);
       Serial.flush();
       esp_deep_sleep_start();
     }
-    if ((millis() - wait_started) > max_wait_ms)
-    {
-      WiFi.disconnect();
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting, waited max cooling time."), true);
-      ESP.restart();
-    }
-  }
-  log_msg(MSG_TYPE_FATAL, PSTR("Recovering after cooling."), true);
 
+    adc_power_acquire();
+    delay(2000);
+    cpu_temp_read = temprature_sens_read();
+    adc_power_release();
+
+    if (cpu_temp_read != 128)
+    {
+      Serial.printf("cooling(), temp %dF / %dC\n", (int)cpu_temp_f, (int)((cpu_temp_f - 32) * 5 / 9));
+    }
+    else
+      Serial.println("cooling(), cannot read cpu temperature");
+
+    delay(30000);
+  }
+
+  log_msg(MSG_TYPE_FATAL, PSTR("Recovering after cooling."), true);
+  cooling_down_state = false;
   todo_in_loop_reapply_relay_states = true;
 };
 #else
@@ -3440,8 +3465,8 @@ void calculate_period_variables()
   Serial.printf("day_start_local %lu \n", day_start_local);
   Serial.print("Finnish wind tomorrow avg, mWh:");
   Serial.println(wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * SECONDS_IN_HOUR));
-  vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + SECONDS_IN_DAY , day_start_local + 47 * 3600));
-  vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 2*SECONDS_IN_DAY, day_start_local + 71 * 3600));
+  vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * 3600));
+  vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 2 * SECONDS_IN_DAY, day_start_local + 71 * 3600));
 
   // int block_idx = (int)((24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (24 / DAY_BLOCK_SIZE_HOURS);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
@@ -3490,10 +3515,10 @@ void calculate_price_ranks_current()
     vars.set_NA(VARIABLE_PRICERANK_FIXED_8_BLOCKID);
   }
   else if (prices_expires + SECONDS_IN_HOUR * 1 < now_infunc)
-      if (strncmp(s.entsoe_area_code, "elering:",8) == 0)
-         log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
-      else
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
+    if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
+    else
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
 
   int rank;
   long price_ratio_avg;
@@ -3731,9 +3756,12 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   {
     int err;
     char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf));
+    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
     if (err != 0)
+    {
+      strncat(error_buf, "(connecting FMI)", sizeof(error_buf) - strlen(error_buf));
       log_msg(MSG_TYPE_ERROR, error_buf);
+    }
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Quitting forecast query."));
     client_https.stop();
@@ -3748,7 +3776,6 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
 
   Serial.printf("Requesting URL: %s\n", fcst_url);
 
-  // #pragma message("EXPERIMENTAL http 1.0 , was 1.1")
   client_https.print(String("GET ") + fcst_url + " HTTP/1.0\r\n" +
                      "Host: " + host_fcst_fmi + "\r\n" +
                      "User-Agent: ArskaNodeESP\r\n" +
@@ -3906,9 +3933,12 @@ bool get_price_data_entsoe()
   {
     int err;
     char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf));
+    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
     if (err != 0)
+    {
+      strncat(error_buf, "(connecting Entso-E)", sizeof(error_buf) - strlen(error_buf));
       log_msg(MSG_TYPE_ERROR, error_buf);
+    }
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Quitting price query."));
     client_https.stop();
@@ -3921,7 +3951,6 @@ bool get_price_data_entsoe()
   Serial.println(url);
 
   //
-  // #pragma message("EXPERIMENTAL http 1.0 , was 1.1")
   client_https.print(String("GET ") + url + " HTTP/1.1\r\n" +
                      "Host: " + host_prices + "\r\n" +
                      "User-Agent: ArskaNodeESP\r\n" +
@@ -4757,7 +4786,7 @@ bool get_price_data_elering()
   Serial.printf("get_price_data_elering \n");
   time_t now_in_func;
   time(&now_in_func);
-  if (prices_expires > now_in_func && prices_initiated) 
+  if (prices_expires > now_in_func && prices_initiated)
   {
     Serial.println(F("Price data not expired, returning"));
     return false;
@@ -4775,7 +4804,7 @@ bool get_price_data_elering()
   String line;
   int sep1, sep2;
   String ts_string, val_string;
-  time_t ts; 
+  time_t ts;
   float price;
   char date_str_start[30];
   char date_str_end[30];
@@ -4794,9 +4823,12 @@ bool get_price_data_elering()
   {
     int err;
     char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf));
+    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
     if (err != 0)
+    {
+      strncat(error_buf, "(connecting Elering)", sizeof(error_buf) - strlen(error_buf));
       log_msg(MSG_TYPE_ERROR, error_buf);
+    }
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Quitting price query."));
     client_https.stop();
@@ -4804,7 +4836,7 @@ bool get_price_data_elering()
   }
   yield();
   time(&now_infunc);
-  start_ts = now_infunc - (3600 * (22+24)); // no previous day after 22h, assume we have data ready for next day
+  start_ts = now_infunc - (3600 * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 3;
 
   localtime_r(&start_ts, &tm_struct);
@@ -4832,7 +4864,8 @@ bool get_price_data_elering()
   // Serial.println("request sent");
   if (client_https.connected())
     Serial.println("client_https connected");
-  else {
+  else
+  {
     Serial.println("client_https not connected");
     return false;
   }
@@ -4842,7 +4875,7 @@ bool get_price_data_elering()
     String lineh = client_https.readStringUntil('\n');
     if (lineh == "\r")
     {
-      break; //headers received
+      break; // headers received
     }
   }
   yield();
@@ -4886,13 +4919,13 @@ bool get_price_data_elering()
 
   Serial.printf("price_rows %d, price_idx %d\n", price_rows, price_idx);
 
-
   if (price_rows >= MAX_PRICE_PERIODS)
   {
     time_t ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * PRICE_PERIOD_SEC;
     int price_idx2 = ((price_idx + 1) % MAX_PRICE_PERIODS);
     prices2.set_store_start(ts_min_stored);
-    for (int i = 0;i<MAX_PRICE_PERIODS;i++) { //cyclic use of prices_local array
+    for (int i = 0; i < MAX_PRICE_PERIODS; i++)
+    { // cyclic use of prices_local array
       ts = ts_min_stored + i * PRICE_PERIOD_SEC;
       prices2.set(ts, prices_local[price_idx2]);
       price_idx2++;
@@ -6383,6 +6416,9 @@ void wifi_event_handler(WiFiEvent_t event)
 
 void setup()
 {
+
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+
   bool create_wifi_ap = false;
   Serial.begin(115200);
   delay(2000); // wait for console settle - only needed when debugging
@@ -6418,6 +6454,9 @@ void setup()
     fs_mounted = true;
     Serial.println(F("Filesystem initialized"));
   }
+
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER)
+    log_msg(MSG_TYPE_INFO, "Wakeup caused by timer", true);
 
   log_msg(MSG_TYPE_INFO, PSTR("Started setup"), true);
 
@@ -6465,6 +6504,9 @@ void setup()
 
 // HW EXTENSIONS setup()
 #ifdef HW_EXTENSIONS_ENABLED
+
+#include "driver/adc.h"
+
   if (hw_template_idx != -1)
   {
     io_tasks();
@@ -6802,6 +6844,10 @@ void loop()
     delay(2000);
     ESP.restart();
   }
+
+  if (cooling_down_state) // the cpu is cooling down,  keep calm and wait 
+    delay(10000);
+
   if (todo_in_loop_scan_wifis)
   {
     todo_in_loop_scan_wifis = false;
@@ -6961,7 +7007,7 @@ void loop()
     io_tasks(STATE_PROCESSING);
 
 #ifdef PRICE_ELERING_ENABLED
-    if (strncmp(s.entsoe_area_code, "elering:",8) == 0)
+    if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
       got_new_external_data_ok = get_price_data_elering(); // experimental
     else
       got_new_external_data_ok = get_price_data_entsoe();
@@ -6987,7 +7033,7 @@ void loop()
 
     update_time_based_variables();
     calculate_price_ranks_current();
-    long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY-1) * SECONDS_IN_HOUR, true);
+    long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
     if (period_solar_rank == -1)
       vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
     else
