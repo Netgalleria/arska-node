@@ -7,6 +7,9 @@ var g_price_elering_enabled;
 var day_ahead_chart_obj;
 
 const VARIABLE_LONG_UNKNOWN = -2147483648;
+const MAX_HISTORY_PERIODS = 24
+const HOURS_IN_DAY = 24
+
 
 //selected constants
 const CHANNEL_CONFIG_MODE_RULE = 0;
@@ -440,7 +443,7 @@ function _ltext(obj, prop) {
 // cookie function, check messages read etc, https://www.w3schools.com/js/js_cookies.asp
 function setCookie(cname, cvalue, exdays) {
     const d = new Date();
-    d.setTime(d.getTime() + (exdays * 24 * 60 * 60 * 1000));
+    d.setTime(d.getTime() + (exdays *  HOURS_IN_DAY * 60 * 60 * 1000));
     let expires = "expires=" + d.toUTCString();
     document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
 }
@@ -769,7 +772,7 @@ function create_dashboard_chart() {
     let prices_out = [];
     let idx = 0;
     let now_idx = 0;
-    let now_idx_chh = 23;
+    let now_idx_chh = MAX_HISTORY_PERIODS-1;
     now_ts = (Date.now() / 1000);
     now_period_ts = parseInt(now_ts / 3600) * 3600;
 
@@ -786,7 +789,7 @@ function create_dashboard_chart() {
         chart_end_excl_ts = chart_start_ts + (48 * 3600);
         chart_resolution_m = 60;
         now_idx = 0;
-        now_idx_chh = 23; //oli 23   
+        now_idx_chh = MAX_HISTORY_PERIODS-1;   
     }
     else {
         price_data_exists = true;
@@ -956,7 +959,7 @@ function create_dashboard_chart() {
 
     var channel_dataset;
     now_period_start = parseInt(now_ts / 3600) * 3600;
-    first_chh_period = now_period_start - 23 * 3600;
+    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS-1) * 3600;
     console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
@@ -981,8 +984,10 @@ function create_dashboard_chart() {
                    //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
                }
            } */
-        for (chh_idx = 0; chh_idx < 24; chh_idx++) {
-            ts = now_period_start - (chh_idx - 23) * 3600;
+        for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
+          //  ts = now_period_start - (chh_idx - MAX_HISTORY_PERIODS+1) * 3600;
+            ts = now_period_start + (chh_idx+1-MAX_HISTORY_PERIODS) * 3600;
+       //     console.log("chh_idx", chh_idx, "ts", ts, get_time_string_from_ts(ts, false, true));
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
@@ -1333,7 +1338,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     remove_select_options(sch_start_sel);
     addOption(sch_start_sel, 0, "now &rarr;", (prev_selected == 0));
 
-    for (k = 0; k < 24; k++) {
+    for (k = 0; k < HOURS_IN_DAY; k++) {
         end_ts = start_ts + (duration_selected * 60) - 1;
         segment_price = get_price_for_segment(start_ts, end_ts);
         if (segment_price < cheapest_price) {
