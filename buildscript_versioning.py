@@ -19,8 +19,13 @@ else:
 import datetime
 import os
 
+print("Compressing UI script(s)")
+  # gzip script(s) automatically and keep unzipped for editing, Olli 24.5.2023
+os.system("gzip -kf data/js/arska-ui.js" ) 
+
 if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
   print("Building filesystem. No new version. BUILD_TARGETS:")
+
 
   print(BUILD_TARGETS)
 else:
@@ -65,9 +70,8 @@ else:
   with open(FILENAME_VERSION_FS, 'w+') as f:
       f.write(hffs)
 
-  # gzip script(s) automatically and keep unzipped for editing, Olli 24.5.2023
-  os.system("gzip -kf data/js/arska-ui.js" ) 
-
+ # # gzip script(s) automatically and keep unzipped for editing, Olli 24.5.2023
+ # os.system("gzip -kf data/js/arska-ui.js" ) 
 
   
   env = DefaultEnvironment()

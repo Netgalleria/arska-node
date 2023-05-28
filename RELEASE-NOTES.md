@@ -20,7 +20,9 @@
   * A priority value (0-255) added the channels. Channel with the lowest priority value is switched up first and switched down last when there are two or more channels to switch simultanously.
   * Load (Watts) is used to estimate channel energy usage in consumption estimates for optimazed netting.
   * Channel colour, user defined with default values, is used in graphs and channels lists
-* Many internal optimizations. Unnecessary/redundant filesystem caches and calculations removed/optimized.
+  * Many internal optimizations. Unnecessary/redundant filesystem caches and calculations removed/optimized.
+  * Initial support for devices using SN74hc595, e.g. Shelly Pro 1 v.1 .  HW_EXTENSIONS_ENABLED must be must be defined in defined in the code before building.
+  * New price data source Elering for Estonia, Finland, Latvia and Lithuania
 ### Bug Fixes
 * Memory leak in /application request fixed, file close added in several places  (2023-05-20)
 * Portrait mode works in the UI; mobile menu, the dashboard graph is hidden in narrow display (2023-05-20).

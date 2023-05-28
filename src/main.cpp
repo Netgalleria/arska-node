@@ -265,9 +265,12 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 
 #define NETTING_PERIOD_MIN 60 //!< Netting time in minutes, (in Finland) 60 -> 15 minutes 2023
 #define NETTING_PERIOD_SEC (NETTING_PERIOD_MIN * 60)
+#define SECONDS_IN_HOUR 3600
 #define PRICE_PERIOD_SEC 3600
-#define SOLAR_FORECAST_RESOLUTION 3600
+#define SOLAR_FORECAST_RESOLUTION_SEC 3600
+
 #define SECONDS_IN_DAY 86400
+#define HOURS_IN_DAY 24
 
 #define FIRST_BLOCK_START_HOUR 23
 #define DAY_BLOCK_SIZE_HOURS 8 //!< a day is divided into 3 blocks of 8 hours, starting from local hour 23
@@ -912,9 +915,9 @@ int get_hw_template_idx(int id)
 #define STATE_UPLOADING 90
 #define STATE_COOLING 99
 
-#define COOLING_PANIC_SHUTDOWN_F 248 // 120
-#define COOLING_START_F 230          // 110C
-#define COOLING_RECOVER_TO_F 203     // 95C
+#define COOLING_PANIC_SHUTDOWN_F 212 // 100 C
+#define COOLING_START_F 203     // 95C
+#define COOLING_RECOVER_TO_F 185 //85
 
 #ifdef HW_EXTENSIONS_ENABLED
 
@@ -1640,8 +1643,8 @@ private:
 };
 // Time series globals
 timeSeries<int32_t> prices2(0, MAX_PRICE_PERIODS, PRICE_PERIOD_SEC, 0);
-timeSeries<uint16_t> solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION, 0);
-timeSeries<uint16_t> wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION, 0);
+timeSeries<uint16_t> solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
+timeSeries<uint16_t> wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 
 /**
  * @brief Returns start time of period of given time stamp (first second of an hour if 60 minutes netting period) ,
@@ -3245,7 +3248,7 @@ void update_time_based_variables()
   localtime_r(&now_in_func, &tm_struct);
   yield();
   // update globals
-  day_start_local = (((int)(now_in_func / 3600)) - tm_struct.tm_hour) * 3600; // TODO:DST
+  day_start_local = (((int)(now_in_func / SECONDS_IN_HOUR)) - tm_struct.tm_hour) * SECONDS_IN_HOUR; // TODO:DST
 
   vars.set(VARIABLE_MM, (long)(tm_struct.tm_mon + 1));
   vars.set(VARIABLE_MMDD, (long)(tm_struct.tm_mon + 1) * 100 + tm_struct.tm_mday);
@@ -3273,7 +3276,7 @@ void update_time_based_variables()
     // printf("DEBUG day_start_local %lu, day_sum %d, this_period_power %d, period_power_tuned %ld,  day_sum_tuned %ld\n", day_start_local, (int)day_sum, (int)this_period_power, period_power_tuned, day_sum_tuned);
 
     if (period_power_tuned < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
-      vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)24 * 60);
+      vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)HOURS_IN_DAY * 60);
     else
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)(tm_struct.tm_min * day_sum_tuned / period_power_tuned));
 
@@ -3408,7 +3411,7 @@ void calculate_period_variables()
   vars.set_NA(VARIABLE_PVFORECAST_AVGPRICE24);
   // FORECAST_TYPE_FI_LOCAL_SOLAR
   //  next 24 h
-  for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION)
+  for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
   {
 #ifdef PRICE_SERIES_OLD
     price = get_price_for_time(period);
@@ -3436,16 +3439,16 @@ void calculate_period_variables()
   // FORECAST_TYPE_FI_WIND
   Serial.printf("day_start_local %lu \n", day_start_local);
   Serial.print("Finnish wind tomorrow avg, mWh:");
-  Serial.println(wind_forecast.avg(day_start_local + 24 * 3600, day_start_local + 47 * 3600));
-  vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + 24 * 3600, day_start_local + 47 * 3600));
-  vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 48 * 3600, day_start_local + 71 * 3600));
+  Serial.println(wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * SECONDS_IN_HOUR));
+  vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + SECONDS_IN_DAY , day_start_local + 47 * 3600));
+  vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 2*SECONDS_IN_DAY, day_start_local + 71 * 3600));
 
   // int block_idx = (int)((24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (24 / DAY_BLOCK_SIZE_HOURS);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
-  time_t this_block_starts = (current_period_start - block_start_before_this_idx * 3600);
+  time_t this_block_starts = (current_period_start - block_start_before_this_idx * SECONDS_IN_HOUR);
 
-  vars.set(VARIABLE_WIND_AVG_DAY1B_FI, (long)wind_forecast.avg(this_block_starts + 24 * 3600, this_block_starts + (24 + DAY_BLOCK_SIZE_HOURS - 1) * 3600));
-  vars.set(VARIABLE_WIND_AVG_DAY2B_FI, (long)wind_forecast.avg(this_block_starts + 48 * 3600, this_block_starts + (48 + DAY_BLOCK_SIZE_HOURS - 1) * 3600));
+  vars.set(VARIABLE_WIND_AVG_DAY1B_FI, (long)wind_forecast.avg(this_block_starts + 24 * SECONDS_IN_HOUR, this_block_starts + (24 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
+  vars.set(VARIABLE_WIND_AVG_DAY2B_FI, (long)wind_forecast.avg(this_block_starts + 48 * SECONDS_IN_HOUR, this_block_starts + (48 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
 }
 /**
  * @brief Calculate price rank variables for current period
@@ -3486,7 +3489,7 @@ void calculate_price_ranks_current()
     vars.set_NA(VARIABLE_PRICERANK_FIXED_8);
     vars.set_NA(VARIABLE_PRICERANK_FIXED_8_BLOCKID);
   }
-  else if (prices_expires + 3600 * 1 < now_infunc)
+  else if (prices_expires + SECONDS_IN_HOUR * 1 < now_infunc)
       if (strncmp(s.entsoe_area_code, "elering:",8) == 0)
          log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
       else
@@ -3573,16 +3576,16 @@ void calculate_price_ranks_current()
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
 
   // 8 h blocks
-  int block_idx = (int)((24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (24 / DAY_BLOCK_SIZE_HOURS);
-  int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
+  int block_idx = (int)((HOURS_IN_DAY + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (HOURS_IN_DAY / DAY_BLOCK_SIZE_HOURS);
+  int block_start_before_this_idx = (HOURS_IN_DAY + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
 
 #ifdef PRICE_SERIES_OLD
   window_start_incl_idx = time_idx - block_start_before_this_idx;
   rank = get_period_price_rank_in_window(window_start_incl_idx, DAY_BLOCK_SIZE_HOURS, time_idx, prices, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   Serial.printf("Old way 8 h block rank %ld\n", (long)rank);
 #else
-  first_ts_in_window = current_period_start - 3600 * block_start_before_this_idx;
-  last_ts_in_window = first_ts_in_window + 7 * 3600;
+  first_ts_in_window = current_period_start - PRICE_PERIOD_SEC * block_start_before_this_idx;
+  last_ts_in_window = first_ts_in_window + 7 * PRICE_PERIOD_SEC;
   rank = prices2.get_period_rank(current_period_start, first_ts_in_window, last_ts_in_window);
   Serial.printf("New way 8 h block rank %ld\n", (long)rank);
 #endif
@@ -3700,7 +3703,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
   }
   else if (forecast_type == FORECAST_TYPE_FI_WIND)
   {
-    time_series->set_store_start(day_start_local + 23 * 3600); // next day first block
+    time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
   }
 
   if (!FILESYSTEM.exists(fmi_ca_filename))
@@ -3812,7 +3815,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_se
 
   for (JsonArray elem : doc.as<JsonArray>())
   {
-    period = (time_t)elem[0] - 3600; // The value represent previous hour, Anders Lindfors 3.5.2023
+    period = (time_t)elem[0] - SECONDS_IN_DAY; // The value represent previous hour, Anders Lindfors 3.5.2023
     energy = elem[1];
     if (energy > 0.001)
       time_series->set(period, energy * 1000);
@@ -3865,7 +3868,7 @@ bool get_price_data_entsoe()
   time_t now_infunc;
 
   time(&now_infunc);
-  start_ts = now_infunc - (3600 * 22); // no previous day after 22h, assume we have data ready for next day
+  start_ts = now_infunc - (SECONDS_IN_DAY * 22); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
   int pos = -1;
@@ -4032,14 +4035,11 @@ bool get_price_data_entsoe()
     if (contains_zero_prices)
     { // potential problem in the latest fetch, give shorter validity time
       Serial.println("Contains zero prices. Could be still ok. Retry in 4 hours.");
-      prices_expires = now_infunc + (4 * 3600);
-      //  doc["expires"] = now_infunc + (4 * 3600);
+      prices_expires = now_infunc + (4 * SECONDS_IN_HOUR);
     }
     else
     {
-      time_t doc_expires = record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
-      // time_t doc_expires = min((record_end_excl - (11 * 3600)), (now_infunc + (18 * 3600))); // expire in 18 hours or 11 hour before price data end, which comes first
-      //   doc["expires"] = doc_expires;
+      time_t doc_expires = record_end_excl - (11 * SECONDS_IN_DAY); // prices for next day should come after 12hUTC, so no need to query before that
       prices_expires = doc_expires;
       Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
@@ -4784,9 +4784,6 @@ bool get_price_data_elering()
   time_t ts_max = 0;
   long prices_local[MAX_PRICE_PERIODS];
 
-
-
-
   client_https.setCACert(letsencrypt_ca_certificate);
 
   client_https.setTimeout(15); // was 15 Seconds
@@ -4892,11 +4889,11 @@ bool get_price_data_elering()
 
   if (price_rows >= MAX_PRICE_PERIODS)
   {
-    time_t ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * 3600;
+    time_t ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * PRICE_PERIOD_SEC;
     int price_idx2 = ((price_idx + 1) % MAX_PRICE_PERIODS);
     prices2.set_store_start(ts_min_stored);
     for (int i = 0;i<MAX_PRICE_PERIODS;i++) { //cyclic use of prices_local array
-      ts = ts_min_stored + i * 3600;
+      ts = ts_min_stored + i * PRICE_PERIOD_SEC;
       prices2.set(ts, prices_local[price_idx2]);
       price_idx2++;
       price_idx2 = price_idx2 % MAX_PRICE_PERIODS;
@@ -4908,7 +4905,7 @@ bool get_price_data_elering()
     prices_resolution_m = NETTING_PERIOD_MIN;
     prices_ts = now_infunc;
 
-    prices_expires = prices_record_end_excl - (11 * 3600); // prices for next day should come after 12hUTC, so no need to query before that
+    prices_expires = prices_record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
 
     Serial.println(F("Finished succesfully get_price_data_elering."));
     prices2.debug_print();
@@ -4971,7 +4968,7 @@ bool get_releases()
   {
     update_releases = client_https.readString();
     Serial.println(update_releases);
-    release_cache_expires = current_time + 2 * 3600;
+    release_cache_expires = current_time + 2 * SECONDS_IN_HOUR;
   }
 
   client_https.stop();
@@ -6990,7 +6987,7 @@ void loop()
 
     update_time_based_variables();
     calculate_price_ranks_current();
-    long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + 23 * 3600, true);
+    long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY-1) * SECONDS_IN_HOUR, true);
     if (period_solar_rank == -1)
       vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
     else
@@ -7014,7 +7011,7 @@ void loop()
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     todo_calculate_ranks_period_variables = true;
 
-    next_query_fcst_data = now + (got_new_external_data_ok ? (3 * 3600 + random(0, 200)) : 600 + random(0, 100));
+    next_query_fcst_data = now + (got_new_external_data_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));
   }
 
   if (todo_calculate_ranks_period_variables)
