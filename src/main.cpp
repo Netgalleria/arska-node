@@ -449,6 +449,8 @@ uint8_t cpu_temp_f = 128;
 #ifdef HW_EXTENSIONS_ENABLED
 #pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
 
+#include "driver/adc.h"
+
 // Hardware extension
 
 #define STATUS_LED_TYPE_NONE 0
@@ -3495,7 +3497,9 @@ void calculate_price_ranks_current()
   if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
 #endif
   {
+
     Serial.printf("Cannot get price info for current period time_idx %d , prices_expires %lu, now_infunc %lu \n", time_idx, prices_expires, now_infunc);
+    prices2.debug_print(); //JUST DEBUGGING
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price info for current period."));
     vars.set_NA(VARIABLE_PRICE);
     vars.set_NA(VARIABLE_PRICERANK_9);
@@ -3895,7 +3899,7 @@ bool get_price_data_entsoe()
   time_t now_infunc;
 
   time(&now_infunc);
-  start_ts = now_infunc - (SECONDS_IN_DAY * 22); // no previous day after 22h, assume we have data ready for next day
+  start_ts = now_infunc - (SECONDS_IN_HOUR * 22); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
   int pos = -1;
@@ -3994,6 +3998,7 @@ bool get_price_data_entsoe()
     if (line.endsWith(F("</period.timeInterval>")))
     { // header dates
       record_end_excl = period_end;
+      Serial.printf("Debug before get_price_data_entsoe %lu, %d",period_end,prices2.n());
       prices2.set_store_start(period_end - prices2.n() * prices2.resolution_sec());
       record_start = record_end_excl - (PRICE_PERIOD_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
@@ -6458,7 +6463,7 @@ void setup()
   if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER)
     log_msg(MSG_TYPE_INFO, "Wakeup caused by timer", true);
 
-  log_msg(MSG_TYPE_INFO, PSTR("Started setup"), true);
+  log_msg(MSG_TYPE_INFO, PSTR("Initializing the system."), true);
 
 #ifdef SENSOR_DS18B20_ENABLED
   sensors.begin();
@@ -6504,8 +6509,6 @@ void setup()
 
 // HW EXTENSIONS setup()
 #ifdef HW_EXTENSIONS_ENABLED
-
-#include "driver/adc.h"
 
   if (hw_template_idx != -1)
   {
@@ -6873,12 +6876,14 @@ void loop()
 #endif
 
   // started from admin UI
+#ifdef SENSOR_DS18B20_ENABLED  
   if (todo_in_loop_scan_sensors)
   {
     todo_in_loop_scan_sensors = false;
     if (scan_sensors())
       writeToEEPROM();
   }
+#endif
 
   // if in Wifi AP Mode (192.168.4.1), no other operations allowed
   check_forced_restart(); //!< if in config mode restart when time out
@@ -6934,8 +6939,6 @@ void loop()
     // wait if we get more accurate time...?
 
     started = now;
-
-    Serial.printf(PSTR("Started processing %ld \n"), started);
 
     if (config_resetted)
       log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
