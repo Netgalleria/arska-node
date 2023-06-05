@@ -229,7 +229,11 @@
         "desc_fi": "Netotustiedon lähde, 0) ei tietoa käytössä 1) mittaus verkosta(103) 2) tuotannon mittaus invertteriltä (105) - (arvioitu kanavien kulutus (160) + peruskuorma)  3) tuotantoennuste  (402) - (arvioitu kanavien kulutus (160) + peruskuorma)"
 
     },
-    
+    "702": {
+        "id": "Selling estim. Wh",
+        "desc": "Measured (netting source 1) or estimated (netting source 2 and 3) sold energy to the grid during this period",
+        "desc_fi": "Mitattu (netotustiedon lähde 1) tai arvioitu (lähteet 2 ja 3) myyty energia verkkoon tämän periodin aikana"
+    },
     "1001": {
         "id": "updated",
         "desc": "update time",
