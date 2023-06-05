@@ -193,8 +193,8 @@
     },
     "402": {
         "id": "solar prod. estimate",
-        "desc": "Estimated solar production during this period so far, based on local solar forecast, Wh.",
-        "desc_fi" : "Ennusteen mukainen tuotettu aurinkoenergian määrä nykyisen periodin aikana tähän mennessä."
+        "desc": "Estimated solar production during this period, based on local solar forecast, Wh",
+        "desc_fi" : "Ennusteen mukainen tuotettu aurinkoenergian määrä nykyisen periodin aikana"
     },
     "411": {
         "id": "FI wind d+1",

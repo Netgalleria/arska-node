@@ -3337,9 +3337,10 @@ void update_time_based_variables()
     {
       time_t period_started_real =max(started, current_period_start);
       uint32_t baseload_energy_period_sofar = (time(nullptr) - period_started_real) * s.baseload / 3600;
-      vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)(vars.get_l(VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD) - (vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION,0) +  baseload_energy_period_sofar)));
+      long production_estimate_sofar =  (time(nullptr) - period_started_real) * vars.get_l(VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD)/ 3600;
+      vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)(production_estimate_sofar - (vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION,0) +  baseload_energy_period_sofar)));
       vars.set(VARIABLE_OVERPRODUCTION, (long)vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE) > 0L ? 1L : 0L);
-      Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; prod %ld , channels %ld , baseload so far %ld  \n",vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE ), vars.get_l(VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD,0),vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION),baseload_energy_period_sofar);
+      Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; prod %ld , channels %ld , baseload so far %ld  \n",vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE), production_estimate_sofar,vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION),baseload_energy_period_sofar);
     };
   }
   yield();
