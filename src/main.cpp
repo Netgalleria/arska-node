@@ -584,7 +584,7 @@ struct statement_st
 };
 
 // do not change variable id:s (will broke statements)
-#define VARIABLE_COUNT 47
+#define VARIABLE_COUNT 48
 
 #define VARIABLE_PRICE 0                     //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1               //!< price rank within 9 hours window
@@ -617,9 +617,15 @@ struct statement_st
 #define VARIABLE_MINUTES 117
 #define VARIABLE_DAYENERGY_FI 130 //!< true if day, (07:00-22:00 Finnish tariffs), logical
 #define VARIABLE_WINTERDAY_FI 140 //!< true if winterday, (Finnish tariffs), logical
-#define VARIABLE_CHANNEL_UTIL_PERIOD 150
-#define VARIABLE_CHANNEL_UTIL_8H 152
-#define VARIABLE_CHANNEL_UTIL_24H 153
+#define VARIABLE_CHANNEL_UTIL_PERIOD 150 //!< channel utilization this period, minutes
+#define VARIABLE_CHANNEL_UTIL_8H 152 //!< channel utilization this hour and 7 previous, minutes
+#define VARIABLE_CHANNEL_UTIL_24H 153 //!< channel utilization this hour and 23 previous, minutes
+#define VARIABLE_CHANNEL_UTIL_BLOCK_0 155 //!< channel utilization, this block, minutes
+#define VARIABLE_CHANNEL_UTIL_BLOCK_M1_0 156 //!< channel utilization, this and previous blocks, minutes
+#define VARIABLE_CHANNEL_UTIL_BLOCK_M2_0 157 //!< channel utilization, this and 2 previous blocks, minutes
+
+
+
 #define VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION 160 // Wh
 #define VARIABLE_SENSOR_1 201                       //!< sensor1 value, float, 1 decimal
 // #define VARIABLE_BEEN_UP_AGO_HOURS_0 170 // RFU
@@ -1164,7 +1170,7 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_24, "price rank 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, "overproduction", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0}, {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_MINUTES, "minutes 0-59", CONSTANT_TYPE_CHAR_2}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}, {VARIABLE_CHANNEL_UTIL_PERIOD, "ch up period, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_8H, "ch up in 8 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_24H, "ch up in 24 h, min", CONSTANT_TYPE_INT}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, "consumption estim.", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_MINUTES_TUNED, "virtual solar count", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, "solar prod. estim.", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1_FI, "FI wind d+1, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2_FI, "FI wind d+2, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1B_FI, "FI wind d+1 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2B_FI, "FI wind d+2 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_RANK_FIXED_24, "solar rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_NET_ESTIMATE_SOURCE, "Netting source", CONSTANT_TYPE_INT}, {VARIABLE_SELLING_ENERGY_ESTIMATE, "Selling estim. Wh", CONSTANT_TYPE_INT}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_24, "price rank 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, "overproduction", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0}, {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_MINUTES, "minutes 0-59", CONSTANT_TYPE_CHAR_2}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}, {VARIABLE_CHANNEL_UTIL_PERIOD, "ch up period, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_8H, "ch up in 8 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_24H, "ch up in 24 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, "ch up -2,-1,0 block", CONSTANT_TYPE_INT}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, "consumption estim.", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_MINUTES_TUNED, "virtual solar count", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, "solar prod. estim.", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1_FI, "FI wind d+1, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2_FI, "FI wind d+2, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1B_FI, "FI wind d+1 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2B_FI, "FI wind d+2 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_RANK_FIXED_24, "solar rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_NET_ESTIMATE_SOURCE, "Netting source", CONSTANT_TYPE_INT}, {VARIABLE_SELLING_ENERGY_ESTIMATE, "Selling estim. Wh", CONSTANT_TYPE_INT}};
 
   int get_variable_index(int id);
 };
@@ -1592,6 +1598,7 @@ public:
     Serial.printf("Debug print start_ %lu -> %lu, resolution_sec_ %d, n_: %d \n", start_ts, end_ts_incl, resolution_sec_, (end_ts_incl - start_ts) / resolution_sec_ + 1);
     // for (int i = get_idx(start_ts); i <= get_idx(end_ts_incl); i++)
 
+/*
 #pragma message("Remove this debug from production")
     if (n_ > 100)
     {
@@ -1601,7 +1608,7 @@ public:
       while (true)
         delay(1000);
     }
-
+*/
     for (int i = 0; i < n_; i++)
     {
       Serial.printf("%d, %lu  ", i, start_ + i * resolution_sec_);
@@ -1787,6 +1794,14 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
 
   return (long)((history_cum_secs + 30) / 60);
 }
+
+time_t get_block_start(const time_t time) {
+  localtime_r(&time, &tm_struct_l);
+  int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
+  return (current_period_start - block_start_before_this_idx * SECONDS_IN_HOUR);
+}
+
+
 /**
  * @brief Returns variable index (idx) and copies variable content to given memory address based on variable id and channel idx
  *
@@ -1798,6 +1813,8 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
 int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx)
 {
   int idx = get_variable_index(id);
+  int now_nth_period_in_hour;
+
   if (idx != -1)
   {
     memcpy(variable, &variables[idx], sizeof(variable_st));
@@ -1814,6 +1831,11 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     else if (id == VARIABLE_CHANNEL_UTIL_24H) // update value for channel variables
     {                                         // 24h utilization
       variable->val_l = channel_history_cumulative_minutes(channel_idx, 24);
+    }
+    else if (VARIABLE_CHANNEL_UTIL_BLOCK_0 <= id && id <=VARIABLE_CHANNEL_UTIL_BLOCK_M2_0)
+    {
+      now_nth_period_in_hour = (current_period_start-get_block_start(current_period_start))/SECONDS_IN_HOUR;
+      variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour+(id-VARIABLE_CHANNEL_UTIL_BLOCK_0)*DAY_BLOCK_SIZE_HOURS); //this block hours + optional previous blocks
     }
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
     {
@@ -3414,6 +3436,8 @@ long round_divide(long lval, long divider)
   return (lval + add_in_round) / divider;
 }
 
+
+
 void calculate_period_variables()
 {
 
@@ -3457,7 +3481,6 @@ void calculate_period_variables()
   vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * 3600));
   vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 2 * SECONDS_IN_DAY, day_start_local + 71 * 3600));
 
-  // int block_idx = (int)((24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (24 / DAY_BLOCK_SIZE_HOURS);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
   time_t this_block_starts = (current_period_start - block_start_before_this_idx * SECONDS_IN_HOUR);
 
@@ -3475,13 +3498,14 @@ void calculate_price_ranks_current()
 {
   time_t now_infunc;
   time(&now_infunc);
-  int time_idx = int((now_infunc - prices_record_start) / PRICE_PERIOD_SEC);
+  //int time_idx = int((now_infunc - prices_record_start) / PRICE_PERIOD_SEC);
+  time_t current_period_start = get_netting_period_start_time(now_infunc);
 
 
-  Serial.printf("calculate_price_ranks_current start: %ld, end: %ld, time_idx: %d\n", prices_record_start, prices_record_end_excl, time_idx);
+  Serial.printf("calculate_price_ranks_current start: %ld, end: %ld, current_period_start: %lu\n", prices_record_start, prices_record_end_excl, current_period_start);
   if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
   {
-    Serial.printf("Cannot get price info for current period time_idx %d , prices_expires %lu, now_infunc %lu \n", time_idx, prices_expires, now_infunc);
+    Serial.printf("Cannot get price info for current period current_period_start %lu , prices_expires %lu, now_infunc %lu \n", current_period_start, prices_expires, now_infunc);
     // prices2.debug_print(); //JUST DEBUGGING
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price info for current period."));
     vars.set_NA(VARIABLE_PRICE);
@@ -3518,19 +3542,14 @@ void calculate_price_ranks_current()
   int32_t price_differs_avg;
 
 
-  time_t time = prices_record_start + time_idx * PRICE_PERIOD_SEC;
+  //time_t time = prices_record_start + time_idx * PRICE_PERIOD_SEC;
+  //localtime_r(&time, &tm_struct_l);
+  localtime_r(&current_period_start, &tm_struct_l);
 
   delay(5);
-
-
   vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc) + 50) / 100));
 
-  localtime_r(&time, &tm_struct_l);
-
-  Serial.printf("\n\ntime: %ld, time_idx: %d , %04d-%02d-%02d %02d:00, \n", time, time_idx, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
-
-  // new time series, uusi versio funkkarista get_period_price_rank_in_window
-  //  voi hoitua myös pitkälti nykyisillä time series rank ja avg
+  Serial.printf("\n\n current_period_start: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
 
   // 9 h sliding
 
@@ -6193,7 +6212,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   for (int variable_idx = 0; variable_idx < vars.get_variable_count(); variable_idx++)
   {
     vars.get_variable_by_idx(variable_idx, &variable);
-    if (VARIABLE_CHANNEL_UTIL_PERIOD <= variable.id && variable.id <= VARIABLE_CHANNEL_UTIL_24H) // channel variables still separate handling
+    if (VARIABLE_CHANNEL_UTIL_PERIOD <= variable.id && variable.id <= VARIABLE_CHANNEL_UTIL_BLOCK_M2_0) // channel variables still separate handling
       continue;
 
     // calculated variables, TODO: one variable get should be enough...
@@ -6212,7 +6231,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   // vars.get_variable_by_idx(variable_idx, &variable);
   char var_id_str[5];
   sprintf(var_id_str, "%d", (int)VARIABLE_CHANNEL_UTIL_PERIOD);
-  // experimental channel variable VARIABLE_CHANNEL_UTIL_PERIOD VARIABLE_CHANNEL_UTIL_8H,  VARIABLE_CHANNEL_UTIL_24H
+
   JsonArray v_channel_array = var_obj.createNestedArray(var_id_str); //(;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -6229,6 +6248,14 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     v_channel_array.add(channel_history_cumulative_minutes(channel_idx, 24));
+  }
+
+  sprintf(var_id_str, "%d", (int)VARIABLE_CHANNEL_UTIL_BLOCK_M2_0);
+  v_channel_array = var_obj.createNestedArray(var_id_str); 
+  int now_nth_period_in_hour = (current_period_start-get_block_start(current_period_start))/SECONDS_IN_HOUR;
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  { // this and previous 2 blocks utilization
+    v_channel_array.add(channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour+DAY_BLOCK_SIZE_HOURS*2));
   }
 
   // variables with history time series
