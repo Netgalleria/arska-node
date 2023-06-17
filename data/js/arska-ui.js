@@ -812,12 +812,13 @@ function create_dashboard_chart() {
             now_idx = idx - 1;
 
 
-        time_labels.push(get_time_string_from_ts(ts, false, true));
+       // time_labels.push(get_time_string_from_ts(ts, false, true));
+        time_labels.push(get_time_label(ts));
+     
+        
 
         if (price_data_exists) {
-            //   prices_out.push(Math.round(price_data.prices[idx] / 100) / 10);
-            //    if (ts<now_ts+25*3600 && series_started)
-            prices_out.push({ x: get_time_string_from_ts(ts, false, true), y: Math.round(price_data.prices[idx] / 100) / 10 });
+            prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
         }
         idx++;
     }
@@ -900,7 +901,7 @@ function create_dashboard_chart() {
                     if (solar_fcst[idx] > 0)
                         series_started = true;
                     if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period)
-                        fcst_ds.push({ x: get_time_string_from_ts(ts, false, true), y: solar_fcst[idx] });
+                        fcst_ds.push({ x: get_time_label(ts), y: solar_fcst[idx] });
                 }
                 console.log("fcst_ds", fcst_ds);
                 datasets.push(
@@ -985,13 +986,11 @@ function create_dashboard_chart() {
                }
            } */
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
-          //  ts = now_period_start - (chh_idx - MAX_HISTORY_PERIODS+1) * 3600;
             ts = now_period_start + (chh_idx+1-MAX_HISTORY_PERIODS) * 3600;
-       //     console.log("chh_idx", chh_idx, "ts", ts, get_time_string_from_ts(ts, false, true));
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
-                channel_dataset.push({ x: get_time_string_from_ts(ts, false, true), y: channel_history[channel_idx][chh_idx] });
+                channel_dataset.push({ x: get_time_label(ts), y: channel_history[channel_idx][chh_idx] });
             }
         }
 
@@ -1210,6 +1209,27 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
             tmpStr += " (" + ((day_diff > 0) ? "+" : "") + (day_diff) + ")";
     }
     return tmpStr;
+}
+
+function get_time_label(ts) {
+    tmpDate = new Date(ts * 1000); 
+    tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
+    tz_offset_minutes = tmpDate.getTimezoneOffset();
+    now_ts_loc = (Date.now() / 1000) - tz_offset_minutes * 60;
+    ts_loc = ts - tz_offset_minutes * 60;
+    now_day = parseInt(now_ts_loc / 86400);
+    ts_day = parseInt(ts_loc / 86400);
+
+    day_diff = ts_day - now_day;
+    if (day_diff < 0)
+        day_indicator = "<"+Math.abs(day_diff);
+    else if (day_diff==0)
+        day_indicator = "= ";
+    else 
+        day_indicator = ">"+day_diff;
+
+   // return get_time_string_from_ts(ts, false, true);
+    return day_indicator + " " + tmpStr;
 }
 
 function populate_wifi_ssid_list_2() {
