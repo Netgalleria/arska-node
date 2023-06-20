@@ -834,7 +834,7 @@ typedef struct
   bool wanna_be_up;       //!< should channel be switched up (when the time is right)
   uint8_t type;           //!< channel type, for values see constants CH_TYPE_...
   time_t uptime_minimum;  //!< minimum time channel should be up
-  time_t up_last;         //!< last last time up time
+  time_t up_last;         //!< last time up time
   time_t force_up_from;   //<! force channel up starting from
   time_t force_up_until;  //<! force channel up until
   uint8_t config_mode;    //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
@@ -3827,7 +3827,8 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
 
   for (JsonArray elem : doc.as<JsonArray>())
   {
-    period = (time_t)elem[0] - SECONDS_IN_DAY; // The value represent previous hour, Anders Lindfors 3.5.2023
+    //period = (time_t)elem[0] - SECONDS_IN_DAY; // The value represent previous hour, Anders Lindfors 3.5.2023
+    period = (time_t)elem[0] - SECONDS_IN_HOUR; // The value represent previous hour, Anders Lindfors 3.5.2023
     energy = elem[1];
     if (energy > 0.001)
     {
@@ -5656,7 +5657,6 @@ bool ajson_bool_get(JsonVariant parent_node, char *doc_key, bool default_val)
   return default_val;
 }
 
-#define CONFIG_JSON_SIZE_MAX 6144
 /**
  * @brief Stores settings from a json document (from UI or restore upload)
  *
