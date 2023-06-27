@@ -281,8 +281,8 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HISTORY_VARIABLE_COUNT 2
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
-#define HW_TEMPLATE_COUNT 6
-#define HW_TEMPLATE_GPIO_COUNT 4
+#define HW_TEMPLATE_COUNT 7
+#define HW_TEMPLATE_GPIO_COUNT 4 //!< template  max number of hardcoded gpio relays
 
 
 
@@ -771,8 +771,9 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {4, "shelly-1-pro ", 1, {0, ID_NA, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
-    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}}};
+    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
+    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}} };
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
