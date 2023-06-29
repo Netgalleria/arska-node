@@ -284,8 +284,6 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define HW_TEMPLATE_COUNT 7
 #define HW_TEMPLATE_GPIO_COUNT 4 //!< template  max number of hardcoded gpio relays
 
-
-
 time_t prices_first_period = 0;
 
 time_t prices_record_start;
@@ -615,16 +613,14 @@ struct statement_st
 #define VARIABLE_HH 115
 #define VARIABLE_HHMM 116
 #define VARIABLE_MINUTES 117
-#define VARIABLE_DAYENERGY_FI 130 //!< true if day, (07:00-22:00 Finnish tariffs), logical
-#define VARIABLE_WINTERDAY_FI 140 //!< true if winterday, (Finnish tariffs), logical
-#define VARIABLE_CHANNEL_UTIL_PERIOD 150 //!< channel utilization this period, minutes
-#define VARIABLE_CHANNEL_UTIL_8H 152 //!< channel utilization this hour and 7 previous, minutes
-#define VARIABLE_CHANNEL_UTIL_24H 153 //!< channel utilization this hour and 23 previous, minutes
-#define VARIABLE_CHANNEL_UTIL_BLOCK_0 155 //!< channel utilization, this block, minutes
+#define VARIABLE_DAYENERGY_FI 130            //!< true if day, (07:00-22:00 Finnish tariffs), logical
+#define VARIABLE_WINTERDAY_FI 140            //!< true if winterday, (Finnish tariffs), logical
+#define VARIABLE_CHANNEL_UTIL_PERIOD 150     //!< channel utilization this period, minutes
+#define VARIABLE_CHANNEL_UTIL_8H 152         //!< channel utilization this hour and 7 previous, minutes
+#define VARIABLE_CHANNEL_UTIL_24H 153        //!< channel utilization this hour and 23 previous, minutes
+#define VARIABLE_CHANNEL_UTIL_BLOCK_0 155    //!< channel utilization, this block, minutes
 #define VARIABLE_CHANNEL_UTIL_BLOCK_M1_0 156 //!< channel utilization, this and previous blocks, minutes
 #define VARIABLE_CHANNEL_UTIL_BLOCK_M2_0 157 //!< channel utilization, this and 2 previous blocks, minutes
-
-
 
 #define VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION 160 // Wh
 #define VARIABLE_SENSOR_1 201                       //!< sensor1 value, float, 1 decimal
@@ -773,7 +769,7 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}} };
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, {35, true, 4, 13, 14, 30, {4, 3, 2}}}};
 
 // #define CHANNEL_CONDITIONS_MAX 3 //platformio.ini
 #define CHANNEL_STATES_MAX 10
@@ -929,6 +925,16 @@ int get_hw_template_idx(int id)
 #define COOLING_RECOVER_TO_F 131     // 55
 */
 
+// Utility functions, channel attributes based on type
+bool is_wifi_relay(uint8_t type)
+{
+  return (type == CH_TYPE_SHELLY_1GEN || type == CH_TYPE_SHELLY_2GEN || type == CH_TYPE_TASMOTA);
+}
+bool is_local_relay(uint8_t type)
+{
+  return (type == CH_TYPE_GPIO_FIXED || type == CH_TYPE_GPIO_USER_DEF || type == CH_TYPE_GPIO_USR_INVERSED);
+}
+
 #ifdef HW_EXTENSIONS_ENABLED
 
 /*
@@ -1063,11 +1069,12 @@ void io_tasks(uint8_t state = STATE_NA)
 
 void cooling(uint8_t cool_down_to_f, unsigned long max_wait_ms)
 {
+  //TODO: check what to do with external relays when cooling..., now there is no changes during cooling period
   uint8_t cpu_temp_read;
   cooling_down_state = true; // global cooling state variable true,
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
+    if (is_local_relay(s.ch[channel_idx].type))
     {
       relay_state_reapply_required[channel_idx] = true; // try to recover after cool down
       Serial.printf(PSTR("Taking local channel %d down for cooling.\n"), channel_idx);
@@ -1469,7 +1476,6 @@ int Variables::get_variable_by_id(int id, variable_st *variable)
 
 #define TIMESERIES_ELEMENT_MAX 72
 
-// template <class T>
 typedef int32_t T;
 class timeSeries
 {
@@ -1481,15 +1487,9 @@ public:
 
     resolution_sec_ = resolution_sec;
 
-  //  arr = new T[n];
-
     init_value_ = init_value;
 
     clear_store();
-  }
-  ~timeSeries()
-  {
- //   delete[] arr;
   }
 
   // T operator [](int i) const    {return registers[i];}
@@ -1497,19 +1497,18 @@ public:
   {
     Serial.println("clear_store a");
     min_value_idx_ = n_;
-        Serial.println("clear_store b");
+    Serial.println("clear_store b");
 
     max_value_idx_ = -1;
-        Serial.println("clear_store c");
+    Serial.println("clear_store c");
 
- Serial.println(n_);
+    Serial.println(n_);
     for (int i = 0; i < n_; i++)
     {
-   //   Serial.println(i);
+      //   Serial.println(i);
       arr[i] = init_value_;
     }
-        Serial.println("clear_store g");
-
+    Serial.println("clear_store g");
   };
 
   void set(time_t ts, T new_value)
@@ -1599,17 +1598,18 @@ public:
     Serial.printf("Debug print start_ %lu -> %lu, resolution_sec_ %d, n_: %d \n", start_ts, end_ts_incl, resolution_sec_, (end_ts_incl - start_ts) / resolution_sec_ + 1);
     // for (int i = get_idx(start_ts); i <= get_idx(end_ts_incl); i++)
 
-/*
-#pragma message("Remove this debug from production")
-    if (n_ > 100)
-    {
-      Serial.println(n_);
-      Serial.println(start_ts);
-      Serial.println(end_ts_incl);
-      while (true)
-        delay(1000);
-    }
-*/
+    /*
+    #pragma message("Remove this debug from production")
+        if (n_ > 100)
+        {
+          Serial.println(n_);
+          Serial.println(start_ts);
+          Serial.println(end_ts_incl);
+          while (true)
+            delay(1000);
+        }
+    */
+    yield();
     for (int i = 0; i < n_; i++)
     {
       Serial.printf("%d, %lu  ", i, start_ + i * resolution_sec_);
@@ -1634,19 +1634,15 @@ public:
       return;
 
     start_ = new_start;
-
-    Serial.println("set_store_start A");
+    yield();
 
     if (abs(index_delta) >= n_)
     {
-      Serial.println("set_store_start X");
       // huge shift, nothing to save, just init
       clear_store();
-      Serial.println("set_store_start Xa");
     }
     else if (index_delta < 0)
     {
-      Serial.println("set_store_start B");
       if (min_value_idx_ != n_)
       {
         min_value_idx_ = max(min_value_idx_ + index_delta, 0);
@@ -1717,8 +1713,7 @@ private:
   int max_value_idx_;
   uint16_t resolution_sec_;
 
- // T *arr;
-  T arr[TIMESERIES_ELEMENT_MAX]; //testing with static, size must be maximum time series length,
+  T arr[TIMESERIES_ELEMENT_MAX]; // testing with static, size must be maximum time series length,
   T init_value_;
 
   int get_idx(time_t ts)
@@ -1796,12 +1791,12 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
   return (long)((history_cum_secs + 30) / 60);
 }
 
-time_t get_block_start(const time_t time) {
+time_t get_block_start(const time_t time)
+{
   localtime_r(&time, &tm_struct_l);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
   return (current_period_start - block_start_before_this_idx * SECONDS_IN_HOUR);
 }
-
 
 /**
  * @brief Returns variable index (idx) and copies variable content to given memory address based on variable id and channel idx
@@ -1833,10 +1828,10 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     {                                         // 24h utilization
       variable->val_l = channel_history_cumulative_minutes(channel_idx, 24);
     }
-    else if (VARIABLE_CHANNEL_UTIL_BLOCK_0 <= id && id <=VARIABLE_CHANNEL_UTIL_BLOCK_M2_0)
+    else if (VARIABLE_CHANNEL_UTIL_BLOCK_0 <= id && id <= VARIABLE_CHANNEL_UTIL_BLOCK_M2_0)
     {
-      now_nth_period_in_hour = (current_period_start-get_block_start(current_period_start))/SECONDS_IN_HOUR;
-      variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour+(id-VARIABLE_CHANNEL_UTIL_BLOCK_0)*DAY_BLOCK_SIZE_HOURS); //this block hours + optional previous blocks
+      now_nth_period_in_hour = (current_period_start - get_block_start(current_period_start)) / SECONDS_IN_HOUR;
+      variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour + (id - VARIABLE_CHANNEL_UTIL_BLOCK_0) * DAY_BLOCK_SIZE_HOURS); // this block hours + optional previous blocks
     }
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
     {
@@ -2244,7 +2239,6 @@ bool update_prices_to_influx()
     Serial.print("isBufferEmpty no ");
 
   Point point_period_price("period_price");
-
 
   for (time_t current_period_start_ts = prices2.start(); current_period_start_ts <= prices2.end(); current_period_start_ts += prices2.resolution_sec())
   {
@@ -3437,8 +3431,6 @@ long round_divide(long lval, long divider)
   return (lval + add_in_round) / divider;
 }
 
-
-
 void calculate_period_variables()
 {
 
@@ -3499,9 +3491,7 @@ void calculate_price_ranks_current()
 {
   time_t now_infunc;
   time(&now_infunc);
-  //int time_idx = int((now_infunc - prices_record_start) / PRICE_PERIOD_SEC);
   time_t current_period_start = get_netting_period_start_time(now_infunc);
-
 
   Serial.printf("calculate_price_ranks_current start: %ld, end: %ld, current_period_start: %lu\n", prices_record_start, prices_record_end_excl, current_period_start);
   if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
@@ -3542,9 +3532,6 @@ void calculate_price_ranks_current()
   int32_t window_price_avg;
   int32_t price_differs_avg;
 
-
-  //time_t time = prices_record_start + time_idx * PRICE_PERIOD_SEC;
-  //localtime_r(&time, &tm_struct_l);
   localtime_r(&current_period_start, &tm_struct_l);
 
   delay(5);
@@ -3579,7 +3566,7 @@ void calculate_price_ranks_current()
   // 24 h fixed nychthemeron
 
   // 24 h fixed new,
-  time_t  first_ts_in_window = current_period_start - tm_struct_l.tm_hour * prices2.resolution_sec();
+  time_t first_ts_in_window = current_period_start - tm_struct_l.tm_hour * prices2.resolution_sec();
   last_ts_in_window = first_ts_in_window + prices2.resolution_sec() * 23;
   rank = prices2.get_period_rank(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
@@ -3828,7 +3815,6 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
 
   for (JsonArray elem : doc.as<JsonArray>())
   {
-    //period = (time_t)elem[0] - SECONDS_IN_DAY; // The value represent previous hour, Anders Lindfors 3.5.2023
     period = (time_t)elem[0] - SECONDS_IN_HOUR; // The value represent previous hour, Anders Lindfors 3.5.2023
     energy = elem[1];
     if (energy > 0.001)
@@ -4386,7 +4372,7 @@ int get_channel_to_switch_prio(bool is_rise)
 
 bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode = true)
 {
-  if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED || s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF || s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED)
+  if (is_local_relay(s.ch[channel_idx].type))
   {
     uint8_t gpio = s.ch[channel_idx].relay_id;
     if ((gpio == 20) || (gpio == 24) || (gpio >= 28 && gpio <= 31) || (gpio > 39))
@@ -4442,7 +4428,9 @@ bool switch_http_relay(int channel_idx, bool up)
   Serial.printf("url_to_call    :%s\n", url_to_call);
 
   StaticJsonDocument<256> doc;
+  yield();
   DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call, 5000)); // shorter connect timeout for a local switch
+  yield();
   if (error)
   {
     snprintf(error_msg, ERROR_MSG_LEN, PSTR("Cannot connect channel %d switch at %s "), channel_idx + 1, s.ch[channel_idx].relay_ip.toString().c_str());
@@ -4501,14 +4489,14 @@ bool apply_relay_state(int channel_idx, bool init_relay)
   bool up = s.ch[channel_idx].is_up;
 
   if (!init_relay && !up)
-  { // channel goes normally down, (removed: record last time seen up and queue for delayd eeprom write)
+  { // channel goes normally down,
     s.ch[channel_idx].up_last = now_in_func;
     Serial.printf("Channel %d seen up now at %ld \n", channel_idx, (long)s.ch[channel_idx].up_last);
   }
   Serial.printf("ch%d ->%s", channel_idx, up ? "HIGH  " : "LOW  ");
 
   ch_counters.set_state(channel_idx, up); // counters
-  if ((s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USER_DEF) || (s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
+  if (is_local_relay(s.ch[channel_idx].type))
   {
     uint8_t pin_val;
     if ((s.ch[channel_idx].type == CH_TYPE_GPIO_USR_INVERSED))
@@ -4549,7 +4537,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     }
   }
   // do not try to connect if there is no wifi stack initiated
-  else if (wifi_connection_succeeded && (s.ch[channel_idx].type == CH_TYPE_SHELLY_1GEN || s.ch[channel_idx].type == CH_TYPE_SHELLY_2GEN || s.ch[channel_idx].type == CH_TYPE_TASMOTA))
+  else if (wifi_connection_succeeded && is_wifi_relay(s.ch[channel_idx].type))
     switch_http_relay(channel_idx, up);
 
   return false;
@@ -6252,11 +6240,11 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   }
 
   sprintf(var_id_str, "%d", (int)VARIABLE_CHANNEL_UTIL_BLOCK_M2_0);
-  v_channel_array = var_obj.createNestedArray(var_id_str); 
-  int now_nth_period_in_hour = (current_period_start-get_block_start(current_period_start))/SECONDS_IN_HOUR;
+  v_channel_array = var_obj.createNestedArray(var_id_str);
+  int now_nth_period_in_hour = (current_period_start - get_block_start(current_period_start)) / SECONDS_IN_HOUR;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   { // this and previous 2 blocks utilization
-    v_channel_array.add(channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour+DAY_BLOCK_SIZE_HOURS*2));
+    v_channel_array.add(channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour + DAY_BLOCK_SIZE_HOURS * 2));
   }
 
   // variables with history time series
@@ -6571,6 +6559,16 @@ void setup()
           scan_and_store_wifis(false);
         }
     */
+  }
+
+  // Now wifi is up, set wifi relays to init state (down)
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    if (is_wifi_relay(s.ch[channel_idx].type))
+    {
+      Serial.printf(PSTR("Reapply wifi relay state %d in init\n"), channel_idx);
+      apply_relay_state(channel_idx, true);
+    }
   }
 
   // if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
