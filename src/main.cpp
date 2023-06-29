@@ -3520,11 +3520,12 @@ void calculate_price_ranks_current()
 
     return;
   }
-  else if (prices_expires + SECONDS_IN_HOUR * 1 < now_infunc)
+  else if (prices_expires + SECONDS_IN_HOUR * 1 < now_infunc) {
     if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
     else
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
+  }
 
   int rank;
   long price_ratio_avg;
@@ -4029,7 +4030,7 @@ bool get_price_data_entsoe()
     }
     else
     {
-      time_t doc_expires = record_end_excl - (11 * SECONDS_IN_DAY); // prices for next day should come after 12hUTC, so no need to query before that
+      time_t doc_expires = record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
       prices_expires = doc_expires;
       Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
     }
