@@ -602,7 +602,7 @@ struct statement_st
 #define VARIABLE_PVFORECAST_AVGPRICE24 22
 #define VARIABLE_AVGPRICE24_EXCEEDS_CURRENT 23
 #define VARIABLE_OVERPRODUCTION 100
-#define VARIABLE_PRODUCTION_POWER 101
+#define VARIABLE_PRODUCTION_POWER 101 //!< average production power during this period, measured W
 #define VARIABLE_SELLING_POWER 102
 #define VARIABLE_SELLING_ENERGY 103
 #define VARIABLE_SELLING_POWER_NOW 104
@@ -1069,7 +1069,7 @@ void io_tasks(uint8_t state = STATE_NA)
 
 void cooling(uint8_t cool_down_to_f, unsigned long max_wait_ms)
 {
-  //TODO: check what to do with external relays when cooling..., now there is no changes during cooling period
+  // TODO: check what to do with external relays when cooling..., now there is no changes during cooling period
   uint8_t cpu_temp_read;
   cooling_down_state = true; // global cooling state variable true,
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -1730,9 +1730,6 @@ private:
   };
 };
 // Time series globals
-// timeSeries<int32_t> prices2(0, MAX_PRICE_PERIODS, PRICE_PERIOD_SEC, 0);
-// timeSeries<uint16_t> solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
-// timeSeries<uint16_t> wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 timeSeries prices2(0, MAX_PRICE_PERIODS, PRICE_PERIOD_SEC, 0);
 timeSeries solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 timeSeries wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
@@ -3197,6 +3194,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   {
     Serial.print(F("Connecting Modbus TCP..."));
     bool cresult = mb.connect(s.production_meter_ip, ip_port);
+
     Serial.println(cresult);
     mb.task();
   }
@@ -3362,7 +3360,7 @@ void update_time_based_variables()
       time_t period_started_real = max(started, current_period_start);
 
 #define ALLOCATE_WHOLE_ESTIMATED_PERIOD
-#ifndef ALLOCATE_WHOLE_ESTIMATED_PERIOD // will allocate forecatested production for use gradually, more dynamic an dmore swtiching
+#ifndef ALLOCATE_WHOLE_ESTIMATED_PERIOD // will allocate forecatested production for use gradually, more dynamic and more switching
       long baseload_energy_period_sofar = (time(nullptr) - period_started_real) * s.baseload / 3600;
       long production_estimate_sofar = (time(nullptr) - period_started_real) * period_power_fcst / 3600;
       vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)(production_estimate_sofar - (vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0) + baseload_energy_period_sofar)));
@@ -3520,7 +3518,8 @@ void calculate_price_ranks_current()
 
     return;
   }
-  else if (prices_expires + SECONDS_IN_HOUR * 1 < now_infunc) {
+  else if (prices_expires + SECONDS_IN_HOUR * 1 < now_infunc)
+  {
     if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
     else
@@ -3925,10 +3924,12 @@ bool get_price_data_entsoe()
                      "Connection: close\r\n\r\n");
 
   Serial.println("request sent");
+  /*
   if (client_https.connected())
     Serial.println("client_https connected");
   else
     Serial.println("client_https not connected");
+    */
 
   bool save_on = false;
   bool read_ok = false;
@@ -4030,9 +4031,8 @@ bool get_price_data_entsoe()
     }
     else
     {
-      time_t doc_expires = record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
-      prices_expires = doc_expires;
-      Serial.printf("No zero prices. Document expires at %ld\n", doc_expires);
+      prices_expires = record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
+      Serial.printf("No zero prices. Prices expires at %ld\n", prices_expires);
     }
 
     Serial.println(F("Finished succesfully get_price_data_entsoe."));
