@@ -39,7 +39,7 @@ def before_upload(source, target, env):
         build_no = 1
 
     try:
-        with open(FILENAME_VERSION_H) as f:
+        with open(FILENAME_VERSION_H) as f: #first line contains version commented
             version_base = f.readline().replace("//","").strip()
     except:
         print('Unknown version_base')
