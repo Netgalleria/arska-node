@@ -3161,16 +3161,21 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
   }
   else if (reg_num == 2)
   {
+    Serial.printf("buf[0] %d, buf[1] %d \n",(int)buf[0],(int)buf[1]);
     combined = buf[0] * (65536) + buf[1];
     if (buf[0] == 32768)
     { // special case
       combined = 0;
+      Serial.println("buf[0] == 32768, disconnecting");
+      #pragma message("This experimental disconnect now.")
+      mb.disconnect(s.production_meter_ip); // disconnect in the end
     }
   }
   else
   {
     combined = 0;
   }
+  
   return combined;
 }
 /**
@@ -3205,8 +3210,10 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
   if (mb.isConnected(s.production_meter_ip))
   { // Check if connection to Modbus slave is established
     mb.task();
+    
     Serial.println(F("Connection ok. Reading values from Modbus registries."));
     total_energy_new = get_mbus_value(s.production_meter_ip, SMA_TOTALENERGY_OFFSET, 2, modbusip_unit);
+   // Serial.printf("total_energy_new %ld\n",total_energy_new);
 
     // validity check
     if (total_energy_new > 0 && (abs(total_energy_new - inverter_total_value_last) < 1000) || inverter_total_value_last == 0)
@@ -3228,7 +3235,8 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     Serial.print(F(", current power W:"));
     Serial.println(current_power);
 
-    mb.disconnect(s.production_meter_ip); // disconect in the end
+#pragma message("This experimental version does not disconnect...")
+  ///   mb.disconnect(s.production_meter_ip); // disconnect in the end
     mb.task();
     yield();
     return true;
@@ -7001,7 +7009,7 @@ void loop()
     {
       todo_calculate_ranks_period_variables = true;
     }
-    next_query_price_data = (got_price_ok ? (prices_expires + random(0, 300)) : (now + 600 + random(0, 60))); // random, to prevent query peak
+    next_query_price_data = (got_price_ok ? (max(prices_expires,time(nullptr)) + random(0, 300)) : (time(nullptr) + 600 + random(0, 60))); // random, to prevent query peak
     Serial.printf("next_query_price_data: %ld %s\n", next_query_price_data, got_price_ok ? "ok" : "failed");
   }
 

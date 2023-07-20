@@ -1,14 +1,14 @@
-//0.99.0-alfa8
+//0.99.0-alfa9
   #ifndef VERSION_BASE
-    #define VERSION_BASE "0.99.0-alfa8"
+    #define VERSION_BASE "0.99.0-alfa9"
   #endif
   #ifndef BUILD_NUMBER
-    #define BUILD_NUMBER "3309"
+    #define BUILD_NUMBER "3326"
   #endif
   #ifndef VERSION
-    #define VERSION "0.99.0-alfa8.3309 - 2023-07-02 12:29:09"
+    #define VERSION "0.99.0-alfa9.3326 - 2023-07-19 11:47:46"
   #endif
   #ifndef VERSION_SHORT
-    #define VERSION_SHORT "0.99.0-alfa8.3309"
+    #define VERSION_SHORT "0.99.0-alfa9.3326"
   #endif
   
