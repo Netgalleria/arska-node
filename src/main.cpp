@@ -1496,12 +1496,12 @@ public:
   // T operator [](int i) const    {return registers[i];}
   void clear_store()
   {
-    Serial.println("clear_store a");
+    // Serial.println("clear_store a");
     min_value_idx_ = n_;
-    Serial.println("clear_store b");
+    // Serial.println("clear_store b");
 
     max_value_idx_ = -1;
-    Serial.println("clear_store c");
+    // Serial.println("clear_store c");
 
     Serial.println(n_);
     for (int i = 0; i < n_; i++)
@@ -1509,7 +1509,7 @@ public:
       //   Serial.println(i);
       arr[i] = init_value_;
     }
-    Serial.println("clear_store g");
+    //  Serial.println("clear_store g");
   };
 
   void set(time_t ts, T new_value)
@@ -1723,7 +1723,7 @@ private:
     if (index_candidate < 0 || index_candidate >= n_)
     {
       if (abs(index_candidate) > n_ * 10) // something wrong
-        Serial.printf("***Invalid timeSeries index %d\n", index_candidate);
+        Serial.printf("***Invalid timeSeries index %d, ts %lu, start_ %lu\n", index_candidate, ts, start_);
       return -1;
     }
     else
@@ -3239,7 +3239,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     Serial.print(F(", current power W:"));
     Serial.println(current_power);
 
-#pragma message("This experimental version does not disconnect...")
+    // do not disconnect if no problems, disconnect+connect causes probably a memory leak or something
     ///   mb.disconnect(s.production_meter_ip); // disconnect in the end
     mb.task();
     yield();
@@ -3658,10 +3658,22 @@ String read_http11_line(WiFiClientSecure *client_https)
       line = client_https->readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
       if (line.charAt(line.length() - 1) == 13)
       {
-        if (is_chunksize_line(line)) // skip error status "garbage" line, probably chuck size to read
+        if (is_chunksize_line(line))
+        { // skip error status "garbage" line, probably chuck size to read
+          Serial.printf("chunksize line detected %s\n", line.c_str());
           continue;
-        line.trim();            // remove cr and mark line incomplete
+        }
+        line.trim(); // remove cr and mark line incomplete
+        
+        // line is complete if ends with >,6.8.2023 /OR
+        if (line.charAt(line.length() - 1) == 62)
+        {
+          line_incomplete = false; 
+          return line;
+        }
+
         line_incomplete = true; // we do not have whole line yet
+        Serial.printf("[%s] %d\n", line.c_str(), (int)line.charAt(line.length() - 1));
       }
       else
       {
@@ -3986,6 +3998,7 @@ bool get_price_data_entsoe()
     }
 
     if (line.endsWith(F("</period.timeInterval>")))
+    // if (line.indexOf(F("</period.timeInterval>"))>-1)
     { // header dates
       record_end_excl = period_end;
       Serial.printf("Debug before get_price_data_entsoe %lu, %d", period_end, prices2.n());
@@ -7046,8 +7059,8 @@ void loop()
     Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start, grid_protection_delay_interval);
     period_changed = true;
     next_process_ts = now; // process now if new period
-    // rotates history array and sets selected variables to the history array
-     vars.rotate_period(); 
+                           // rotates history array and sets selected variables to the history array
+    vars.rotate_period();
 
     calculate_time_based_variables();
     calculate_price_rank_variables();
@@ -7079,8 +7092,6 @@ void loop()
     calculate_forecast_variables();
     return;
   }
-
-
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
   if (next_process_ts <= now) // time to process
@@ -7121,10 +7132,10 @@ void loop()
     {
       // add values from the last period to the influx buffer and schedule writing to the influx db
       // we still must have old period variable values set
-   //   add_period_variables_to_influx_buffer(previous_period_start + (NETTING_PERIOD_SEC / 2));
+      //   add_period_variables_to_influx_buffer(previous_period_start + (NETTING_PERIOD_SEC / 2));
       add_period_variables_to_influx_buffer(previous_period_start);
-    //  ch_counters.new_log_period(previous_period_start + (NETTING_PERIOD_SEC / 2));
-      ch_counters.new_log_period(previous_period_start );
+      //  ch_counters.new_log_period(previous_period_start + (NETTING_PERIOD_SEC / 2));
+      ch_counters.new_log_period(previous_period_start);
       todo_in_loop_influx_write = true;
     }
 #endif
