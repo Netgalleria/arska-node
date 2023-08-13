@@ -24,15 +24,16 @@
  */
 bool is_chunksize_line(String line)
 {
-    if (line.charAt(line.length() - 1) != 13) // garbage line ends with cr
+    // if line length between 2 and 5, ends with cr and all chars except the last one are hex numbersx 
+    if (line.charAt(line.length() - 1) != 13 || line.length() > 4 || line.length() < 2) // garbage line ends with cr
         return false;
-    if (line.length() < 6)
-    { // It is probably buffer length in the beginning of chunk
-        Serial.printf(PSTR("Garbage removed [%s] (%d)\n"), line.substring(0, line.length() - 1).c_str(), line.length());
-        return true;
+    for (int i = 0; i < line.length() - 2;i++) {
+        if (!isxdigit(line.charAt(i)))
+         return false;
     }
-    else
-        return false;
+            Serial.printf(PSTR("Garbage/chunk size removed [%s] (%d) %d\n"), line.substring(0, line.length() - 1).c_str(), line.length(), (int)line.charAt(0));
+            return true;
+       
 }
 
 /**

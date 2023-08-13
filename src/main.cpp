@@ -2053,14 +2053,14 @@ void add_period_variables_to_influx_buffer(time_t ts_report)
   point_period_avg.setTime(ts_report);
   Serial.printf("add_period_variables_to_influx_buffer ts_report %lu\n", ts_report);
 
-  //remove?
+  // remove?
   if (vars.is_set(VARIABLE_PRODUCTION_POWER))
     point_period_avg.addField("productionW", vars.get_f(VARIABLE_PRODUCTION_POWER));
 
   if (vars.is_set(VARIABLE_PRODUCTION_ENERGY))
     point_period_avg.addField("productionWh", vars.get_f(VARIABLE_PRODUCTION_ENERGY));
 
-  //remove?
+  // remove?
   if (vars.is_set(VARIABLE_SELLING_POWER))
     point_period_avg.addField("sellingW", vars.get_f(VARIABLE_SELLING_POWER));
 
@@ -3171,7 +3171,6 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
     { // special case
       combined = 0;
       Serial.println("buf[0] == 32768, disconnecting");
-#pragma message("This experimental disconnect now.")
       mb.disconnect(s.production_meter_ip); // disconnect in the end
     }
   }
@@ -3664,11 +3663,11 @@ String read_http11_line(WiFiClientSecure *client_https)
           continue;
         }
         line.trim(); // remove cr and mark line incomplete
-        
+
         // line is complete if ends with >,6.8.2023 /OR
         if (line.charAt(line.length() - 1) == 62)
         {
-          line_incomplete = false; 
+          line_incomplete = false;
           return line;
         }
 
@@ -7083,7 +7082,7 @@ void loop()
   }
 #endif
 
-  if (todo_calculate_ranks_period_variables) //set after price query
+  if (todo_calculate_ranks_period_variables) // set after price query
   {
     io_tasks(STATE_PROCESSING);
     todo_calculate_ranks_period_variables = false;
