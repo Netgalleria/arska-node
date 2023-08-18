@@ -1689,7 +1689,7 @@ public:
     {
       for (int i = start_idx; i <= end_idx; i++)
       {
-
+        // TODO: should it be <= to have 24 as 0 rank
         if (arr[i] < arr[this_period_idx] && i != this_period_idx)
         {
           rank++;
@@ -2776,7 +2776,7 @@ void get_values_energym(float &netEnergyInPeriod, float &netPowerInPeriod)
 bool read_meter_han()
 {
   char url[90];
-  snprintf(url, sizeof(url), "http://%s/api/v1/telegram", s.energy_meter_ip.toString().c_str());
+  snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(),s.energy_meter_port);
   Serial.println(url);
 
   yield();
