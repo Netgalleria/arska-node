@@ -48,7 +48,7 @@ DEVEL BRANCH
 #include "version.h"
 
 const char compile_date[] = __DATE__ " " __TIME__;
-char version_fs[40];
+char version_fs[45];
 String version_fs_base; //= "";
 
 #include <WiFi.h>
