@@ -2744,7 +2744,6 @@ void get_values_energym(float &netEnergyInPeriod, float &netPowerInPeriod)
   {
     netPowerInPeriod = energym_power_in; // short/no history, using momentary value
     netEnergyInPeriod = 0;
-    //  Serial.printf("get_values_energym  energym_read_count: %ld, netPowerInPeriod: %f, netEnergyInPeriod: %f\n", energym_read_count, netPowerInPeriod, netEnergyInPeriod);
   }
   else
   {
@@ -2776,7 +2775,7 @@ void get_values_energym(float &netEnergyInPeriod, float &netPowerInPeriod)
 bool read_meter_han()
 {
   char url[90];
-  snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(),s.energy_meter_port);
+  snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
   Serial.println(url);
 
   yield();
@@ -2818,12 +2817,14 @@ bool read_meter_han()
   double power_in = 0;
   double power_out = 0;
 
+  bool found_values = false;
+
   while (s_idx <= len)
   {
     e_idx = telegram.indexOf('\n', s_idx);
     if (e_idx == -1)
     {
-      Serial.printf("Cannot find newline, searching from %d\n", s_idx);
+    //  Serial.printf("Cannot find newline, searching from %d\n", s_idx);
       break;
     }
 
@@ -2871,12 +2872,14 @@ bool read_meter_han()
     power_tot = power_in - power_out;
     if (telegram.substring(s_idx, vs_idx).startsWith("1-0:1.8.0"))
     {
+      found_values = true;
       energym_e_in = telegram.substring(vs_idx + 1, va_idx).toDouble();
       if (telegram.substring(va_idx + 1, ve_idx).startsWith("kWh"))
         energym_e_in = energym_e_in * 1000;
     }
     if (telegram.substring(s_idx, vs_idx).startsWith("1-0:2.8.0"))
     {
+      found_values = true;
       energym_e_out = telegram.substring(vs_idx + 1, va_idx).toDouble();
       if (telegram.substring(va_idx + 1, ve_idx).startsWith("kWh"))
         energym_e_out = energym_e_out * 1000;
@@ -2886,13 +2889,19 @@ bool read_meter_han()
     i++;
   }
 
+  if (!found_values)
+  {
+    Serial.println("Cannot read HAN P1 port reader values");
+    return false;
+  }
+
   Serial.printf("HAN readings: power_in %f, power_out %f, energym_e_in %f, energym_e_out %f", power_in, power_out, energym_e_in, energym_e_out);
 
   energym_power_in = power_tot;
   energym_period_read_count++;
   // read done
 
-  // first query since boot
+  // first succesful query since boot
   if (energym_last_period == 0)
   {
     ESP_LOGI(TAG, "HAN - first query since startup");
