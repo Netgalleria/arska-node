@@ -9,7 +9,7 @@ var day_ahead_chart_obj;
 const VARIABLE_LONG_UNKNOWN = -2147483648;
 const MAX_HISTORY_PERIODS = 24
 const HOURS_IN_DAY = 24
-
+const NETTING_PERIOD_SEC = 3600
 
 //selected constants
 const CHANNEL_CONFIG_MODE_RULE = 0;
@@ -493,7 +493,7 @@ var channel_history = [];
 
 var prices_first_ts = 0;
 var prices_last_ts = 0;
-var prices_resolution_min = 60;
+var price_resolution_sec = 3600;
 var prices_expires = 0;
 
 // update variables and channels statuses to channels form
@@ -584,7 +584,7 @@ function update_status(repeat) {
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
             document.getElementById("db:export_v").innerHTML = selling;
 
-            now_period_start = Math.max(data.started, parseInt(data.ts / 3600) * 3600);
+            now_period_start = Math.max(data.started, parseInt(data.ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC);
             // em_period_s_date = new Date(now_period_start * 1000);
             //  em_period_e_date = new Date(data.ts * 1000);
 
@@ -609,7 +609,7 @@ function update_status(repeat) {
                 document.getElementById(`db:s_${s_idx}:div`).style.display = sensor_has_value ? "block" : "none";
             }
             now_ts = Date.now() / 1000;
-            now_period_start = parseInt(now_ts / 3600) * 3000;
+            now_period_start = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
             // TODO: update
 
             if (show_variables) {
@@ -774,7 +774,7 @@ function create_dashboard_chart() {
     let now_idx = 0;
     let now_idx_chh = MAX_HISTORY_PERIODS-1;
     now_ts = (Date.now() / 1000);
-    now_period_ts = parseInt(now_ts / 3600) * 3600;
+    now_period_ts = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
 
     let price_data_exists = (price_data !== null);
     if (!price_data_exists) { //try to get prices now 
@@ -785,9 +785,9 @@ function create_dashboard_chart() {
         console.log("create_dashboard_chart: no price data");
         price_data_exists = false;
         // 48 periods
-        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (3600);
-        chart_end_excl_ts = chart_start_ts + (48 * 3600);
-        chart_resolution_m = 60;
+        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (NETTING_PERIOD_SEC);
+        chart_end_excl_ts = chart_start_ts + (48 * NETTING_PERIOD_SEC);
+        chart_resolution_sec = 3600;
         now_idx = 0;
         now_idx_chh = MAX_HISTORY_PERIODS-1;   
     }
@@ -795,19 +795,19 @@ function create_dashboard_chart() {
         price_data_exists = true;
         chart_start_ts = price_data.record_start;
         chart_end_excl_ts = price_data.record_end_excl;
-        chart_resolution_m = price_data.resolution_m;
+        chart_resolution_sec = price_data.resolution_sec;
     }
     const ctx = document.getElementById('day_ahead_chart').getContext('2d');
 
     var tz_offset = new Date().getTimezoneOffset();
-    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - 3600, false);
+    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - NETTING_PERIOD_SEC, false);
 
     // now history, if values exists
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
     if (chartExist != undefined)
         chartExist.destroy();
 
-    for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_m * 60)) {
+    for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_sec)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
        // time_labels.push(get_time_string_from_ts(ts, false, true));
@@ -962,8 +962,8 @@ function create_dashboard_chart() {
     }
 
     var channel_dataset;
-    now_period_start = parseInt(now_ts / 3600) * 3600;
-    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS-1) * 3600;
+    now_period_start = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS-1) * NETTING_PERIOD_SEC;
     console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
@@ -989,7 +989,7 @@ function create_dashboard_chart() {
                }
            } */
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
-            ts = now_period_start + (chh_idx+1-MAX_HISTORY_PERIODS) * 3600;
+            ts = now_period_start + (chh_idx+1-MAX_HISTORY_PERIODS) * NETTING_PERIOD_SEC;
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
@@ -1147,13 +1147,12 @@ function get_price_data(repeat = true) {
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            // if (data.expires > now_ts + (-3600 * 4)) {
             if (data.record_end_excl > now_ts) {
                 console.log('got /prices', textStatus, jqXHR.status);
                 price_data = data; //TODO: remove redundancy in variables
                 prices_first_ts = data.record_start;
-                prices_resolution_min = data.resolution_m;
-                prices_last_ts = prices_first_ts + (price_data.prices.length - 1) * (prices_resolution_min * 60);
+                price_resolution_sec = data.resolution_sec;
+                prices_last_ts = prices_first_ts + (price_data.prices.length - 1) * (price_resolution_sec);
                 prices_expires = data.expires;
                 expired = (data.expires < now_ts);
                 if (repeat)
@@ -1181,8 +1180,8 @@ function get_price_for_segment(start_ts, end_ts = 0) {
     var price_count = 0;
     var price_sum = 0;
 
-    for (cur_ts = start_ts; cur_ts <= end_ts; cur_ts += (prices_resolution_min * 60)) {
-        price_idx = (cur_ts - prices_first_ts) / (prices_resolution_min * 60);
+    for (cur_ts = start_ts; cur_ts <= end_ts; cur_ts += (price_resolution_sec)) {
+        price_idx = (cur_ts - prices_first_ts) / (price_resolution_sec);
         price_sum += price_data.prices[price_idx];
         price_count++;
     }
@@ -1204,7 +1203,6 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
 
     if (show_day_diff) {
         tz_offset_minutes = tmpDate.getTimezoneOffset();
-        //  console.log("tz_offset_minutes",tz_offset_minutes);
         now_ts_loc = (Date.now() / 1000) - tz_offset_minutes * 60;
         ts_loc = ts - tz_offset_minutes * 60;
         now_day = parseInt(now_ts_loc / 86400);

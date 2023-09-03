@@ -262,10 +262,9 @@ bool rtc_found = false;
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
-#define NETTING_PERIOD_MIN 60 //!< Netting time in minutes, (in Finland) 60 -> 15 minutes 2023
-#define NETTING_PERIOD_SEC (NETTING_PERIOD_MIN * 60)
+#define NETTING_PERIOD_SEC 3600 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
 #define SECONDS_IN_HOUR 3600
-#define PRICE_PERIOD_SEC 3600
+#define PRICE_RESOLUTION_SEC 3600
 #define SOLAR_FORECAST_RESOLUTION_SEC 3600
 
 #define SECONDS_IN_DAY 86400
@@ -288,7 +287,7 @@ time_t prices_first_period = 0;
 
 time_t prices_record_start;
 time_t prices_record_end_excl;
-uint8_t prices_resolution_m;
+uint16_t price_resolution_sec;
 time_t prices_ts = 0;
 time_t prices_expires = 0;
 
@@ -1731,7 +1730,7 @@ private:
   };
 };
 // Time series globals
-timeSeries prices2(0, MAX_PRICE_PERIODS, PRICE_PERIOD_SEC, 0);
+timeSeries prices2(0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, 0);
 timeSeries solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 timeSeries wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 
@@ -2206,7 +2205,7 @@ bool update_prices_to_influx()
     db_price_found = false;
   }
 
-  last_price_in_file_ts = prices_record_start + (prices_resolution_m * 60 * (MAX_PRICE_PERIODS - 1));
+  last_price_in_file_ts = prices_record_start + (price_resolution_sec * (MAX_PRICE_PERIODS - 1));
 
   ts_to_date_str(&last_price_in_file_ts, datebuff);
 
@@ -2824,7 +2823,7 @@ bool read_meter_han()
     e_idx = telegram.indexOf('\n', s_idx);
     if (e_idx == -1)
     {
-    //  Serial.printf("Cannot find newline, searching from %d\n", s_idx);
+      //  Serial.printf("Cannot find newline, searching from %d\n", s_idx);
       break;
     }
 
@@ -3612,8 +3611,8 @@ void calculate_price_rank_variables()
   int block_idx = (int)((HOURS_IN_DAY + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (HOURS_IN_DAY / DAY_BLOCK_SIZE_HOURS);
   int block_start_before_this_idx = (HOURS_IN_DAY + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
 
-  first_ts_in_window = current_period_start - PRICE_PERIOD_SEC * block_start_before_this_idx;
-  last_ts_in_window = first_ts_in_window + 7 * PRICE_PERIOD_SEC;
+  first_ts_in_window = current_period_start - PRICE_RESOLUTION_SEC * block_start_before_this_idx;
+  last_ts_in_window = first_ts_in_window + 7 * PRICE_RESOLUTION_SEC;
   rank = prices2.get_period_rank(current_period_start, first_ts_in_window, last_ts_in_window);
   Serial.printf("New way 8 h block rank %ld\n", (long)rank);
 
@@ -4011,7 +4010,7 @@ bool get_price_data_entsoe()
       record_end_excl = period_end;
       Serial.printf("Debug before get_price_data_entsoe %lu, %d", period_end, prices2.n());
       prices2.set_store_start(period_end - prices2.n() * prices2.resolution_sec());
-      record_start = record_end_excl - (PRICE_PERIOD_SEC * MAX_PRICE_PERIODS);
+      record_start = record_end_excl - (PRICE_RESOLUTION_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
       Serial.printf("period_start: %ld record_start: %ld - period_end: %ld\n", period_start, record_start, period_end);
     }
@@ -4037,7 +4036,7 @@ bool get_price_data_entsoe()
     else if (line.endsWith("</Point>"))
     {
 
-      prices2.set(period_start + (pos - 1) * PRICE_PERIOD_SEC, price);
+      prices2.set(period_start + (pos - 1) * PRICE_RESOLUTION_SEC, price);
       pos = -1;
       price = VARIABLE_LONG_UNKNOWN;
     }
@@ -4067,7 +4066,7 @@ bool get_price_data_entsoe()
 
     prices_record_start = record_start;
     prices_record_end_excl = record_end_excl;
-    prices_resolution_m = NETTING_PERIOD_MIN;
+    price_resolution_sec = PRICE_RESOLUTION_SEC;
     prices_ts = now_infunc;
 
     if (contains_zero_prices)
@@ -4930,12 +4929,12 @@ bool get_price_data_elering()
 
   if (price_rows >= MAX_PRICE_PERIODS)
   {
-    time_t ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * PRICE_PERIOD_SEC;
+    time_t ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * PRICE_RESOLUTION_SEC;
     int price_idx2 = ((price_idx + 1) % MAX_PRICE_PERIODS);
     prices2.set_store_start(ts_min_stored);
     for (int i = 0; i < MAX_PRICE_PERIODS; i++)
     { // cyclic use of prices_local array,
-      ts = ts_min_stored + i * PRICE_PERIOD_SEC;
+      ts = ts_min_stored + i * PRICE_RESOLUTION_SEC;
       prices2.set(ts, prices_local[price_idx2]);
       price_idx2++;
       price_idx2 = price_idx2 % MAX_PRICE_PERIODS;
@@ -4944,7 +4943,7 @@ bool get_price_data_elering()
     time(&now_infunc);
     prices_record_start = ts_min_stored;
     prices_record_end_excl = ts_max + NETTING_PERIOD_SEC;
-    prices_resolution_m = NETTING_PERIOD_MIN;
+    price_resolution_sec = PRICE_RESOLUTION_SEC;
     prices_ts = now_infunc;
 
     prices_expires = prices_record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
@@ -6186,7 +6185,7 @@ void onWebPricesGet(AsyncWebServerRequest *request)
   // new time series, mieti miten nämä korvataan, myös UI
   doc["record_start"] = prices_record_start;
   doc["record_end_excl"] = prices_record_end_excl;
-  doc["resolution_m"] = prices_resolution_m;
+  doc["resolution_sec"] = price_resolution_sec;
   doc["ts"] = current_time;
   doc["expires"] = prices_expires;
 
