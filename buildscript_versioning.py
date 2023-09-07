@@ -26,8 +26,6 @@ os.system("gzip -kf data/js/arska-ui.js" )
 
 if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
   print("Building filesystem. No new version. BUILD_TARGETS:")
-
-
   print(BUILD_TARGETS)
 else:
   print("Not buildfs. New version.")

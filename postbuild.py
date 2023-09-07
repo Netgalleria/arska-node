@@ -17,6 +17,16 @@ env = DefaultEnvironment()
 #PROJECT_BUILD_DIR=config.get("platformio", "build_dir")
 #print(PROJECT_BUILD_DIR)
 
+def delete_files_in_directory(directory_path):
+   try:
+     files = os.listdir(directory_path)
+     for file in files:
+       file_path = os.path.join(directory_path, file)
+       if os.path.isfile(file_path):
+         os.remove(file_path)
+     print("All files deleted successfully.")
+   except OSError:
+     print("Error occurred while deleting files.")
 
 # we will wait the firmware.bin to be created 
 def before_upload(source, target, env):
@@ -49,7 +59,13 @@ def before_upload(source, target, env):
 
     # copy binary files for release, version based destination 
     if path.exists(file_directory) and path.isdir(file_directory):
+  
+      
+
         for env_id in envs:   
+            # remove old stuff
+            delete_files_in_directory(file_directory+env_id)
+            
             compile_folder = '.pio/build/'+ env_id + '/'
             dest_dir = file_directory+env_id+"/"+version_base+"/"
 

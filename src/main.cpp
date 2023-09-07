@@ -643,7 +643,7 @@ struct statement_st
 long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
 // uint8_t channel_history[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 uint16_t channel_history_s[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
-int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY}; // oli VARIABLE_SELLING_POWER,VARIABLE_PRODUCTION_POWER,
+int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY};
 int get_variable_history_idx(int id)
 {
   for (int i = 0; i < HISTORY_VARIABLE_COUNT; i++)
@@ -787,6 +787,7 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
 // Energy metering types
 #define ENERGYM_NONE 0
 #define ENERGYM_SHELLY3EM 1
+#define ENERGYM_SHELLY_GEN2 2
 #define ENERGYM_HAN_WIFI 4
 
 // Production metering (inverter) types
@@ -802,6 +803,7 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
 unsigned long inverter_total_period_init = 0;
 long inverter_total_value_last = 0; // compare reading with previous, validity check
 bool inverter_total_period_init_ok = false;
+// E uint16_t inverter_read_count_period = 0;
 unsigned long energy_produced_period = 0;
 unsigned long power_produced_period_avg = 0;
 #endif
@@ -1175,6 +1177,7 @@ public:
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
   int get_variable_count() { return VARIABLE_COUNT; };
   void rotate_period();
+  // void rotate_period(int variable_id);//experimental
 
 private:
   variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_24, "price rank 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, "overproduction", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0}, {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_MINUTES, "minutes 0-59", CONSTANT_TYPE_CHAR_2}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}, {VARIABLE_CHANNEL_UTIL_PERIOD, "ch up period, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_8H, "ch up in 8 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_24H, "ch up in 24 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, "ch up -2,-1,0 block", CONSTANT_TYPE_INT}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, "consumption estim.", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_MINUTES_TUNED, "virtual solar count", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, "solar prod. estim.", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1_FI, "FI wind d+1, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2_FI, "FI wind d+2, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1B_FI, "FI wind d+1 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2B_FI, "FI wind d+2 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_RANK_FIXED_24, "solar rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_NET_ESTIMATE_SOURCE, "Netting source", CONSTANT_TYPE_INT}, {VARIABLE_SELLING_ENERGY_ESTIMATE, "Selling estim. Wh", CONSTANT_TYPE_INT}};
@@ -1228,10 +1231,24 @@ void Variables::rotate_period()
       variable_history[v_idx][h_idx] = variable_history[v_idx][h_idx + 1];
     variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0; // current period
   }
-
-  this->set(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0L);
+  this->set(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0L); // DO WE NEED THIS?
 }
-
+/*
+// rotate to variable history for one variable
+void Variables::rotate_period(int variable_id)
+{
+  for (int v_idx = 0; v_idx < HISTORY_VARIABLE_COUNT; v_idx++)
+  {
+    if (variable_id == history_variables[v_idx])
+    {
+      variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = this->get_l(history_variables[v_idx]);
+      for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
+        variable_history[v_idx][h_idx] = variable_history[v_idx][h_idx + 1];
+      variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0; // current period
+    }
+  }
+}
+*/
 /**
  * @brief Returns true if variable is set e.g. then value is not VARIABLE_LONG_UNKNOWN
  *
@@ -2957,9 +2974,13 @@ bool read_meter_shelly3em()
   else
     auth[0] = 0;
 
-  Serial.println(s.energy_meter_ip.toString());
+  // Serial.println(s.energy_meter_ip.toString());
+  if (s.energy_meter_type == ENERGYM_SHELLY3EM)
+    snprintf(url, sizeof(url), "http://%s%s:%d/status", auth, s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
+  else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
+    // this version doesn not support authentication
+    snprintf(url, sizeof(url), "http://%s:%d/rpc/EMData.GetStatus?id=0", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
 
-  snprintf(url, sizeof(url), "http://%s%s:%d/status", auth, s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
   Serial.println(url);
 
   yield();
@@ -2998,19 +3019,27 @@ bool read_meter_shelly3em()
   float power[3];
   energym_e_in = 0;
   energym_e_out = 0;
-  for (JsonObject emeter : doc["emeters"].as<JsonArray>())
+  if (s.energy_meter_type == ENERGYM_SHELLY3EM )
   {
-    power[idx] = (float)emeter["power"];
-    power_tot += power[idx];
-    // float current = emeter["current"];
-    //  is_valid = emeter["is_valid"];
-    if (emeter["is_valid"])
+    for (JsonObject emeter : doc["emeters"].as<JsonArray>())
     {
-      energym_e_in += (float)emeter["total"];
-      energym_e_out += (float)emeter["total_returned"];
+      power[idx] = (float)emeter["power"];
+      power_tot += power[idx];
+      if (emeter["is_valid"])
+      {
+        energym_e_in += (float)emeter["total"];
+        energym_e_out += (float)emeter["total_returned"];
+      }
+      idx++;
     }
-    idx++;
   }
+  else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2) {
+      power_tot = 0; // not available in /status
+      energym_e_in = (float)doc["total_act"];
+      energym_e_out = (float)doc["total_act_ret"];    
+  }
+
+
   energym_power_in = power_tot;
   energym_period_read_count++;
   // read done
@@ -3282,25 +3311,33 @@ bool read_inverter(bool period_changed)
   if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
   {
     read_ok = read_inverter_fronius_data(total_energy, current_power);
-
-    // changed to Fronius TOTAL_ENERGY
-    /*if (((long)inverter_total_period_init > total_energy) && read_ok)
-    {
-      inverter_total_period_init = 0; // day have changed probably, reset counter, we get day totals from Fronius
-      inverter_total_period_init_ok = true;
-    }*/
   }
   else if (s.production_meter_type == PRODUCTIONM_SMA_MODBUS_TCP)
   {
     read_ok = read_inverter_sma_data(total_energy, current_power);
   }
   // TODO: now we have full measurement for the last period, time to store values/rotate before energy_produced_period is zero
+  // experimental
+  // E if (period_changed)
+  // E {
+  // E  inverter_read_count_period = 0;
+  // E }
+  // E inverter_read_count_period++;
 
   if (read_ok)
   {
     yield();
+    /*
+    //WiP - rotate to history
+    if (period_changed && inverter_total_period_init_ok) {
+      vars.set(VARIABLE_PRODUCTION_ENERGY, (long)(total_energy - inverter_total_period_init));
+      vars.rotate_period(VARIABLE_PRODUCTION_ENERGY); //HUOM. toinenkin rotatointi pitää tehdä vain sille variablelle, ettei tämä mene kahteen kertaan
+    }
+    */
+
     time(&productionm_read_last_ts);
     if (period_changed || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
+    // E if ((inverter_read_count_period==2) || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
     {
       Serial.println(F("PERIOD CHANGED"));
       inverter_total_period_init = total_energy;
@@ -4251,7 +4288,7 @@ void read_energy_meter()
   yield();
   time_t now_in_func;
   // SHELLY
-  if (s.energy_meter_type == ENERGYM_SHELLY3EM)
+  if (s.energy_meter_type == ENERGYM_SHELLY3EM || s.energy_meter_type == ENERGYM_SHELLY_GEN2)
   {
 #ifdef METER_SHELLY3EM_ENABLED
     read_ok = read_meter_shelly3em();
@@ -6815,6 +6852,7 @@ void loop()
 {
   bool got_forecast_ok = false;
   bool got_price_ok = false;
+  // E  bool todo_rotate_period = false;
 
   io_tasks();
 
@@ -7068,6 +7106,7 @@ void loop()
     next_process_ts = now; // process now if new period
                            // rotates history array and sets selected variables to the history array
     vars.rotate_period();
+    // E todo_rotate_period = true; // do it after meter read
 
     calculate_time_based_variables();
     calculate_price_rank_variables();
@@ -7102,6 +7141,7 @@ void loop()
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
   if (next_process_ts <= now) // time to process
+                              // E  if ((next_process_ts <= now) || todo_rotate_period) // time to process
   {
     io_tasks(STATE_PROCESSING);
     localtime_r(&now, &tm_struct);
@@ -7122,14 +7162,10 @@ void loop()
 
     calculate_time_based_variables();  // call here for minute level changes
     calculate_meter_based_variables(); // TODO: if period change we could set write influx buffer after this?
-
-    // update_price_variables(current_period_start);
-
     time(&now);
     next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_channel_states();
     set_relays(true); // grid protection delay active
-                      // flush_noncritical_eeprom_cache();
   }
 
   if (period_changed)
@@ -7151,6 +7187,13 @@ void loop()
     period_changed = false;
   }
   period_changed = false;
+
+  // rotate after meter read, experimental
+  // Eif (todo_rotate_period)
+  // E{
+  // E  vars.rotate_period();
+  // E  todo_rotate_period = false;
+  // E}
 
 #ifdef INVERTER_SMA_MODBUS_ENABLED
   mb.task(); // process modbuss event queue
