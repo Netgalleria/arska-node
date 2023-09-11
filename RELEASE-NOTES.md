@@ -23,10 +23,14 @@
   * Many internal optimizations. Unnecessary/redundant filesystem caches and calculations removed/optimized.
   * Initial support for devices using SN74hc595, e.g. Shelly Pro 1 v.1 .  HW_EXTENSIONS_ENABLED must be must be defined in defined in the code before building.
   * New price data source Elering for Estonia, Finland, Latvia and Lithuania
+  * Local solar energy forecast from Finnish Meterologiacal Institute (FMI) replacing forecast from BCDC-Energia, Finnish wind energy forecast (Finland only), see the new variables above.
+  * Initial support for Shelly Pro 3EM meter 
+
 ### Bug Fixes
 * Memory leak in /application request fixed, file close added in several places  (2023-05-20)
 * Portrait mode works in the UI; mobile menu, the dashboard graph is hidden in narrow display (2023-05-20).
 * Rule constants were left disabled when switching from rule mode to advanced moe. now fixed.
+* SMA inverter ModBus read fixed, library updated (memory leak?)
 
 ### Other Changes
 * Removed wifi list cache file (called in several places) - less writes to littlefs in general. Now a a few wifis stored in memory structure. (2023-05-20)
