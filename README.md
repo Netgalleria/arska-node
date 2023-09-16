@@ -30,8 +30,4 @@ The software is under development (beta testing).
 # License 
 The software is licenced under GPL v.3 license. For other licencing options contact olli@netgalleria.fi .
 
-# Thanks
-    - https://github.com/me-no-dev/ESPAsyncWebServer  - Control UI web server
-    - https://arduinojson.org/ - Processing web API results 
-    - https://github.com/lbernstone/asyncUpdate/ - Firmware update
-    to be updated...
+
