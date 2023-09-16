@@ -21,9 +21,10 @@ Arska can control various electric switches connected to e.g. water heater and c
 - Current date and time, temperature sensor values
 - Local solar forecast and Finnish wind power forecast from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste), currently available in Finland 🇫🇮
 
-More information in [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) .
-
-[Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions) . [Arska on X](https://twitter.com/ArskaEnergy).
+## More information:
+- [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) 
+- [Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions) 
+- [Arska on X](https://twitter.com/ArskaEnergy)
 
 # Current status
 The software is under development (beta testing). 
