@@ -15,15 +15,15 @@ Arska is a ESP32 microcontroller based application for managing energy consumpti
 
 
 Arska can control various electric switches connected to e.g. water heater and car chargers. It can also privide potential-free signal for temperature control for example to heat-pumps. Arska controls devices based on following data:
-- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. Optional price data source Elering provides prices for Estonia, Finland, Lithuania and Latvia. 
-- Grid Energy Metering, supports HAN P1-port (with Homewizard tested in Finland), Shelly 3 EM and Shelly Pro 3 EM
+- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. Optional price data source [Elering](https://dashboard.elering.ee/assets/api-doc.html)  provides prices for Estonia, Finland, Lithuania and Latvia. 
+- Grid Energy Metering, supports HAN P1-port (with [Homewizard Wi-Fi P1 Meter]([url](https://www.homewizard.com/shop/wi-fi-p1-meter/)) tested in Finland), Shelly 3 EM and Shelly Pro 3 EM meters
 - Energy Production Metering, supports selected Fronius and SMA inverters
 - Current date and time, temperature sensor values
-- Local solar forecast and Finnish wind power forecast from Finnish Meteorological Institute (FMI), currently available in Finland 🇫🇮
+- Local solar forecast and Finnish wind power forecast from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste), currently available in Finland 🇫🇮
 
 More information in [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) .
 
-[Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions)
+[Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions) . [Arska on X](https://twitter.com/ArskaEnergy).
 
 # Current status
 The software is under development (beta testing). 
