@@ -9,16 +9,17 @@ Arska is a ESP32 microcontroller based application for managing energy consumpti
 
 [![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska-youtube-thumbnail.png)](https://www.youtube.com/watch?v=MvDFJclwr6A)
 
-[![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/blob/devel_ui/docs/img/youtube2_tn.png)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
+[![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/blob/devel-ui/docs/img/youtube2_tn.png)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
 
 
 ![Arska Diagram](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska%20Node%20ESP32%20diagram.png)
 
 Arska can control various electric switches connected to e.g. water heater and car chargers. It can also privide potential-free signal for temperature control for example to heat-pumps. Arska controls devices based on following data:
-- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭.
-- Real time energy export/import of the property (measured by [Shelly 3EM](https://shelly.cloud/products/shelly-3em-smart-home-automation-energy-meter/) ) or solar production (selected Fronius and SMA inverters supported).
-- Current date and time
-- Solar forecast from BCDC Energia, currently available in Finland 🇫🇮
+- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. Optional price data source Elering provides prices for Estonia, Finland, Lithuania and Latvia. 
+- Grid Energy Metering, supports HAN P1-port (with Homewizard tested in Finland), Shelly 3 EM and Shelly Pro 3 EM
+- Energy Production Metering, supports selected Fronius and SMA inverters
+- Current date and time, temperature sensor values
+- Local solar forecast and Finnish wind power forecast from Finnish Meteorological Institute (FMI), currently available in Finland 🇫🇮
 
 More information in [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) .
 
