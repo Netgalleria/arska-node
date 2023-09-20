@@ -1,4 +1,5 @@
 ***Install ready firmware you can directly install from [the installation page](https://iot.netgalleria.fi/arska-install/).*** 
+***Lue Arskasta suomeksi [Arska.info 🇫🇮](https://arska.info)***
 
 # Arska
 Arska makes your energy purchases greener and saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest and lower carbon intensive hours.
