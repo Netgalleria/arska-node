@@ -3019,7 +3019,7 @@ bool read_meter_shelly3em()
   float power[3];
   energym_e_in = 0;
   energym_e_out = 0;
-  if (s.energy_meter_type == ENERGYM_SHELLY3EM )
+  if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
     for (JsonObject emeter : doc["emeters"].as<JsonArray>())
     {
@@ -3033,12 +3033,12 @@ bool read_meter_shelly3em()
       idx++;
     }
   }
-  else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2) {
-      power_tot = 0; // not available in /status
-      energym_e_in = (float)doc["total_act"];
-      energym_e_out = (float)doc["total_act_ret"];    
+  else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
+  {
+    power_tot = 0; // not available in /status
+    energym_e_in = (float)doc["total_act"];
+    energym_e_out = (float)doc["total_act_ret"];
   }
-
 
   energym_power_in = power_tot;
   energym_period_read_count++;
@@ -3559,13 +3559,15 @@ void calculate_price_rank_variables()
   time_t now_infunc;
   time(&now_infunc);
   time_t current_period_start = get_netting_period_start_time(now_infunc);
+  bool use_prices = (strncmp(s.entsoe_area_code, "#", 1) != 0);
 
   Serial.printf("calculate_price_rank_variables start: %ld, end: %ld, current_period_start: %lu\n", prices_record_start, prices_record_end_excl, current_period_start);
   if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
   {
+    if (use_prices) {
     Serial.printf("Cannot get price info for current period current_period_start %lu , prices_expires %lu, now_infunc %lu \n", current_period_start, prices_expires, now_infunc);
-    // prices2.debug_print(); //JUST DEBUGGING
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price info for current period."));
+    }
     vars.set_NA(VARIABLE_PRICE);
     vars.set_NA(VARIABLE_PRICERANK_9);
     vars.set_NA(VARIABLE_PRICEAVG_9);
@@ -3700,6 +3702,7 @@ String read_http11_line(WiFiClientSecure *client_https)
     if (!line_incomplete)
     {
       line = client_https->readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
+    //  Serial.println(line);
       if (line.charAt(line.length() - 1) == 13)
       {
         if (is_chunksize_line(line))
@@ -3728,6 +3731,7 @@ String read_http11_line(WiFiClientSecure *client_https)
     else // line is incomplete, we will get more to add
     {
       line2 = client_https->readStringUntil('\n');
+     // Serial.println(line2);
       if (line2.charAt(line2.length() - 1) == 13)
       {
         if (is_chunksize_line(line2)) // skip error status "garbage" line
@@ -4027,7 +4031,7 @@ bool get_price_data_entsoe()
   Serial.println(F("Waiting the document"));
   String line;
   String line2;
-  bool contains_zero_prices = false;
+  bool contains_suspicious_prices = false;
   // we must remove extra carbage cr (13) + "5xx" + cr lines
   // .available() is 1 or low when the "garbage" comes, no more/much to read, after about 8k buffer is read
   while (client_https.available())
@@ -4063,12 +4067,15 @@ bool get_price_data_entsoe()
       pos = getElementValue(line).toInt();
     }
 
+// max price in NordPool is 4000€/MWh https://www.nordpoolgroup.com/en/trading/Operational-Message-List/2022/04/day-ahead-reminder---new-harmonised-maximum-clearing-price-from-delivery-day-wednesday-11th-may-20220427161200/
+// 4000€ -> 400000 
     else if (line.endsWith(F("</price.amount>")))
     {
       price = int(getElementValue(line).toFloat() * 100);
-      if (abs(price) < 0.001) // suspicious value, could be parsing/data error
-        contains_zero_prices = true;
+      if ((abs(price) < 0.001) || (price > 400000)) // suspicious value, could be parsing/data error
+        contains_suspicious_prices = true;
       price_rows++;
+      
     }
     else if (line.endsWith("</Point>"))
     {
@@ -4106,9 +4113,9 @@ bool get_price_data_entsoe()
     price_resolution_sec = PRICE_RESOLUTION_SEC;
     prices_ts = now_infunc;
 
-    if (contains_zero_prices)
+    if (contains_suspicious_prices)
     { // potential problem in the latest fetch, give shorter validity time
-      Serial.println("Contains zero prices. Could be still ok. Retry in 4 hours.");
+      Serial.println("Contains suspicious prices. Could be still ok. Retry in 4 hours.");
       prices_expires = now_infunc + (4 * SECONDS_IN_HOUR);
     }
     else
@@ -6260,6 +6267,75 @@ void onWebSeriesGet(AsyncWebServerRequest *request)
   request->send(200, "application/json", output);
 }
 
+// loop wathcdog functionality to check that loop() function is called in timely fashion
+#define LOOP_WATCHDOG_ENABLED
+#ifdef LOOP_WATCHDOG_ENABLED
+#define BOOT_AFTER_NO_LOOP_START 300000000 // microseconds 5 mins
+static uint64_t last_loop_started = 0;     // loop() watchdog
+
+void check_loop_watchdog()
+{
+  if (last_loop_started == 0) // not timestamp value yet
+    return;
+
+ // Serial.printf("DEBUG: check_loop_watchdog, %lu us since last loop() \n", (uint32_t)(esp_timer_get_time() - last_loop_started));
+ // Serial.print("loop() last_loop_started ");
+ // Serial.println(last_loop_started);
+
+  if (esp_timer_get_time() - last_loop_started > BOOT_AFTER_NO_LOOP_START)
+  {
+    log_msg(MSG_TYPE_FATAL, PSTR("Loop watchdog launch system restart."), true);
+    delay(2000);
+    ESP.restart();
+  }
+ /* else
+  {
+    Serial.printf("DEBUG: check_loop_watchdog ok\n");
+  }
+  */
+}
+
+void loop_wd(void *pvParameters)
+{
+  // delay(60000);
+  // uint32_t last_check = millis();
+  for (;;)
+  {
+    //  if ((millis() - last_check) > 100000)
+    //  {
+    Serial.print(" From loop_wd() at ");
+    Serial.println(xPortGetCoreID());
+    check_loop_watchdog();
+    //    last_check = millis();
+    //  }
+    // yield();
+    delay(100000);
+  }
+}
+#endif
+
+/*
+// Perform an action every 10 ticks.
+void loop_wd( void * pvParameters )
+{
+TickType_t xLastWakeTime;
+const TickType_t xFrequency = 10000;
+
+    // Initialise the xLastWakeTime variable with the current time.
+    xLastWakeTime = xTaskGetTickCount ();
+    for( ;; )
+    {
+        // Wait for the next cycle.
+        vTaskDelayUntil( &xLastWakeTime, xFrequency );
+
+        // Perform action here.
+        Serial.print (" From loop_wd() at ");
+        Serial.println(xPortGetCoreID());
+        check_loop_watchdog();
+
+    }
+}
+*/
 /**
  * @brief "/status" url handler, returns status in json
  *
@@ -6267,6 +6343,10 @@ void onWebSeriesGet(AsyncWebServerRequest *request)
  */
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
+#ifdef LOOP_WATCHDOG_ENABLED
+  check_loop_watchdog(); // call watchdog also here, if task not working
+#endif
+
   if (!request->authenticate(s.http_username, s.http_password))
   {
     return request->requestAuthentication();
@@ -6477,8 +6557,7 @@ void setup()
 
   bool create_wifi_ap = false;
   Serial.begin(115200);
-  delay(2000); // wait for console settle - only needed when debugging
-
+  delay(2000);               // wait for console to settle - only needed when debugging
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
@@ -6840,365 +6919,374 @@ void setup()
 
   calculate_time_based_variables();
 
-  // wifi_request.status = 0u; // listening //TESTING...
-
+#ifdef LOOP_WATCHDOG_ENABLED
+  // watchdog loop
+  xTaskCreatePinnedToCore(loop_wd, "loop_wd", 1000, NULL, 0, NULL, 1); //  0 - wifi,ble, 1 - user
+#endif
 } // end of setup()
 
 /**
  * @brief Arduino framwork function. This function is executed repeatedly after setup().  Make calls to scheduled functions
  *
  */
-void loop()
+void loop() {
+#ifdef LOOP_WATCHDOG_ENABLED
+    last_loop_started = esp_timer_get_time(); // store start time for a watchdog process
+#endif
+
+bool got_forecast_ok = false;
+bool got_price_ok = false;
+// E  bool todo_rotate_period = false;
+
+io_tasks();
+
+//  handle initial wifi setting from the serial console command line
+if (wifi_in_setup_mode && Serial.available())
 {
-  bool got_forecast_ok = false;
-  bool got_price_ok = false;
-  // E  bool todo_rotate_period = false;
-
-  io_tasks();
-
-  //  handle initial wifi setting from the serial console command line
-  if (wifi_in_setup_mode && Serial.available())
+  serial_command = Serial.readStringUntil('\n');
+  if (serial_command_state == 0)
   {
-    serial_command = Serial.readStringUntil('\n');
-    if (serial_command_state == 0)
+    if (serial_command.c_str()[0] == 's')
     {
-      if (serial_command.c_str()[0] == 's')
-      {
-        scan_and_store_wifis(true, false);
-        return;
-      }
-      if (isdigit(serial_command[0]))
-      {
-        int wifi_idx = serial_command.toInt();
-        if (wifi_idx < network_count)
-        {
-          strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
-          Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
-          Serial.println();
-          Serial.flush();
-          serial_command_state = 1;
-        }
-      }
+      scan_and_store_wifis(true, false);
+      return;
     }
-    else if (serial_command_state == 1)
+    if (isdigit(serial_command[0]))
     {
-      strncpy(s.wifi_password, serial_command.c_str(), 30);
-      for (int j = 0; j < strlen(s.wifi_password); j++)
-        if (s.wifi_password[j] < 32) // cleanup, line feed
-          s.wifi_password[j] = 0;
-
-      Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
-      Serial.println();
-      Serial.flush();
-      writeToEEPROM();
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
-
-      delay(2000);
-      ESP.restart();
+      int wifi_idx = serial_command.toInt();
+      if (wifi_idx < network_count)
+      {
+        strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
+        Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
+        Serial.println();
+        Serial.flush();
+        serial_command_state = 1;
+      }
     }
   }
-  if (todo_in_loop_write_to_eeprom)
+  else if (serial_command_state == 1)
   {
-    todo_in_loop_write_to_eeprom = false;
+    strncpy(s.wifi_password, serial_command.c_str(), 30);
+    for (int j = 0; j < strlen(s.wifi_password); j++)
+      if (s.wifi_password[j] < 32) // cleanup, line feed
+        s.wifi_password[j] = 0;
+
+    Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
+    Serial.println();
+    Serial.flush();
     writeToEEPROM();
-  }
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
 
-  if (todo_in_loop_restart)
-  {
-    delay(1000);
-    WiFi.disconnect();
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to user activity (settings/cmd)."), true);
     delay(2000);
     ESP.restart();
   }
+}
+if (todo_in_loop_write_to_eeprom)
+{
+  todo_in_loop_write_to_eeprom = false;
+  writeToEEPROM();
+}
 
-  if (cooling_down_state) // the cpu is cooling down,  keep calm and wait
-    delay(10000);
+if (todo_in_loop_restart)
+{
+  delay(1000);
+  WiFi.disconnect();
+  log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to user activity (settings/cmd)."), true);
+  delay(2000);
+  ESP.restart();
+}
 
-  if (todo_in_loop_scan_wifis)
+if (cooling_down_state) // the cpu is cooling down,  keep calm and wait
+  delay(10000);
+
+if (todo_in_loop_scan_wifis)
+{
+  todo_in_loop_scan_wifis = false;
+  scan_and_store_wifis(true, true);
+}
+/*
+#ifdef MDNS_ENABLED
+  if (todo_in_loop_discover_devices) // TODO: check that stable enough
   {
-    todo_in_loop_scan_wifis = false;
-    scan_and_store_wifis(true, true);
+    todo_in_loop_discover_devices = false;
+    discover_devices();
   }
-  /*
-  #ifdef MDNS_ENABLED
-    if (todo_in_loop_discover_devices) // TODO: check that stable enough
-    {
-      todo_in_loop_discover_devices = false;
-      discover_devices();
-    }
-  #endif
-  */
+#endif
+*/
 
 #ifdef OTA_DOWNLOAD_ENABLED
-  if (todo_in_loop_get_releases)
-  {
-    todo_in_loop_get_releases = false;
+if (todo_in_loop_get_releases)
+{
+  todo_in_loop_get_releases = false;
 
-    get_releases();
-  }
+  get_releases();
+}
 #endif
 
-  // started from admin UI
+// started from admin UI
 #ifdef SENSOR_DS18B20_ENABLED
-  if (todo_in_loop_scan_sensors)
-  {
-    todo_in_loop_scan_sensors = false;
-    if (scan_sensors())
-      writeToEEPROM();
-  }
+if (todo_in_loop_scan_sensors)
+{
+  todo_in_loop_scan_sensors = false;
+  if (scan_sensors())
+    writeToEEPROM();
+}
 #endif
 
-  // if in Wifi AP Mode (192.168.4.1), no other operations allowed
-  check_forced_restart(); //!< if in config mode restart when time out
-  if (wifi_in_setup_mode)
-  { //!< do nothing else if in forced ap-mode
-    delay(500);
-    return;
-  }
+// if in Wifi AP Mode (192.168.4.1), no other operations allowed
+check_forced_restart(); //!< if in config mode restart when time out
+if (wifi_in_setup_mode)
+{ //!< do nothing else if in forced ap-mode
+  delay(500);
+  return;
+}
 #ifdef OTA_UPDATE_ENABLED
-  // Note:  was earlier after time setup
-  if (todo_in_loop_update_firmware_partition)
-  {
-    todo_in_loop_update_firmware_partition = false;
-    Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE, version_fs_base.c_str(), update_release_selected.c_str());
+// Note:  was earlier after time setup
+if (todo_in_loop_update_firmware_partition)
+{
+  todo_in_loop_update_firmware_partition = false;
+  Serial.printf(PSTR("Partition update VERSION_BASE: %s, version_fs_base: %s, update_release_selected: %s\n"), VERSION_BASE, version_fs_base.c_str(), update_release_selected.c_str());
 
-    // experimental, we should check the phase or have two different todo_in variables
-    // TODO: check that there is no upload in process at the same time (especially filesystem)
-    if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length() > 0) // update firmware if requested and needed
-    {
-      Serial.println(F("Starting firmware update."));
-      update_firmware_partition(U_FLASH);
-    }
-    else
-    {
-      Serial.println(F("Starting filesystem update."));
-      update_firmware_partition(U_PART); // update fs if needed
-      check_filesystem_version();        // update variables to see if  version is updated
-    }
+  // experimental, we should check the phase or have two different todo_in variables
+  // TODO: check that there is no upload in process at the same time (especially filesystem)
+  if (!update_release_selected.equals(VERSION_BASE) && update_release_selected.length() > 0) // update firmware if requested and needed
+  {
+    Serial.println(F("Starting firmware update."));
+    update_firmware_partition(U_FLASH);
   }
+  else
+  {
+    Serial.println(F("Starting filesystem update."));
+    update_firmware_partition(U_PART); // update fs if needed
+    check_filesystem_version();        // update variables to see if  version is updated
+  }
+}
 #endif
 
-  // no other operations allowed before the clock is set
-  time(&now);
+// no other operations allowed before the clock is set
+time(&now);
 
-  // initial message
-  if (now < ACCEPTED_TIMESTAMP_MINIMUM)
+// initial message
+if (now < ACCEPTED_TIMESTAMP_MINIMUM)
+{
+  delay(3000);
+  return;
+}
+else if (started == 0) // we have clock set
+{
+  //  char msgbuff[30];
+  // let ntp time settle
+  for (int i = 0; i < 10; i++)
   {
-    delay(3000);
-    return;
+    delay(5000);
+    time(&now);
   }
-  else if (started == 0) // we have clock set
+  // wait if we get more accurate time...?
+
+  started = now;
+  calculate_time_based_variables(); // no external info needed for these
+
+  if (config_resetted)
+    log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
+  else
+    log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
+
+  // if (!clock_set)
+  //   set_time_settings()); // set tz info
+  set_time_settings(true, false); // need to set tz
+
+  ch_counters.init();
+  next_query_price_data = now;
+  next_query_fcst_data = now;
+}
+
+// reapply current relay states (if relay parameters are changed)
+if (todo_in_loop_reapply_relay_states)
+{
+  Serial.println("queue task todo_in_loop_reapply_relay_states");
+  todo_in_loop_reapply_relay_states = false;
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    //  char msgbuff[30];
-    // let ntp time settle
-    for (int i = 0; i < 10; i++)
+    if (relay_state_reapply_required[channel_idx])
     {
-      delay(5000);
-      time(&now);
-    }
-    // wait if we get more accurate time...?
-
-    started = now;
-    calculate_time_based_variables(); // no external info needed for these
-
-    if (config_resetted)
-      log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
-    else
-      log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
-
-    // if (!clock_set)
-    //   set_time_settings()); // set tz info
-    set_time_settings(true, false); // need to set tz
-
-    ch_counters.init();
-    next_query_price_data = now;
-    next_query_fcst_data = now;
-  }
-
-  // reapply current relay states (if relay parameters are changed)
-  if (todo_in_loop_reapply_relay_states)
-  {
-    Serial.println("queue task todo_in_loop_reapply_relay_states");
-    todo_in_loop_reapply_relay_states = false;
-    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-    {
-      if (relay_state_reapply_required[channel_idx])
-      {
-        Serial.printf("Reapply relay %d\n", channel_idx);
-        apply_relay_state(channel_idx, true);
-      }
+      Serial.printf("Reapply relay %d\n", channel_idx);
+      apply_relay_state(channel_idx, true);
     }
   }
-  // recalculate channel states and set relays, if forced from dashboard
-  if (todo_in_loop_set_relays)
-  {
-    Serial.println("queue task todo_in_loop_set_relays");
-    todo_in_loop_set_relays = false;
-    update_channel_states();
-    set_relays(false);
-  }
+}
+// recalculate channel states and set relays, if forced from dashboard
+if (todo_in_loop_set_relays)
+{
+  Serial.println("queue task todo_in_loop_set_relays");
+  todo_in_loop_set_relays = false;
+  update_channel_states();
+  set_relays(false);
+}
 
-  // just in case check the wifi and reconnect/restart if needed
+// just in case check the wifi and reconnect/restart if needed
+if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
+{
+  // Wait for the wifi to come up again
+  for (int wait_loop = 0; wait_loop < 20; wait_loop++)
+  {
+    delay(1000);
+    Serial.print('w');
+    if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
+      break;
+  }
   if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
   {
-    // Wait for the wifi to come up again
-    for (int wait_loop = 0; wait_loop < 20; wait_loop++)
-    {
-      delay(1000);
-      Serial.print('w');
-      if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
-        break;
-    }
-    if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
-    {
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
-      delay(2000);
-      ESP.restart(); // boot if cannot recover wifi in time
-    }
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
+    delay(2000);
+    ESP.restart(); // boot if cannot recover wifi in time
   }
+}
 
-  // update period info
-  time(&now);
-  current_period_start = get_netting_period_start_time(now);
-  if (get_netting_period_start_time(now) == get_netting_period_start_time(started))
-    recording_period_start = started;
-  else
-    recording_period_start = current_period_start;
+// update period info
+time(&now);
+current_period_start = get_netting_period_start_time(now);
+if (get_netting_period_start_time(now) == get_netting_period_start_time(started))
+  recording_period_start = started;
+else
+  recording_period_start = current_period_start;
 
-  if ((next_query_price_data <= now) && (prices_expires <= now))
-  {
-    io_tasks(STATE_PROCESSING);
+if ((next_query_price_data <= now) && (prices_expires <= now))
+{
+  io_tasks(STATE_PROCESSING);
 
+if (strncmp(s.entsoe_area_code, "#", 1) == 0)
+    got_price_ok = false; // no area code, not price query
+else {
 #ifdef PRICE_ELERING_ENABLED
-    if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-      got_price_ok = get_price_data_elering(); // experimental
-    else
-      got_price_ok = get_price_data_entsoe();
-#else
+if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+    got_price_ok = get_price_data_elering(); // experimental
+  else
     got_price_ok = get_price_data_entsoe();
+#else
+  got_price_ok = get_price_data_entsoe();
 #endif
+}
 
-    io_tasks(STATE_PROCESSING);
-    // todo_in_loop_update_price_rank_variables = got_price_ok;
-    if (got_price_ok)
-    {
-      todo_calculate_ranks_period_variables = true;
-    }
-    next_query_price_data = (got_price_ok ? (max(prices_expires, time(nullptr)) + random(0, 300)) : (time(nullptr) + 600 + random(0, 60))); // random, to prevent query peak
-    Serial.printf("next_query_price_data: %ld %s\n", next_query_price_data, got_price_ok ? "ok" : "failed");
-  }
-
-  if (next_query_fcst_data <= now) // got solar & wind fcsts
+  io_tasks(STATE_PROCESSING);
+  // todo_in_loop_update_price_rank_variables = got_price_ok;
+  if (got_price_ok)
   {
-    io_tasks(STATE_PROCESSING);
-    got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
-    get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     todo_calculate_ranks_period_variables = true;
-    next_query_fcst_data = now + (got_forecast_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));
   }
+  next_query_price_data = (got_price_ok ? (max(prices_expires, time(nullptr)) + random(0, 300)) : (time(nullptr) + 600 + random(0, 60))); // random, to prevent query peak
+  Serial.printf("next_query_price_data: %ld %s\n", next_query_price_data, got_price_ok ? "ok" : "failed");
+}
 
-  // new period
-  if (previous_period_start != current_period_start)
-  {
-    Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start, grid_protection_delay_interval);
-    period_changed = true;
-    next_process_ts = now; // process now if new period
-                           // rotates history array and sets selected variables to the history array
-    vars.rotate_period();
-    // E todo_rotate_period = true; // do it after meter read
+if (next_query_fcst_data <= now) // got solar & wind fcsts
+{
+  io_tasks(STATE_PROCESSING);
+  got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
+  get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
+  todo_calculate_ranks_period_variables = true;
+  next_query_fcst_data = now + (got_forecast_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));
+}
 
-    calculate_time_based_variables();
-    calculate_price_rank_variables();
-    /*
-    // moved to calculate_forecast_variables
-    long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
-    if (period_solar_rank == -1)
-      vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
-    else
-      vars.set(VARIABLE_SOLAR_RANK_FIXED_24, period_solar_rank);
-      */
-    calculate_forecast_variables();
-  }
+// new period
+if (previous_period_start != current_period_start)
+{
+  Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start, grid_protection_delay_interval);
+  period_changed = true;
+  next_process_ts = now; // process now if new period
+                         // rotates history array and sets selected variables to the history array
+  vars.rotate_period();
+  // E todo_rotate_period = true; // do it after meter read
+
+  calculate_time_based_variables();
+  calculate_price_rank_variables();
+  /*
+  // moved to calculate_forecast_variables
+  long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
+  if (period_solar_rank == -1)
+    vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
+  else
+    vars.set(VARIABLE_SOLAR_RANK_FIXED_24, period_solar_rank);
+    */
+  calculate_forecast_variables();
+}
 
 #ifdef INFLUX_REPORT_ENABLED
-  if (todo_in_loop_influx_write) // TODO: maybe we could combine this with buffer update
-  {
-    todo_in_loop_influx_write = false;
-    write_buffer_to_influx();
-  }
+if (todo_in_loop_influx_write) // TODO: maybe we could combine this with buffer update
+{
+  todo_in_loop_influx_write = false;
+  write_buffer_to_influx();
+}
 #endif
 
-  if (todo_calculate_ranks_period_variables) // set after price query
+if (todo_calculate_ranks_period_variables) // set after price query
+{
+  io_tasks(STATE_PROCESSING);
+  todo_calculate_ranks_period_variables = false;
+  calculate_price_rank_variables();
+  delay(1000);
+  calculate_forecast_variables();
+  return;
+}
+
+// TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
+if (next_process_ts <= now) // time to process
+                            // E  if ((next_process_ts <= now) || todo_rotate_period) // time to process
+{
+  io_tasks(STATE_PROCESSING);
+  localtime_r(&now, &tm_struct);
+  Serial.printf(PSTR("%02d:%02d:%02d Reading sensor and meter data... \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  if (s.energy_meter_type != ENERGYM_NONE)
   {
-    io_tasks(STATE_PROCESSING);
-    todo_calculate_ranks_period_variables = false;
-    calculate_price_rank_variables();
-    delay(1000);
-    calculate_forecast_variables();
-    return;
+    read_energy_meter();
   }
 
-  // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
-  if (next_process_ts <= now) // time to process
-                              // E  if ((next_process_ts <= now) || todo_rotate_period) // time to process
+  if (s.production_meter_type != PRODUCTIONM_NONE)
   {
-    io_tasks(STATE_PROCESSING);
-    localtime_r(&now, &tm_struct);
-    Serial.printf(PSTR("%02d:%02d:%02d Reading sensor and meter data... \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
-    if (s.energy_meter_type != ENERGYM_NONE)
-    {
-      read_energy_meter();
-    }
-
-    if (s.production_meter_type != PRODUCTIONM_NONE)
-    {
-      read_production_meter();
-    }
+    read_production_meter();
+  }
 
 #ifdef SENSOR_DS18B20_ENABLED
-    read_ds18b20_sensors();
+  read_ds18b20_sensors();
 #endif
 
-    calculate_time_based_variables();  // call here for minute level changes
-    calculate_meter_based_variables(); // TODO: if period change we could set write influx buffer after this?
-    time(&now);
-    next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
-    update_channel_states();
-    set_relays(true); // grid protection delay active
-  }
+  calculate_time_based_variables();  // call here for minute level changes
+  calculate_meter_based_variables(); // TODO: if period change we could set write influx buffer after this?
+  time(&now);
+  next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
+  update_channel_states();
+  set_relays(true); // grid protection delay active
+}
 
-  if (period_changed)
-  {
+if (period_changed)
+{
 #ifdef INFLUX_REPORT_ENABLED
-    if (previous_period_start != 0)
-    {
-      // add values from the last period to the influx buffer and schedule writing to the influx db
-      // we still must have old period variable values set
-      //   add_period_variables_to_influx_buffer(previous_period_start + (NETTING_PERIOD_SEC / 2));
-      add_period_variables_to_influx_buffer(previous_period_start);
-      //  ch_counters.new_log_period(previous_period_start + (NETTING_PERIOD_SEC / 2));
-      ch_counters.new_log_period(previous_period_start);
-      todo_in_loop_influx_write = true;
-    }
+  if (previous_period_start != 0)
+  {
+    // add values from the last period to the influx buffer and schedule writing to the influx db
+    // we still must have old period variable values set
+    //   add_period_variables_to_influx_buffer(previous_period_start + (NETTING_PERIOD_SEC / 2));
+    add_period_variables_to_influx_buffer(previous_period_start);
+    //  ch_counters.new_log_period(previous_period_start + (NETTING_PERIOD_SEC / 2));
+    ch_counters.new_log_period(previous_period_start);
+    todo_in_loop_influx_write = true;
+  }
 #endif
 
-    previous_period_start = current_period_start;
-    period_changed = false;
-  }
+  previous_period_start = current_period_start;
   period_changed = false;
+}
+period_changed = false;
 
-  // rotate after meter read, experimental
-  // Eif (todo_rotate_period)
-  // E{
-  // E  vars.rotate_period();
-  // E  todo_rotate_period = false;
-  // E}
+// rotate after meter read, experimental
+// Eif (todo_rotate_period)
+// E{
+// E  vars.rotate_period();
+// E  todo_rotate_period = false;
+// E}
 
 #ifdef INVERTER_SMA_MODBUS_ENABLED
-  mb.task(); // process modbuss event queue
+mb.task(); // process modbuss event queue
 #endif
-  yield();
-  delay(50);
-  io_tasks();
+yield();
+delay(50);
+io_tasks();
 }
