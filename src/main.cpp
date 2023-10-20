@@ -2502,6 +2502,9 @@ void writeToEEPROM()
   EEPROM.put(eepromaddr, s); // write data to array in ram
   bool commit_ok = EEPROM.commit();
   Serial.printf(PSTR("writeToEEPROM: Writing %d bytes to eeprom. Result %s\n"), eeprom_used_size, commit_ok ? "OK" : "FAILED");
+  if (eeprom_used_size>4096)
+    Serial.println(PSTR("DATA STRUCTURE WRITTEN TO EEPROM IS TOO BIG"));
+
   EEPROM.end();
 }
 
