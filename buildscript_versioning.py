@@ -6,9 +6,9 @@ FILENAME_VERSION_H = 'include/version.h'
 # phases alpha, beta, rc, stable,  
 # e.g. 0.93.0-alpha1,  0.93.0-beta1,  0.93.0-rc1,  0.93.0-stable, 0.93.1-stable  
 
-version = '0.99.0-alfa14'
+#version = '0.99.0-alfa14'
 #version = '0.99.0-beta4'
-#version = '0.92.0-rc2'
+version = '1.00.0-rc1'
 #version = '0.92.0-stable'
 
 if version[-1]==".":
