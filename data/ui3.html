@@ -699,6 +699,7 @@
                         <option value="1">Shelly 3 EM</option>
                         <option value="2">Shelly Gen 2(test)</option>
                         <option value="4">HAN P1 Telegram / Wifi</option>
+                        <option value="5">HAN P1 Wired</option>
                       </select>
                     </div>
                     <div class="mb-2">
@@ -772,6 +773,56 @@
                   <!--./card-footer-->
                 </div><!-- production card-->
               </div>
+
+
+              <!--./col-->
+              <div class="col">
+                <!-- Load management -->
+                <div class="card white-card  mb-3" id="loadm:card">
+                  <div class="card-header">
+                    <h5 class="card-title">Load Management</h5>
+                    <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
+                      <span class="text-muted">The load management will automatically switch off devices if measured current is over a limit. Applies to channels with a defined maximum load (>0 W).</span>
+                    </div>
+                  </div>
+                  <div class="card-body">
+
+                    <div class="mb-2">  
+                      <input type="checkbox" class="form-check-input" id="loadm_active" >
+                      <label for="loadm_active" class="form-check-label">Load limiter active</label>
+                    </div>
+                    <div class="mb-2">
+                      <label for="loadm_phase_count" class="form-label">Phase Count</label>
+                      <select id="loadm_phase_count" class="form-select" aria-label="variable">
+                        <option value="1">1</option>
+                        <option value='3'>3</option>
+                      </select>
+                    </div>
+                    <div class="mb-2">
+                      <label for="loadm_phase_current_max" class="form-label">Max Phase Current (A)</label>
+                      <input id="loadm_phase_current_max" type="number" class="form-control" placeholder="25" min="0" step="1" max="255">
+                    </div>
+                    <div class="mb-2">  
+                      <span id="loadm_status" class="fw-light"></span>
+                    </div>
+
+                    <div id="loadm:alert"></div>
+                  </div>
+                  <!--./card-body-->
+                  <div class="card-footer text-end">
+                    <!--  <button class="btn btn-primary" id="influx:test"> 
+                     <span data-feather="type" style="pointer-events: none;" class="align-text-bottom"></span>
+                     Test</button> -->
+                    <button class="btn btn-primary" type="submit" id="loadm:save" disabled="">
+                      <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                      Save</button>
+                  </div>
+                  <!--./card-footer-->
+
+                </div><!-- influx card-->
+              </div>
+
+
               <!--./col-->
               <div class="col">
                 <!-- Influx Server
@@ -817,6 +868,9 @@
 
                 </div><!-- influx card-->
               </div>
+
+
+
               <!--./col-->
               <div class="col">
                 <!-- Localisation 
