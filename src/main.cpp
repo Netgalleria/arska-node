@@ -334,23 +334,19 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
 #define RELEASES_URL RELEASES_URL_BASE OTA_BOOTLOADER VERSION_SEPARATOR VERSION_BASE
 
-// Channel state info
+// Channel state info, Work in Progress...
 
-#define CH_STATE_NORULES 0
+#define CH_STATE_NONE 0
 #define CH_STATE_BYRULE 1
 #define CH_STATE_BYFORCE 2
 #define CH_STATE_BYLMGMT 4
 
-uint8_t chstate_now[CHANNEL_COUNT];
-uint8_t chstate_next[CHANNEL_COUNT];
-uint8_t chstate_transit[CHANNEL_COUNT];
-void set_ch_states(int channel_idx, uint8_t state, uint8_t next, uint8_t transit)
-{
-  chstate_now[channel_idx] = state;
-  chstate_next[channel_idx] = next;
-  chstate_transit[channel_idx] = transit;
-}
-//
+uint8_t chstate_transit[CHANNEL_COUNT]; // logging why the channel is in this state, latest transit decision (also blocking)
+
+// Jos LMGMT blokkaa niin palataan entiseen eli käytännössä syyksi muuttuu CH_STATE_BYLMGMT
+// Mutta ehdot lasketaan uusiksi, joten ei syytä jättää transitioon pidemmäksi aikaa, mutta priorisointi tehdään vasta myöhemmin
+//  katso update_channel_states, get_channel_to_switch_prio
+//  voisi olla paras tehdä aina prio-sortattu taulukko kanavista
 
 // String url_base = "/api?documentType=A44&processType=A16";
 const char *url_base PROGMEM = "/api?documentType=A44&processType=A16";
@@ -982,6 +978,50 @@ int get_hw_template_idx(int id)
 #define COOLING_START_F 149          // 65C
 #define COOLING_RECOVER_TO_F 131     // 55
 */
+
+int ch_prio_sorted[CHANNEL_COUNT];
+void ch_prio_sort()
+{
+  // init
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+    ch_prio_sorted[i] = -1;
+
+  // pienin, toiseksi pienin, huom.: samaa prioa voi olla useampi
+  int least, least_idx;
+  bool isthere;
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+  {
+    least = 256;
+    for (int j = 0; j < CHANNEL_COUNT; j++) // is j smallest of remaining
+    {
+      isthere = false;
+      for (int k = 0; k < i; k++)
+      {
+        if (ch_prio_sorted[k] == j)
+        { // already in sorted array
+          isthere = true;
+          break;
+        }
+      }
+      if (!isthere)
+      {
+        if (s.ch[j].priority < least)
+        {
+          least = s.ch[j].priority;
+          least_idx = j;
+        }
+      }
+    }
+    if (least < 256)
+    {
+      ch_prio_sorted[i] = least_idx;
+      //    Serial.printf("ch_prio_sorted[%d], least %d, least_idx %d \n", i, least, least_idx);
+    }
+  }
+  Serial.println("Debug: channels in priority order:");
+  for (int i = 0; i < CHANNEL_COUNT; i++)
+    Serial.printf("%d %d\n", ch_prio_sorted[i], s.ch[ch_prio_sorted[i]].priority);
+}
 
 // Utility functions, channel attributes based on type
 bool is_wifi_relay(uint8_t type)
@@ -2542,6 +2582,8 @@ void readFromEEPROM()
   EEPROM.end();
   hw_template_idx = get_hw_template_idx(s.hw_template_id); // update cached variable
   set_netting_source();
+
+  ch_prio_sort(); // experimental, keep sorted channel array up to date
 }
 
 /**
@@ -2563,6 +2605,8 @@ void writeToEEPROM()
     Serial.println(PSTR("DATA STRUCTURE WRITTEN TO EEPROM IS TOO BIG"));
 
   EEPROM.end();
+
+  ch_prio_sort(); // experimental, keep sorted channel array up to date
 }
 
 /**
@@ -2888,9 +2932,7 @@ float check_current_load()
       if (s.ch[channel_idx].is_up && s.ch[channel_idx].load > 0)
       {
         s.ch[channel_idx].wanna_be_up = false;
-
-        set_ch_states(channel_idx, chstate_next[channel_idx], CH_STATE_BYLMGMT, CH_STATE_BYLMGMT);
-
+        chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
 
         drop_count++;
       }
@@ -4673,6 +4715,34 @@ int get_channel_to_switch_prio(bool is_rise)
   }
   return matching_prio_channel;
 }
+// experimental give n:th in the row...
+int get_channel_to_switch_prio(bool is_rise, int n)
+{
+  uint8_t matching_prio;
+  int matching_prio_channel = -1;
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  {
+    if (is_rise && !s.ch[channel_idx].is_up && s.ch[channel_idx].wanna_be_up)
+    { // we should rise this up, select down channel with lowest priority value
+      Serial.printf("get_channel_to_switch_prio ch %d wanna to be up \n", channel_idx);
+      if (matching_prio_channel == -1 || matching_prio > s.ch[channel_idx].priority)
+      {
+        matching_prio = s.ch[channel_idx].priority;
+        matching_prio_channel = channel_idx;
+      }
+    }
+    if (!is_rise && s.ch[channel_idx].is_up && !s.ch[channel_idx].wanna_be_up)
+    { // we should drop this channel, select up channel with highest priority value
+      Serial.printf("get_channel_to_switch_prio ch %d wanna be down , matching_prio %d, priority %d\n", channel_idx, (int)matching_prio, s.ch[channel_idx].priority);
+      if (matching_prio_channel == -1 || matching_prio < s.ch[channel_idx].priority)
+      {
+        matching_prio = s.ch[channel_idx].priority;
+        matching_prio_channel = channel_idx;
+      }
+    }
+  }
+  return matching_prio_channel;
+}
 
 /**
  * @brief Test gpio and optionally set pin mode for gpio switches
@@ -4794,7 +4864,6 @@ bool apply_relay_state(int channel_idx, bool init_relay)
   time_t now_in_func;
   time(&now_in_func);
 
-
   relay_state_reapply_required[channel_idx] = false;
 
   if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
@@ -4827,8 +4896,6 @@ bool apply_relay_state(int channel_idx, bool init_relay)
 
         // Serial.printf("register_out %d\n", (int)register_out);
         updateShiftRegister();
-        //change finalized
-        set_ch_states(channel_idx, chstate_next[channel_idx], CH_STATE_NORULES, CH_STATE_NORULES);
 
         return true;
       }
@@ -4847,8 +4914,6 @@ bool apply_relay_state(int channel_idx, bool init_relay)
       {
         Serial.printf("Setting gpio  %d %s\n", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW");
         digitalWrite(s.ch[channel_idx].relay_id, pin_val);
-        //change finalized
-        set_ch_states(channel_idx, chstate_next[channel_idx], CH_STATE_NORULES, CH_STATE_NORULES);
         return true;
       }
       else
@@ -4856,11 +4921,10 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     }
   }
   // do not try to connect if there is no wifi stack initiated
-  else if (wifi_connection_succeeded && is_wifi_relay(s.ch[channel_idx].type)) {
+  else if (wifi_connection_succeeded && is_wifi_relay(s.ch[channel_idx].type))
+  {
     switch_http_relay(channel_idx, up);
-      //change finalized
-        set_ch_states(channel_idx, chstate_next[channel_idx], CH_STATE_NORULES, CH_STATE_NORULES);
-        return true;
+    return true;
   }
 
   return false;
@@ -4879,13 +4943,15 @@ void update_channel_states()
 #ifdef LOAD_MGMT_ENABLED
   current_capacity_available = loadm_capacity;
 #endif
-
+  int channel_idx;
   // loop channels and check whether channel should be up
-  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+  for (int channel_idx_ = 0; channel_idx_ < CHANNEL_COUNT; channel_idx_++)
   {
+    channel_idx = ch_prio_sorted[channel_idx_]; // handle in priority order - if capacity is limited only best priority is switch on
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     {
       s.ch[channel_idx].wanna_be_up = false;
+      chstate_transit[channel_idx] = CH_STATE_NONE;
       continue;
     }
 
@@ -4902,10 +4968,10 @@ void update_channel_states()
     }
 
 #ifdef LOAD_MGMT_ENABLED
-    // HUOM! JOS SALLITAAN VAIN KAPASITEETIN RAJOISSA NIIN NOSTO EI MENE PRIORITEETIN MUKAAN, mutta jos ei rajoiteta tässä niin vain suurin prio nousee
-    if (!s.ch[channel_idx].is_up && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count) > current_capacity_available)
+    if (!s.ch[channel_idx].is_up && (s.ch[channel_idx].load>0) && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count) > current_capacity_available)
     {
-      // Serial.printf("DEBUG: Not available capacity for channel %d to get up\n", channel_idx);
+      Serial.printf("DEBUG: Not available capacity for channel %d to get up\n", channel_idx);
+      chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
       // Serial.println(s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR/s.loadm_phase_count);
       // Serial.println(current_capacity_available);
       continue;
@@ -4930,6 +4996,10 @@ void update_channel_states()
     if (!s.ch[channel_idx].is_up && forced_up)
     { // the channel is now down but should be forced up
       s.ch[channel_idx].wanna_be_up = true;
+      chstate_transit[channel_idx] = CH_STATE_BYFORCE;
+#ifdef LOAD_MGMT_ENABLED
+      current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count);
+#endif
       Serial.println("forcing up");
       continue; // forced, not checking channel rules
     }
@@ -4979,6 +5049,13 @@ void update_channel_states()
           Serial.printf("channel_idx %d, condition_idx %d matches, channel wanna_be_up: %s, tested %d conditions.\n", channel_idx, condition_idx, s.ch[channel_idx].wanna_be_up ? "true" : "false", nof_valid_statements);
         }
         s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].on; // set
+#ifdef LOAD_MGMT_ENABLED
+        if (s.ch[channel_idx].is_up != s.ch[channel_idx].wanna_be_up)
+        {
+          current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count);
+        }
+#endif
+        chstate_transit[channel_idx] = CH_STATE_BYRULE;
         s.ch[channel_idx].conditions[condition_idx].condition_active = true;
         break;
       }
@@ -6336,13 +6413,17 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
         s.ch[channel_idx].force_up_from = force_up_from;
         s.ch[channel_idx].force_up_until = force_up_until;
         if (is_force_up_valid(channel_idx))
+        {
           s.ch[channel_idx].wanna_be_up = true;
+          chstate_transit[channel_idx] = CH_STATE_BYFORCE;
+        }
       }
       else
       {
         s.ch[channel_idx].force_up_from = -1;  // forced down
         s.ch[channel_idx].force_up_until = -1; // forced down
         s.ch[channel_idx].wanna_be_up = false;
+        chstate_transit[channel_idx] = CH_STATE_BYFORCE;
       }
       force_up_changes = true;
     }
@@ -6705,6 +6786,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until;
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last;
 
+    doc["ch"][channel_idx]["transit"] = chstate_transit[channel_idx];
+
     for (int h_idx = 0; h_idx < MAX_HISTORY_PERIODS - 1; h_idx++)
     {
       //  doc["channel_history"][channel_idx][h_idx] = channel_history[channel_idx][h_idx];
@@ -6925,6 +7008,7 @@ void setup()
     //  reset values from eeprom
     s.ch[channel_idx].wanna_be_up = false;
     s.ch[channel_idx].is_up = false;
+
     apply_relay_state(channel_idx, true);
     relay_state_reapply_required[channel_idx] = false;
   }

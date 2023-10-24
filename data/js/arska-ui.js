@@ -717,21 +717,30 @@ function populate_channel_status(channel_idx, ch) {
         rule_link_a = "";
     rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":r_" + ch.active_condition + "\");'";
 
+
     if (g_config.ch[channel_idx]["type"] == 0) {
         info_text = "Relay undefined";
         sch_status_label.classList.add("text-bg-muted");
         sch_status_label.classList.remove("text-bg-danger");
         sch_status_label.classList.remove("text-bg-success");
     }
-
     else if (ch.is_up) {
+        info_text += "Up";
+       if (!ch.wanna_be_up)
+            info_text += ", going down.";
+    }
+    else {
+        info_text += "Down";
+        if (ch.wanna_be_up)
+            info_text += ", going up.";
+    }
+ /*   else if (ch.is_up) {
         if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
             info_text += "Up based on manual schedule.";
         else if (!ch.wanna_be_up)
             info_text += "Up, but going down.";
         else if (ch.active_condition > -1)
             info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
-
     }
     else {
         if (ch.wanna_be_up)
@@ -740,10 +749,24 @@ function populate_channel_status(channel_idx, ch) {
             info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
         else if ((ch.active_condition == -1))
             info_text += "Down, no matching rules. ";
+    }*/
+    if (g_config.ch[channel_idx]["type"] != 0) {
+        if (ch.transit == 0)
+            transit_txt = "";
+        else if (ch.transit == 1)
+            transit_txt = "<a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>";
+        else if (ch.transit == 2)
+            transit_txt = "manual schedule";
+        else if (ch.transit == 4)
+            //transit_txt = "load management";
+            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load management</a>";
 
     }
+    else 
+    transit_txt = "";
+    
 
-    sch_status_text_span.innerHTML = info_text;
+    sch_status_text_span.innerHTML = info_text + (transit_txt? " ("+transit_txt+")":"");
     return;
 }
 
@@ -2408,7 +2431,6 @@ function jump(section_id_full) {
     }
 
     if (section_id == 'channels') {
-
         if (section_id == "channels" && url_a.length == 3) {
             rule_accordion = document.getElementById(`${url_a[1]}_colla_rules`);
             rule_accordion.classList.remove("collapse");
