@@ -319,6 +319,7 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 #define CH_STATE_BYRULE 1
 #define CH_STATE_BYFORCE 2
 #define CH_STATE_BYLMGMT 4
+#define CH_STATE_BYDEFAULT 5
 
 uint8_t chstate_transit[CHANNEL_COUNT]; // logging why the channel is in this state, latest transit decision (also blocking)
 
@@ -853,6 +854,7 @@ typedef struct
   IPAddress relay_ip;     //!< relay ip address
   bool is_up;             //!< is channel currently up
   bool wanna_be_up;       //!< should channel be switched up (when the time is right)
+  bool default_state;      //!<channel up/down value if no rule matches
   uint8_t type;           //!< channel type, for values see constants CH_TYPE_...
   time_t uptime_minimum;  //!< minimum time channel should be up
   time_t up_last;         //!< last time up time
@@ -2079,11 +2081,12 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
   if (oper.has_value)
   {
     if (oper.reverse)
-      return (var.val_l == VARIABLE_LONG_UNKNOWN);
+      return (var.val_l == VARIABLE_LONG_UNKNOWN); 
     else
       return (var.val_l != VARIABLE_LONG_UNKNOWN);
   }
 
+  // variable value undefined
   if ((var.val_l == VARIABLE_LONG_UNKNOWN))
     return default_value;
 
@@ -5018,7 +5021,7 @@ void update_channel_states()
   // loop channels and check whether channel should be up
   for (int channel_idx_ = 0; channel_idx_ < CHANNEL_COUNT; channel_idx_++)
   {
-    channel_idx = ch_prio_sorted[channel_idx_]; // handle in priority order - if capacity is limited only best priority is switch on
+    channel_idx = ch_prio_sorted[channel_idx_]; // handle in priority order - if capacity is limited only best priority can be switch on
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     {
       s.ch[channel_idx].wanna_be_up = false;
@@ -5053,6 +5056,7 @@ void update_channel_states()
       continue;
     }
 
+    // reset 
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
       s.ch[channel_idx].conditions[condition_idx].condition_active = false;
@@ -5074,14 +5078,14 @@ void update_channel_states()
     // loop channel targets until there is match (or no more targets)
     bool statement_true;
     // if no statetements -> false (or default)
+    int nof_matching_conditions=0;
     int nof_valid_statements;
     bool one_or_more_failed;
 
-    bool rule_debug_printed;
 
     for (int condition_idx = 0; condition_idx < CHANNEL_CONDITIONS_MAX; condition_idx++)
     {
-      rule_debug_printed = false;
+      
       nof_valid_statements = 0;
       one_or_more_failed = false;
       // now loop the statement until end or false statement
@@ -5090,42 +5094,47 @@ void update_channel_states()
         statement_st *statement = &s.ch[channel_idx].conditions[condition_idx].statements[statement_idx];
         if (statement->variable_id != -1) // statement defined
         {
-          if (!rule_debug_printed)
-          {
-            rule_debug_printed = true;
-            //    Serial.printf("\nChannel: %d, rule %d\n", channel_idx, condition_idx);
-          }
           nof_valid_statements++;
           //   Serial.printf("update_channel_states statement.variable_id: %d\n", statement->variable_id);
           statement_true = vars.is_statement_true(statement, false, channel_idx);
           if (!statement_true)
           {
             one_or_more_failed = true;
-            break;
+            break; 
           }
         }
       } // statement loop
 
       if (!(nof_valid_statements == 0) && !one_or_more_failed)
-      {
-        if (!s.ch[channel_idx].conditions[condition_idx].condition_active)
-        {
-          // report debug change
-          Serial.printf("channel_idx %d, condition_idx %d matches, channel wanna_be_up: %s, tested %d conditions.\n", channel_idx, condition_idx, s.ch[channel_idx].wanna_be_up ? "true" : "false", nof_valid_statements);
-        }
+      { //rule (condition) matches
+
         s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].conditions[condition_idx].on; // set
+        chstate_transit[channel_idx] = CH_STATE_BYRULE;
+        s.ch[channel_idx].conditions[condition_idx].condition_active = true;
 #ifdef LOAD_MGMT_ENABLED
         if (s.ch[channel_idx].is_up != s.ch[channel_idx].wanna_be_up)
         {
           current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count);
         }
 #endif
-        chstate_transit[channel_idx] = CH_STATE_BYRULE;
-        s.ch[channel_idx].conditions[condition_idx].condition_active = true;
-        break;
+        if (!s.ch[channel_idx].conditions[condition_idx].condition_active)
+        {
+          // report debug change
+          Serial.printf("channel_idx %d, condition_idx %d matches, channel wanna_be_up: %s, tested %d conditions.\n", channel_idx, condition_idx, s.ch[channel_idx].wanna_be_up ? "true" : "false", nof_valid_statements);
+        }
+        nof_matching_conditions++;
+        break; // no more rule testing
       }
-    } // conditions loop
+    } // conditions/rule loop
+    //
+    //no rules match, using default value
+    if (nof_matching_conditions==0) {
+    chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
+    s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state; // set
+    }
+
   }   // channel loop
+
 
   /* experimental
   // first test, move to channel loop when ready
@@ -5995,7 +6004,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["ch"][channel_idx]["r_id"] = s.ch[channel_idx].relay_id;
     doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
     doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
-    // doc["ch"][channel_idx]["r_ifid"] = s.ch[channel_idx].relay_iface_id;
+    doc["ch"][channel_idx]["default_state"] = s.ch[channel_idx].default_state;
 
     // conditions[condition_idx].condition_active
     active_condition_idx = -1;
@@ -6287,6 +6296,9 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
     s.ch[channel_idx].relay_id = ajson_int_get(ch, (char *)"r_id", s.ch[channel_idx].relay_id);
     s.ch[channel_idx].relay_ip = ajson_ip_get(ch, (char *)"r_ip", s.ch[channel_idx].relay_ip);
     s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
+
+    s.ch[channel_idx].default_state=  ajson_bool_get(ch, (char *)"default_state", s.ch[channel_idx].default_state);
+    
 
     // clear  statements
     // TODO: add to new version
@@ -7296,14 +7308,6 @@ void setup()
          size_t len, bool final) {},
       onWebSettingsPost);
 
-  /* server_web.on(
-       "/actions", HTTP_POST,
-       [](AsyncWebServerRequest *request) {},
-       [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
-          size_t len, bool final) {},
-       onWebActionsPost);
-
- */
 
   server_web.addHandler(ActionsPostHandler); // for url "/actions"
 
@@ -7391,7 +7395,7 @@ void loop()
   io_tasks();
 
   //  handle initial wifi setting from the serial console command line
-  if (wifi_in_standalone_mode_forced && Serial.available())
+  if (wifi_in_standalone_mode && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
     if (serial_command_state == 0)

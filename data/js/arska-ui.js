@@ -31,6 +31,11 @@ const VARIABLE_SELLING_POWER = "102";
 const VARIABLE_SELLING_ENERGY = "103";
 const VARIABLE_PRODUCTION_ENERGY = "105";
 
+const CH_STATE_NONE = 0
+const CH_STATE_BYRULE = 1
+const CH_STATE_BYFORCE = 2
+const CH_STATE_BYLMGMT = 4
+const CH_STATE_BYDEFAULT = 5
 
 
 let variable_list = {}; // populate later
@@ -39,7 +44,7 @@ window.onload = function () {
     init_ui();
 }
 
-let load_count = 0; 
+let load_count = 0;
 function populate_releases() {
     $.ajax({
         url: '/releases',
@@ -342,8 +347,34 @@ const channel_html = `<div class="col">
                                    -->
                                 </div>
                                 <!--./col-->
+
+
+                                <!-- default *** -->
+                                <div class="input-group mb-3">
+                                <span class="input-group-text">Default state</span>
+                                <input id="ch_(ch#):default_state_0" type="radio"
+                                    class="btn-check" name="ch_(ch#):default_state" checked="">
+                                <label class="btn btn-secondary"
+                                    for="ch_(ch#):default_state_0">
+                                    <span data-feather="zap-off"
+                           class="align-text-bottom" style="pointer-events: none;"></span>
+                                    down</label>
+                                <input id="ch_(ch#):default_state_1" type="radio"
+                                    class="btn-check" name="ch_(ch#):default_state">
+                                <label class="btn btn-secondary"
+                                    for="ch_(ch#):default_state_1">
+                                    <span data-feather="zap"
+                           class="align-text-bottom" style="pointer-events: none;"></span>
+                                    up</label>
+                            </div>
+                            <!-- default *** -->
+
+
                             </div>
                             <!--./row-->
+                           
+
+
                             <div id="ch_(ch#):rules"
                                 class="row row row-cols-1 row-cols-md-2 g-3">      
                                 <!--./col-->
@@ -443,7 +474,7 @@ function _ltext(obj, prop) {
 // cookie function, check messages read etc, https://www.w3schools.com/js/js_cookies.asp
 function setCookie(cname, cvalue, exdays) {
     const d = new Date();
-    d.setTime(d.getTime() + (exdays *  HOURS_IN_DAY * 60 * 60 * 1000));
+    d.setTime(d.getTime() + (exdays * HOURS_IN_DAY * 60 * 60 * 1000));
     let expires = "expires=" + d.toUTCString();
     document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
 }
@@ -544,9 +575,9 @@ function update_status(repeat) {
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
             if (data.hasOwnProperty("loadm_current")) {
-                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energym_read_last, true, true)+")";
+                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energym_read_last, true, true) + ")";
             }
-        
+
             get_time_string_from_ts(data.energym_read_last, true, true);
 
             msgdiv = document.getElementById("dashboard:alert");
@@ -726,7 +757,7 @@ function populate_channel_status(channel_idx, ch) {
     }
     else if (ch.is_up) {
         info_text += "Up";
-       if (!ch.wanna_be_up)
+        if (!ch.wanna_be_up)
             info_text += ", going down.";
     }
     else {
@@ -734,39 +765,42 @@ function populate_channel_status(channel_idx, ch) {
         if (ch.wanna_be_up)
             info_text += ", going up.";
     }
- /*   else if (ch.is_up) {
-        if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
-            info_text += "Up based on manual schedule.";
-        else if (!ch.wanna_be_up)
-            info_text += "Up, but going down.";
-        else if (ch.active_condition > -1)
-            info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
-    }
-    else {
-        if (ch.wanna_be_up)
-            info_text += "Down, but going up.";
-        else if ((ch.active_condition > -1))
-            info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
-        else if ((ch.active_condition == -1))
-            info_text += "Down, no matching rules. ";
-    }*/
-    if (g_config.ch[channel_idx]["type"] != 0) {
-        if (ch.transit == 0)
-            transit_txt = "";
-        else if (ch.transit == 1)
-            transit_txt = "<a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>";
-        else if (ch.transit == 2)
-            transit_txt = "manual schedule";
-        else if (ch.transit == 4)
-            //transit_txt = "load management";
-            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load management</a>";
-
-    }
-    else 
-    transit_txt = "";
+    /*   else if (ch.is_up) {
+           if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
+               info_text += "Up based on manual schedule.";
+           else if (!ch.wanna_be_up)
+               info_text += "Up, but going down.";
+           else if (ch.active_condition > -1)
+               info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
+       }
+       else {
+           if (ch.wanna_be_up)
+               info_text += "Down, but going up.";
+           else if ((ch.active_condition > -1))
+               info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
+           else if ((ch.active_condition == -1))
+               info_text += "Down, no matching rules. ";
+       }*/
+   
     
+    if (g_config.ch[channel_idx]["type"] != 0) {
+        if (ch.transit == CH_STATE_NONE)
+            transit_txt = "";
+        else if (ch.transit == CH_STATE_BYRULE)
+            transit_txt = "<a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>";
+        else if (ch.transit == CH_STATE_BYFORCE)
+            transit_txt = "manual schedule";
+        else if (ch.transit == CH_STATE_BYLMGMT)
+            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load management</a>";
+        else if (ch.transit == CH_STATE_BYDEFAULT)
+            transit_txt = "channel default";
 
-    sch_status_text_span.innerHTML = info_text + (transit_txt? " ("+transit_txt+")":"");
+    }
+    else
+        transit_txt = "";
+
+
+    sch_status_text_span.innerHTML = info_text + (transit_txt ? " (" + transit_txt + ")" : "");
     return;
 }
 
@@ -801,7 +835,7 @@ function create_dashboard_chart() {
     let prices_out = [];
     let idx = 0;
     let now_idx = 0;
-    let now_idx_chh = MAX_HISTORY_PERIODS-1;
+    let now_idx_chh = MAX_HISTORY_PERIODS - 1;
     now_ts = (Date.now() / 1000);
     now_period_ts = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
 
@@ -818,7 +852,7 @@ function create_dashboard_chart() {
         chart_end_excl_ts = chart_start_ts + (48 * NETTING_PERIOD_SEC);
         chart_resolution_sec = 3600;
         now_idx = 0;
-        now_idx_chh = MAX_HISTORY_PERIODS-1;   
+        now_idx_chh = MAX_HISTORY_PERIODS - 1;
     }
     else {
         price_data_exists = true;
@@ -839,17 +873,17 @@ function create_dashboard_chart() {
     for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_sec)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
-       // time_labels.push(get_time_string_from_ts(ts, false, true));
+        // time_labels.push(get_time_string_from_ts(ts, false, true));
         time_label = get_time_label(ts);
         time_labels.push(time_label);
-        
+
         if (price_data_exists) {
             prices_out.push({ x: time_label, y: Math.round(price_data.prices[idx] / 100) / 10 });
         }
         idx++;
     }
 
-   // console.log("time_labels",time_labels);
+    // console.log("time_labels",time_labels);
 
     if (price_data_exists) {
         datasets = [{
@@ -933,7 +967,7 @@ function create_dashboard_chart() {
                         if (time_labels.includes(time_label))
                             fcst_ds.push({ x: time_label, y: solar_fcst[idx] });
                     }
-                        
+
                 }
                 console.log("fcst_ds", fcst_ds);
                 datasets.push(
@@ -992,7 +1026,7 @@ function create_dashboard_chart() {
 
     var channel_dataset;
     now_period_start = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
-    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS-1) * NETTING_PERIOD_SEC;
+    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * NETTING_PERIOD_SEC;
     console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
@@ -1018,7 +1052,7 @@ function create_dashboard_chart() {
                }
            } */
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
-            ts = now_period_start + (chh_idx+1-MAX_HISTORY_PERIODS) * NETTING_PERIOD_SEC;
+            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * NETTING_PERIOD_SEC;
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
@@ -1245,7 +1279,7 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
 }
 
 function get_time_label(ts) {
-    tmpDate = new Date(ts * 1000); 
+    tmpDate = new Date(ts * 1000);
     tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
     tz_offset_minutes = tmpDate.getTimezoneOffset();
     now_ts_loc = (Date.now() / 1000) - tz_offset_minutes * 60;
@@ -1255,13 +1289,13 @@ function get_time_label(ts) {
 
     day_diff = ts_day - now_day;
     if (day_diff < 0)
-        day_indicator = "(-"+Math.abs(day_diff)+")"; // "<"+Math.abs(day_diff);
-    else if (day_diff==0)
+        day_indicator = "(-" + Math.abs(day_diff) + ")"; // "<"+Math.abs(day_diff);
+    else if (day_diff == 0)
         day_indicator = "  "; //" ";
-    else 
-        day_indicator = "(+"+day_diff+")"; //">"+day_diff;
+    else
+        day_indicator = "(+" + day_diff + ")"; //">"+day_diff;
 
-   //return day_indicator + " " + tmpStr;
+    //return day_indicator + " " + tmpStr;
     return tmpStr + " " + day_indicator;
 }
 
@@ -1473,8 +1507,8 @@ function load_application_config() {
         price_area_ctrl.options.add(new Option("Finland, Fingrid 🇫🇮", "elering:fi"), price_area_ctrl.options[1]);
         price_area_ctrl.options.add(new Option("Estonia, Elering 🇪🇪", "elering:ee"), price_area_ctrl.options[1]);
         price_area_ctrl.options.add(new Option("Price source Elering", "elering"), price_area_ctrl.options[1]);
-        price_area_ctrl.options[1].disabled = true;   
-        
+        price_area_ctrl.options[1].disabled = true;
+
         // Elering does not need an API key
         price_area_ctrl.addEventListener(
             "change",
@@ -1485,7 +1519,7 @@ function load_application_config() {
         );
         var info_span = document.getElementById("price_data:info");
         info_span.innerHTML = info_span.innerHTML + " Elering provides price data for Estonia, Finland, Lithuania and Latvia without an API key."
-      
+
     }
 
     document.getElementById("energy_meter_type").addEventListener(
@@ -1948,9 +1982,9 @@ function populate_channel(channel_idx) {
         current_start_ts = ch_cur.force_up_from;
     }
     //color
-    document.getElementById(`sch_${channel_idx}:title`).style.color = g_config.ch[channel_idx]["channel_color"];
-    document.getElementById(`sch_${channel_idx}:label`).style["background-color"] = g_config.ch[channel_idx]["channel_color"];
-    document.getElementById(`ch_${channel_idx}:title`).style.color = g_config.ch[channel_idx]["channel_color"];
+    document.getElementById(`sch_${channel_idx}:title`).style.color =ch_cur["channel_color"];
+    document.getElementById(`sch_${channel_idx}:label`).style["background-color"] =ch_cur["channel_color"];
+    document.getElementById(`ch_${channel_idx}:title`).style.color =ch_cur["channel_color"];
 
     //experimental, is this enough or do we need loop
     //  update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
@@ -1962,34 +1996,37 @@ function populate_channel(channel_idx) {
 
     // end of scheduling
 
-    document.getElementById(`sch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
+    document.getElementById(`sch_${channel_idx}:title`).innerText = ch_cur["id_str"];
 
-    document.getElementById(`ch_${channel_idx}:title`).innerText = g_config.ch[channel_idx]["id_str"];
-    document.getElementById(`ch_${channel_idx}:id_str`).value = g_config.ch[channel_idx]["id_str"];
-    document.getElementById(`ch_${channel_idx}:channel_color`).value = (g_config.ch[channel_idx]["channel_color"]);
+    document.getElementById(`ch_${channel_idx}:title`).innerText = ch_cur["id_str"];
+    document.getElementById(`ch_${channel_idx}:id_str`).value = ch_cur["id_str"];
+    document.getElementById(`ch_${channel_idx}:channel_color`).value = (ch_cur["channel_color"]);
 
-    document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value = parseInt(g_config.ch[channel_idx]["uptime_minimum"] / 60);
-    document.getElementById(`ch_${channel_idx}:priority`).value = (g_config.ch[channel_idx]["priority"]);
-    document.getElementById(`ch_${channel_idx}:load`).value = (g_config.ch[channel_idx]["load"]);
+    document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value = parseInt(ch_cur["uptime_minimum"] / 60);
+    document.getElementById(`ch_${channel_idx}:priority`).value = (ch_cur["priority"]);
+    document.getElementById(`ch_${channel_idx}:load`).value = (ch_cur["load"]);
 
-    populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), g_config.ch[channel_idx]["template_id"]);
+    populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), ch_cur["template_id"]);
 
     set_channel_fields_by_type(null, channel_idx);
 
-    document.getElementById(`ch_${channel_idx}:r_ip`).value = g_config.ch[channel_idx]["r_ip"];
-    document.getElementById(`ch_${channel_idx}:r_id`).value = g_config.ch[channel_idx]["r_id"];
-    document.getElementById(`ch_${channel_idx}:r_uid`).value = g_config.ch[channel_idx]["r_uid"];
+    document.getElementById(`ch_${channel_idx}:r_ip`).value = ch_cur["r_ip"];
+    document.getElementById(`ch_${channel_idx}:r_id`).value = ch_cur["r_id"];
+    document.getElementById(`ch_${channel_idx}:r_uid`).value = ch_cur["r_uid"];
 
 
-    document.getElementById(`ch_${channel_idx}:config_mode_0`).checked = (g_config.ch[channel_idx]["config_mode"] == 0);
-    document.getElementById(`ch_${channel_idx}:config_mode_1`).checked = !(g_config.ch[channel_idx]["config_mode"] == 0);
+    document.getElementById(`ch_${channel_idx}:config_mode_0`).checked = (ch_cur["config_mode"] == 0);
+    document.getElementById(`ch_${channel_idx}:config_mode_1`).checked = !(ch_cur["config_mode"] == 0);
 
-    switch_rule_mode(channel_idx, g_config.ch[channel_idx]["config_mode"], false, g_config.ch[channel_idx]["template_id"]);
+    switch_rule_mode(channel_idx, ch_cur["config_mode"], false, ch_cur["template_id"]);
 
+    document.getElementById(`ch_${channel_idx}:default_state_0`).checked = ch_cur["default_state"] ? false : true;
+    document.getElementById(`ch_${channel_idx}:default_state_1`).checked = ch_cur["default_state"] ? true : false;
+    console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
 
-    if ("rules" in g_config.ch[channel_idx]) {
-        for (rule_idx = 0; rule_idx < Math.min(g_config.ch[channel_idx]["rules"].length, g_constants.CHANNEL_CONDITIONS_MAX); rule_idx++) {
-            this_rule = g_config.ch[channel_idx]["rules"][rule_idx];
+    if ("rules" in ch_cur) {
+        for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_constants.CHANNEL_CONDITIONS_MAX); rule_idx++) {
+            this_rule = ch_cur["rules"][rule_idx];
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = this_rule["on"] ? false : true;
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
             for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_constants.RULE_STATEMENTS_MAX); stmt_idx++) {
@@ -2691,6 +2728,8 @@ function save_channel(ev) {
     data_ch["r_uid"] = parseInt(document.getElementById(`ch_${channel_idx}:r_uid`).value);
 
     data_ch["config_mode"] = parseInt(document.getElementById(`ch_${channel_idx}:config_mode_0`).checked ? 0 : 1);
+
+    data_ch["default_state"] = document.getElementById(`ch_${channel_idx}:default_state_0`).checked ? false : true;
 
     rules = [];
 
