@@ -25,6 +25,13 @@ DEVEL BRANCH
 #define EEPROM_CHECK_VALUE 10103
 #define DEBUG_MODE
 
+#define NVS_CACHE_ENABLED // experimental
+#define STORAGE_NAMESPACE "cache"
+#ifdef NVS_CACHE_ENABLED
+#include "nvs_flash.h"
+#include "nvs.h"
+#endif
+
 #define FILESYSTEM_LITTLEFS
 
 #ifdef FILESYSTEM_LITTLEFS
@@ -171,10 +178,12 @@ tm tm_struct;
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
 time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
-bool wifi_in_setup_mode = false;
+bool wifi_in_standalone_mode = false;
+bool wifi_in_standalone_mode_forced = false;
+
 bool wifi_connection_succeeded = false;
+
 time_t last_wifi_connect_tried = 0;
-bool clock_set = false;       // true if we have get (more or less) correct time from net or rtc
 bool config_resetted = false; // true if configuration cleared when version upgraded
 bool fs_mounted = false;      // true
 bool cooling_down_state = false;
@@ -249,36 +258,6 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
 // #include "ESPmDNS.h"
 // #endif
 
-/**
- * @brief System goes to  AP mode  if it cannot connect to existing wifi, but restart automatically.
- * @details Call to check_forced_restart checks if it is time to restart or resets delay if reset_counter == true)
- * For example if the wifi has been down and we have been disconnected, forced restart will retry connection after a while.
- *
- * @param reset_counter , if true resets counter-> automatic restart will be delayd
- */
-
-void check_forced_restart(bool reset_counter = false)
-{
-  // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
-  if (!wifi_in_setup_mode) // only valid if backup ap mode (no normal wifi)
-    return;
-
-  time_t now_in_func;
-  time(&now_in_func);
-  if (reset_counter)
-  {
-    forced_restart_ts = now_in_func + FORCED_RESTART_DELAY;
-  }
-  else if ((forced_restart_ts < now_in_func) && ((now_in_func - forced_restart_ts) < 7200)) // check that both values are same way synched
-  {
-    // Serial.println(F("check_forced_restart Restarting after passive period in config mode."));
-    WiFi.disconnect();
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after passive period in config mode."), true);
-    delay(2000);
-    ESP.restart();
-  }
-}
-
 AsyncWebServer server_web(80);
 
 // Clock functions, supports optional DS3231 RTC
@@ -312,8 +291,8 @@ time_t prices_first_period = 0;
 
 time_t prices_record_start;
 time_t prices_record_end_excl;
-uint16_t price_resolution_sec;
-time_t prices_ts = 0;
+// uint16_t price_resolution_sec;
+// time_t prices_ts = 0;
 time_t prices_expires = 0;
 
 // API
@@ -723,6 +702,7 @@ bool sensor_ds18b20_enabled = false;
 
 #define PROCESS_INTERVAL_SECS 60 // process interval
 time_t next_process_ts = 0;      // start reading as soon as you get to first loop
+time_t next_energym_read_ts = 0; // start reading as soon as you get to first loop
 
 // experimental 0.93
 int grid_protection_delay_max = 0;  // TODO: still disabled (=0),later set to admin parameters
@@ -912,13 +892,11 @@ typedef struct
   uint16_t netting_period_sec;             //!< Variable netting period in seconds, was in constant NETTING_PERIOD_SEC
   uint8_t energy_meter_type;               //!< energy metering type, see constants: ENERGYM_
   IPAddress energy_meter_ip;               //!< enerygy meter address string
-  union
-  {
-    uint16_t energy_meter_port; //!< energy meter port,  tcp port if energy_meter_type in (ENERGYM_HAN_WIFI,  ENERGYM_SHELLY3EM,ENERGYM_SHELLY_GEN2)
+  uint16_t energy_meter_port;              //!< energy meter port,  tcp port if energy_meter_type in (ENERGYM_HAN_WIFI,  ENERGYM_SHELLY3EM,ENERGYM_SHELLY_GEN2)
+  uint8_t energy_meter_pollingfreq;        //!< polling based meters, frequency in secs
 #ifdef METER_HAN_DIRECT_ENABLED
-    uint8_t energy_meter_gpio; //!< energy meter gpio , ENERGYM_HAN_DIRECT
+  uint8_t energy_meter_gpio; //!< energy meter gpio , ENERGYM_HAN_DIRECT
 #endif
-  };
   char energy_meter_password[MAX_PWD_STR_LENGTH];
   uint8_t production_meter_type;
   IPAddress production_meter_ip;
@@ -978,8 +956,38 @@ int get_hw_template_idx(int id)
 #define COOLING_START_F 149          // 65C
 #define COOLING_RECOVER_TO_F 131     // 55
 */
+/**
+ * @brief System goes to  AP mode  if it cannot connect to existing wifi, but restart automatically.
+ * @details Call to check_forced_restart checks if it is time to restart or resets delay if reset_counter == true)
+ * For example if the wifi has been down and we have been disconnected, forced restart will retry connection after a while.
+ *
+ * @param reset_counter , if true resets counter-> automatic restart will be delayd
+ */
+
+void check_forced_restart(bool reset_counter = false)
+{
+  // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
+  if (!wifi_in_standalone_mode_forced) // only valid if backup ap mode (no normal wifi)
+    return;
+
+  time_t now_in_func;
+  time(&now_in_func);
+  if (reset_counter)
+  {
+    forced_restart_ts = now_in_func + FORCED_RESTART_DELAY;
+  }
+  else if ((forced_restart_ts < now_in_func) && ((now_in_func - forced_restart_ts) < 7200)) // check that both values are same way synched
+  {
+    // Serial.println(F("check_forced_restart Restarting after passive period in config mode."));
+    WiFi.disconnect();
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after passive period in config mode."), true);
+    delay(2000);
+    ESP.restart();
+  }
+}
 
 int ch_prio_sorted[CHANNEL_COUNT];
+// sort channels to priority order
 void ch_prio_sort()
 {
   // init
@@ -1018,9 +1026,10 @@ void ch_prio_sort()
       //    Serial.printf("ch_prio_sorted[%d], least %d, least_idx %d \n", i, least, least_idx);
     }
   }
-  Serial.println("Debug: channels in priority order:");
+  Serial.print("Debug: Channels in priority order: [");
   for (int i = 0; i < CHANNEL_COUNT; i++)
-    Serial.printf("%d %d\n", ch_prio_sorted[i], s.ch[ch_prio_sorted[i]].priority);
+    Serial.printf("[%d, %d],", ch_prio_sorted[i], s.ch[ch_prio_sorted[i]].priority);
+  Serial.println("]");
 }
 
 // Utility functions, channel attributes based on type
@@ -1108,7 +1117,7 @@ void io_tasks(uint8_t state = STATE_NA)
       rgb_value = led_swing ? RGB_PURPLE : RGB_NONE;
     else if (state == STATE_COOLING)
       rgb_value = led_swing ? RGB_RED : RGB_YELLOW;
-    else if (wifi_in_setup_mode) // Blue -AP mode.
+    else if (wifi_in_standalone_mode) // Blue -AP mode.
       rgb_value = RGB_BLUE;
     else if (started > 0) // global timestamp
       rgb_value = RGB_GREEN;
@@ -1254,6 +1263,7 @@ public:
     for (int variable_idx = 0; variable_idx < VARIABLE_COUNT; variable_idx++)
       variables[variable_idx].val_l = VARIABLE_LONG_UNKNOWN;
   }
+
   bool is_set(int id);
   void set(int id, long value_l);
   void set(int id, float val_f);
@@ -1594,71 +1604,131 @@ typedef int32_t T;
 class timeSeries
 {
 public:
-  timeSeries(time_t start, int n, uint16_t resolution_sec, T init_value)
+  timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value)
   {
-    start_ = start;
-    n_ = n;
-
-    resolution_sec_ = resolution_sec;
-
-    init_value_ = init_value;
-
+    id_ = id;
+    store.start = start;
+    store.n = n;
+    store.resolution_sec = resolution_sec;
+    store.init_value = init_value;
     clear_store();
   }
 
   // T operator [](int i) const    {return registers[i];}
   void clear_store()
   {
-    // Serial.println("clear_store a");
-    min_value_idx_ = n_;
-    // Serial.println("clear_store b");
-
+    min_value_idx_ = store.n;
     max_value_idx_ = -1;
-    // Serial.println("clear_store c");
 
-    Serial.println(n_);
-    for (int i = 0; i < n_; i++)
+    Serial.println(store.n);
+    for (int i = 0; i < store.n; i++)
     {
-      //   Serial.println(i);
-      arr[i] = init_value_;
+      store.arr[i] = store.init_value;
     }
-    //  Serial.println("clear_store g");
   };
+#ifdef NVS_CACHE_ENABLED
+  // WiP experimental
+  // WiP experimental
+  time_t expires() { return store.expires; }
+
+  bool save_to_cache(time_t expires) // save to nvs,true if successfull
+  {
+    store.expires = expires;
+    nvs_handle_t my_handle;
+    esp_err_t err;
+    char key[6];
+    sprintf(key, "TS%du", (int)id_);
+
+    // Open
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+      return false;
+
+    // Write blob
+    err = nvs_set_blob(my_handle, key, &this->store, sizeof(store));
+    if (err != ESP_OK)
+      return false;
+
+    // Commit
+    err = nvs_commit(my_handle);
+    if (err != ESP_OK)
+      return false;
+    // Close
+
+    nvs_close(my_handle);
+    Serial.printf("save_to_cache, wrote time series %d, expiration %lu\n", (int)id_, expires);
+
+    return true;
+  }
+
+  bool read_from_cache(time_t expires) // read from cache, true if succesfull and not expired, https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
+  {
+    nvs_handle_t my_handle;
+    char key[6];
+    sprintf(key, "TS%du", (int)id_);
+    esp_err_t err;
+    // Open
+    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+    if (err != ESP_OK)
+      return err;
+
+    // Read run time blob
+    size_t required_size = 0; // value will default to 0, if not set yet in NVS
+    // obtain required memory space to store blob being read from NVS
+    err = nvs_get_blob(my_handle, key, NULL, &required_size);
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+      return false;
+    if (required_size == 0)
+    {
+      printf("Nothing saved yet!\n");
+      return false;
+    }
+    else
+    {
+      err = nvs_get_blob(my_handle, key, &store, &required_size);
+      if (err != ESP_OK)
+      {
+        return false;
+      }
+    }
+    // Close
+    nvs_close(my_handle);
+    Serial.printf("read_from_cache, got time series %d, expiration %lu\n", (int)id_, store.expires);
+    return (store.expires > expires); // check expiration
+  };
+#endif
 
   void set(time_t ts, T new_value)
   {
     int idx = get_idx(ts);
     if (idx != -1)
-      arr[idx] = new_value;
-    // Serial.printf("DEBUG set %d %lu ", idx, ts);
-    // Serial.println(new_value);
-
+      store.arr[idx] = new_value;
     min_value_idx_ = min(min_value_idx_, idx);
     max_value_idx_ = max(max_value_idx_, idx);
   };
 
-  int n() { return n_; };
-  uint16_t resolution_sec() { return resolution_sec_; };
-  time_t start() { return start_; };
-  time_t end() { return start_ + (int)resolution_sec_ * (n_ - 1); };
+  int n() { return store.n; };
+  uint16_t resolution_sec() { return store.resolution_sec; };
+  time_t start() { return store.start; };
+  time_t end() { return store.start + (int)store.resolution_sec * (store.n - 1); };
 
-  time_t first_set_period() { return start_ + min_value_idx_ * resolution_sec_; };
-  time_t last_set_period() { return start_ + max_value_idx_ * resolution_sec_; };
+  time_t first_set_period() { return store.start + min_value_idx_ * store.resolution_sec; };
+  time_t last_set_period() { return store.start + max_value_idx_ * store.resolution_sec; };
 
   T get(time_t ts)
   {
     int idx = get_idx(ts);
     if (idx == -1)
-      return init_value_;
+      return store.init_value;
     else
-      return arr[idx];
+      return store.arr[idx];
   }
   T get_pos(int idx)
   {
-    if (idx < 0 || idx >= n_)
-      return init_value_;
+    if (idx < 0 || idx >= store.n)
+      return store.init_value;
     else
-      return arr[idx];
+      return store.arr[idx];
   }
 
   T get(time_t ts, T default_value)
@@ -1667,12 +1737,12 @@ public:
     if (idx == -1)
       return default_value;
     else
-      return arr[idx];
+      return store.arr[idx];
   }
 
   T avg(time_t start_ts, time_t end_ts_incl)
   {
-    return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / resolution_sec_ + 1);
+    return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / store.resolution_sec + 1);
   }
 
   void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
@@ -1693,41 +1763,29 @@ public:
   { // TODO: check DST change nights
     int32_t cum_sum = 0;
     int start_idx = max(0, get_idx(start_ts));
-    int end_idx = min(get_idx(end_ts_incl), n_);
+    int end_idx = min(get_idx(end_ts_incl), store.n);
     if (start_idx <= end_idx)
     {
       for (int i = start_idx; i <= end_idx; i++)
-        cum_sum += arr[i];
+        cum_sum += store.arr[i];
     }
     return cum_sum;
   }
 
   int32_t sum()
   {
-    return sum(start_, start_ + (n_ - 1) * resolution_sec_);
+    return sum(store.start, store.start + (store.n - 1) * store.resolution_sec);
   }
 
   void debug_print(time_t start_ts, time_t end_ts_incl)
   {
-    Serial.printf("Debug print start_ %lu -> %lu, resolution_sec_ %d, n_: %d \n", start_ts, end_ts_incl, resolution_sec_, (end_ts_incl - start_ts) / resolution_sec_ + 1);
-    // for (int i = get_idx(start_ts); i <= get_idx(end_ts_incl); i++)
+    Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1);
 
-    /*
-    #pragma message("Remove this debug from production")
-        if (n_ > 100)
-        {
-          Serial.println(n_);
-          Serial.println(start_ts);
-          Serial.println(end_ts_incl);
-          while (true)
-            delay(1000);
-        }
-    */
     yield();
-    for (int i = 0; i < n_; i++)
+    for (int i = 0; i < store.n; i++)
     {
-      Serial.printf("%d, %lu  ", i, start_ + i * resolution_sec_);
-      Serial.println(arr[i]);
+      Serial.printf("%d, %lu  ", i, store.start + i * store.resolution_sec);
+      Serial.println(store.arr[i]);
     }
     Serial.print("Cumulative sum:");
     Serial.println(sum(start_ts, end_ts_incl));
@@ -1737,52 +1795,52 @@ public:
 
   void debug_print()
   {
-    debug_print(start_, start_ + (n_ - 1) * resolution_sec_);
+    debug_print(store.start, store.start + (store.n - 1) * store.resolution_sec);
   }
 
   void set_store_start(time_t new_start)
   {
-    int index_delta = (int)((start_ - new_start) / resolution_sec_);
-    Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", start_, new_start, index_delta);
+    int index_delta = (int)((store.start - new_start) / store.resolution_sec);
+    Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
     if (index_delta == 0)
       return;
 
-    start_ = new_start;
+    store.start = new_start;
     yield();
 
-    if (abs(index_delta) >= n_)
+    if (abs(index_delta) >= store.n)
     {
       // huge shift, nothing to save, just init
       clear_store();
     }
     else if (index_delta < 0)
     {
-      if (min_value_idx_ != n_)
+      if (min_value_idx_ != store.n)
       {
         min_value_idx_ = max(min_value_idx_ + index_delta, 0);
       }
 
       max_value_idx_ = max(max_value_idx_ + index_delta, -1);
-      for (int i = 0; i < n_; i++)
+      for (int i = 0; i < store.n; i++)
       {
-        if ((i - index_delta >= 0) && (i - index_delta < n_))
-          arr[i] = arr[i - index_delta];
+        if ((i - index_delta >= 0) && (i - index_delta < store.n))
+          store.arr[i] = store.arr[i - index_delta];
         else
-          arr[i] = init_value_;
+          store.arr[i] = store.init_value;
       }
     }
     else if (index_delta > 0)
     {
-      min_value_idx_ = min(max_value_idx_ + index_delta, n_);
+      min_value_idx_ = min(max_value_idx_ + index_delta, store.n);
       if (max_value_idx_ != -1)
-        max_value_idx_ = min(max_value_idx_ + index_delta, n_ - 1);
+        max_value_idx_ = min(max_value_idx_ + index_delta, store.n - 1);
 
-      for (int i = n_ - 1; i >= 0; i--)
+      for (int i = store.n - 1; i >= 0; i--)
       {
-        if (i - index_delta >= 0 && i - index_delta < n_)
-          arr[i] = arr[i - index_delta];
+        if (i - index_delta >= 0 && i - index_delta < store.n)
+          store.arr[i] = store.arr[i - index_delta];
         else
-          arr[i] = init_value_;
+          store.arr[i] = store.init_value;
       }
     }
     Serial.println(PSTR("DEBUG set_store_start ended"));
@@ -1794,7 +1852,7 @@ public:
     yield();
     int rank = 1;
     int start_idx = max(0, get_idx(start_ts));
-    int end_idx = min(get_idx(end_ts_incl), n_);
+    int end_idx = min(get_idx(end_ts_incl), store.n);
     int this_period_idx = get_idx(period_ts);
     //  Serial.printf("get_period_rank start_idx %d, this_period_idx %d, end_idx %d\n", start_idx, end_idx, this_period_idx);
 
@@ -1803,7 +1861,7 @@ public:
       for (int i = start_idx; i <= end_idx; i++)
       {
         // TODO: should it be <= to have 24 as 0 rank
-        if (arr[i] < arr[this_period_idx] && i != this_period_idx)
+        if (store.arr[i] < store.arr[this_period_idx] && i != this_period_idx)
         {
           rank++;
         }
@@ -1821,22 +1879,33 @@ public:
   }
 
 private:
-  int n_;
-  time_t start_;
+  uint8_t id_;
+  //  int n_;
+  //  time_t start_;
   int min_value_idx_;
   int max_value_idx_;
-  uint16_t resolution_sec_;
+  //  uint16_t store.resolution_sec;
 
-  T arr[TIMESERIES_ELEMENT_MAX]; // testing with static, size must be maximum time series length,
-  T init_value_;
+  //  T arr[TIMESERIES_ELEMENT_MAX]; // here we have the data
+  //  T init_value_;
+
+  struct
+  {
+    time_t start;
+    int n;
+    uint16_t resolution_sec;
+    T init_value;
+    T arr[TIMESERIES_ELEMENT_MAX];
+    time_t expires;
+  } store;
 
   int get_idx(time_t ts)
   {
-    int index_candidate = (ts - start_) / resolution_sec_;
-    if (index_candidate < 0 || index_candidate >= n_)
+    int index_candidate = (ts - store.start) / store.resolution_sec;
+    if (index_candidate < 0 || index_candidate >= store.n)
     {
-      if (abs(index_candidate) > n_ * 10) // something wrong
-        Serial.printf("***Invalid timeSeries index %d, ts %lu, start_ %lu\n", index_candidate, ts, start_);
+      if (abs(index_candidate) > store.n * 10) // something wrong
+        Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
       return -1;
     }
     else
@@ -1844,9 +1913,9 @@ private:
   };
 };
 // Time series globals
-timeSeries prices2(0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, 0);
-timeSeries solar_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
-timeSeries wind_forecast(0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
+timeSeries prices2(0, 0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, 0);
+timeSeries solar_forecast(1, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
+timeSeries wind_forecast(2, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 
 /**
  * @brief Returns start time of period of given time stamp (first second of an hour if 60 minutes netting period) ,
@@ -2319,7 +2388,7 @@ bool update_prices_to_influx()
     db_price_found = false;
   }
 
-  last_price_in_file_ts = prices_record_start + (price_resolution_sec * (MAX_PRICE_PERIODS - 1));
+  last_price_in_file_ts = prices_record_start + (PRICE_RESOLUTION_SEC * (MAX_PRICE_PERIODS - 1));
 
   ts_to_date_str(&last_price_in_file_ts, datebuff);
 
@@ -2616,8 +2685,10 @@ void writeToEEPROM()
  * //@param cache_file_name optional cache file name to store result
  * @return String
  */
-// String httpGETRequest(const char *url, const char *cache_file_name, int32_t connect_timeout = 30000)
-String httpGETRequest(const char *url, int32_t connect_timeout = 30000)
+#define CONNECT_TIMEOUT_EXTERNAL 30 // unsecure http is not really used in external communication
+#define CONNECT_TIMEOUT_INTERNAL 5
+
+String httpGETRequest(const char *url, int32_t connect_timeout_s)
 {
   unsigned long call_started = millis();
   WiFiClient wifi_client;
@@ -2626,7 +2697,7 @@ String httpGETRequest(const char *url, int32_t connect_timeout = 30000)
   http.setReuse(false);
   // http.useHTTP10(true); // for json input, maybe also for disable chunked response
 
-  http.setConnectTimeout(connect_timeout);
+  http.setConnectTimeout(connect_timeout_s * 1000);
   http.begin(wifi_client, url); //  IP address with path or Domain name with URL path
 
   delay(100);
@@ -2837,16 +2908,17 @@ bool read_ds18b20_sensors()
 #define RESTART_AFTER_LAST_OK_METER_READ 18000 //!< If all energy meter readings are failed within this period, restart the device
 #define WARNING_AFTER_FAILED_READING_SECS 240  //!< If all energy/production meter readings are failed within this period, log/react
 
-unsigned energym_last_period = 0;
+uint16_t energym_last_period = 0;
 long energym_period_first_read_ts = 0;
 long energym_meter_read_ts = 0; //!< Last time meter was read successfully
-long energym_read_count = 0;
+uint32_t energym_read_ok_count = 0;
+uint32_t energym_read_all_count = 0;
 double energym_e_in_prev = 0;  //!< Energy meter import value in the end of last period
 double energym_e_out_prev = 0; //!< Energy meter export value in the end of last period
 double energym_e_in = 0;       //!< Energy meter last import value
 double energym_e_out = 0;      //!< Energy meter last export value
 float energym_power_in = 0;    //!< Energy meter last momentary power value
-int energym_period_read_count = 0;
+uint32_t energym_period_read_count = 0;
 
 /**
  * @brief Get current period values of energy measurements
@@ -2856,7 +2928,7 @@ int energym_period_read_count = 0;
  */
 void get_energym_period_values_REMOVE(float &netEnergyInPeriod, float &netPowerInPeriod)
 {
-  if (energym_read_count < 2)
+  if (energym_read_ok_count < 2)
   {
     netPowerInPeriod = energym_power_in; // short/no history, using momentary value
     netEnergyInPeriod = 0;
@@ -2883,7 +2955,7 @@ void get_energym_period_values_REMOVE(float &netEnergyInPeriod, float &netPowerI
 
 void get_energym_period_values_g()
 {
-  if (energym_read_count < 2)
+  if (energym_read_ok_count < 2)
   {
     netPowerInPeriod_g = energym_power_in; // short/no history, using momentary value
     netEnergyInPeriod_g = 0;
@@ -2925,7 +2997,6 @@ float check_current_load()
   if (loadm_capacity < 0)
   {
     Serial.println("System overload, do something, buy a new fuse...");
-    Serial.println(loadm_capacity);
 
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
@@ -2950,7 +3021,7 @@ float check_current_load()
 void process_meter_readings()
 {
   energym_meter_read_ts = time(nullptr);
-  energym_read_count++; // global
+  energym_read_ok_count++; // global
   energym_period_read_count++;
 
 #ifdef LOAD_MGMT_ENABLED
@@ -3022,13 +3093,22 @@ bool get_han_ts(String *strp, int64_t *returned)
   }
   *returned = getTimestamp(2000 + splitted[0], splitted[1], splitted[2], splitted[3], splitted[4], splitted[5]) - tz_secs;
 
-  if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
+  // assume that we get clock from direct connection
+  if (s.energy_meter_type == ENERGYM_HAN_DIRECT && time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
   {
     Serial.println("Set internal clock");
     setInternalTime(*returned);
   }
 
-  Serial.println(*returned);
+  time_t ts_age_s = time(nullptr) - (*returned);
+  Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
+  // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
+  if ((energym_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
+  {
+    next_energym_read_ts -= 1;
+    Serial.println("Tuning polling time ***.");
+  }
+
   return true;
 }
 
@@ -3056,7 +3136,6 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 }
 
 #ifdef METER_HAN_DIRECT_ENABLED
-// experimental, this should be used by both wifi&direct han
 bool parse_han_row(String *row_in_p)
 {
 
@@ -3101,7 +3180,6 @@ bool read_meter_han() // direct or http telegram
     size_t available = Serial2.available();
     Serial.printf("\n%d bytes available, ts:  ", (int)available);
   }
-
   now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
 
   yield();
@@ -3157,7 +3235,7 @@ bool read_meter_han_wifi()
   Serial.println(url);
 
   yield();
-  String telegram = httpGETRequest(url);
+  String telegram = httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL);
   yield();
 
   time_t now_in_func;
@@ -3188,7 +3266,6 @@ bool read_meter_han_wifi()
 
   // new
   String row_in;
-  // bool msg_started = false;
 
   while (s_idx <= len)
   {
@@ -3197,28 +3274,10 @@ bool read_meter_han_wifi()
       break;
 
     row_in = telegram.substring(s_idx, e_idx);
-    Serial.println(row_in);
-
-    // row_in.replace('\r', '\0');
     //  Serial.println(row_in);
+
     if (parse_han_row(&row_in))
       value_count++;
-    /*
-        if (row_in.charAt(0) == '/')
-        {
-          msg_started = true;
-        }
-        else if (row_in.charAt(0) == '!')
-        {
-          msg_started = false;
-        }
-        if (msg_started)
-        {
-          row_in.replace('\r', '\0');
-          //  Serial.println(row_in);
-          if (parse_han_row(&row_in))
-            value_count++;
-        }  */
     s_idx = e_idx + 1;
   }
 
@@ -3275,7 +3334,7 @@ bool read_meter_shelly3em()
   Serial.println(url);
 
   yield();
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url));
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL));
   yield();
 
   if (error)
@@ -3314,6 +3373,7 @@ bool read_meter_shelly3em()
       {
         energym_e_in += (float)emeter["total"];
         energym_e_out += (float)emeter["total_returned"];
+        loadm_current[idx] = (double)emeter["current"];
       }
       idx++;
     }
@@ -3367,14 +3427,14 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   Serial.println(inverter_url);
 
   yield();
-  DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url), DeserializationOption::Filter(filter));
+  DeserializationError error = deserializeJson(doc, httpGETRequest(inverter_url, CONNECT_TIMEOUT_INTERNAL), DeserializationOption::Filter(filter));
   yield();
 
   if (error)
   {
     Serial.print(F("Fronius inverter deserializeJson() failed: "));
     Serial.println(error.f_str());
-    energy_produced_period = 0;
+    energy_produced_period = 0; // TODO: is this too radical for one random error?
     power_produced_period_avg = 0;
     return false;
   }
@@ -3765,7 +3825,9 @@ void calculate_forecast_variables()
   bool got_future_prices = false;
 
   // moved for loop()
-  long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
+  long period_solar_rank = -1;
+  if (solar_forecast.start() != 0) // do we have the location & data
+    period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
   if (period_solar_rank == -1)
     vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
   else
@@ -3776,40 +3838,46 @@ void calculate_forecast_variables()
   vars.set_NA(VARIABLE_PVFORECAST_AVGPRICE24);
   // FORECAST_TYPE_FI_LOCAL_SOLAR
   //  next 24 h
-  for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
+  if (solar_forecast.start() != 0)
   {
-
-    price = prices2.get(period, VARIABLE_LONG_UNKNOWN);
-    if (price != VARIABLE_LONG_UNKNOWN)
+    for (time_t period = current_period_start; period < current_period_start + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
     {
-      sum_pv_fcst_with_price += (float)solar_forecast.get(period);
-      pv_value_hour = price / 1000.0 * (float)solar_forecast.get(period);
-      Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
-      pv_value += pv_value_hour;
-      got_future_prices = true; // we got some price data
-      //  Serial.printf("j: %d, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
+
+      price = prices2.get(period, VARIABLE_LONG_UNKNOWN);
+      if (price != VARIABLE_LONG_UNKNOWN)
+      {
+        sum_pv_fcst_with_price += (float)solar_forecast.get(period);
+        pv_value_hour = price / 1000.0 * (float)solar_forecast.get(period);
+        Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
+        pv_value += pv_value_hour;
+        got_future_prices = true; // we got some price data
+        //  Serial.printf("j: %d, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
+      }
     }
+    // TODO: currently not levelized with
+    if (got_future_prices)
+    {
+      vars.set(VARIABLE_PVFORECAST_VALUE24, (float)(pv_value * (float)s.pv_power / 100000000));
+      vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (float)(pv_value / sum_pv_fcst_with_price));
+    }
+    vars.set(VARIABLE_PVFORECAST_SUM24, (long)(solar_forecast.sum(current_period_start, current_period_start + 23 * SECONDS_IN_HOUR) * s.pv_power / 100) / 1000);
   }
-  // TODO: currently not levelized with
-  if (got_future_prices)
-  {
-    vars.set(VARIABLE_PVFORECAST_VALUE24, (float)(pv_value * (float)s.pv_power / 100000000));
-    vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (float)(pv_value / sum_pv_fcst_with_price));
-  }
-  vars.set(VARIABLE_PVFORECAST_SUM24, (long)(solar_forecast.sum(current_period_start, current_period_start + 23 * SECONDS_IN_HOUR) * s.pv_power / 100) / 1000);
 
   // FORECAST_TYPE_FI_WIND
-  Serial.printf("day_start_local %lu \n", day_start_local);
-  Serial.print("Finnish wind tomorrow avg, mWh:");
-  Serial.println(wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * SECONDS_IN_HOUR));
-  vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * SECONDS_IN_HOUR));
-  vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 2 * SECONDS_IN_DAY, day_start_local + 71 * SECONDS_IN_HOUR));
+  if (wind_forecast.start() != 0)
+  {
+    Serial.printf("day_start_local %lu \n", day_start_local);
+    Serial.print("Finnish wind tomorrow avg, mWh:");
+    Serial.println(wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * SECONDS_IN_HOUR));
+    vars.set(VARIABLE_WIND_AVG_DAY1_FI, (long)wind_forecast.avg(day_start_local + SECONDS_IN_DAY, day_start_local + 47 * SECONDS_IN_HOUR));
+    vars.set(VARIABLE_WIND_AVG_DAY2_FI, (long)wind_forecast.avg(day_start_local + 2 * SECONDS_IN_DAY, day_start_local + 71 * SECONDS_IN_HOUR));
 
-  int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
-  time_t this_block_starts = (current_period_start - block_start_before_this_idx * SECONDS_IN_HOUR);
+    int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
+    time_t this_block_starts = (current_period_start - block_start_before_this_idx * SECONDS_IN_HOUR);
 
-  vars.set(VARIABLE_WIND_AVG_DAY1B_FI, (long)wind_forecast.avg(this_block_starts + 24 * SECONDS_IN_HOUR, this_block_starts + (24 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
-  vars.set(VARIABLE_WIND_AVG_DAY2B_FI, (long)wind_forecast.avg(this_block_starts + 48 * SECONDS_IN_HOUR, this_block_starts + (48 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
+    vars.set(VARIABLE_WIND_AVG_DAY1B_FI, (long)wind_forecast.avg(this_block_starts + 24 * SECONDS_IN_HOUR, this_block_starts + (24 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
+    vars.set(VARIABLE_WIND_AVG_DAY2B_FI, (long)wind_forecast.avg(this_block_starts + 48 * SECONDS_IN_HOUR, this_block_starts + (48 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
+  }
 }
 
 /**
@@ -4027,13 +4095,13 @@ char in_buffer[2048]; // common buffer for multi chunk response and multiline in
  * @return true
  * @return false
  */
-// bool get_renewable_forecast(uint8_t forecast_type, timeSeries<uint16_t> *time_series)
 bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
 {
   Serial.printf("get_renewable_forecast start getFreeHeap: %d\n", (int)ESP.getFreeHeap());
-  if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR && strlen(s.forecast_loc) < 2)
+  //  if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR && strlen(s.forecast_loc) < 2)
+  if (strlen(s.forecast_loc) < 2)
   {
-    Serial.println(F("Forecast location undefined. Quitting"));
+    Serial.println(F("FMI forecast location undefined. Quitting"));
     return false;
   }
 
@@ -4375,8 +4443,8 @@ bool get_price_data_entsoe()
 
     prices_record_start = record_start;
     prices_record_end_excl = record_end_excl;
-    price_resolution_sec = PRICE_RESOLUTION_SEC;
-    prices_ts = now_infunc;
+    // price_resolution_sec = PRICE_RESOLUTION_SEC;
+    // prices_ts = now_infunc;
 
     if (contains_suspicious_prices)
     { // potential problem in the latest fetch, give shorter validity time
@@ -4556,7 +4624,9 @@ void onWebWifisGet(AsyncWebServerRequest *request)
 void read_energy_meter()
 {
   bool read_ok;
-  Serial.println("read_energy_meter");
+  uint32_t started = millis();
+  energym_read_all_count++;
+
   yield();
   time_t now_in_func;
   // SHELLY
@@ -4604,6 +4674,7 @@ void read_energy_meter()
         log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy meter. Check Wifi, internet connection and the meter."));
     }
   }
+  Serial.printf("read_energy_meter took %lu, ok %lu, failed %lu\n", millis() - started, energym_read_ok_count, energym_read_all_count - energym_read_ok_count);
 }
 //
 
@@ -4808,11 +4879,11 @@ bool switch_http_relay(int channel_idx, bool up)
     sprintf(response_key, "POWER%d", s.ch[channel_idx].relay_unit_id);
   }
 
-  Serial.printf("url_to_call    :%s\n", url_to_call);
+  Serial.printf("url_to_call: %s\n", url_to_call);
 
   StaticJsonDocument<256> doc;
   yield();
-  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call, 5000)); // shorter connect timeout for a local switch
+  DeserializationError error = deserializeJson(doc, httpGETRequest(url_to_call, CONNECT_TIMEOUT_INTERNAL)); // shorter connect timeout for a local switch
   yield();
   if (error)
   {
@@ -4920,7 +4991,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
         return false; // invalid gpio
     }
   }
-  // do not try to connect if there is no wifi stack initiated
+  // do not try to connect if there is no wifi client initiated - or we should to get an error
   else if (wifi_connection_succeeded && is_wifi_relay(s.ch[channel_idx].type))
   {
     switch_http_relay(channel_idx, up);
@@ -4958,9 +5029,6 @@ void update_channel_states()
     // reset condition_active variable
     bool wait_minimum_uptime = (ch_counters.get_duration_in_this_state(channel_idx) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
 
-    // debug / development:
-    // Serial.printf("DEBUG: Channel %d has been %s %d secs, waiting minimum uptime %d - %s\n", channel_idx, s.ch[channel_idx].is_up ? "UP" : "DOWN", (int)ch_counters.get_duration_in_this_state(channel_idx), s.ch[channel_idx].uptime_minimum, wait_minimum_uptime ? "YES" : "NO");
-
     if (s.ch[channel_idx].force_up_until == -1)
     { // force down
       s.ch[channel_idx].force_up_until = 0;
@@ -4968,19 +5036,16 @@ void update_channel_states()
     }
 
 #ifdef LOAD_MGMT_ENABLED
-    if (!s.ch[channel_idx].is_up && (s.ch[channel_idx].load>0) && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count) > current_capacity_available)
+    if (s.loadm_active && !s.ch[channel_idx].is_up && (s.ch[channel_idx].load > 0) && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count) > current_capacity_available)
     {
       Serial.printf("DEBUG: Not available capacity for channel %d to get up\n", channel_idx);
+      s.ch[channel_idx].wanna_be_up = false;
       chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
-      // Serial.println(s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR/s.loadm_phase_count);
-      // Serial.println(current_capacity_available);
-      continue;
+      continue; // cannot switch on
     }
-
 #endif
 
     forced_up = (is_force_up_valid(channel_idx));
-
     if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
       //  Not yet time to drop channel
@@ -5169,8 +5234,19 @@ const char *letsencrypt_ca_certificate =
 bool get_price_data_elering()
 {
   Serial.printf("get_price_data_elering \n");
+
   time_t now_in_func;
   time(&now_in_func);
+
+#ifdef NVS_CACHE_ENABLED
+
+  if (prices2.read_from_cache(time(nullptr)))
+  {
+    Serial.println("Got from prices from cache");
+    prices_expires = prices2.expires();
+    return true;
+  }
+#endif
 
   WiFiClientSecure client_https;
   char url[120];
@@ -5316,15 +5392,24 @@ bool get_price_data_elering()
     }
 
     time(&now_infunc);
-    prices_record_start = ts_min_stored;
-    prices_record_end_excl = ts_max + NETTING_PERIOD_SEC;
-    price_resolution_sec = PRICE_RESOLUTION_SEC;
-    prices_ts = now_infunc;
+    // commented in nvs cache
+    //  prices_record_start = ts_min_stored;
+    //  prices_record_end_excl = ts_max + NETTING_PERIOD_SEC;
+    // price_resolution_sec = PRICE_RESOLUTION_SEC;
+    // prices_ts = now_infunc;
 
-    prices_expires = prices_record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
+    // prices_expires = prices_record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
+    prices_expires = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
     Serial.printf("prices_expires %lu\n", prices_expires);
     Serial.println(F("Finished succesfully get_price_data_elering."));
     prices2.debug_print();
+
+#ifdef NVS_CACHE_ENABLED
+    prices2.save_to_cache(prices_expires);
+    //   if (prices2.read_from_cache(time(nullptr))) {
+    //     Serial.println("Got from cache");
+    //   }
+#endif
 
     // update to Influx if defined
     update_prices_to_influx();
@@ -5715,6 +5800,10 @@ void reset_config()
   s.production_meter_type = PRODUCTIONM_NONE;
   s.production_meter_port = 80;
   s.production_meter_id = 3;
+  s.energy_meter_pollingfreq = 60;
+#ifdef METER_HAN_DIRECT_ENABLED
+  s.energy_meter_gpio = 255; //!< energy meter gpio , ENERGYM_HAN_DIRECT
+#endif
 
 #ifdef LOAD_MGMT_ENABLED
   s.loadm_active = false;
@@ -5729,22 +5818,12 @@ void reset_config()
   s.hw_template_id = 0; // undefined my default
   hw_template_idx = -1;
 
-  bool gpios_defined = false; // if CH_GPIOS array hardcoded (in platformio.ini)
-  uint16_t channel_gpios[CHANNEL_COUNT];
-  /*
-  char ch_gpios_local[35];
-#ifdef CH_GPIOS
-  gpios_defined = true;
-  strncpy(ch_gpios_local, CH_GPIOS, sizeof(ch_gpios_local)); //  split comma separated gpio string to an array
-  str_to_uint_array(ch_gpios_local, channel_gpios, ",");     // ESP32: first param must be locally allocated to avoid memory protection crash
-#endif
-*/
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    if (gpios_defined)
-      s.ch[channel_idx].relay_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
-    else
-      s.ch[channel_idx].relay_id = 255;
+    // if (gpios_defined)
+    //   s.ch[channel_idx].relay_id = channel_gpios[channel_idx]; // TODO: check first type, other types available
+    // else
+    s.ch[channel_idx].relay_id = 255;
 
     s.ch[channel_idx].type = (s.ch[channel_idx].relay_id < 255) ? CH_TYPE_GPIO_USER_DEF : CH_TYPE_UNDEFINED;
 
@@ -5834,7 +5913,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["http_username"] = s.http_username;
 
   // current status, do not import
-  doc["wifi_in_setup_mode"] = wifi_in_setup_mode;
+  doc["wifi_in_standalone_mode"] = wifi_in_standalone_mode;
   doc["using_default_password"] = String(s.http_password).equals(default_http_password);
   //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
 
@@ -5851,10 +5930,12 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   {
     doc["energy_meter_ip"] = s.energy_meter_ip.toString();
     doc["energy_meter_password"] = s.energy_meter_password;
-    if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
-      doc["energy_meter_gpio"] = s.energy_meter_gpio;
-    else
-      doc["energy_meter_port"] = s.energy_meter_port;
+    doc["energy_meter_port"] = s.energy_meter_port;
+
+    doc["energy_meter_pollingfreq"] = s.energy_meter_pollingfreq;
+#ifdef METER_HAN_DIRECT_ENABLED
+    doc["energy_meter_gpio"] = s.energy_meter_gpio;
+#endif
   }
 
 #ifdef HW_EXTENSIONS_ENABLED
@@ -6125,13 +6206,12 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
 
   s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
+  s.energy_meter_gpio = ajson_int_get(doc, (char *)"energy_meter_gpio", s.energy_meter_gpio);
+
   s.energy_meter_ip = ajson_ip_get(doc, (char *)"energy_meter_ip", s.energy_meter_ip);
   ajson_str_to_mem(doc, (char *)"energy_meter_password", s.energy_meter_password, sizeof(s.energy_meter_password));
-
-  if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
-    s.energy_meter_gpio = ajson_int_get(doc, (char *)"energy_meter_gpio", s.energy_meter_gpio);
-  else
-    s.energy_meter_port = ajson_int_get(doc, (char *)"energy_meter_port", s.energy_meter_port);
+  s.energy_meter_port = ajson_int_get(doc, (char *)"energy_meter_port", s.energy_meter_port);
+  s.energy_meter_pollingfreq = ajson_int_get(doc, (char *)"energy_meter_pollingfreq", s.energy_meter_pollingfreq);
 
   s.production_meter_type = ajson_int_get(doc, (char *)"production_meter_type", s.production_meter_type);
   s.production_meter_ip = ajson_ip_get(doc, (char *)"production_meter_ip", s.production_meter_ip);
@@ -6585,9 +6665,9 @@ void onWebPricesGet(AsyncWebServerRequest *request)
   time(&current_time);
 
   // new time series, mieti miten nämä korvataan, myös UI
-  doc["record_start"] = prices_record_start;
-  doc["record_end_excl"] = prices_record_end_excl;
-  doc["resolution_sec"] = price_resolution_sec;
+  doc["record_start"] = prices2.start();                         // prices_record_start;
+  doc["record_end_excl"] = prices2.end() + PRICE_RESOLUTION_SEC; // prices_record_end_excl;
+  doc["resolution_sec"] = PRICE_RESOLUTION_SEC;
   doc["ts"] = current_time;
   doc["expires"] = prices_expires;
 
@@ -6835,8 +6915,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 void set_time_settings(bool set_tz, bool set_ntp)
 {
   time_t now_infunc;
-  // if (clock_set)
-  //   return;
   //  Set timezone info
   if (set_tz)
   {
@@ -6867,9 +6945,8 @@ void set_time_settings(bool set_tz, bool set_ntp)
   }
   else
   {
-    Serial.printf(PSTR("Setup: %ld"), now_infunc);
+    Serial.printf(PSTR("Setup waiting for clock time, current ts: %ld\n"), now_infunc);
   }
-  clock_set = (time(nullptr) > ACCEPTED_TIMESTAMP_MINIMUM);
 }
 
 /**
@@ -6937,7 +7014,6 @@ void setup()
 
   if (!FILESYSTEM.begin(false))
   {
-
     delay(5000);
     if (!FILESYSTEM.begin(false))
     {
@@ -6964,7 +7040,6 @@ void setup()
   // get a count of devices on the wire
   sensor_count = min(sensors.getDeviceCount(), (uint8_t)MAX_DS18B20_SENSORS);
   Serial.printf(PSTR("sensor_count:%d\n"), sensor_count);
-
 #endif
 
   // Check if filesystem update is needed
@@ -6981,8 +7056,9 @@ void setup()
     Serial.println("Initializing Serial2 ffoor HAN P1 read.");
 
     Serial2.setRxBufferSize(SERIAL2_SIZE_RX);
-    Serial2.begin(115200, SERIAL_8N1, RXD2, -1); // Hardware Serial of ESP32
-    Serial2.onReceive(read_meter_han, false);    // sets a RX callback function for Serial 2
+    // Serial2.begin(115200, SERIAL_8N1, RXD2, -1); // Hardware Serial of ESP32
+    Serial2.begin(115200, SERIAL_8N1, s.energy_meter_gpio, -1); // Hardware Serial of ESP32
+    Serial2.onReceive(read_meter_han, false);                   // sets a RX callback function for Serial 2
   }
 #endif
 
@@ -7034,7 +7110,6 @@ void setup()
       register_out = 0; // all down
 
       //   Serial.printf("register_out %d\n", (int)register_out);
-
       updateShiftRegister();
     }
   }
@@ -7047,7 +7122,6 @@ void setup()
 
   WiFi.mode(WIFI_STA);
 
-  Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
   /*if (strlen(s.wifi_ssid) == 0)
   {
     strcpy(s.wifi_ssid, "NA");
@@ -7057,6 +7131,7 @@ void setup()
   bool wifi_defined = (strlen(s.wifi_ssid) > 0);
   if (wifi_defined)
   {
+    Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
     WiFi.begin(s.wifi_ssid, s.wifi_password);
     unsigned long connect_started = millis();
     while (WiFi.status() != WL_CONNECTED)
@@ -7080,7 +7155,8 @@ void setup()
 
   if (WiFi.status() != WL_CONNECTED)
   {
-    wifi_in_setup_mode = true;
+    wifi_in_standalone_mode = true;
+    wifi_in_standalone_mode_forced = strlen(s.wifi_ssid) > 0;
     create_wifi_ap = true;
     check_forced_restart(true); // schedule restart
   }
@@ -7109,15 +7185,13 @@ void setup()
     }
   }
 
-  // if (wifi_in_setup_mode) // Softap should be created if  cannot connect to wifi
-
   if (create_wifi_ap)
 
   { // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
     // create ap-mode ssid for config wifi
 
-    Serial.print("Creating AP, wifi_in_setup_mode:");
-    Serial.print(wifi_in_setup_mode);
+    Serial.print("Creating AP, wifi_in_standalone_mode:");
+    Serial.print(wifi_in_standalone_mode);
 
     String APSSID = String("ARSKA-") + wifi_mac_short;
     int wifi_channel = (int)random(1, 14);
@@ -7132,7 +7206,7 @@ void setup()
       Serial.println(F("Cannot create AP, restarting"));
       log_msg(MSG_TYPE_FATAL, PSTR("Cannot create AP, restarting."), true);
 
-      delay(2000); // cannot create AP, restart
+      delay(2000); // cannot create AP, or connect existing wifi , restart
 
       ESP.restart();
     }
@@ -7282,17 +7356,17 @@ void setup()
   // generate_ui_constants(true); // generate ui constant json if needed
   server_web.begin();
 
-  if (wifi_in_setup_mode)
-    return; // no more setting, just wait for new SSID/password and then restarts
+  // if (wifi_in_standalone_mode)
+  //  return; // no more setting, just wait for new SSID/password and then restarts
 
-  if (!wifi_in_setup_mode)
-    Serial.printf("\nArska dashboard url: http://%s/\n", WiFi.localIP().toString().c_str());
+  Serial.printf("\nArska dashboard url: http://%s/\n", wifi_in_standalone_mode ? WiFi.softAPIP().toString() : WiFi.localIP().toString().c_str());
 
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
 
-  Serial.println(F("setup() finished:"));
+  Serial.println(F("setup() ended."));
 
-  calculate_time_based_variables();
+  // 1.1Experimental, removed, we do not have time yet...
+  //   calculate_time_based_variables();
 
 #ifdef LOOP_WATCHDOG_ENABLED
   // watchdog loop
@@ -7317,7 +7391,7 @@ void loop()
   io_tasks();
 
   //  handle initial wifi setting from the serial console command line
-  if (wifi_in_setup_mode && Serial.available())
+  if (wifi_in_standalone_mode_forced && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
     if (serial_command_state == 0)
@@ -7409,9 +7483,9 @@ void loop()
   }
 #endif
 
-  // if in Wifi AP Mode (192.168.4.1), no other operations allowed
+  // if  Wifi forced to AP Mode (192.168.4.1), no other operations allowed
   check_forced_restart(); //!< if in config mode restart when time out
-  if (wifi_in_setup_mode)
+  if (wifi_in_standalone_mode_forced)
   { //!< do nothing else if in forced ap-mode
     delay(500);
     return;
@@ -7451,30 +7525,48 @@ void loop()
   // initial message
   if (now < ACCEPTED_TIMESTAMP_MINIMUM)
   {
-    delay(3000);
+    delay(1000);
     return;
   }
   else if (started == 0) // we have clock set
   {
-    //  char msgbuff[30];
+
     // let ntp time settle
-    for (int i = 0; i < 10; i++)
-    {
-      delay(5000);
-      time(&now);
-    }
-    // wait if we get more accurate time...?
+    // wait if we get more accurate time...?, removed no reason to wait?
+    /*
+        time_t init_ts = now;
+        unsigned long  init_millis = millis();
+        for (int i = 0; i < 10; i++)
+        {
+          Serial.printf(PSTR("DEBUG: Clock set to %ld in %lu, diff; %ld, %lu\n"), time(nullptr), millis(), time(nullptr) - init_ts,millis()-init_millis);
+
+          delay(5000);
+          time(&now);
+        }
+     */
 
     started = now;
     calculate_time_based_variables(); // no external info needed for these
 
     if (config_resetted)
       log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
-    else
+    else if (wifi_connection_succeeded)
       log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
+    else if (wifi_in_standalone_mode_forced)
+      log_msg(MSG_TYPE_WARN, PSTR("Started processing in configuration only mode."), true);
+    else if (wifi_in_standalone_mode)
+      log_msg(MSG_TYPE_INFO, PSTR("Started processing in standalone mode."), true);
 
-    // if (!clock_set)
-    //   set_time_settings()); // set tz info
+    bool give_wifi_relay_warning = false;
+    for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+    {
+      if (is_wifi_relay(s.ch[channel_idx].type) && wifi_in_standalone_mode && !wifi_in_standalone_mode_forced)
+        give_wifi_relay_warning = true;
+    }
+    if (give_wifi_relay_warning)
+      log_msg(MSG_TYPE_WARN, PSTR("Wifi relays cannot be switched in standalone mode."), true);
+
+
     set_time_settings(true, false); // need to set tz
 
     ch_counters.init();
@@ -7486,6 +7578,7 @@ void loop()
   if (todo_in_loop_reapply_relay_states)
   {
     Serial.println("queue task todo_in_loop_reapply_relay_states");
+
     todo_in_loop_reapply_relay_states = false;
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
@@ -7496,6 +7589,7 @@ void loop()
       }
     }
   }
+
   // recalculate channel states and set relays, if forced from dashboard
   if (todo_in_loop_set_relays)
   {
@@ -7506,7 +7600,7 @@ void loop()
   }
 
   // just in case check the wifi and reconnect/restart if needed
-  if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
+  if ((WiFi.waitForConnectResult(10000) != WL_CONNECTED) && !wifi_in_standalone_mode)
   {
     // Wait for the wifi to come up again
     for (int wait_loop = 0; wait_loop < 20; wait_loop++)
@@ -7532,7 +7626,7 @@ void loop()
   else
     recording_period_start = current_period_start;
 
-  if ((next_query_price_data <= now) && (prices_expires <= now))
+  if ((next_query_price_data <= now) && (prices_expires <= now) && !wifi_in_standalone_mode)
   {
     io_tasks(STATE_PROCESSING);
 
@@ -7560,7 +7654,7 @@ void loop()
     Serial.printf("next_query_price_data: %ld %s\n", next_query_price_data, got_price_ok ? "ok" : "failed");
   }
 
-  if (next_query_fcst_data <= now) // got solar & wind fcsts
+  if (next_query_fcst_data <= now && !wifi_in_standalone_mode) // got solar & wind fcsts
   {
     io_tasks(STATE_PROCESSING);
     got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
@@ -7569,11 +7663,21 @@ void loop()
     next_query_fcst_data = now + (got_forecast_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));
   }
 
+// new period coming, record last minute, EXPERIMENTAL
+#define ESTIMATED_LOOP_PROCESSING_TIME_A_SEC 10 // estimated time for (optional) meter polling + variable processing
+  if (get_netting_period_start_time(time(nullptr)) < get_netting_period_start_time(time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC))
+  {
+    Serial.printf("\nForcing processing before period change %ld\n", time(nullptr));
+    next_energym_read_ts = now;
+    next_process_ts = now;
+  }
+
   // new period
   if (previous_period_start != current_period_start)
   {
     Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start, grid_protection_delay_interval);
     period_changed = true;
+    next_energym_read_ts = now;
     next_process_ts = now; // process now if new period
                            // rotates history array and sets selected variables to the history array
     vars.rotate_period();
@@ -7581,19 +7685,12 @@ void loop()
 
     calculate_time_based_variables();
     calculate_price_rank_variables();
-    /*
-    // moved to calculate_forecast_variables
-    long period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
-    if (period_solar_rank == -1)
-      vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
-    else
-      vars.set(VARIABLE_SOLAR_RANK_FIXED_24, period_solar_rank);
-      */
+
     calculate_forecast_variables();
   }
 
 #ifdef INFLUX_REPORT_ENABLED
-  if (todo_in_loop_influx_write) // TODO: maybe we could combine this with buffer update
+  if (todo_in_loop_influx_write && !wifi_in_standalone_mode) // TODO: maybe we could combine this with buffer update
   {
     todo_in_loop_influx_write = false;
     write_buffer_to_influx();
@@ -7610,31 +7707,35 @@ void loop()
     return;
   }
 
+  // meter polling could be shorter than normal processing frequency
+  if (next_energym_read_ts <= now && !wifi_in_standalone_mode)
+  {
+    io_tasks(STATE_PROCESSING);
+    if (s.energy_meter_type != ENERGYM_NONE)
+    {
+      read_energy_meter();
+    }
+#define ESTIMATED_METER_READ_TIME_MAX_SEC (CONNECT_TIMEOUT_INTERNAL + 1)
+    next_energym_read_ts = max((time_t)(next_energym_read_ts + s.energy_meter_pollingfreq), time(nullptr) + (s.energy_meter_pollingfreq - ESTIMATED_METER_READ_TIME_MAX_SEC)); // max is just in case to allow skipping reading, if reading takes too long
+  }
+
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
   if (next_process_ts <= now) // time to process
                               // E  if ((next_process_ts <= now) || todo_rotate_period) // time to process
   {
     io_tasks(STATE_PROCESSING);
-    localtime_r(&now, &tm_struct);
-    Serial.printf(PSTR("%02d:%02d:%02d Reading sensor and meter data... \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
-    if (s.energy_meter_type != ENERGYM_NONE)
-    {
-      read_energy_meter();
-    }
-
-    if (s.production_meter_type != PRODUCTIONM_NONE)
+    //   localtime_r(&now, &tm_struct);
+    //   Serial.printf(PSTR("%02d:%02d:%02d Reading sensor and meter data... \n"), tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+    if (s.production_meter_type != PRODUCTIONM_NONE && !wifi_in_standalone_mode)
     {
       read_production_meter();
     }
-
 #ifdef SENSOR_DS18B20_ENABLED
     read_ds18b20_sensors();
 #endif
-
-    calculate_time_based_variables();  // call here for minute level changes
-    calculate_meter_based_variables(); // TODO: if period change we could set write influx buffer after this?
-    time(&now);
-    next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), now + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
+    calculate_time_based_variables();                                                                                      // call here for minute level changes
+    calculate_meter_based_variables();                                                                                     // TODO: if period change we could set write influx buffer after this?
+    next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), time(nullptr) + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
     update_channel_states();
     set_relays(true); // grid protection delay active
   }

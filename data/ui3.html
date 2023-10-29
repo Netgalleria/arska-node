@@ -1,30 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="">
-  <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+  <meta name="author" content="Template:Mark Otto, Jacob Thornton, and Bootstrap contributors">
   <meta name="generator" content="Hugo 0.104.2">
   <title>Arska Power Management</title>
+  <!--
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
-  <!--
+    -->
   <link href="css/bootstrap.min.css" rel="stylesheet">
-  -->
+  
   <!--
   <link rel="canonical" href="https://getbootstrap.com/docs/5.2/examples/dashboard/">
-  
   -->
-
-  
   <link rel="icon" type="image/png" href="favicon-32x32.png" sizes="32x32" />
   <link rel="icon" type="image/png" href="favicon-16x16.png" sizes="16x16" />
   <link rel="shortcut icon" href="/favicon.ico">
-
-  
-
   <style>
     .bd-placeholder-img {
       font-size: 1.125rem;
@@ -99,7 +93,10 @@
   <!-- Custom styles for this template -->
   <link href="/css/dashboard.css" rel="stylesheet">
   <!--fonts-->
-  <link rel="stylesheet" href="https://use.typekit.net/uwx3oza.css">
+  <!-- <link rel="stylesheet" href="https://use.typekit.net/uwx3oza.css"> 
+  imported resources cannot be loaded in standalone-->
+  <link rel="stylesheet" href="css/uwx3oza.css">
+
   <style>
     /* Chart.js */
     @keyframes chartjs-render-animation {
@@ -147,12 +144,15 @@
       top: 0
     }
 
-#chart_container {display: none; }
-@media only screen and (min-width: 500px) {
     #chart_container {
-        display: block;
+      display: none;
     }
-}
+
+    @media only screen and (min-width: 500px) {
+      #chart_container {
+        display: block;
+      }
+    }
   </style>
 </head>
 
@@ -196,14 +196,15 @@
     <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMenu" aria-labelledby="mobileMenu">
       <div class="offcanvas-header px-4 pb-0">
         <h5 class="offcanvas-title" id="mobileMenuLabel">Valikko</h5>
-        <button type="button" id="mobileMenuClose" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        <button type="button" id="mobileMenuClose" class="btn-close text-reset" data-bs-dismiss="offcanvas"
+          aria-label="Close"></button>
       </div>
       <div class="offcanvas-body">
         <div>
           <ul class="mobile-menu">
             <li class="menu-item active"><a href="#" onclick="jump('dashboard');">Dashboard</a></li>
             <li class="menu-item"><a href="#" onclick="jump('channels');">Channels</a></li>
-            <li class="menu-item"><a href="#" onclick="jump('admin');" >Settings</a></li>
+            <li class="menu-item"><a href="#" onclick="jump('admin');">Settings</a></li>
             <li class="menu-item"><a href="https://github.com/Netgalleria/arska-node/wiki">Arska Wiki</a></li>
           </ul>
         </div>
@@ -383,7 +384,7 @@
                 <h5 class="card-title">Channel rules and definitions</h5>
               </div>
               <div class="card-body">
-              
+
 
                 <div class="accordion" id="variables_accordion">
                   <div class="accordion-item">
@@ -397,9 +398,11 @@
                       aria-labelledby="variables_accordionh3" data-bs-parent="#variables_accordion">
                       <div class="accordion-body">
                         <p>Channel states are calculated based on channel rules and current variable values.</p>
-                        <p>In template configuration mode select rule template and give required parameters. In advanced mode
+                        <p>In template configuration mode select rule template and give required parameters. In advanced
+                          mode
                           you can enter the rules at a detailed level.</p>
-                        <p>The rules are checked in order, and the first rule whose conditions are met determines the state of
+                        <p>The rules are checked in order, and the first rule whose conditions are met determines the
+                          state of
                           the channel.</p>
                         <span id="vars_updated"></span>
                         <table id="tblVariables" class="table">
@@ -445,8 +448,9 @@
                   <div class="card-header">
                     <h5 class="card-title">Price Data</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span id="price_data:info" class="text-muted">Nordpool price data updated from ENTSO-E Transparency Platform requires an API-key. <a
-                          target="_blank" href="https://github.com/Netgalleria/arska-node/wiki/Settings">How to get
+                      <span id="price_data:info" class="text-muted">Nordpool price data updated from ENTSO-E
+                        Transparency Platform requires an API-key. <a target="_blank"
+                          href="https://github.com/Netgalleria/arska-node/wiki/Settings">How to get
                           an ENTSO-E API
                           key.</a></span>
                     </div>
@@ -454,7 +458,7 @@
                   </div>
                   <!--./card-header-->
                   <div class="card-body">
-                 
+
                     <div class="mb-2">
                       <label for="entsoe_area_code" class="form-label">Area code</label>
                       <select id="entsoe_area_code" class="form-select" aria-label="variable">
@@ -529,7 +533,7 @@
                   <div class="card-header">
                     <h5 class="card-title">Energy Forecast</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted"> FMI Energy forecast is currently only available in Finland.</span>
+                      <span class="text-muted"> FMI solar and wind energy forecast is currently only available in Finland. Define location to activate.</span>
                     </div>
                     <!--./chart-info-->
                   </div>
@@ -688,34 +692,51 @@
                     <h5 class="card-title">Grid Energy Metering</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
                       <span class="text-muted">Optional grid metering helps in optimizing the use of self-produced
-                        electricity.</span>
+                        electricity and makes possible simple load management.</span>
                     </div>
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
-                      <label for="energy_meter_type" class="form-label">Energy Meter Type</label>
+                      <label for="energy_meter_type" class="form-label">Type</label>
                       <select id="energy_meter_type" class="form-select" aria-label="variable">
                         <option value="0">not in use</option>
                         <option value="1">Shelly 3 EM</option>
                         <option value="2">Shelly Gen 2(test)</option>
-                        <option value="4">HAN P1 Telegram / Wifi</option>
                         <option value="5">HAN P1 Wired</option>
+                        <option value="4">HAN P1 Telegram / Wifi</option>
                       </select>
                     </div>
+
+
                     <div class="mb-2">
-                      <label for="energy_meter_ip" class="form-label">Energy Meter IP Address</label>
+                      <label for="energy_meter_gpio" class="form-label">GPIO (RXD)</label>
+                        <input type="number" class="form-control" id="energy_meter_gpio" placeholder="16" min="1"
+                          step="1" max="34">
+                    </div>
+                    <div class="mb-2">
+                      <label for="energy_meter_ip" class="form-label">IP Address</label>
                       <input type="text" class="form-control" id="energy_meter_ip" placeholder=""
                         pattern="((^|\.)((25[0-5])|(2[0-4]\d)|(1\d\d)|([1-9]?\d))){4}$">
                     </div>
                     <div class="mb-2">
-                      <label for="energy_meter_port" class="form-label">Energy Meter IP Port</label>
+                      <label for="energy_meter_port" class="form-label">IP Port</label>
                       <input type="number" class="form-control" id="energy_meter_port" placeholder="Typically 80"
                         min="1" step="1" max="65536">
                     </div>
                     <div class="mb-2">
-                      <label for="energy_meter_password" class="form-label">Energy Meter Password</label>
+                      <label for="energy_meter_password" class="form-label">Password</label>
                       <input type="text" class="form-control" id="energy_meter_password">
                     </div>
+
+                    <div class="mb-2">
+                      <label for="energy_meter_pollingfreq" class="form-label">Query frequency</label>
+                        <select id="energy_meter_pollingfreq" class="form-select" aria-label="variable">
+                          <option value="60">60 secs</option>
+                          <option value="30">30 secs</option>
+                          <option value="10">10 secs</option>
+                        </select>
+                    </div>
+
                     <div id="metering:alert"></div>
                   </div>
                   <!--./card-body-->
@@ -782,13 +803,14 @@
                   <div class="card-header">
                     <h5 id="loadm:title" class="card-title">Load Management</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted">The load management will automatically switch off devices if measured current is over a limit. Applies to channels with a defined maximum load (load>0 W).</span>
+                      <span class="text-muted">The load management will automatically switch off devices if measured
+                        current is over a limit. Applies to channels with a defined maximum load (load>0 W). Shelly Gen 2 meters are not supported.</span>
                     </div>
                   </div>
                   <div class="card-body">
 
-                    <div class="mb-2">  
-                      <input type="checkbox" class="form-check-input" id="loadm_active" >
+                    <div class="mb-2">
+                      <input type="checkbox" class="form-check-input" id="loadm_active">
                       <label for="loadm_active" class="form-check-label">Load limiter active</label>
                     </div>
                     <div class="mb-2">
@@ -800,9 +822,10 @@
                     </div>
                     <div class="mb-2">
                       <label for="loadm_phase_current_max" class="form-label">Max Phase Current (A)</label>
-                      <input id="loadm_phase_current_max" type="number" class="form-control" placeholder="25" min="0" step="1" max="255">
+                      <input id="loadm_phase_current_max" type="number" class="form-control" placeholder="25" min="0"
+                        step="1" max="255">
                     </div>
-                    <div class="mb-2">  
+                    <div class="mb-2">
                       <span id="loadm_status" class="fw-light"></span>
                     </div>
 
@@ -1040,21 +1063,21 @@
                       </div>
                       <div class="input-group mb-0 mt-3">
 
-                        
+
                         <button id="releases:refresh" type="button" class="btn btn-primary"
-                        onclick="populate_releases()" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
-                        data-bs-placement="top" data-bs-title="Get available firmware versions">
-                        <span data-feather="refresh-ccw" style="pointer-events: none;"
-                          class="align-text-bottom"></span>
-                      </button>
-                      <select id="sel_releases" class="form-select" aria-label="variable" disabled="">
-                        <option value="#">Refresh versions</option>
-                      </select>
-                      <button id="releases:update" type="button" class="btn btn-primary" onclick="start_fw_update();"
-                        disabled="" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
-                        data-bs-title="Start upgrade">
-                        <span data-feather="download-cloud" style="pointer-events: none;"
-                          class="align-text-bottom"></span> Upgrade</button>
+                          onclick="populate_releases()" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
+                          data-bs-placement="top" data-bs-title="Get available firmware versions">
+                          <span data-feather="refresh-ccw" style="pointer-events: none;"
+                            class="align-text-bottom"></span>
+                        </button>
+                        <select id="sel_releases" class="form-select" aria-label="variable" disabled="">
+                          <option value="#">Refresh versions</option>
+                        </select>
+                        <button id="releases:update" type="button" class="btn btn-primary" onclick="start_fw_update();"
+                          disabled="" data-bs-toggle="tooltip" data-bs-custom-class="custom-tooltip"
+                          data-bs-title="Start upgrade">
+                          <span data-feather="download-cloud" style="pointer-events: none;"
+                            class="align-text-bottom"></span> Upgrade</button>
 
 
                       </div>
@@ -1076,7 +1099,7 @@
                             </div>
                             <div class="d-grid gap-2 d-md-block text-end">
                               <label class="form-label">Special actions</label><br>
-                          
+
                               <button type="button" id="admin:restart" class="btn btn-secondary">Restart and clear
                                 cache</button>
                               <button type="button" id="admin:reset" class="btn btn-secondary">Reset Settings</button>

@@ -1479,7 +1479,7 @@ function load_application_config() {
         price_area_ctrl.addEventListener(
             "change",
             function () {
-                document.getElementById("entsoe_api_key").disabled = price_area_ctrl.value.startsWith("elering:");
+                set_field_editability();
             },
             false
         );
@@ -1487,6 +1487,15 @@ function load_application_config() {
         info_span.innerHTML = info_span.innerHTML + " Elering provides price data for Estonia, Finland, Lithuania and Latvia without an API key."
       
     }
+
+    document.getElementById("energy_meter_type").addEventListener(
+        "change",
+        function () {
+            set_field_editability();
+        },
+        false
+    );
+
 
     //current config
     $.ajax({
@@ -2460,6 +2469,18 @@ function compare_wifis(a, b) {
     return ((a.rssi > b.rssi) ? -1 : 1);
 }
 
+function set_field_editability() {
+    document.getElementById("entsoe_api_key").disabled = document.getElementById("entsoe_area_code").value.startsWith("elering:");
+    var p1_direct = (document.getElementById("energy_meter_type").value == 5);
+    document.getElementById("energy_meter_gpio").disabled = !p1_direct;
+    document.getElementById("energy_meter_ip").disabled = p1_direct;
+    document.getElementById("energy_meter_port").disabled = p1_direct;
+    document.getElementById("energy_meter_password").disabled = p1_direct;
+    document.getElementById("energy_meter_pollingfreq").disabled = p1_direct;
+    return;
+}
+
+
 function init_ui() {
     console.log("Init ui");
 
@@ -2518,7 +2539,7 @@ function init_ui() {
 
     get_price_data(true); //TODO: also update at 2pm
 
-    document.getElementById("entsoe_api_key").disabled = document.getElementById("entsoe_area_code").value.startsWith("elering:");
+    set_field_editability();
 
 }
 
