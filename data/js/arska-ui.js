@@ -9,7 +9,8 @@ var day_ahead_chart_obj;
 const VARIABLE_LONG_UNKNOWN = -2147483648;
 const MAX_HISTORY_PERIODS = 24
 const HOURS_IN_DAY = 24
-const NETTING_PERIOD_SEC = 3600
+const SECONDS_IN_HOUR = 3600
+//const NETTING_PERIOD_SEC = SECONDS_IN_HOUR // from /application constants
 
 //selected constants
 const CHANNEL_CONFIG_MODE_RULE = 0;
@@ -101,6 +102,11 @@ function whatDecimalSeparator() {
     var n = 1.1;
     n = n.toLocaleString().substring(1, 2);
     return n;
+}
+
+
+function period_start_ts(ts) {
+    return parseInt(ts / g_constants.NETTING_PERIOD_SEC) * g_constants.NETTING_PERIOD_SEC;
 }
 
 const template_form_html = `<div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
@@ -524,7 +530,7 @@ var channel_history = [];
 
 var prices_first_ts = 0;
 var prices_last_ts = 0;
-var price_resolution_sec = 3600;
+var price_resolution_sec = SECONDS_IN_HOUR;
 var prices_expires = 0;
 
 // update variables and channels statuses to channels form
@@ -575,10 +581,10 @@ function update_status(repeat) {
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
             if (data.hasOwnProperty("loadm_current")) {
-                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energym_read_last, true, true) + ")";
+                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energym_read_last_ts, true, true) + ")";
             }
 
-            get_time_string_from_ts(data.energym_read_last, true, true);
+            get_time_string_from_ts(data.energym_read_last_ts, true, true);
 
             msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
@@ -621,9 +627,9 @@ function update_status(repeat) {
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
             document.getElementById("db:export_v").innerHTML = selling;
 
-            now_period_start = Math.max(data.started, parseInt(data.ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC);
-            // em_period_s_date = new Date(now_period_start * 1000);
-            //  em_period_e_date = new Date(data.ts * 1000);
+           // now_period_start = Math.max(data.started, parseInt(data.ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC);
+            now_period_start = Math.max(data.started, period_start_ts(data.ts));
+           
 
             ///localtime
             //document.getElementById("db:current_period").innerHTML = "(" + em_period_s_date.toLocaleTimeString('fi-FI', { hour12: false }).substring(0, 5) + "-" + em_period_e_date.toLocaleTimeString('fi-FI', { hour12: false }).substring(0, 5) + ")";
@@ -646,7 +652,8 @@ function update_status(repeat) {
                 document.getElementById(`db:s_${s_idx}:div`).style.display = sensor_has_value ? "block" : "none";
             }
             now_ts = Date.now() / 1000;
-            now_period_start = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+            now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+           
             // TODO: update
 
             if (show_variables) {
@@ -727,10 +734,13 @@ function populate_channel_status(channel_idx, ch) {
         update_fup_schedule_element(channel_idx);
 
         duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
-        duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
+       // duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
+        duration_c_str = ts_duration_str(ch.force_up_until - ch.force_up_from, false);
         sch_duration_c_span.innerHTML = duration_c_str;
 
         sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_up_until, false, true);
+     
+        
         //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
     }
     else {
@@ -827,6 +837,22 @@ function ts_date_time(ts, include_year = true) {
     return date_str;
 }
 
+function ts_duration_str(ts_dur, include_seconds = false) {
+    days = parseInt(ts_dur / (3600 * 24));
+    hours = parseInt((ts_dur % (3600*24))/3600);
+    minutes = parseInt((ts_dur % 3600)/60);
+    seconds = parseInt(ts_dur % 60);
+    date_str =''
+    if (days > 0) {
+        date_str += ''+ days + 'd ';
+    }
+    date_str += pad_to_2digits(hours) + ':' + pad_to_2digits(minutes);
+    if (include_seconds) {
+        date_str +=  ':' + pad_to_2digits(seconds);  
+    }
+    return date_str;
+}
+
 let price_chart_dataset = [];
 
 function create_dashboard_chart() {
@@ -837,7 +863,7 @@ function create_dashboard_chart() {
     let now_idx = 0;
     let now_idx_chh = MAX_HISTORY_PERIODS - 1;
     now_ts = (Date.now() / 1000);
-    now_period_ts = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+    now_period_ts = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
 
     let price_data_exists = (price_data !== null);
     if (!price_data_exists) { //try to get prices now 
@@ -848,8 +874,8 @@ function create_dashboard_chart() {
         console.log("create_dashboard_chart: no price data");
         price_data_exists = false;
         // 48 periods
-        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (NETTING_PERIOD_SEC);
-        chart_end_excl_ts = chart_start_ts + (48 * NETTING_PERIOD_SEC);
+        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (g_constants.NETTING_PERIOD_SEC);
+        chart_end_excl_ts = chart_start_ts + (48 * g_constants.NETTING_PERIOD_SEC);
         chart_resolution_sec = 3600;
         now_idx = 0;
         now_idx_chh = MAX_HISTORY_PERIODS - 1;
@@ -863,7 +889,7 @@ function create_dashboard_chart() {
     const ctx = document.getElementById('day_ahead_chart').getContext('2d');
 
     var tz_offset = new Date().getTimezoneOffset();
-    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - NETTING_PERIOD_SEC, false);
+    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - g_constants.NETTING_PERIOD_SEC, false);
 
     // now history, if values exists
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
@@ -873,7 +899,6 @@ function create_dashboard_chart() {
     for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_sec)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
-        // time_labels.push(get_time_string_from_ts(ts, false, true));
         time_label = get_time_label(ts);
         time_labels.push(time_label);
 
@@ -913,7 +938,6 @@ function create_dashboard_chart() {
     // iterate
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
-        //    console.log("VARIABLE_SELLING_ENERGY");
         dataset_started = false;
         for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
@@ -959,7 +983,9 @@ function create_dashboard_chart() {
                 resolution_sec = data.solar_forecast.resolution_sec;
                 series_started = false;
                 for (idx = 0; idx < solar_fcst.length; idx++) {
-                    ts = (start + idx * 3600);
+                    // ts = (start + idx * 3600);
+                    ts = (start + idx * resolution_sec);
+                    
                     if (solar_fcst[idx] > 0)
                         series_started = true;
                     if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period) {
@@ -1025,8 +1051,8 @@ function create_dashboard_chart() {
     }
 
     var channel_dataset;
-    now_period_start = parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
-    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * NETTING_PERIOD_SEC;
+    now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_constants.NETTING_PERIOD_SEC;
     console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_config.ch[channel_idx]["type"] == 0) // undefined
@@ -1052,7 +1078,7 @@ function create_dashboard_chart() {
                }
            } */
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
-            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * NETTING_PERIOD_SEC;
+            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_constants.NETTING_PERIOD_SEC;
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
@@ -1329,7 +1355,7 @@ function populate_wifi_ssid_list() {
 //Scheduling functions
 
 //TODO: get from main.cpp
-const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440];
+const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440, 2880,10080];
 
 
 function post_schedule_update(channel_idx, duration, start, duration_old) {
@@ -1414,7 +1440,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     sch_start_sel.disabled = false;
     sch_save_radio.disabled = false;
 
-    first_next_hour_ts = parseInt(((Date.now() / 1000)) / 3600) * 3600 + 3600;
+    first_next_hour_ts = parseInt(((Date.now() / 1000)) / SECONDS_IN_HOUR) * SECONDS_IN_HOUR + SECONDS_IN_HOUR;
     start_ts = first_next_hour_ts;
     //
     //  addOption(sch_start_sel, 0, "now ->", (duration_selected > 0));
@@ -1440,7 +1466,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
             price_str = "";
 
         addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + price_str, (prev_selected == start_ts));
-        start_ts += 3600;
+        start_ts += SECONDS_IN_HOUR;
     }
     if (cheapest_index > -1) {
         //  console.log("cheapest_ts", cheapest_ts)
@@ -2411,7 +2437,8 @@ function create_channels() {
             if (g_config.ch[channel_idx]["type"] != 0) { // only if relay defined
                 for (i = 0; i < force_up_mins.length; i++) {
                     min_cur = force_up_mins[i];
-                    duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+                   // duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+                    duration_str = ts_duration_str(min_cur * 60, false);
                     addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
                 }
             }
