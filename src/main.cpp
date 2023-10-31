@@ -83,13 +83,11 @@ String version_fs_base; //= "";
 #define METER_HAN_DIRECT_ENABLED
 
 // experimental,move this to correct place, get from parameters/hw templates
+#define DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS 2000 // delay after longer queries (price, energy forecast) to keep more responsive in the init
+
 #ifdef METER_HAN_DIRECT_ENABLED
-// #define RXD2 16
-// #define TXD2 17
-// Olimex UEXT
-#define RXD2 36
-#define TXD2 4
-#define SERIAL2_SIZE_RX 1024
+
+#define SERIAL2_SIZE_RX 1024 // Big enough for HAN P1 message
 // relocate
 bool channel_forced_down[CHANNEL_COUNT];
 double power_in = 0;
@@ -266,7 +264,9 @@ bool rtc_found = false;
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
+// #pragma message("Testing with altered NETTING_PERIOD_SEC")
 #define NETTING_PERIOD_SEC 3600 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
+
 #define SECONDS_IN_HOUR 3600
 #define PRICE_RESOLUTION_SEC 3600
 #define SOLAR_FORECAST_RESOLUTION_SEC 3600
@@ -387,8 +387,8 @@ void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
   time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
-  tm tm;                       // the structure tm holds time information in a more convient way
-  gmtime_r(&now_ts, &tm); // update the structure tm with the current GMT
+  tm tm;                         // the structure tm holds time information in a more convient way
+  gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
 }
 
@@ -706,12 +706,13 @@ int grid_protection_delay_max = 0;  // TODO: still disabled (=0),later set to ad
 int grid_protection_delay_interval; // random, init in setup()
 
 time_t recorded_period_start_ts = 0; // first period: boot time, later period starts
-time_t current_period_start_ts = 0; //!< updated in loop
-time_t previous_period_start = 0;
+time_t current_period_start_ts = 0;  //!< updated in loop
+time_t previous_period_start_ts = 0;
 time_t day_start_local = 0; //<! epoch time stamp of 00:00 in local time, TODO: DST change days
 uint32_t read_energy_meter_started_ms = 0;
 time_t energym_read_last_ts = 0;
-time_t productionm_read_last_ts = 0;
+time_t productionm_read_last_ts = 0; //!< ts of last succesfull inverter read
+long int productionm_read_last = 0;  //!< last succesfull inverter value
 time_t started_ts = 0;
 bool period_changed = true;
 
@@ -822,8 +823,8 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
 // inverter productuction info fields
 uint32_t inverter_total_period_init = 0;
 long inverter_total_value_last = 0; // compare reading with previous, validity check
-bool inverter_total_period_init_ok = false;
-// E uint16_t inverter_read_count_period = 0;
+// bool inverter_total_period_init_ok = false; removed, productionm_read_last_ts handles
+//  E uint16_t inverter_read_count_period = 0;
 uint32_t energy_produced_period = 0;
 uint32_t power_produced_period_avg = 0;
 #endif
@@ -844,23 +845,23 @@ typedef struct
 {
   condition_struct conditions[CHANNEL_CONDITIONS_MAX];
   char id_str[MAX_CH_ID_STR_LENGTH];
-  uint8_t relay_id;       //!< relay id, eg. gpio, number modbus server id
-  uint8_t relay_unit_id;  //!<  unit id, eg. port id in a relay device
-  uint8_t relay_iface_id; // RFU, interface, eg eth, wifi
-  IPAddress relay_ip;     //!< relay ip address
-  bool is_up;             //!< is channel currently up
-  bool wanna_be_up;       //!< should channel be switched up (when the time is right)
-  bool default_state;     //!< channel up/down value if no rule matches
-  uint8_t type;           //!< channel type, for values see constants CH_TYPE_...
-  time_t uptime_minimum;  //!< minimum time channel should be up
-  time_t up_last_ts;         //!< last time up time
-  time_t force_up_from_ts;   //<! force channel up starting from
-  time_t force_up_until_ts;  //<! force channel up until
-  uint8_t config_mode;    //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
-  int template_id;        //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
-  uint32_t channel_color; //<! channel UI color in graphs etc
-  uint8_t priority;       //<! channel switching priority, channel with the lowest priority value is switched on first and off last
-  uint16_t load;          //<! estimated device load in Watts
+  uint8_t relay_id;         //!< relay id, eg. gpio, number modbus server id
+  uint8_t relay_unit_id;    //!<  unit id, eg. port id in a relay device
+  uint8_t relay_iface_id;   // RFU, interface, eg eth, wifi
+  IPAddress relay_ip;       //!< relay ip address
+  bool is_up;               //!< is channel currently up
+  bool wanna_be_up;         //!< should channel be switched up (when the time is right)
+  bool default_state;       //!< channel up/down value if no rule matches
+  uint8_t type;             //!< channel type, for values see constants CH_TYPE_...
+  time_t uptime_minimum;    //!< minimum time channel should be up
+  time_t up_last_ts;        //!< last time up time
+  time_t force_up_from_ts;  //<! force channel up starting from
+  time_t force_up_until_ts; //<! force channel up until
+  uint8_t config_mode;      //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
+  int template_id;          //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
+  uint32_t channel_color;   //<! channel UI color in graphs etc
+  uint8_t priority;         //<! channel switching priority, channel with the lowest priority value is switched on first and off last
+  uint16_t load;            //<! estimated device load in Watts
 } channel_struct;
 
 #ifdef SENSOR_DS18B20_ENABLED
@@ -2158,6 +2159,8 @@ void ChannelCounters::new_log_period(time_t ts_report)
     channel_logs[channel_idx].on_time = 0;
     channel_logs[channel_idx].this_state_started_period_ts = time(nullptr);
   }
+  yield();
+
   // write buffer
 }
 
@@ -2796,6 +2799,7 @@ bool scan_sensors()
   return true;
 }
 
+#define MINUTES_BETWEEN_SENSOR_READS 2
 /**
  * @brief Read DS18B20 sensor values.
  *
@@ -2809,7 +2813,7 @@ bool read_ds18b20_sensors()
   if (sensor_count == 0)
     return false;
 
-  if ((time(nullptr) % 2) == 1) // read one in two minutes, experimental
+  if ((time(nullptr) % MINUTES_BETWEEN_SENSOR_READS) != 0) // read one in two minutes, experimental
     return false;
 
   Serial.printf(PSTR("Starting read_ds18b20_sensors, sensor_count: %d\n"), sensor_count);
@@ -2820,7 +2824,6 @@ bool read_ds18b20_sensors()
   float temp_c;
 
   // Loop through each device, print out temperature data
-  // Serial.printf("sensor_count:%d\n", sensor_count);
   int j;
   for (j = 0; j < MAX_DS18B20_SENSORS; j++)
   {
@@ -2842,7 +2845,6 @@ bool read_ds18b20_sensors()
 
         if ((time(nullptr) - temperature_updated_ts) < SENSOR_VALUE_EXPIRE_TIME)
         {
-          //     Serial.printf("DEBUG Sensor %d, DEVICE_DISCONNECTED_RAW\n", j);
           vars.set_NA(VARIABLE_SENSOR_1 + j);
         }
       }
@@ -3371,7 +3373,7 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
   }
   return (valid_values == 2);
 
-} // read_inverter_fronius
+} //
 #endif
 
 #ifdef INVERTER_SMA_MODBUS_ENABLED
@@ -3524,7 +3526,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
     return false;
   }
   mb.task();
-} // read_inverter_sma_data
+}
 #endif
 
 /**
@@ -3534,14 +3536,15 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
  * @return true
  * @return false
  */
-bool read_inverter(bool period_changed)
+bool read_inverter(long int &total_energy)
 {
   // global: recorded_period_start_ts
-  // 4 globals updated: inverter_total_period_init, inverter_total_period_init_ok, energy_produced_period, power_produced_period_avg
-  long int total_energy = 0;
+  // globals updated: UPDATE inverter_total_period_init, energy_produced_period, power_produced_period_avg
+  // long int total_energy = 0;
   long int current_power = 0;
-
   bool read_ok = false;
+  bool period_changed_since_last_read = ((productionm_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+
   yield();
   if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
   {
@@ -3551,35 +3554,27 @@ bool read_inverter(bool period_changed)
   {
     read_ok = read_inverter_sma_data(total_energy, current_power);
   }
-  // TODO: now we have full measurement for the last period, time to store values/rotate before energy_produced_period is zero
-  // experimental
-  // E if (period_changed)
-  // E {
-  // E  inverter_read_count_period = 0;
-  // E }
-  // E inverter_read_count_period++;
 
   if (read_ok)
   {
     yield();
-
-    time(&productionm_read_last_ts);
-    if (period_changed || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
-    // E if ((inverter_read_count_period==2) || !inverter_total_period_init_ok) // new period or earlier reads in this period were unsuccessfull
+    if (period_changed_since_last_read) // new period or earlier reads in this period were unsuccessfull
     {
-      Serial.println(F("PERIOD CHANGED"));
-      inverter_total_period_init = total_energy;
-      inverter_total_period_init_ok = true;
+      if (productionm_read_last == 0) // first read after boot,  initiate
+      {
+        productionm_read_last = total_energy;
+      }
+      Serial.println(F("read_inverter period_changed_since_last_read"));
+      inverter_total_period_init = productionm_read_last; // last reading from previous period
     }
     energy_produced_period = total_energy - inverter_total_period_init;
   }
   else
   { // read was not ok
     Serial.println(F("Cannot read from the inverter."));
-    if (period_changed)
+    if (period_changed_since_last_read)
     {
-      inverter_total_period_init = 0;
-      inverter_total_period_init_ok = false;
+      //  inverter_total_period_init = 0;  //TODO: check is the same logic is in em also
       energy_produced_period = 0;
     }
   }
@@ -3593,7 +3588,7 @@ bool read_inverter(bool period_changed)
   Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
   yield();
   return read_ok;
-} // read_inverter
+}
 
 /**
  * @brief Updates global variables based on date, time or time based tariffs
@@ -3693,6 +3688,7 @@ void calculate_meter_based_variables()
       Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; prod %ld , channels %ld , baseload so far %ld  \n", vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE), (long)energy_produced_period, vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0), baseload_energy_period_sofar);
     };
   }
+  yield();
 #endif
 }
 
@@ -3721,7 +3717,6 @@ void calculate_forecast_variables()
   float pv_value = 0;
   bool got_future_prices = false;
 
-  // moved for loop()
   long period_solar_rank = -1;
   if (solar_forecast.start() != 0) // do we have the location & data
     period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start_ts, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
@@ -3733,13 +3728,14 @@ void calculate_forecast_variables()
   vars.set_NA(VARIABLE_PVFORECAST_SUM24);
   vars.set_NA(VARIABLE_PVFORECAST_VALUE24);
   vars.set_NA(VARIABLE_PVFORECAST_AVGPRICE24);
+  yield();
+
   // FORECAST_TYPE_FI_LOCAL_SOLAR
   //  next 24 h
   if (solar_forecast.start() != 0)
   {
     for (time_t period = current_period_start_ts; period < current_period_start_ts + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
     {
-
       price = prices2.get(period, VARIABLE_LONG_UNKNOWN);
       if (price != VARIABLE_LONG_UNKNOWN)
       {
@@ -3750,6 +3746,7 @@ void calculate_forecast_variables()
         got_future_prices = true; // we got some price data
         //  Serial.printf("j: %d, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
       }
+      yield();
     }
     // TODO: currently not levelized with
     if (got_future_prices)
@@ -3774,6 +3771,7 @@ void calculate_forecast_variables()
 
     vars.set(VARIABLE_WIND_AVG_DAY1B_FI, (long)wind_forecast.avg(this_block_starts + 24 * SECONDS_IN_HOUR, this_block_starts + (24 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
     vars.set(VARIABLE_WIND_AVG_DAY2B_FI, (long)wind_forecast.avg(this_block_starts + 48 * SECONDS_IN_HOUR, this_block_starts + (48 + DAY_BLOCK_SIZE_HOURS - 1) * SECONDS_IN_HOUR));
+    yield();
   }
 }
 
@@ -3786,6 +3784,11 @@ windows/blocks are defined in variable price_variable_blocks, e.g. next 9 hours 
  */
 void calculate_price_rank_variables()
 {
+  int rank;
+  long price_ratio_avg;
+
+  int32_t window_price_avg;
+  int32_t price_differs_avg;
   time_t now_infunc;
   time(&now_infunc);
   time_t current_period_start_ts = get_netting_period_start_time(time(nullptr));
@@ -3817,6 +3820,7 @@ void calculate_price_rank_variables()
     vars.set_NA(VARIABLE_PRICERANK_FIXED_8_BLOCKID);
 
     vars.set_NA(VARIABLE_AVGPRICE24_EXCEEDS_CURRENT);
+    yield();
 
     return;
   }
@@ -3828,21 +3832,13 @@ void calculate_price_rank_variables()
       log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
   }
 
-  int rank;
-  long price_ratio_avg;
-
-  int32_t window_price_avg;
-  int32_t price_differs_avg;
-
   localtime_r(&current_period_start_ts, &tm_struct_l);
 
-  delay(5);
   vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc) + 50) / 100));
-
   Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
+  yield();
 
   // 9 h sliding
-
   time_t last_ts_in_window = min(current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
@@ -3852,9 +3848,9 @@ void calculate_price_rank_variables()
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
   vars.set(VARIABLE_PRICEDIFF_9, (long)round_divide(price_differs_avg, 100));
   vars.set(VARIABLE_PRICERATIO_9, (long)price_ratio_avg);
+  yield();
 
   // 24 h sliding
-
   last_ts_in_window = min(current_period_start_ts + 23 * prices2.resolution_sec(), prices2.last_set_period());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
@@ -3864,6 +3860,7 @@ void calculate_price_rank_variables()
   vars.set(VARIABLE_PRICEAVG_24, (long)round_divide(window_price_avg, 100));
   vars.set(VARIABLE_PRICEDIFF_24, (long)round_divide(price_differs_avg, 100));
   vars.set(VARIABLE_PRICERATIO_24, (long)price_ratio_avg);
+  yield();
 
   // 24 h fixed nychthemeron
 
@@ -3873,27 +3870,25 @@ void calculate_price_rank_variables()
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
-
   vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
+  yield();
 
   // 8 h blocks
   int block_idx = (int)((HOURS_IN_DAY + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) / DAY_BLOCK_SIZE_HOURS) % (HOURS_IN_DAY / DAY_BLOCK_SIZE_HOURS);
   int block_start_before_this_idx = (HOURS_IN_DAY + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
-
   first_ts_in_window = current_period_start_ts - PRICE_RESOLUTION_SEC * block_start_before_this_idx;
   last_ts_in_window = first_ts_in_window + 7 * PRICE_RESOLUTION_SEC;
   rank = prices2.get_period_rank(current_period_start_ts, first_ts_in_window, last_ts_in_window);
   Serial.printf("New way 8 h block rank %ld\n", (long)rank);
-
   vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
+  yield();
 
   if (vars.is_set(VARIABLE_PVFORECAST_AVGPRICE24) && vars.is_set(VARIABLE_PRICE))
     vars.set(VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, (long)vars.get_l(VARIABLE_PVFORECAST_AVGPRICE24) - (vars.get_l(VARIABLE_PRICE)));
   else
     vars.set_NA(VARIABLE_AVGPRICE24_EXCEEDS_CURRENT);
-
   return;
 }
 /**
@@ -4239,7 +4234,6 @@ bool get_price_data_entsoe()
 
   Serial.println("request sent");
 
-
   bool save_on = false;
   bool read_ok = false;
   while (client_https.connected())
@@ -4413,6 +4407,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
   doc["CHANNEL_CONDITIONS_MAX"] = CHANNEL_CONDITIONS_MAX;
 
+  doc["NETTING_PERIOD_SEC"] = NETTING_PERIOD_SEC; // this could be also from /settings, but should not change so often anyway
+
   // some debug info
   doc["ts"] = time(nullptr);
   doc["free_heap"] = ESP.getFreeHeap();
@@ -4564,26 +4560,56 @@ void read_energy_meter()
  * @brief Read  production info from an inverter
  *
  */
+// TODO: consider one less nesting level, i.e. combine read_production_meter & read_inverter - done
 void read_production_meter()
 {
-  bool read_ok;
+  bool read_ok = false;
+  bool internet_connection_ok = false;
+  long int total_energy = 0;
+  long int current_power = 0;
+  bool period_changed_since_last_read = ((productionm_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+
   Serial.println("read_production_meter");
   yield();
-  if (s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR or (s.production_meter_type == PRODUCTIONM_SMA_MODBUS_TCP))
-  {
-#if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-    read_ok = read_inverter(period_changed);
-#endif
-  }
-  else
-  {
+  if (s.production_meter_type != PRODUCTIONM_FRONIUS_SOLAR || (s.production_meter_type != PRODUCTIONM_SMA_MODBUS_TCP))
     return; // NO ENERGY METER DEFINED, function should not be called
-  }
-  bool internet_connection_ok = false;
-  if (read_ok)
-    productionm_read_last_ts = time(nullptr);
-  else
+
+#if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
+  // read_ok = read_inverter(total_energy);  // code was inserted here to remove one nesting level
+  yield();
+  if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
   {
+    read_ok = read_inverter_fronius_data(total_energy, current_power);
+  }
+  else if (s.production_meter_type == PRODUCTIONM_SMA_MODBUS_TCP)
+  {
+    read_ok = read_inverter_sma_data(total_energy, current_power);
+  }
+
+  if (read_ok)
+  {
+    yield();
+    if (period_changed_since_last_read) // new period or earlier reads in this period were unsuccessfull
+    {
+      if (productionm_read_last == 0) // first read after boot,  initiate
+      {
+        productionm_read_last = total_energy;
+      }
+      Serial.println(F("read_production_meter period_changed_since_last_read"));
+      inverter_total_period_init = productionm_read_last; // last reading from previous period
+    }
+    energy_produced_period = total_energy - inverter_total_period_init;
+    productionm_read_last_ts = time(nullptr);
+    productionm_read_last = total_energy;
+  }
+  else
+  { // read was not ok
+    Serial.println(F("Cannot read from the inverter."));
+    if (period_changed_since_last_read)
+    {
+      //  inverter_total_period_init = 0;  //TODO: check is the same logic is in em also
+      energy_produced_period = 0;
+    }
     yield();
     if ((productionm_read_last_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr)))
     {                   // 3 minutes since last succesful read before logging
@@ -4597,6 +4623,18 @@ void read_production_meter()
         log_msg(MSG_TYPE_ERROR, PSTR("Failed to read production meter. Check Wifi, internet connection and the meter."));
     }
   }
+
+  long int time_since_recording_period_start = time(nullptr) - recorded_period_start_ts;
+  if (time_since_recording_period_start > USE_POWER_TO_ESTIMATE_ENERGY_SECS) // in the beginning of period use current power to estimate energy generated
+    power_produced_period_avg = energy_produced_period * 3600 / time_since_recording_period_start;
+  else
+    power_produced_period_avg = current_power;
+
+  Serial.printf("energy_produced_period: %ld , time_since_recording_period_start: %ld , power_produced_period_avg: %ld , current_power:  %ld\n", energy_produced_period, time_since_recording_period_start, power_produced_period_avg, current_power);
+  yield();
+
+#endif
+  ;
 
   yield();
 }
@@ -5004,10 +5042,10 @@ void update_channel_states()
       chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
       s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state; // set
     }
-
+    yield();
   } // channel loop
 
-  /* experimental
+  /* experimental code  VARIABLE_BEEN_UP_AGO_HOURS_0
   // first test, move to channel loop when ready
   time_t since_last_up_secs = time(nullptr) - s.ch[0].up_last_ts;
   if (since_last_up_secs<0 || since_last_up_secs> (SECONDS_IN_DAY*30)) {
@@ -6412,6 +6450,11 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
   if (doc["action"] == "restart")
   {
     todo_in_loop_restart_local = true;
+    // expire caches
+    prices2.save_to_cache(0); 
+    solar_forecast.save_to_cache(0);
+    wind_forecast.save_to_cache(0);
+    
   }
   if (doc["action"] == "scan_sensors")
   {
@@ -6571,7 +6614,7 @@ void onWebSeriesGet(AsyncWebServerRequest *request)
 #define LOOP_WATCHDOG_ENABLED
 #ifdef LOOP_WATCHDOG_ENABLED
 #define BOOT_AFTER_NO_LOOP_START 300000000 // microseconds 5 mins
-static uint64_t last_loop_started = 0;     // loop() watchdog
+static uint64_t last_loop_started = 0;     //
 
 void check_loop_is_called()
 {
@@ -6718,8 +6761,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["last_msg_msg"] = last_msg.msg;
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
-  doc["energym_read_last"] = energym_read_last_ts;
-  doc["productionm_read_last"] = productionm_read_last_ts;
+  doc["energym_read_last_ts"] = energym_read_last_ts;
+  doc["productionm_read_last_ts"] = productionm_read_last_ts;
   doc["next_process_in"] = max((long)0, (long)next_process_ts - time(nullptr));
 
 #ifdef LOAD_MGMT_ENABLED
@@ -6877,10 +6920,9 @@ void setup()
   // experimental, define OnReceive in the beginning, maybe get time from that
   if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
   {
-    Serial.println("Initializing Serial2 ffoor HAN P1 read.");
+    Serial.println("Initializing Serial2 for HAN P1 read.");
 
     Serial2.setRxBufferSize(SERIAL2_SIZE_RX);
-    // Serial2.begin(115200, SERIAL_8N1, RXD2, -1); // Hardware Serial of ESP32
     Serial2.begin(115200, SERIAL_8N1, s.energy_meter_gpio, -1); // Hardware Serial of ESP32
     Serial2.onReceive(read_meter_han_direct, false);            // sets a RX callback function for Serial 2
   }
@@ -7180,9 +7222,6 @@ void setup()
 
   Serial.println(F("setup() ended."));
 
-  // 1.1Experimental, removed, we do not have time yet...
-  //   calculate_time_based_variables();
-
 #ifdef LOOP_WATCHDOG_ENABLED
   // watchdog loop
   xTaskCreatePinnedToCore(loop_watchdog, "loop_watchdog", 1000, NULL, 0, NULL, 1); //  0 - wifi,ble, 1 - user
@@ -7328,7 +7367,7 @@ void loop()
   if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
   {
     delay(1000);
-    return; 
+    return;
     //  <<--******* no other operations allowed before the clock is set
   }
   else if (started_ts == 0) // we have clock set
@@ -7362,7 +7401,7 @@ void loop()
     next_query_fcst_data_ts = time(nullptr);
     recorded_period_start_ts = started_ts;
     current_period_start_ts = get_netting_period_start_time(started_ts);
-    return; // end this round, optional
+    period_changed = true;
   }
 
   // Below business logic actions that require clock in time -->
@@ -7416,17 +7455,21 @@ void loop()
     io_tasks(STATE_PROCESSING);
 
     if (strncmp(s.entsoe_area_code, "#", 1) == 0)
+    {
       got_price_ok = false; // no area code, not price query
+    }
     else
     {
+
 #ifdef PRICE_ELERING_ENABLED
       if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-        got_price_ok = get_price_data_elering(); // experimental
+        got_price_ok = get_price_data_elering();
       else
         got_price_ok = get_price_data_entsoe();
 #else
       got_price_ok = get_price_data_entsoe();
 #endif
+      delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     }
     io_tasks(STATE_PROCESSING);
     // todo_in_loop_update_price_rank_variables = got_price_ok;
@@ -7442,7 +7485,10 @@ void loop()
   {
     io_tasks(STATE_PROCESSING);
     got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
+    delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
+    delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+
     todo_calculate_ranks_period_variables = true;
     next_query_fcst_data_ts = time(nullptr) + (got_forecast_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));
   }
@@ -7457,12 +7503,11 @@ void loop()
   }
 
   // new period
-  if (previous_period_start != current_period_start_ts)
+  if (previous_period_start_ts != get_netting_period_start_time(time(nullptr)))
   {
-    Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start, current_period_start_ts, grid_protection_delay_interval);
     period_changed = true;
-    next_energym_read_ts = time(nullptr) + 5; // tämä lisätty 28.10.2023 tai jotain..., debug info, +5 lisätty kokeeksi
-    next_process_ts = time(nullptr);          // process now if new period
+    next_energym_read_ts = time(nullptr); // tämä lisätty 28.10.2023 tai jotain..., debug info,
+    next_process_ts = time(nullptr);      // process now if new period
 
     // update period info
     current_period_start_ts = get_netting_period_start_time(time(nullptr));
@@ -7473,6 +7518,8 @@ void loop()
     calculate_time_based_variables();
     calculate_price_rank_variables();
     calculate_forecast_variables();
+
+    Serial.printf("\nPeriod changed %ld -> %ld, grid protection delay %d secs\n", previous_period_start_ts, current_period_start_ts, grid_protection_delay_interval);
   }
 
 #ifdef INFLUX_REPORT_ENABLED
@@ -7491,9 +7538,8 @@ void loop()
     calculate_price_rank_variables();
     delay(1000);
     calculate_forecast_variables();
-    return;
   }
-  // <-- Todo tasks (time must be set) - 
+  // <-- Todo tasks (time must be set) -
 
   // Scheduled tasks -->
   // Meter polling could be shorter than normal processing frequency
@@ -7526,27 +7572,29 @@ void loop()
     set_relays(true); // grid protection delay active
   }
 
+  // finalize period change
   if (period_changed)
   {
+    Serial.printf("Finishing period_changed previous_period_start_ts %ld, current_period_start_ts %ld \n", previous_period_start_ts, current_period_start_ts);
 #ifdef INFLUX_REPORT_ENABLED
-    if (previous_period_start != 0)
+    if (previous_period_start_ts != 0)
     {
       // add values from the last period to the influx buffer and schedule writing to the influx db
       // we still must have old period variable values set
-      //   add_period_variables_to_influx_buffer(previous_period_start + (NETTING_PERIOD_SEC / 2));
-      add_period_variables_to_influx_buffer(previous_period_start);
-      //  ch_counters.new_log_period(previous_period_start + (NETTING_PERIOD_SEC / 2));
-      ch_counters.new_log_period(previous_period_start);
+      add_period_variables_to_influx_buffer(previous_period_start_ts);
+      ch_counters.new_log_period(previous_period_start_ts);
       todo_in_loop_influx_write = true;
     }
 #endif
 
-    previous_period_start = current_period_start_ts;
+    previous_period_start_ts = current_period_start_ts;
+    Serial.printf("Finishing period_changed B previous_period_start_ts %ld, current_period_start_ts %ld \n", previous_period_start_ts, current_period_start_ts);
+
     period_changed = false;
   }
-  // <-- Scheduled tasks 
+  // <-- Scheduled tasks
 
-  // Tasks that should be run 
+  // Tasks that should be run
 #ifdef INVERTER_SMA_MODBUS_ENABLED
   mb.task(); // process modbuss event queue
 #endif
