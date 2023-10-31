@@ -96,8 +96,6 @@ double loadm_current[3] = {0, 0, 0};
 int64_t meter_ts;
 
 uint32_t now_period;
-float netPowerInPeriod_g; // short/no history, using momentary value
-float netEnergyInPeriod_g = 0;
 
 #endif
 
@@ -264,7 +262,7 @@ bool rtc_found = false;
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
-// #pragma message("Testing with altered NETTING_PERIOD_SEC")
+//#pragma message("Testing with altered NETTING_PERIOD_SEC")
 #define NETTING_PERIOD_SEC 3600 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
 
 #define SECONDS_IN_HOUR 3600
@@ -697,9 +695,9 @@ bool sensor_ds18b20_enabled = false;
 
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
-#define PROCESS_INTERVAL_SECS 60 // process interval
-time_t next_process_ts = 0;      // start reading as soon as you get to first loop
-time_t next_energym_read_ts = 0; // start reading as soon as you get to first loop
+#define PROCESS_INTERVAL_SECS 60      // process interval
+time_t next_process_ts = 0;           // start reading as soon as you get to first loop
+time_t next_energy_meter_read_ts = 0; // start reading as soon as you get to first loop
 
 // experimental 0.93
 int grid_protection_delay_max = 0;  // TODO: still disabled (=0),later set to admin parameters
@@ -709,12 +707,35 @@ time_t recorded_period_start_ts = 0; // first period: boot time, later period st
 time_t current_period_start_ts = 0;  //!< updated in loop
 time_t previous_period_start_ts = 0;
 time_t day_start_local = 0; //<! epoch time stamp of 00:00 in local time, TODO: DST change days
-uint32_t read_energy_meter_started_ms = 0;
-time_t energym_read_last_ts = 0;
-time_t productionm_read_last_ts = 0; //!< ts of last succesfull inverter read
-long int productionm_read_last = 0;  //!< last succesfull inverter value
+
 time_t started_ts = 0;
 bool period_changed = true;
+
+time_t production_meter_read_last_ts = 0; //!< ts of last succesfull inverter read
+long int production_meter_read_last = 0;  //!< last succesfull inverter value
+
+// uint32_t energy_meter_last_period = 0;
+uint32_t energy_meter_last_read_started_ms = 0;
+time_t energy_meter_read_last_ts = 0;
+time_t energy_meter_period_first_read_ts = 0;
+time_t energy_meter_read_ts = 0; //!< Last time meter was read successfully
+
+double energy_meter_period_first_in = 0;  //!< Energy meter import value in the end of last period
+double energy_meter_period_first_out = 0; //!< Energy meter export value in the end of last period
+
+double energy_meter_value_latest_in = 0;  //!< Energy meter last import value
+double energy_meter_value_latest_out = 0; //!< Energy meter last export value
+
+double energy_meter_value_previous_in = 0;  //!< Energy meter last import value
+double energy_meter_value_previous_out = 0; //!< Energy meter last export value
+
+float energy_meter_power_in = 0;    //!< Energy meter last momentary power value
+float energy_meter_period_power_in; // short/no history, using momentary value
+float energy_meter_period_energy_in = 0;
+
+uint32_t energy_meter_period_read_count = 0;
+uint32_t energy_meter_read_ok_count = 0;
+uint32_t energy_meter_read_all_count = 0;
 
 // task requests to be fullfilled in loop asyncronously
 // bool todo_in_loop_update_price_rank_variables = false;
@@ -734,7 +755,7 @@ bool todo_in_loop_update_firmware_partition = false;
 bool todo_in_loop_reapply_relay_states = false;
 bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters have been changed and r
 
-bool todo_in_loop_process_meter_readings = false; //!< do rest of the energy meter processing in the loop
+bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
@@ -817,14 +838,13 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
 #define PRODUCTIONM_SMA_MODBUS_TCP 2
 
 // Type texts for config ui - now hardcoded in html
-// const char *energym_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
+// const char *energy_meter_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
 uint32_t inverter_total_period_init = 0;
 long inverter_total_value_last = 0; // compare reading with previous, validity check
-// bool inverter_total_period_init_ok = false; removed, productionm_read_last_ts handles
-//  E uint16_t inverter_read_count_period = 0;
+
 uint32_t energy_produced_period = 0;
 uint32_t power_produced_period_avg = 0;
 #endif
@@ -2863,46 +2883,35 @@ bool read_ds18b20_sensors()
 #define RESTART_AFTER_LAST_OK_METER_READ 18000 //!< If all energy meter readings are failed within this period, restart the device
 #define WARNING_AFTER_FAILED_READING_SECS 240  //!< If all energy/production meter readings are failed within this period, log/react
 
-uint32_t energym_last_period = 0;
-time_t energym_period_first_read_ts = 0;
-time_t energym_meter_read_ts = 0; //!< Last time meter was read successfully
-uint32_t energym_read_ok_count = 0;
-uint32_t energym_read_all_count = 0;
-double energym_e_in_prev = 0;  //!< Energy meter import value in the end of last period
-double energym_e_out_prev = 0; //!< Energy meter export value in the end of last period
-double energym_e_in = 0;       //!< Energy meter last import value
-double energym_e_out = 0;      //!< Energy meter last export value
-float energym_power_in = 0;    //!< Energy meter last momentary power value
-uint32_t energym_period_read_count = 0;
-
-void get_energym_period_values_g()
+/*
+void calculate_energy_meter_period_values()
 {
-  // Serial.printf("DEBUG: get_energym_period_values_g energym_read_ok_count %d, netPowerInPeriod_g %f \n", energym_read_ok_count, (float)netPowerInPeriod_g);
-  if (energym_read_ok_count < 2)
+  // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_in %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_in);
+  if (energy_meter_read_ok_count < 2)
   {
-    netPowerInPeriod_g = energym_power_in; // short/no history, using momentary value
-    netEnergyInPeriod_g = 0;
+    energy_meter_period_power_in = energy_meter_power_in; // short/no history, using momentary value
+    energy_meter_period_energy_in = 0;
   }
   else
   {
-    netEnergyInPeriod_g = (energym_e_in - energym_e_out - energym_e_in_prev + energym_e_out_prev);
+    energy_meter_period_energy_in = (energy_meter_value_latest_in - energy_meter_value_latest_out - energy_meter_period_first_in + energy_meter_period_first_out);
 #ifdef DEBUG_MODE
-//    Serial.printf("get_energym_period_values netEnergyInPeriod_g (%.1f) = (energym_e_in (%.1f) - energym_e_out (%.1f) - energym_e_in_prev (%.1f) + energym_e_out_prev (%.1f))\n", netEnergyInPeriod_g, energym_e_in, energym_e_out, energym_e_in_prev, energym_e_out_prev);
+//    Serial.printf("get_energy_meter_period_values energy_meter_period_energy_in (%.1f) = (energy_meter_value_latest_in (%.1f) - energy_meter_value_latest_out (%.1f) - energy_meter_period_first_in (%.1f) + energy_meter_period_first_out (%.1f))\n", energy_meter_period_energy_in, energy_meter_value_latest_in, energy_meter_value_latest_out, energy_meter_period_first_in, energy_meter_period_first_out);
 #endif
-    if ((energym_meter_read_ts - energym_period_first_read_ts) != 0)
+    if ((energy_meter_read_ts - energy_meter_period_first_read_ts) != 0)
     {
-      netPowerInPeriod_g = round(netEnergyInPeriod_g * 3600.0 / ((energym_meter_read_ts - energym_period_first_read_ts)));
+      energy_meter_period_power_in = round(energy_meter_period_energy_in * 3600.0 / ((energy_meter_read_ts - energy_meter_period_first_read_ts)));
 #ifdef DEBUG_MODE
-//      Serial.printf("get_energym_period_values netPowerInPeriod_g (%.1f) = round(netEnergyInPeriod_g (%.1f) * 3600.0 / (( energym_meter_read_ts (%ld) - energym_period_first_read_ts (%ld) )))  --- time %ld\n", netPowerInPeriod_g, netEnergyInPeriod_g, energym_meter_read_ts, energym_period_first_read_ts, (energym_meter_read_ts - energym_period_first_read_ts));
+//      Serial.printf("get_energy_meter_period_values energy_meter_period_power_in (%.1f) = round(energy_meter_period_energy_in (%.1f) * 3600.0 / (( energy_meter_read_ts (%ld) - energy_meter_period_first_read_ts (%ld) )))  --- time %ld\n", energy_meter_period_power_in, energy_meter_period_energy_in, energy_meter_read_ts, energy_meter_period_first_read_ts, (energy_meter_read_ts - energy_meter_period_first_read_ts));
 #endif
     }
     else // Do we ever get here with counter check
     {
-      netPowerInPeriod_g = 0;
+      energy_meter_period_power_in = 0;
     }
   }
 }
-
+*/
 #ifdef LOAD_MGMT_ENABLED
 void set_relays(bool grid_protection_delay_used); // defined later
 
@@ -2940,12 +2949,16 @@ float check_current_load()
 }
 
 #endif
+
 // update variable etc...
-void process_meter_readings()
+// postprocessing after succesfully received measure date
+void process_energy_meter_readings()
 {
-  energym_meter_read_ts = time(nullptr);
-  energym_read_ok_count++; // global
-  energym_period_read_count++;
+  bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+  energy_meter_read_ok_count++; // global
+  energy_meter_period_read_count++;
+  time_t energy_meter_read_previous_ts = energy_meter_read_ts;
+  energy_meter_read_ts = time(nullptr);
 
 #ifdef LOAD_MGMT_ENABLED
   if (s.loadm_active)
@@ -2958,9 +2971,9 @@ void process_meter_readings()
   Serial.print("W (in), ");
   Serial.print(power_out);
   Serial.println("W (out), ");
-  Serial.print(energym_e_in);
+  Serial.print(energy_meter_value_latest_in);
   Serial.print("Wh (in), ");
-  Serial.print(energym_e_out);
+  Serial.print(energy_meter_value_latest_out);
   Serial.println("Wh (out), ");
   Serial.print(loadm_current[0]);
   Serial.print("A, ");
@@ -2969,36 +2982,55 @@ void process_meter_readings()
   Serial.print(loadm_current[2]);
   Serial.println("A");
 
-  //  Serial.printf("HAN readings: power_in %f W, power_out %f W, energym_e_in %f Wh, energym_e_out %f Wh, [%f A, %f A, %f A]", power_in, power_out, energym_e_in, energym_e_out, loadm_current[0], loadm_current[1], loadm_current[2]);
+  //  Serial.printf("HAN readings: power_in %f W, power_out %f W, energy_meter_value_latest_in %f Wh, energy_meter_value_latest_out %f Wh, [%f A, %f A, %f A]", power_in, power_out, energy_meter_value_latest_in, energy_meter_value_latest_out, loadm_current[0], loadm_current[1], loadm_current[2]);
 
-  // first succesful query since boot
-  if (energym_last_period == 0)
+  // first succesfull since boot
+  if (energy_meter_read_previous_ts == 0)
   {
-    energym_last_period = now_period;
-    energym_period_first_read_ts = energym_meter_read_ts;
-    energym_e_in_prev = energym_e_in;
-    energym_e_out_prev = energym_e_out;
+    energy_meter_period_first_read_ts = time(nullptr);
+    energy_meter_period_first_in = energy_meter_value_latest_in;
+    energy_meter_period_first_out = energy_meter_value_latest_out;
+/*
+    Serial.println("DEBUG EKA energy_meter_period_first_read_ts/energy_meter_period_first_in/energy_meter_period_first_out");
+    Serial.println(energy_meter_period_first_read_ts);
+    Serial.println(energy_meter_period_first_in);
+    Serial.println(energy_meter_period_first_out);
+    */
+
+    return; // skip other processing in the first measurement
   }
 
+  if (period_changed_since_last_read)
+  {
+    energy_meter_period_first_read_ts = energy_meter_read_previous_ts; // earlier
+    energy_meter_period_first_in = energy_meter_value_previous_in;
+    energy_meter_period_first_out = energy_meter_value_previous_out;
+  }
+ 
   yield();
-  get_energym_period_values_g();
-  vars.set(VARIABLE_OVERPRODUCTION, (long)(netEnergyInPeriod_g < 0) ? 1L : 0L);
-  vars.set(VARIABLE_SELLING_POWER, (long)round(-netPowerInPeriod_g));
-  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-netEnergyInPeriod_g));
-  vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)round(-netEnergyInPeriod_g));
-  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energym_power_in)); // momentary
+
+  // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_in %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_in);
+
+  energy_meter_period_energy_in = (energy_meter_value_latest_in - energy_meter_value_latest_out - energy_meter_period_first_in + energy_meter_period_first_out);
+  energy_meter_period_power_in = round(energy_meter_period_energy_in * 3600.0 / ((energy_meter_read_ts - energy_meter_period_first_read_ts)));
+
+  vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_energy_in < 0) ? 1L : 0L);
+  vars.set(VARIABLE_SELLING_POWER, (long)round(-energy_meter_period_power_in));
+  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-energy_meter_period_energy_in));
+  vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)round(-energy_meter_period_energy_in));
+  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energy_meter_power_in)); // momentary
 
   // history
   // net_imports[MAX_HISTORY_PERIODS - 1] = -vars.get_f(VARIABLE_SELLING_POWER);
 
-  if (energym_last_period != now_period)
-  {
-    energym_period_first_read_ts = energym_meter_read_ts;
-    energym_last_period = now_period;
-  }
-}
-#ifdef METER_HAN_ENABLED
+  // if (energy_meter_last_period != now_period)
 
+  energy_meter_value_previous_in = energy_meter_value_latest_in;
+  energy_meter_value_previous_out = energy_meter_value_latest_out;
+}
+
+
+#ifdef METER_HAN_ENABLED
 bool get_han_ts(String *strp, int64_t *returned)
 {
   if (!strp->startsWith("0-0:1.0.0("))
@@ -3026,9 +3058,9 @@ bool get_han_ts(String *strp, int64_t *returned)
   time_t ts_age_s = time(nullptr) - (*returned);
   Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
   // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
-  if ((energym_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
+  if ((energy_meter_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
   {
-    next_energym_read_ts -= 1;
+    next_energy_meter_read_ts -= 1;
     Serial.println("Tuning polling time ***.");
   }
 
@@ -3071,10 +3103,10 @@ bool parse_han_row(String *row_in_p)
   if (get_han_dbl(row_in_p, "1-0:2.7.0", &power_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energym_e_in))
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_value_latest_in))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energym_e_out))
+  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_value_latest_out))
     return true;
 
   if (get_han_dbl(row_in_p, "1-0:31.7.0", &loadm_current[0]))
@@ -3089,7 +3121,7 @@ bool parse_han_row(String *row_in_p)
   return false;
 }
 
-bool read_meter_han_direct() // direct
+bool receive_energy_meter_han_direct() // direct
 {
   String row_in;
   int value_count = 0;
@@ -3099,20 +3131,23 @@ bool read_meter_han_direct() // direct
   size_t available = Serial2.available();
   Serial.printf("\n%d bytes available, ts:  ", (int)available);
 
-  now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
+  // now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
 
-  yield();
-  if (energym_last_period != now_period)
+
+/*
+  // if (energy_meter_last_period != now_period)
+  if (period_changed_since_last_read)
   {
-    energym_period_read_count = 0;
+    energy_meter_period_read_count = 0;
   }
 
-  if ((energym_last_period > 0) && energym_period_read_count == 1)
+  if ((energy_meter_read_ts > 0) && energy_meter_period_read_count == 1)
   { // new period
     // from this call
-    energym_e_in_prev = energym_e_in;
-    energym_e_out_prev = energym_e_out;
+    energy_meter_period_first_in = energy_meter_value_latest_in;
+    energy_meter_period_first_out = energy_meter_value_latest_out;
   }
+*/
   yield();
 
   while (Serial2.available()) // SerialPort
@@ -3127,15 +3162,11 @@ bool read_meter_han_direct() // direct
     Serial.println("Cannot read all HAN P1 port values \n");
     return false;
   }
-  else
-  {
-    energym_read_last_ts = time(nullptr);
-  }
-  yield();
-  energym_power_in = power_in - power_out;
+
+  energy_meter_power_in = power_in - power_out;
   // read done
 
-  todo_in_loop_process_meter_readings = true; // do rest of the processing in the loop
+  todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
   yield();
   return true;
 }
@@ -3147,7 +3178,7 @@ bool read_meter_han_direct() // direct
  * @return true
  * @return false
  */
-bool read_meter_han_wifi()
+bool read_energy_meter_han_wifi()
 {
   char url[90];
   snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
@@ -3157,19 +3188,20 @@ bool read_meter_han_wifi()
   String telegram = httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL);
   yield();
 
-  now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
-  yield();
-
-  if (energym_last_period != now_period)
+  //now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
+  //yield();
+/*
+  if (energy_meter_last_period != now_period)
   {
-    energym_period_read_count = 0;
+    energy_meter_period_read_count = 0;
   }
 
-  if ((energym_last_period > 0) && energym_period_read_count == 1)
+  if ((energy_meter_last_period > 0) && energy_meter_period_read_count == 1)
   { // new period
-    energym_e_in_prev = energym_e_in;
-    energym_e_out_prev = energym_e_out;
+    energy_meter_period_first_in = energy_meter_value_latest_in;
+    energy_meter_period_first_out = energy_meter_value_latest_out;
   }
+  */
   yield();
 
   int s_idx = 0, e_idx;
@@ -3177,8 +3209,8 @@ bool read_meter_han_wifi()
   Serial.printf("Length of telegram: %i\n", len);
 
   // read
-  energym_e_in = 0;
-  energym_e_out = 0;
+  energy_meter_value_latest_in = 0;
+  energy_meter_value_latest_out = 0;
   int value_count = 0;
 
   // new
@@ -3205,10 +3237,10 @@ bool read_meter_han_wifi()
   }
 
   yield();
-  energym_power_in = power_in - power_out;
+  energy_meter_power_in = power_in - power_out;
   // read done
 
-  process_meter_readings();
+  process_energy_meter_readings();
 
   yield();
   return true;
@@ -3224,7 +3256,7 @@ bool read_meter_han_wifi()
  * @param netEnergyInPeriod
  * @param netPowerInPeriod
  */
-bool read_meter_shelly3em()
+bool read_energy_meter_shelly3em()
 {
   now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
 
@@ -3258,27 +3290,26 @@ bool read_meter_shelly3em()
     Serial.println(error.f_str());
     return false;
   }
-
-  if (energym_last_period != now_period)
+/*
+  if (energy_meter_last_period != now_period)
   {
-    energym_period_read_count = 0;
-    Serial.println("DEBUG 3354 energym_period_read_count = 0");
+    energy_meter_period_read_count = 0;
   }
 
-  if ((energym_last_period > 0) && energym_period_read_count == 1)
+  if ((energy_meter_last_period > 0) && energy_meter_period_read_count == 1)
   { // new period
     Serial.println(F("****Shelly - new period counter reset"));
     // from this call
-    energym_e_in_prev = energym_e_in;
-    energym_e_out_prev = energym_e_out;
+    energy_meter_period_first_in = energy_meter_value_latest_in;
+    energy_meter_period_first_out = energy_meter_value_latest_out;
   }
-
+*/
   // read
   float power_tot = 0;
   int idx = 0;
   float power[3];
-  energym_e_in = 0;
-  energym_e_out = 0;
+  energy_meter_value_latest_in = 0;
+  energy_meter_value_latest_out = 0;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
     for (JsonObject emeter : doc["emeters"].as<JsonArray>())
@@ -3287,8 +3318,8 @@ bool read_meter_shelly3em()
       power_tot += power[idx];
       if (emeter["is_valid"])
       {
-        energym_e_in += (float)emeter["total"];
-        energym_e_out += (float)emeter["total_returned"];
+        energy_meter_value_latest_in += (float)emeter["total"];
+        energy_meter_value_latest_out += (float)emeter["total_returned"];
         loadm_current[idx] = (double)emeter["current"];
       }
       idx++;
@@ -3297,15 +3328,15 @@ bool read_meter_shelly3em()
   else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
   {
     power_tot = 0; // not available in /status
-    energym_e_in = (float)doc["total_act"];
-    energym_e_out = (float)doc["total_act_ret"];
+    energy_meter_value_latest_in = (float)doc["total_act"];
+    energy_meter_value_latest_out = (float)doc["total_act_ret"];
   }
 
-  energym_power_in = power_tot;
+  energy_meter_power_in = power_tot;
 
   // read done
 
-  process_meter_readings();
+  process_energy_meter_readings();
 
   yield();
   return true;
@@ -3536,6 +3567,7 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power)
  * @return true
  * @return false
  */
+/*
 bool read_inverter(long int &total_energy)
 {
   // global: recorded_period_start_ts
@@ -3543,7 +3575,7 @@ bool read_inverter(long int &total_energy)
   // long int total_energy = 0;
   long int current_power = 0;
   bool read_ok = false;
-  bool period_changed_since_last_read = ((productionm_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+  bool period_changed_since_last_read = ((production_meter_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
 
   yield();
   if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
@@ -3560,12 +3592,12 @@ bool read_inverter(long int &total_energy)
     yield();
     if (period_changed_since_last_read) // new period or earlier reads in this period were unsuccessfull
     {
-      if (productionm_read_last == 0) // first read after boot,  initiate
+      if (production_meter_read_last == 0) // first read after boot,  initiate
       {
-        productionm_read_last = total_energy;
+        production_meter_read_last = total_energy;
       }
       Serial.println(F("read_inverter period_changed_since_last_read"));
-      inverter_total_period_init = productionm_read_last; // last reading from previous period
+      inverter_total_period_init = production_meter_read_last; // last reading from previous period
     }
     energy_produced_period = total_energy - inverter_total_period_init;
   }
@@ -3589,7 +3621,7 @@ bool read_inverter(long int &total_energy)
   yield();
   return read_ok;
 }
-
+*/
 /**
  * @brief Updates global variables based on date, time or time based tariffs
  *
@@ -3669,7 +3701,7 @@ void calculate_meter_based_variables()
 {
 #ifdef METER_SHELLY3EM_ENABLED
   // grid energy meter enabled
-  // functionality in read_meter_shelly3em
+  // functionality in read_energy_meter_shelly3em
 #endif
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
@@ -4501,24 +4533,25 @@ void onWebWifisGet(AsyncWebServerRequest *request)
  * @brief Read grid or production info from energy meter/inverter
  *
  */
+// see also receive_energy_meter_han_direct which handles incoming messages from HAN P1 port
 void read_energy_meter()
 {
   bool read_ok;
-  read_energy_meter_started_ms = millis();
-  energym_read_all_count++;
+  energy_meter_last_read_started_ms = millis();
+  energy_meter_read_all_count++;
 
   yield();
   // SHELLY
   if (s.energy_meter_type == ENERGYM_SHELLY3EM || s.energy_meter_type == ENERGYM_SHELLY_GEN2)
   {
 #ifdef METER_SHELLY3EM_ENABLED
-    read_ok = read_meter_shelly3em();
+    read_ok = read_energy_meter_shelly3em();
 #endif
   }
   else if (s.energy_meter_type == ENERGYM_HAN_WIFI)
   {
 #ifdef METER_HAN_ENABLED
-    read_ok = read_meter_han_wifi();
+    read_ok = read_energy_meter_han_wifi();
 #endif
   }
   // NO ENERGY METER DEFINED, function should not be called
@@ -4528,10 +4561,10 @@ void read_energy_meter()
   }
   bool internet_connection_ok = false;
   if (read_ok)
-    energym_read_last_ts = time(nullptr);
+    energy_meter_read_last_ts = time(nullptr);
   else
   {
-    if ((energym_read_last_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr))) // if specified time since last succesful read before logging/reacting
+    if ((energy_meter_read_last_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr))) // if specified time since last succesful read before logging/reacting
     {
       if (ping_enabled)
       {
@@ -4539,7 +4572,7 @@ void read_energy_meter()
       }
       if (internet_connection_ok)
         log_msg(MSG_TYPE_FATAL, PSTR("Internet connection ok, but cannot read energy meter. Check the meter."));
-      else if ((energym_read_last_ts + RESTART_AFTER_LAST_OK_METER_READ < time(nullptr)) && (energym_read_last_ts > 0))
+      else if ((energy_meter_read_last_ts + RESTART_AFTER_LAST_OK_METER_READ < time(nullptr)) && (energy_meter_read_last_ts > 0))
       { // connected earlier, but now many unsuccesfull reads
         WiFi.disconnect();
         log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter connections."), true);
@@ -4552,7 +4585,7 @@ void read_energy_meter()
         log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy meter. Check Wifi, internet connection and the meter."));
     }
   }
-  Serial.printf("read_energy_meter took %lu, ok %lu, failed %lu\n", millis() - read_energy_meter_started_ms, energym_read_ok_count, energym_read_all_count - energym_read_ok_count);
+  Serial.printf("read_energy_meter took %lu, ok %lu, failed %lu\n", millis() - energy_meter_last_read_started_ms, energy_meter_read_ok_count, energy_meter_read_all_count - energy_meter_read_ok_count);
 }
 //
 
@@ -4560,19 +4593,21 @@ void read_energy_meter()
  * @brief Read  production info from an inverter
  *
  */
-// TODO: consider one less nesting level, i.e. combine read_production_meter & read_inverter - done
 void read_production_meter()
 {
   bool read_ok = false;
   bool internet_connection_ok = false;
   long int total_energy = 0;
   long int current_power = 0;
-  bool period_changed_since_last_read = ((productionm_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+  bool period_changed_since_last_read = ((production_meter_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
 
   Serial.println("read_production_meter");
+
   yield();
-  if (s.production_meter_type != PRODUCTIONM_FRONIUS_SOLAR || (s.production_meter_type != PRODUCTIONM_SMA_MODBUS_TCP))
+  if (s.production_meter_type != PRODUCTIONM_FRONIUS_SOLAR && (s.production_meter_type != PRODUCTIONM_SMA_MODBUS_TCP))
+  {
     return; // NO ENERGY METER DEFINED, function should not be called
+  }
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
   // read_ok = read_inverter(total_energy);  // code was inserted here to remove one nesting level
@@ -4591,16 +4626,16 @@ void read_production_meter()
     yield();
     if (period_changed_since_last_read) // new period or earlier reads in this period were unsuccessfull
     {
-      if (productionm_read_last == 0) // first read after boot,  initiate
+      if (production_meter_read_last == 0) // first read after boot,  initiate
       {
-        productionm_read_last = total_energy;
+        production_meter_read_last = total_energy;
       }
       Serial.println(F("read_production_meter period_changed_since_last_read"));
-      inverter_total_period_init = productionm_read_last; // last reading from previous period
+      inverter_total_period_init = production_meter_read_last; // last reading from previous period
     }
     energy_produced_period = total_energy - inverter_total_period_init;
-    productionm_read_last_ts = time(nullptr);
-    productionm_read_last = total_energy;
+    production_meter_read_last_ts = time(nullptr);
+    production_meter_read_last = total_energy;
   }
   else
   { // read was not ok
@@ -4611,7 +4646,7 @@ void read_production_meter()
       energy_produced_period = 0;
     }
     yield();
-    if ((productionm_read_last_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr)))
+    if ((production_meter_read_last_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr)))
     {                   // 3 minutes since last succesful read before logging
       if (ping_enabled) // TODO: ping local gw
       {
@@ -5168,7 +5203,6 @@ bool get_price_data_elering()
 
   time_t start_ts, end_ts; // this is the epoch
   tm tm_struct;
-  time_t now_infunc;
   String line;
   int sep1, sep2;
   String ts_string, val_string;
@@ -5203,7 +5237,7 @@ bool get_price_data_elering()
     return false;
   }
   yield();
-  start_ts = now_infunc - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
+  start_ts = time(nullptr) - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 3;
 
   localtime_r(&start_ts, &tm_struct);
@@ -6761,8 +6795,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["last_msg_msg"] = last_msg.msg;
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
-  doc["energym_read_last_ts"] = energym_read_last_ts;
-  doc["productionm_read_last_ts"] = productionm_read_last_ts;
+  doc["energy_meter_read_last_ts"] = energy_meter_read_last_ts;
+  doc["production_meter_read_last_ts"] = production_meter_read_last_ts;
   doc["next_process_in"] = max((long)0, (long)next_process_ts - time(nullptr));
 
 #ifdef LOAD_MGMT_ENABLED
@@ -6924,7 +6958,7 @@ void setup()
 
     Serial2.setRxBufferSize(SERIAL2_SIZE_RX);
     Serial2.begin(115200, SERIAL_8N1, s.energy_meter_gpio, -1); // Hardware Serial of ESP32
-    Serial2.onReceive(read_meter_han_direct, false);            // sets a RX callback function for Serial 2
+    Serial2.onReceive(receive_energy_meter_han_direct, false);  // sets a RX callback function for Serial 2
   }
 #endif
 
@@ -7284,6 +7318,7 @@ void loop()
       ESP.restart();
     }
   }
+
   if (todo_in_loop_write_to_eeprom)
   {
     todo_in_loop_write_to_eeprom = false;
@@ -7355,12 +7390,7 @@ void loop()
   }
 #endif
 
-  if (todo_in_loop_process_meter_readings)
-  {
-    todo_in_loop_process_meter_readings = false;
-    process_meter_readings();
-  }
-
+ 
   //
 
   // initial message
@@ -7404,7 +7434,15 @@ void loop()
     period_changed = true;
   }
 
-  // Below business logic actions that require clock in time -->
+  // Below business logic actions that require mcu clock in time -->
+
+  // process measurements
+   if (todo_in_loop_process_energy_meter_readings)
+  {
+    todo_in_loop_process_energy_meter_readings = false;
+    process_energy_meter_readings();
+  }
+
 
   // reapply current relay states (if relay parameters are changed)
   if (todo_in_loop_reapply_relay_states)
@@ -7495,10 +7533,10 @@ void loop()
 
 // new period coming, record last minute, launch only once in period end, EXPERIMENTAL
 #define ESTIMATED_LOOP_PROCESSING_TIME_A_SEC 10 // estimated time for (optional) meter polling + variable processing
-  if (get_netting_period_start_time(time(nullptr)) < get_netting_period_start_time(time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) && (millis() - read_energy_meter_started_ms > (ESTIMATED_LOOP_PROCESSING_TIME_A_SEC * 1000)))
+  if (get_netting_period_start_time(time(nullptr)) < get_netting_period_start_time(time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) && (millis() - energy_meter_last_read_started_ms > (ESTIMATED_LOOP_PROCESSING_TIME_A_SEC * 1000)))
   {
     Serial.printf("\nForcing processing before period change %ld\n", time(nullptr));
-    next_energym_read_ts = time(nullptr);
+    next_energy_meter_read_ts = time(nullptr);
     next_process_ts = time(nullptr);
   }
 
@@ -7506,8 +7544,8 @@ void loop()
   if (previous_period_start_ts != get_netting_period_start_time(time(nullptr)))
   {
     period_changed = true;
-    next_energym_read_ts = time(nullptr); // tämä lisätty 28.10.2023 tai jotain..., debug info,
-    next_process_ts = time(nullptr);      // process now if new period
+    next_energy_meter_read_ts = time(nullptr); // tämä lisätty 28.10.2023 tai jotain..., debug info,
+    next_process_ts = time(nullptr);           // process now if new period
 
     // update period info
     current_period_start_ts = get_netting_period_start_time(time(nullptr));
@@ -7543,7 +7581,7 @@ void loop()
 
   // Scheduled tasks -->
   // Meter polling could be shorter than normal processing frequency
-  if (next_energym_read_ts <= time(nullptr) && !wifi_in_standalone_mode)
+  if (next_energy_meter_read_ts <= time(nullptr) && !wifi_in_standalone_mode)
   {
     io_tasks(STATE_PROCESSING);
     if (s.energy_meter_type != ENERGYM_NONE)
@@ -7551,7 +7589,7 @@ void loop()
       read_energy_meter();
     }
 #define ESTIMATED_METER_READ_TIME_MAX_SEC (CONNECT_TIMEOUT_INTERNAL + 1)
-    next_energym_read_ts = max((time_t)(next_energym_read_ts + s.energy_meter_pollingfreq), time(nullptr) + (s.energy_meter_pollingfreq - ESTIMATED_METER_READ_TIME_MAX_SEC)); // max is just in case to allow skipping reading, if reading takes too long
+    next_energy_meter_read_ts = max((time_t)(next_energy_meter_read_ts + s.energy_meter_pollingfreq), time(nullptr) + (s.energy_meter_pollingfreq - ESTIMATED_METER_READ_TIME_MAX_SEC)); // max is just in case to allow skipping reading, if reading takes too long
   }
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
@@ -7562,6 +7600,7 @@ void loop()
     {
       read_production_meter();
     }
+
 #ifdef SENSOR_DS18B20_ENABLED
     read_ds18b20_sensors();
 #endif

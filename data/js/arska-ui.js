@@ -581,10 +581,10 @@ function update_status(repeat) {
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
             if (data.hasOwnProperty("loadm_current")) {
-                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energym_read_last_ts, true, true) + ")";
+                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
             }
 
-            get_time_string_from_ts(data.energym_read_last_ts, true, true);
+            get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
 
             msgdiv = document.getElementById("dashboard:alert");
             keyfd = document.getElementById("keyfd");
