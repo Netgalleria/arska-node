@@ -85,20 +85,6 @@ String version_fs_base; //= "";
 // experimental,move this to correct place, get from parameters/hw templates
 #define DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS 2000 // delay after longer queries (price, energy forecast) to keep more responsive in the init
 
-#ifdef METER_HAN_DIRECT_ENABLED
-
-#define SERIAL2_SIZE_RX 1024 // Big enough for HAN P1 message
-// relocate
-bool channel_forced_down[CHANNEL_COUNT];
-double power_in = 0;
-double power_out = 0;
-double loadm_current[3] = {0, 0, 0};
-int64_t meter_ts;
-
-uint32_t now_period;
-
-#endif
-
 #define LOAD_MGMT_ENABLED
 #define WATTS_TO_AMPERES_FACTOR 230.0
 
@@ -123,8 +109,6 @@ const char *shadow_settings_filename PROGMEM = "/shadow_settings.json";
 const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
 const char *ntp_server_2 PROGMEM = "time.google.com";
 const char *ntp_server_3 PROGMEM = "time.windows.com";
-
-#define FORCED_RESTART_DELAY 600 // If cannot create Wifi connection, goes to AP mode for 600 sec and restarts
 
 #define MSG_TYPE_INFO 0
 #define MSG_TYPE_WARN 1
@@ -173,13 +157,14 @@ tm tm_struct;
 
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
 
-time_t forced_restart_ts = 0; // if wifi in forced ap-mode restart automatically to reconnect/start
-bool wifi_in_standalone_mode = false;
-bool wifi_in_standalone_mode_forced = false;
+bool wifi_sta_connection_required = false;
+bool wifi_sta_connected = false;
+uint32_t wifi_sta_disconnected_ms = 0; //!< restart if enough time since first try
+uint32_t wifi_connect_tried_last_ms = 0;  //!< reconnect if enough time since first try
 
-bool wifi_connection_succeeded = false;
+#define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
+#define WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC 3600
 
-time_t last_wifi_connect_tried = 0;
 bool config_resetted = false; // true if configuration cleared when version upgraded
 bool fs_mounted = false;      // true
 bool cooling_down_state = false;
@@ -262,7 +247,7 @@ bool rtc_found = false;
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
-//#pragma message("Testing with altered NETTING_PERIOD_SEC")
+// #pragma message("Testing with altered NETTING_PERIOD_SEC")
 #define NETTING_PERIOD_SEC 3600 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
 
 #define SECONDS_IN_HOUR 3600
@@ -316,8 +301,11 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 #define CH_STATE_BYFORCE 2
 #define CH_STATE_BYLMGMT 4
 #define CH_STATE_BYDEFAULT 5
+#define CH_STATE_BYLMGMT_MORATORIUM 6
+#define CH_STATE_BYLMGMT_NOCAPACITY 7
 
 uint8_t chstate_transit[CHANNEL_COUNT]; // logging why the channel is in this state, latest transit decision (also blocking)
+bool channel_forced_down[CHANNEL_COUNT];
 
 // Jos LMGMT blokkaa niin palataan entiseen eli käytännössä syyksi muuttuu CH_STATE_BYLMGMT
 // Mutta ehdot lasketaan uusiksi, joten ei syytä jättää transitioon pidemmäksi aikaa, mutta priorisointi tehdään vasta myöhemmin
@@ -714,28 +702,35 @@ bool period_changed = true;
 time_t production_meter_read_last_ts = 0; //!< ts of last succesfull inverter read
 long int production_meter_read_last = 0;  //!< last succesfull inverter value
 
-// uint32_t energy_meter_last_period = 0;
-uint32_t energy_meter_last_read_started_ms = 0;
-time_t energy_meter_read_last_ts = 0;
-time_t energy_meter_period_first_read_ts = 0;
-time_t energy_meter_read_ts = 0; //!< Last time meter was read successfully
+// Energy meter globals
+// Values directly read from the meter
+time_t energy_meter_ts_latest;
+double energy_meter_cumulative_latest_in = 0;  //!< Energy meter last import value
+double energy_meter_cumulative_latest_out = 0; //!< Energy meter last export value
+double energy_meter_power_latest_in = 0;
+double energy_meter_power_latest_out = 0;
+double energy_meter_current_latest[3] = {0, 0, 0};
 
-double energy_meter_period_first_in = 0;  //!< Energy meter import value in the end of last period
-double energy_meter_period_first_out = 0; //!< Energy meter export value in the end of last period
-
-double energy_meter_value_latest_in = 0;  //!< Energy meter last import value
-double energy_meter_value_latest_out = 0; //!< Energy meter last export value
-
+// Previous cumulative values, used to set period start value when period changes
 double energy_meter_value_previous_in = 0;  //!< Energy meter last import value
 double energy_meter_value_previous_out = 0; //!< Energy meter last export value
 
-float energy_meter_power_in = 0;    //!< Energy meter last momentary power value
-float energy_meter_period_power_in; // short/no history, using momentary value
-float energy_meter_period_energy_in = 0;
+// Energy meter cumulative values in the beginning of the period (or last measurement in the end of the previous period)
+double energy_meter_cumulative_periodstart_in = 0;  //!< Energy meter import value in the end of last period
+double energy_meter_cumulative_periodstart_out = 0; //!< Energy meter export value in the end of last period
 
-uint32_t energy_meter_period_read_count = 0;
+// Calculated values
+float energy_meter_power_netin = 0;    //!< Energy meter last, momentary power value
+float energy_meter_period_power_netin; // short/no history, using momentary value
+float energy_meter_period_netin = 0;   //< Netted incoming energy during this period
+
+// Energy meter read timestamps and counters
+uint32_t energy_meter_last_read_started_ms = 0; // starting time of latest reading process
+time_t energy_meter_period_first_read_ts = 0;
+time_t energy_meter_read_succesfully_ts = 0; //!< Last time meter was read successfully, set in process_energy_meter_readings
 uint32_t energy_meter_read_ok_count = 0;
-uint32_t energy_meter_read_all_count = 0;
+uint32_t energy_meter_read_all_count = 0; //!< all meter reads
+// time_t energy_meter_read_last_ts = 0; // vain shellyllä, voisi kai korvata energy_meter_read_succesfully_ts
 
 // task requests to be fullfilled in loop asyncronously
 // bool todo_in_loop_update_price_rank_variables = false;
@@ -937,9 +932,10 @@ typedef struct
   uint32_t baseload; //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
   uint32_t pv_power; //!<
 #ifdef LOAD_MGMT_ENABLED
-  bool loadm_active;               //!< //not yet export/import
-  uint8_t loadm_phase_count;       //!< 1 or 3 (Europe) //not yet export/import
-  uint8_t loadm_phase_current_max; //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
+  bool load_manager_active;                    //!< //not yet export/import
+  uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
+  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
+  uint16_t load_manager_reswitch_moratorium_m; //<!
 #endif
 } settings_struct;
 
@@ -975,33 +971,6 @@ int get_hw_template_idx(int id)
 #define COOLING_START_F 149          // 65C
 #define COOLING_RECOVER_TO_F 131     // 55
 */
-/**
- * @brief System goes to  AP mode  if it cannot connect to existing wifi, but restart automatically.
- * @details Call to check_forced_restart checks if it is time to restart or resets delay if reset_counter == true)
- * For example if the wifi has been down and we have been disconnected, forced restart will retry connection after a while.
- *
- * @param reset_counter , if true resets counter-> automatic restart will be delayd
- */
-
-void check_forced_restart(bool reset_counter = false)
-{
-  // TODO:tässä tapauksessa kello ei välttämättä ei kunnossa ellei rtc, käy läpi tapaukset
-  if (!wifi_in_standalone_mode_forced) // only valid if backup ap mode (no normal wifi)
-    return;
-
-  if (reset_counter)
-  {
-    forced_restart_ts = time(nullptr) + FORCED_RESTART_DELAY;
-  }
-  else if ((forced_restart_ts < time(nullptr)) && ((time(nullptr) - forced_restart_ts) < 7200)) // check that both values are same way synched
-  {
-    // Serial.println(F("check_forced_restart Restarting after passive period in config mode."));
-    WiFi.disconnect();
-    log_msg(MSG_TYPE_FATAL, PSTR("Restarting after passive period in config mode."), true);
-    delay(2000);
-    ESP.restart();
-  }
-}
 
 int ch_prio_sorted[CHANNEL_COUNT];
 // sort channels to priority order
@@ -1135,11 +1104,11 @@ void io_tasks(uint8_t state = STATE_NA)
       rgb_value = led_swing ? RGB_PURPLE : RGB_NONE;
     else if (state == STATE_COOLING)
       rgb_value = led_swing ? RGB_RED : RGB_YELLOW;
-    else if (wifi_in_standalone_mode) // Blue -AP mode.
+    else if (!wifi_sta_connected) // Blue -AP mode.
       rgb_value = RGB_BLUE;
     else if (started_ts > 0) // global timestamp
       rgb_value = RGB_GREEN;
-    else if (wifi_connection_succeeded)
+    else if (wifi_sta_connected)
     { // Yellow Wifi succeeded
       rgb_value = RGB_YELLOW;
     }
@@ -2883,52 +2852,26 @@ bool read_ds18b20_sensors()
 #define RESTART_AFTER_LAST_OK_METER_READ 18000 //!< If all energy meter readings are failed within this period, restart the device
 #define WARNING_AFTER_FAILED_READING_SECS 240  //!< If all energy/production meter readings are failed within this period, log/react
 
-/*
-void calculate_energy_meter_period_values()
-{
-  // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_in %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_in);
-  if (energy_meter_read_ok_count < 2)
-  {
-    energy_meter_period_power_in = energy_meter_power_in; // short/no history, using momentary value
-    energy_meter_period_energy_in = 0;
-  }
-  else
-  {
-    energy_meter_period_energy_in = (energy_meter_value_latest_in - energy_meter_value_latest_out - energy_meter_period_first_in + energy_meter_period_first_out);
-#ifdef DEBUG_MODE
-//    Serial.printf("get_energy_meter_period_values energy_meter_period_energy_in (%.1f) = (energy_meter_value_latest_in (%.1f) - energy_meter_value_latest_out (%.1f) - energy_meter_period_first_in (%.1f) + energy_meter_period_first_out (%.1f))\n", energy_meter_period_energy_in, energy_meter_value_latest_in, energy_meter_value_latest_out, energy_meter_period_first_in, energy_meter_period_first_out);
-#endif
-    if ((energy_meter_read_ts - energy_meter_period_first_read_ts) != 0)
-    {
-      energy_meter_period_power_in = round(energy_meter_period_energy_in * 3600.0 / ((energy_meter_read_ts - energy_meter_period_first_read_ts)));
-#ifdef DEBUG_MODE
-//      Serial.printf("get_energy_meter_period_values energy_meter_period_power_in (%.1f) = round(energy_meter_period_energy_in (%.1f) * 3600.0 / (( energy_meter_read_ts (%ld) - energy_meter_period_first_read_ts (%ld) )))  --- time %ld\n", energy_meter_period_power_in, energy_meter_period_energy_in, energy_meter_read_ts, energy_meter_period_first_read_ts, (energy_meter_read_ts - energy_meter_period_first_read_ts));
-#endif
-    }
-    else // Do we ever get here with counter check
-    {
-      energy_meter_period_power_in = 0;
-    }
-  }
-}
-*/
 #ifdef LOAD_MGMT_ENABLED
+time_t load_manager_overload_last_ts = 0;
+
 void set_relays(bool grid_protection_delay_used); // defined later
 
-float loadm_capacity = 0; // global
-// returns available load in the most loaded phase, use loadm_current[], update global
+float load_manager_capacity = 0; // global
+// returns available load in the most loaded phase, use energy_meter_current_latest[], update global
 float check_current_load()
 {
   int drop_count = 0;
-  loadm_capacity = 9999;
-  for (int i = 0; i < s.loadm_phase_count; i++)
+  load_manager_capacity = 9999;
+  for (int i = 0; i < s.load_manager_phase_count; i++)
   {
-    loadm_capacity = min(loadm_capacity, (float)(s.loadm_phase_current_max - loadm_current[i]));
+    load_manager_capacity = min(load_manager_capacity, (float)(s.load_manager_current_max - energy_meter_current_latest[i]));
   }
 
-  if (loadm_capacity < 0)
+  if (load_manager_capacity < 0)
   {
     Serial.println("System overload, do something, buy a new fuse...");
+    load_manager_overload_last_ts = time(nullptr);
 
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
@@ -2941,11 +2884,14 @@ float check_current_load()
       }
     }
     if (drop_count > 0)
+    {
+
       Serial.printf("Dropping %d channels\n", drop_count);
+    }
     set_relays(false);
   }
-  // Serial.println(loadm_capacity);
-  return loadm_capacity;
+  // Serial.println(load_manager_capacity);
+  return load_manager_capacity;
 }
 
 #endif
@@ -2956,82 +2902,68 @@ void process_energy_meter_readings()
 {
   bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
   energy_meter_read_ok_count++; // global
-  energy_meter_period_read_count++;
-  time_t energy_meter_read_previous_ts = energy_meter_read_ts;
-  energy_meter_read_ts = time(nullptr);
+  time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
+  energy_meter_read_succesfully_ts = time(nullptr);
 
 #ifdef LOAD_MGMT_ENABLED
-  if (s.loadm_active)
+  if (s.load_manager_active)
   {
     check_current_load();
   }
 #endif
 
-  Serial.print(power_in);
+  Serial.print(energy_meter_power_latest_in);
   Serial.print("W (in), ");
-  Serial.print(power_out);
+  Serial.print(energy_meter_power_latest_out);
   Serial.println("W (out), ");
-  Serial.print(energy_meter_value_latest_in);
+  Serial.print(energy_meter_cumulative_latest_in);
   Serial.print("Wh (in), ");
-  Serial.print(energy_meter_value_latest_out);
+  Serial.print(energy_meter_cumulative_latest_out);
   Serial.println("Wh (out), ");
-  Serial.print(loadm_current[0]);
+  Serial.print(energy_meter_current_latest[0]);
   Serial.print("A, ");
-  Serial.print(loadm_current[1]);
+  Serial.print(energy_meter_current_latest[1]);
   Serial.print("A, ");
-  Serial.print(loadm_current[2]);
+  Serial.print(energy_meter_current_latest[2]);
   Serial.println("A");
 
-  //  Serial.printf("HAN readings: power_in %f W, power_out %f W, energy_meter_value_latest_in %f Wh, energy_meter_value_latest_out %f Wh, [%f A, %f A, %f A]", power_in, power_out, energy_meter_value_latest_in, energy_meter_value_latest_out, loadm_current[0], loadm_current[1], loadm_current[2]);
+  //  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in %f Wh, energy_meter_cumulative_latest_out %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in, energy_meter_cumulative_latest_out, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
 
-  // first succesfull since boot
+  // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
   {
     energy_meter_period_first_read_ts = time(nullptr);
-    energy_meter_period_first_in = energy_meter_value_latest_in;
-    energy_meter_period_first_out = energy_meter_value_latest_out;
-/*
-    Serial.println("DEBUG EKA energy_meter_period_first_read_ts/energy_meter_period_first_in/energy_meter_period_first_out");
-    Serial.println(energy_meter_period_first_read_ts);
-    Serial.println(energy_meter_period_first_in);
-    Serial.println(energy_meter_period_first_out);
-    */
-
+    energy_meter_cumulative_periodstart_in = energy_meter_cumulative_latest_in;
+    energy_meter_cumulative_periodstart_out = energy_meter_cumulative_latest_out;
     return; // skip other processing in the first measurement
   }
 
   if (period_changed_since_last_read)
   {
     energy_meter_period_first_read_ts = energy_meter_read_previous_ts; // earlier
-    energy_meter_period_first_in = energy_meter_value_previous_in;
-    energy_meter_period_first_out = energy_meter_value_previous_out;
+    energy_meter_cumulative_periodstart_in = energy_meter_value_previous_in;
+    energy_meter_cumulative_periodstart_out = energy_meter_value_previous_out;
   }
- 
+
   yield();
 
-  // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_in %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_in);
+  // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_netin %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_netin);
 
-  energy_meter_period_energy_in = (energy_meter_value_latest_in - energy_meter_value_latest_out - energy_meter_period_first_in + energy_meter_period_first_out);
-  energy_meter_period_power_in = round(energy_meter_period_energy_in * 3600.0 / ((energy_meter_read_ts - energy_meter_period_first_read_ts)));
+  energy_meter_period_netin = (energy_meter_cumulative_latest_in - energy_meter_cumulative_latest_out - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
+  energy_meter_period_power_netin = round(energy_meter_period_netin * 3600.0 / ((energy_meter_read_succesfully_ts - energy_meter_period_first_read_ts)));
 
-  vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_energy_in < 0) ? 1L : 0L);
-  vars.set(VARIABLE_SELLING_POWER, (long)round(-energy_meter_period_power_in));
-  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-energy_meter_period_energy_in));
-  vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)round(-energy_meter_period_energy_in));
-  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energy_meter_power_in)); // momentary
+  vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_netin < 0) ? 1L : 0L);
+  vars.set(VARIABLE_SELLING_POWER, (long)round(-energy_meter_period_power_netin));
+  vars.set(VARIABLE_SELLING_ENERGY, (long)round(-energy_meter_period_netin));
+  vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)round(-energy_meter_period_netin));
+  vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energy_meter_power_netin)); // momentary
 
-  // history
-  // net_imports[MAX_HISTORY_PERIODS - 1] = -vars.get_f(VARIABLE_SELLING_POWER);
-
-  // if (energy_meter_last_period != now_period)
-
-  energy_meter_value_previous_in = energy_meter_value_latest_in;
-  energy_meter_value_previous_out = energy_meter_value_latest_out;
+  energy_meter_value_previous_in = energy_meter_cumulative_latest_in;
+  energy_meter_value_previous_out = energy_meter_cumulative_latest_out;
 }
 
-
 #ifdef METER_HAN_ENABLED
-bool get_han_ts(String *strp, int64_t *returned)
+bool get_han_ts(String *strp, time_t *returned)
 {
   if (!strp->startsWith("0-0:1.0.0("))
     return false;
@@ -3094,28 +3026,28 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 bool parse_han_row(String *row_in_p)
 {
 
-  if (get_han_ts(row_in_p, &meter_ts))
+  if (get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.7.0", &power_in))
+  if (get_han_dbl(row_in_p, "1-0:1.7.0", &energy_meter_power_latest_in))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:2.7.0", &power_out))
+  if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_value_latest_in))
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_value_latest_out))
+  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:31.7.0", &loadm_current[0]))
+  if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:51.7.0", &loadm_current[1]))
+  if (get_han_dbl(row_in_p, "1-0:51.7.0", &energy_meter_current_latest[1]))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:71.7.0", &loadm_current[2]))
+  if (get_han_dbl(row_in_p, "1-0:71.7.0", &energy_meter_current_latest[2]))
     return true;
 
   return false;
@@ -3131,23 +3063,6 @@ bool receive_energy_meter_han_direct() // direct
   size_t available = Serial2.available();
   Serial.printf("\n%d bytes available, ts:  ", (int)available);
 
-  // now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
-
-
-/*
-  // if (energy_meter_last_period != now_period)
-  if (period_changed_since_last_read)
-  {
-    energy_meter_period_read_count = 0;
-  }
-
-  if ((energy_meter_read_ts > 0) && energy_meter_period_read_count == 1)
-  { // new period
-    // from this call
-    energy_meter_period_first_in = energy_meter_value_latest_in;
-    energy_meter_period_first_out = energy_meter_value_latest_out;
-  }
-*/
   yield();
 
   while (Serial2.available()) // SerialPort
@@ -3163,7 +3078,7 @@ bool receive_energy_meter_han_direct() // direct
     return false;
   }
 
-  energy_meter_power_in = power_in - power_out;
+  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
   // read done
 
   todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
@@ -3188,34 +3103,17 @@ bool read_energy_meter_han_wifi()
   String telegram = httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL);
   yield();
 
-  //now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
-  //yield();
-/*
-  if (energy_meter_last_period != now_period)
-  {
-    energy_meter_period_read_count = 0;
-  }
-
-  if ((energy_meter_last_period > 0) && energy_meter_period_read_count == 1)
-  { // new period
-    energy_meter_period_first_in = energy_meter_value_latest_in;
-    energy_meter_period_first_out = energy_meter_value_latest_out;
-  }
-  */
-  yield();
-
   int s_idx = 0, e_idx;
   int len = telegram.length();
   Serial.printf("Length of telegram: %i\n", len);
 
   // read
-  energy_meter_value_latest_in = 0;
-  energy_meter_value_latest_out = 0;
+  energy_meter_cumulative_latest_in = 0;
+  energy_meter_cumulative_latest_out = 0;
   int value_count = 0;
 
   // new
   String row_in;
-
   while (s_idx <= len)
   {
     e_idx = telegram.indexOf('\n', s_idx);
@@ -3237,9 +3135,8 @@ bool read_energy_meter_han_wifi()
   }
 
   yield();
-  energy_meter_power_in = power_in - power_out;
+  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
   // read done
-
   process_energy_meter_readings();
 
   yield();
@@ -3258,8 +3155,6 @@ bool read_energy_meter_han_wifi()
  */
 bool read_energy_meter_shelly3em()
 {
-  now_period = int(time(nullptr) / (NETTING_PERIOD_SEC));
-
   if (s.energy_meter_ip == IP_UNDEFINED)
     return false;
 
@@ -3290,26 +3185,13 @@ bool read_energy_meter_shelly3em()
     Serial.println(error.f_str());
     return false;
   }
-/*
-  if (energy_meter_last_period != now_period)
-  {
-    energy_meter_period_read_count = 0;
-  }
 
-  if ((energy_meter_last_period > 0) && energy_meter_period_read_count == 1)
-  { // new period
-    Serial.println(F("****Shelly - new period counter reset"));
-    // from this call
-    energy_meter_period_first_in = energy_meter_value_latest_in;
-    energy_meter_period_first_out = energy_meter_value_latest_out;
-  }
-*/
   // read
   float power_tot = 0;
   int idx = 0;
   float power[3];
-  energy_meter_value_latest_in = 0;
-  energy_meter_value_latest_out = 0;
+  energy_meter_cumulative_latest_in = 0;
+  energy_meter_cumulative_latest_out = 0;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
     for (JsonObject emeter : doc["emeters"].as<JsonArray>())
@@ -3318,9 +3200,9 @@ bool read_energy_meter_shelly3em()
       power_tot += power[idx];
       if (emeter["is_valid"])
       {
-        energy_meter_value_latest_in += (float)emeter["total"];
-        energy_meter_value_latest_out += (float)emeter["total_returned"];
-        loadm_current[idx] = (double)emeter["current"];
+        energy_meter_cumulative_latest_in += (float)emeter["total"];
+        energy_meter_cumulative_latest_out += (float)emeter["total_returned"];
+        energy_meter_current_latest[idx] = (double)emeter["current"];
       }
       idx++;
     }
@@ -3328,11 +3210,11 @@ bool read_energy_meter_shelly3em()
   else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
   {
     power_tot = 0; // not available in /status
-    energy_meter_value_latest_in = (float)doc["total_act"];
-    energy_meter_value_latest_out = (float)doc["total_act_ret"];
+    energy_meter_cumulative_latest_in = (float)doc["total_act"];
+    energy_meter_cumulative_latest_out = (float)doc["total_act_ret"];
   }
 
-  energy_meter_power_in = power_tot;
+  energy_meter_power_netin = power_tot;
 
   // read done
 
@@ -4560,11 +4442,9 @@ void read_energy_meter()
     return;
   }
   bool internet_connection_ok = false;
-  if (read_ok)
-    energy_meter_read_last_ts = time(nullptr);
-  else
+  if (!read_ok)
   {
-    if ((energy_meter_read_last_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr))) // if specified time since last succesful read before logging/reacting
+    if ((energy_meter_read_succesfully_ts + WARNING_AFTER_FAILED_READING_SECS < time(nullptr))) // if specified time since last succesful read before logging/reacting
     {
       if (ping_enabled)
       {
@@ -4572,7 +4452,7 @@ void read_energy_meter()
       }
       if (internet_connection_ok)
         log_msg(MSG_TYPE_FATAL, PSTR("Internet connection ok, but cannot read energy meter. Check the meter."));
-      else if ((energy_meter_read_last_ts + RESTART_AFTER_LAST_OK_METER_READ < time(nullptr)) && (energy_meter_read_last_ts > 0))
+      else if ((energy_meter_read_succesfully_ts + RESTART_AFTER_LAST_OK_METER_READ < time(nullptr)) && (energy_meter_read_succesfully_ts > 0))
       { // connected earlier, but now many unsuccesfull reads
         WiFi.disconnect();
         log_msg(MSG_TYPE_FATAL, PSTR("Restarting after failed energy meter connections."), true);
@@ -4942,7 +4822,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     }
   }
   // do not try to connect if there is no wifi client initiated - or we should to get an error
-  else if (wifi_connection_succeeded && is_wifi_relay(s.ch[channel_idx].type))
+  else if (wifi_sta_connected && is_wifi_relay(s.ch[channel_idx].type))
   {
     switch_http_relay(channel_idx, up);
     return true;
@@ -4960,7 +4840,7 @@ void update_channel_states()
   bool forced_up;
   float current_capacity_available = 9999;
 #ifdef LOAD_MGMT_ENABLED
-  current_capacity_available = loadm_capacity;
+  current_capacity_available = load_manager_capacity;
 #endif
   int channel_idx;
   // loop channels and check whether channel should be up
@@ -4984,13 +4864,26 @@ void update_channel_states()
     }
 
 #ifdef LOAD_MGMT_ENABLED
-    if (s.loadm_active && !s.ch[channel_idx].is_up && (s.ch[channel_idx].load > 0) && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count) > current_capacity_available)
+
+    // channel down and under loadm management control
+    if (s.load_manager_active && !s.ch[channel_idx].is_up && (s.ch[channel_idx].load > 0))
     {
-      Serial.printf("DEBUG: Not available capacity for channel %d to get up\n", channel_idx);
-      s.ch[channel_idx].wanna_be_up = false;
-      chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
-      continue; // cannot switch on
+      if ((s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count) > current_capacity_available)
+      {
+        Serial.printf("DEBUG: Not available capacity for channel %d to get up\n", channel_idx);
+        s.ch[channel_idx].wanna_be_up = false;
+        chstate_transit[channel_idx] = CH_STATE_BYLMGMT_NOCAPACITY;
+        continue; // cannot switch on
+      }
+      if (time(nullptr) - load_manager_overload_last_ts < s.load_manager_reswitch_moratorium_m * 60)
+      {
+        Serial.printf("DEBUG: Load manager moratorium , channel %d \n", channel_idx);
+        s.ch[channel_idx].wanna_be_up = false;
+        chstate_transit[channel_idx] = CH_STATE_BYLMGMT_MORATORIUM;
+        continue; // cannot switch on
+      }
     }
+
 #endif
 
     forced_up = (is_force_up_valid(channel_idx));
@@ -5012,7 +4905,7 @@ void update_channel_states()
       s.ch[channel_idx].wanna_be_up = true;
       chstate_transit[channel_idx] = CH_STATE_BYFORCE;
 #ifdef LOAD_MGMT_ENABLED
-      current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count);
+      current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count);
 #endif
       Serial.println("forcing up");
       continue; // forced, not checking channel rules
@@ -5058,7 +4951,7 @@ void update_channel_states()
 #ifdef LOAD_MGMT_ENABLED
         if (s.ch[channel_idx].is_up != s.ch[channel_idx].wanna_be_up)
         {
-          current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.loadm_phase_count);
+          current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count);
         }
 #endif
         if (!s.ch[channel_idx].conditions[condition_idx].condition_active)
@@ -5132,7 +5025,7 @@ void set_relays(bool grid_protection_delay_used)
 
 #ifdef LOAD_MGMT_ENABLED
     // overload, drop all channels marked
-    if (loadm_capacity < 0 && !(drop_rise == 0))
+    if (load_manager_capacity < 0 && !(drop_rise == 0))
       switchings_to_todo = drop_count;
 #endif
 
@@ -5745,9 +5638,10 @@ void reset_config()
 #endif
 
 #ifdef LOAD_MGMT_ENABLED
-  s.loadm_active = false;
-  s.loadm_phase_count = 3;
-  s.loadm_phase_current_max = 25;
+  s.load_manager_active = false;
+  s.load_manager_phase_count = 3;
+  s.load_manager_current_max = 25;
+  s.load_manager_reswitch_moratorium_m = 5;
 #endif
   strcpy(s.forecast_loc, "#");
 
@@ -5851,7 +5745,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["http_username"] = s.http_username;
 
   // current status, do not import
-  doc["wifi_in_standalone_mode"] = wifi_in_standalone_mode;
+  doc["wifi_in_standalone_mode"] = !wifi_sta_connected;
   doc["using_default_password"] = String(s.http_password).equals(default_http_password);
   //  (strcmp(s.http_password, default_http_password) == 0) ? true : false;
 
@@ -5892,9 +5786,10 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   }
 
 #ifdef LOAD_MGMT_ENABLED
-  doc["loadm_active"] = s.loadm_active;
-  doc["loadm_phase_count"] = s.loadm_phase_count;
-  doc["loadm_phase_current_max"] = s.loadm_phase_current_max;
+  doc["load_manager_active"] = s.load_manager_active;
+  doc["load_manager_phase_count"] = s.load_manager_phase_count;
+  doc["load_manager_current_max"] = s.load_manager_current_max;
+  doc["load_manager_reswitch_moratorium_m"] = s.load_manager_reswitch_moratorium_m;
 #endif
   doc["forecast_loc"] = s.forecast_loc;
   doc["lang"] = s.lang;
@@ -6157,9 +6052,10 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
 
 #ifdef LOAD_MGMT_ENABLED
-  s.loadm_active = ajson_bool_get(doc, (char *)"loadm_active", s.loadm_active);
-  s.loadm_phase_count = ajson_int_get(doc, (char *)"loadm_phase_count", s.loadm_phase_count);
-  s.loadm_phase_current_max = ajson_int_get(doc, (char *)"loadm_phase_current_max", s.loadm_phase_current_max);
+  s.load_manager_active = ajson_bool_get(doc, (char *)"load_manager_active", s.load_manager_active);
+  s.load_manager_phase_count = ajson_int_get(doc, (char *)"load_manager_phase_count", s.load_manager_phase_count);
+  s.load_manager_current_max = ajson_int_get(doc, (char *)"load_manager_current_max", s.load_manager_current_max);
+  s.load_manager_reswitch_moratorium_m = ajson_int_get(doc, (char *)"load_manager_reswitch_moratorium_m", s.load_manager_reswitch_moratorium_m);
 #endif
 
 #ifdef INFLUX_REPORT_ENABLED
@@ -6795,13 +6691,16 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["last_msg_msg"] = last_msg.msg;
   doc["last_msg_ts"] = last_msg.ts;
   doc["last_msg_type"] = last_msg.type;
-  doc["energy_meter_read_last_ts"] = energy_meter_read_last_ts;
+  doc["energy_meter_read_last_ts"] = energy_meter_read_succesfully_ts;
   doc["production_meter_read_last_ts"] = production_meter_read_last_ts;
   doc["next_process_in"] = max((long)0, (long)next_process_ts - time(nullptr));
 
 #ifdef LOAD_MGMT_ENABLED
-  for (int l = 0; l < s.loadm_phase_count; l++)
-    doc["loadm_current"][l] = loadm_current[l];
+  for (int l = 0; l < s.load_manager_phase_count; l++)
+  {
+    doc["energy_meter_current_latest"][l] = energy_meter_current_latest[l];
+  }
+  doc["load_manager_overload_last_ts"] = load_manager_overload_last_ts;
 #endif
 
   doc["free_heap"] = ESP.getFreeHeap();
@@ -6863,13 +6762,14 @@ void wifi_event_handler(WiFiEvent_t event)
     Serial.println(F("Connected to WiFi Network"));
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
-    wifi_connection_succeeded = true;
+    wifi_sta_connected = true;
     Serial.println(F("Got IP"));
     set_time_settings(true, true);
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
-    wifi_connection_succeeded = false;
-    // Serial.println(F("Disconnected from WiFi Network"));
+    wifi_sta_connected = false;
+    wifi_sta_disconnected_ms = 0;
+    Serial.println(F("Disconnected from WiFi Network"));
     break;
   case SYSTEM_EVENT_AP_START:
     Serial.println(F("ESP soft AP started"));
@@ -6885,6 +6785,103 @@ void wifi_event_handler(WiFiEvent_t event)
   }
 }
 
+uint16_t wifi_connect_count = 0;
+
+bool connect_wifi()
+{
+  bool create_wifi_ap = false;
+  uint32_t connect_started;
+  wifi_connect_count++;
+  wifi_sta_connection_required = strlen(s.wifi_ssid) > 0;
+
+  if (wifi_sta_disconnected_ms == 0)
+  {
+    wifi_sta_disconnected_ms = millis();
+  }
+  wifi_connect_tried_last_ms = millis();
+
+  if (wifi_connect_count == 1)
+  { // one handle should be enough
+    WiFi.onEvent(wifi_event_handler);
+  }
+
+  if (wifi_sta_connection_required)
+  {
+    WiFi.mode(WIFI_STA);
+    WiFi.setHostname("arska");
+    Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
+    WiFi.begin(s.wifi_ssid, s.wifi_password);
+    connect_started = millis();
+    while (WiFi.status() != WL_CONNECTED)
+    { // Wait for the Wi-Fi to connect
+      if (millis() - connect_started > 60000)
+      {
+        Serial.println(F("WiFi Failed!"));
+        delay(1000);
+        WiFi.disconnect();
+        delay(3000);
+   
+        break;
+      }
+      io_tasks(STATE_CONNECTING); // leds, reset
+      delay(500);
+    }
+  }
+  else
+  {
+    Serial.println(F("WiFi SSID undefined!"));
+  }
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.printf(PSTR("Connected to wifi [%s] with IP Address: %s, gateway: %s \n"), s.wifi_ssid, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str());
+    wifi_sta_connected = true;
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    // Now wifi is up, set wifi relays to init state (down)
+    if (wifi_connect_count == 1)
+    {
+      for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+      {
+        if (is_wifi_relay(s.ch[channel_idx].type))
+        {
+          Serial.printf(PSTR("Reapply wifi relay state %d in init\n"), channel_idx);
+          apply_relay_state(channel_idx, true);
+        }
+      }
+    }
+    return true;
+  }
+      wifi_sta_connected = false;
+    wifi_sta_disconnected_ms = millis();
+
+    create_wifi_ap = true;
+
+  // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
+  // create ap-mode ssid for config wifi
+  Serial.print("Creating AP");
+
+  String APSSID = String("ARSKA-") + wifi_mac_short;
+  int wifi_channel = (int)random(1, 14);
+  if (WiFi.softAP(APSSID.c_str(), (const char *)__null, wifi_channel, 0, 3) == true)
+  {
+    if (wifi_sta_connection_required)
+    {
+      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Give WiFi number (see the list above) <enter> and give WiFi password <enter>.\n 2) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n"), APSSID.c_str(), WiFi.softAPIP().toString());
+      Serial.println();
+      Serial.flush();
+    }
+  }
+  else
+  {
+    Serial.println(F("Cannot create AP, restarting"));
+    log_msg(MSG_TYPE_FATAL, PSTR("Cannot create AP, restarting."), true);
+    delay(20000); // cannot create AP, or connect existing wifi , restart
+    ESP.restart();
+  }
+  return false;
+}
+
 /**
  * @brief Arduino framework function.  Everything starts from here while starting the controller.
  *
@@ -6895,7 +6892,6 @@ void setup()
 
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
-  bool create_wifi_ap = false;
   Serial.begin(115200);
   delay(2000);               // wait for console to settle - only needed when debugging
   randomSeed(analogRead(0)); // initiate random generator
@@ -6951,11 +6947,10 @@ void setup()
   readFromEEPROM();
 
 #ifdef METER_HAN_DIRECT_ENABLED
-  // experimental, define OnReceive in the beginning, maybe get time from that
+#define SERIAL2_SIZE_RX 1024 // Big enough for HAN P1 message
   if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
   {
     Serial.println("Initializing Serial2 for HAN P1 read.");
-
     Serial2.setRxBufferSize(SERIAL2_SIZE_RX);
     Serial2.begin(115200, SERIAL_8N1, s.energy_meter_gpio, -1); // Hardware Serial of ESP32
     Serial2.onReceive(receive_energy_meter_han_direct, false);  // sets a RX callback function for Serial 2
@@ -7018,99 +7013,7 @@ void setup()
   Serial.println("Starting wifi");
   scan_and_store_wifis(true, false); // testing this in the beginning
 
-  WiFi.onEvent(wifi_event_handler);
-
-  WiFi.mode(WIFI_STA);
-
-  /*if (strlen(s.wifi_ssid) == 0)
-  {
-    strcpy(s.wifi_ssid, "NA");
-  }*/
-  // TODO: WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
-  WiFi.setHostname("arska");
-  bool wifi_defined = (strlen(s.wifi_ssid) > 0);
-  if (wifi_defined)
-  {
-    Serial.printf(PSTR("Trying to connect wifi [%s] with password [%s]\n"), s.wifi_ssid, s.wifi_password);
-    WiFi.begin(s.wifi_ssid, s.wifi_password);
-    uint32_t connect_started = millis();
-    while (WiFi.status() != WL_CONNECTED)
-    { // Wait for the Wi-Fi to connect
-      if (millis() - connect_started > 60000)
-      {
-        Serial.println(F("WiFi Failed!"));
-        delay(1000);
-        WiFi.disconnect();
-        delay(3000);
-        break;
-      }
-      io_tasks(STATE_CONNECTING); // leds, reset
-      delay(500);
-    }
-  }
-  else
-  {
-    Serial.println(F("WiFi SSID undefined!"));
-  }
-
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    wifi_in_standalone_mode = true;
-    wifi_in_standalone_mode_forced = strlen(s.wifi_ssid) > 0;
-    create_wifi_ap = true;
-    check_forced_restart(true); // schedule restart
-  }
-  else
-  {
-    Serial.printf(PSTR("Connected to wifi [%s] with IP Address: %s, gateway: %s \n"), s.wifi_ssid, WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str());
-    wifi_connection_succeeded = true;
-    WiFi.setAutoReconnect(true);
-    WiFi.persistent(true);
-    /*
-        if (!FILESYSTEM.exists(wifis_filename))
-        { // no wifi list found
-          Serial.println("No wifi list found - rescanning...");
-          scan_and_store_wifis(false);
-        }
-    */
-  }
-
-  // Now wifi is up, set wifi relays to init state (down)
-  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {
-    if (is_wifi_relay(s.ch[channel_idx].type))
-    {
-      Serial.printf(PSTR("Reapply wifi relay state %d in init\n"), channel_idx);
-      apply_relay_state(channel_idx, true);
-    }
-  }
-
-  if (create_wifi_ap)
-
-  { // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
-    // create ap-mode ssid for config wifi
-
-    Serial.print("Creating AP, wifi_in_standalone_mode:");
-    Serial.print(wifi_in_standalone_mode);
-
-    String APSSID = String("ARSKA-") + wifi_mac_short;
-    int wifi_channel = (int)random(1, 14);
-    if (WiFi.softAP(APSSID.c_str(), (const char *)__null, wifi_channel, 0, 3) == true)
-    {
-      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Give WiFi number (see the list above) <enter> and give WiFi password <enter>.\n 2) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n"), APSSID.c_str(), WiFi.softAPIP().toString());
-      Serial.println();
-      Serial.flush();
-    }
-    else
-    {
-      Serial.println(F("Cannot create AP, restarting"));
-      log_msg(MSG_TYPE_FATAL, PSTR("Cannot create AP, restarting."), true);
-
-      delay(2000); // cannot create AP, or connect existing wifi , restart
-
-      ESP.restart();
-    }
-  }
+  connect_wifi();
 
 #ifdef RTC_DS3231_ENABLED
   Serial.println(F("Starting RTC!"));
@@ -7210,8 +7113,8 @@ void setup()
   // server_web.on("/", HTTP_GET, onWebUIGet);
   server_web.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
                 { if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();   
-    check_forced_restart(true); // if in forced ap-mode, reset counter to delay automatic restart
+    return request->requestAuthentication();  
+
   request->send(FILESYSTEM, "/ui3.html", "text/html"); });
 
   server_web.on(
@@ -7247,10 +7150,7 @@ void setup()
   // generate_ui_constants(true); // generate ui constant json if needed
   server_web.begin();
 
-  // if (wifi_in_standalone_mode)
-  //  return; // no more setting, just wait for new SSID/password and then restarts
-
-  Serial.printf("\nArska dashboard url: http://%s/\n", wifi_in_standalone_mode ? WiFi.softAPIP().toString() : WiFi.localIP().toString().c_str());
+  Serial.printf("\nArska dashboard url: http://%s/\n", wifi_sta_connected ? WiFi.localIP().toString().c_str() : WiFi.softAPIP().toString().c_str());
 
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
 
@@ -7278,7 +7178,7 @@ void loop()
   io_tasks();
 
   //  handle initial wifi setting from the serial console command line
-  if (wifi_in_standalone_mode && Serial.available())
+  if (!wifi_sta_connected && Serial.available())
   {
     serial_command = Serial.readStringUntil('\n');
     if (serial_command_state == 0)
@@ -7361,13 +7261,7 @@ void loop()
   }
 #endif
 
-  // if  Wifi forced to AP Mode (192.168.4.1), no other operations allowed
-  check_forced_restart(); //!< if in config mode restart when time out
-  if (wifi_in_standalone_mode_forced)
-  { //!< do nothing else if in forced ap-mode
-    delay(500);
-    return;
-  }
+
 #ifdef OTA_UPDATE_ENABLED
   // Note:  was earlier after time setup
   if (todo_in_loop_update_firmware_partition)
@@ -7390,10 +7284,23 @@ void loop()
   }
 #endif
 
- 
-  //
+  // uint32_t wifi_sta_disconnected_ms = 0    //!< restart if enough time since first try
+  //     uint32_t wifi_connect_tried_last_ms = 0 //!< reconnect if enough time since first try
 
-  // initial message
+  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_connect_tried_last_ms > WIFI_FAILED_RECONNECT_INTERVAL_SEC*1000)
+  {
+    Serial.println(PSTR("Trying to reconnect wifi"));
+    connect_wifi();
+  }
+
+  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_sta_disconnected_ms > WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC*1000)
+  {
+    WiFi.disconnect();
+    log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to missing wifi connection."), true);
+    delay(2000);
+    ESP.restart();
+  }
+
   if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
   {
     delay(1000);
@@ -7408,17 +7315,17 @@ void loop()
 
     if (config_resetted)
       log_msg(MSG_TYPE_WARN, PSTR("Version upgrade caused configuration reset. Started processing."), true);
-    else if (wifi_connection_succeeded)
+    else if (wifi_sta_connected)
       log_msg(MSG_TYPE_INFO, PSTR("Started processing."), true);
-    else if (wifi_in_standalone_mode_forced)
+    else if (wifi_sta_connection_required)
       log_msg(MSG_TYPE_WARN, PSTR("Started processing in configuration only mode."), true);
-    else if (wifi_in_standalone_mode)
+    else if (!wifi_sta_connected)
       log_msg(MSG_TYPE_INFO, PSTR("Started processing in standalone mode."), true);
 
     bool give_wifi_relay_warning = false;
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
-      if (is_wifi_relay(s.ch[channel_idx].type) && wifi_in_standalone_mode && !wifi_in_standalone_mode_forced)
+      if (is_wifi_relay(s.ch[channel_idx].type) && !wifi_sta_connected && !wifi_sta_connection_required)
         give_wifi_relay_warning = true;
     }
     if (give_wifi_relay_warning)
@@ -7437,12 +7344,11 @@ void loop()
   // Below business logic actions that require mcu clock in time -->
 
   // process measurements
-   if (todo_in_loop_process_energy_meter_readings)
+  if (todo_in_loop_process_energy_meter_readings)
   {
     todo_in_loop_process_energy_meter_readings = false;
     process_energy_meter_readings();
   }
-
 
   // reapply current relay states (if relay parameters are changed)
   if (todo_in_loop_reapply_relay_states)
@@ -7469,8 +7375,9 @@ void loop()
     set_relays(false);
   }
 
+/*
   // just in case check the wifi and reconnect/restart if needed
-  if ((WiFi.waitForConnectResult(10000) != WL_CONNECTED) && !wifi_in_standalone_mode)
+  if ((WiFi.waitForConnectResult(10000) != WL_CONNECTED) && wifi_sta_connected)
   {
     // Wait for the wifi to come up again
     for (int wait_loop = 0; wait_loop < 20; wait_loop++)
@@ -7487,8 +7394,9 @@ void loop()
       ESP.restart(); // boot if cannot recover wifi in time
     }
   }
+  */
 
-  if ((next_query_price_data_ts <= time(nullptr)) && (prices_expires_ts <= time(nullptr)) && !wifi_in_standalone_mode)
+  if ((next_query_price_data_ts <= time(nullptr)) && (prices_expires_ts <= time(nullptr)) && wifi_sta_connected)
   {
     io_tasks(STATE_PROCESSING);
 
@@ -7519,7 +7427,7 @@ void loop()
     Serial.printf("next_query_price_data_ts: %ld %s\n", next_query_price_data_ts, got_price_ok ? "ok" : "failed");
   }
 
-  if (next_query_fcst_data_ts <= time(nullptr) && !wifi_in_standalone_mode) // got solar & wind fcsts
+  if (next_query_fcst_data_ts <= time(nullptr) && wifi_sta_connected) // got solar & wind fcsts
   {
     io_tasks(STATE_PROCESSING);
     got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
@@ -7561,7 +7469,7 @@ void loop()
   }
 
 #ifdef INFLUX_REPORT_ENABLED
-  if (todo_in_loop_influx_write && !wifi_in_standalone_mode) // TODO: maybe we could combine this with buffer update
+  if (todo_in_loop_influx_write && wifi_sta_connected) // TODO: maybe we could combine this with buffer update
   {
     todo_in_loop_influx_write = false;
     write_buffer_to_influx();
@@ -7581,7 +7489,7 @@ void loop()
 
   // Scheduled tasks -->
   // Meter polling could be shorter than normal processing frequency
-  if (next_energy_meter_read_ts <= time(nullptr) && !wifi_in_standalone_mode)
+  if (next_energy_meter_read_ts <= time(nullptr) && wifi_sta_connected)
   {
     io_tasks(STATE_PROCESSING);
     if (s.energy_meter_type != ENERGYM_NONE)
@@ -7596,7 +7504,7 @@ void loop()
   if (next_process_ts <= time(nullptr)) // time to process
   {
     io_tasks(STATE_PROCESSING);
-    if (s.production_meter_type != PRODUCTIONM_NONE && !wifi_in_standalone_mode)
+    if (s.production_meter_type != PRODUCTIONM_NONE && wifi_sta_connected)
     {
       read_production_meter();
     }
