@@ -1,4 +1,4 @@
-var g_config;
+var g_settings;
 var g_constants;
 var g_templates;
 
@@ -37,6 +37,8 @@ const CH_STATE_BYRULE = 1
 const CH_STATE_BYFORCE = 2
 const CH_STATE_BYLMGMT = 4
 const CH_STATE_BYDEFAULT = 5
+const CH_STATE_BYLMGMT_MORATORIUM = 6
+const CH_STATE_BYLMGMT_NOCAPACITY = 7
 
 
 let variable_list = {}; // populate later
@@ -468,8 +470,8 @@ const stmt_html = `<div class="row g-1">
 
 //localised text
 function _ltext(obj, prop) {
-    if (obj.hasOwnProperty(prop + '_' + g_config.lang))
-        return obj[prop + '_' + g_config.lang];
+    if (obj.hasOwnProperty(prop + '_' + g_settings.lang))
+        return obj[prop + '_' + g_settings.lang];
     else if (obj.hasOwnProperty(prop))
         return obj[prop];
     else
@@ -580,8 +582,12 @@ function update_status(repeat) {
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
-            if (data.hasOwnProperty("loadm_current")) {
-                document.getElementById("loadm_status").innerHTML = "Measured [" + data.loadm_current.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+            document.getElementById("load_manager_status").innerHTML = "";
+            if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
+                document.getElementById("load_manager_status").innerHTML += " Reswitching after overload earliest "+ get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 , true, true) + ".";
+            }
+            if (data.hasOwnProperty("energy_meter_current_latest")) {
+                document.getElementById("load_manager_status").innerHTML += "Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
             }
 
             get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
@@ -592,9 +598,9 @@ function update_status(repeat) {
             if (data.hasOwnProperty('next_process_in'))
                 next_query_in = data.next_process_in + process_time_s + Math.floor(Math.random() * 10);
 
-            if (g_config.wifi_in_setup_mode)
+            if (g_settings.wifi_in_setup_mode)
                 extra_message = " <a class='chlink' onclick='jump(\"admin:network\");'>Configure Wi-Fi settings.</a>";
-            else if (g_config.using_default_password) {
+            else if (g_settings.using_default_password) {
                 extra_message = " <a class='chlink' onclick='jump(\"admin:network\");'>Change</a> your admin password - now using default password!";
             }
             else {
@@ -759,7 +765,7 @@ function populate_channel_status(channel_idx, ch) {
     rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":r_" + ch.active_condition + "\");'";
 
 
-    if (g_config.ch[channel_idx]["type"] == 0) {
+    if (g_settings.ch[channel_idx]["type"] == 0) {
         info_text = "Relay undefined";
         sch_status_label.classList.add("text-bg-muted");
         sch_status_label.classList.remove("text-bg-danger");
@@ -793,7 +799,7 @@ function populate_channel_status(channel_idx, ch) {
        }*/
    
     
-    if (g_config.ch[channel_idx]["type"] != 0) {
+    if (g_settings.ch[channel_idx]["type"] != 0) {
         if (ch.transit == CH_STATE_NONE)
             transit_txt = "";
         else if (ch.transit == CH_STATE_BYRULE)
@@ -801,10 +807,14 @@ function populate_channel_status(channel_idx, ch) {
         else if (ch.transit == CH_STATE_BYFORCE)
             transit_txt = "manual schedule";
         else if (ch.transit == CH_STATE_BYLMGMT)
-            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load management</a>";
+            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>overload</a>";
         else if (ch.transit == CH_STATE_BYDEFAULT)
-            transit_txt = "channel default";
-
+            transit_txt = "channel default"; 
+        else if (ch.transit == CH_STATE_BYLMGMT_MORATORIUM)
+            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>reswitch delay</a>";
+        else if (ch.transit == CH_STATE_BYLMGMT_NOCAPACITY)
+            transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load limited</a>";
+            
     }
     else
         transit_txt = "";
@@ -1055,7 +1065,7 @@ function create_dashboard_chart() {
     first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_constants.NETTING_PERIOD_SEC;
     console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
-        if (g_config.ch[channel_idx]["type"] == 0) // undefined
+        if (g_settings.ch[channel_idx]["type"] == 0) // undefined
             continue;
         channel_dataset = [];
         dataset_started = false;
@@ -1092,15 +1102,15 @@ function create_dashboard_chart() {
         // console.log("channel_history", channel_idx, channel_history[channel_idx]);
         console.log("channel_dataset", channel_dataset);
         datasets.push({
-            label: g_config.ch[channel_idx]["id_str"],
+            label: g_settings.ch[channel_idx]["id_str"],
             hidden: true,
             type: 'bar',
             parsing: true,
             data: channel_dataset,
             yAxisID: 'ych',
-            borderColor: [g_config.ch[channel_idx]["channel_color"]
+            borderColor: [g_settings.ch[channel_idx]["channel_color"]
             ],
-            backgroundColor: g_config.ch[channel_idx]["channel_color"],
+            backgroundColor: g_settings.ch[channel_idx]["channel_color"],
             pointHoverRadius: 5,
             borderWidth: 1
         });
@@ -1417,7 +1427,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`)
 
 
-    if (g_config.ch[channel_idx]["type"] == 0) {
+    if (g_settings.ch[channel_idx]["type"] == 0) {
         sch_start_sel.disabled = true;
         sch_save_radio.disabled = true;
         sch_duration_sel.disabled = true;
@@ -1564,20 +1574,20 @@ function load_application_config() {
         url: '/settings',
         dataType: 'json',
         async: false,
-        success: function (data) { g_config = data; console.log("got g_config"); },
+        success: function (data) { g_settings = data; console.log("got g_settings"); },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_config", textStatus, jqXHR.status, errorThrown);
+            console.log("Cannot get g_settings", textStatus, jqXHR.status, errorThrown);
         }
     });
 
-    for (const property in g_config) {
+    for (const property in g_settings) {
         ctrl = document.getElementById(property);
         if (ctrl !== null) {
             if (ctrl.type.toLowerCase() == 'checkbox') {
-                ctrl.checked = g_config[property];
+                ctrl.checked = g_settings[property];
             }
             else { // normal text 
-                ctrl.value = g_config[property];
+                ctrl.value = g_settings[property];
             }
         }
     }
@@ -1624,7 +1634,7 @@ function is_relay_uid_used(channel_type) { //unit_id required
 }
 
 function set_relay_field_visibility(channel_idx, ch_type) {
-    var locked = g_config.ch[channel_idx].hasOwnProperty("locked") ? g_config.ch[channel_idx].locked : false;
+    var locked = g_settings.ch[channel_idx].hasOwnProperty("locked") ? g_settings.ch[channel_idx].locked : false;
     document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type) || locked);
     document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type) || locked);
     document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type) || locked);
@@ -1997,7 +2007,7 @@ function populate_channel(channel_idx) {
     now_ts = Date.now() / 1000;
 
     //Dashboard scheduling
-    ch_cur = g_config.ch[channel_idx];
+    ch_cur = g_settings.ch[channel_idx];
     current_duration_minute = 0;
     current_start_ts = 0;
     has_forced_setting = false;
@@ -2017,7 +2027,7 @@ function populate_channel(channel_idx) {
     update_fup_schedule_element(channel_idx, current_start_ts);
     /////sch_(ch#):card
 
-    if (g_config.ch[channel_idx]["type"] == 0)
+    if (g_settings.ch[channel_idx]["type"] == 0)
         document.getElementById(`sch_${channel_idx}:card`).classList.add("opacity-50")
 
     // end of scheduling
@@ -2395,25 +2405,25 @@ function create_channels() {
         //    `ch_${channel_idx}:type`
         channel_type_ctrl = document.getElementById(`ch_${channel_idx}:type`);
         //  console.log(`ch_${channel_idx}:type`);
-        var locked = g_config.ch[channel_idx].locked;
+        var locked = g_settings.ch[channel_idx].locked;
         // add right type to select list, right captions/texts
         for (var i = 0; i < g_constants.channel_types.length; i++) {
             var type_name = g_constants.channel_types[i].name;
             var type_id = g_constants.channel_types[i].id;
-            var output_register = g_config.hasOwnProperty("output_register") ? g_config.output_register : false;
+            var output_register = g_settings.hasOwnProperty("output_register") ? g_settings.output_register : false;
             if (output_register) {
                 type_name = type_name.replaceAll("GPIO", "internal"); // use different term with shift register relays
                 document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Bit:";
             }
 
             var internal_relay = [CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(type_id));
-            if ((locked && internal_relay) || (!locked && !internal_relay) || (g_config.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
-                addOption(channel_type_ctrl, type_id, type_name, (g_config.ch[channel_idx]["type"] == type_id));
+            if ((locked && internal_relay) || (!locked && !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
+                addOption(channel_type_ctrl, type_id, type_name, (g_settings.ch[channel_idx]["type"] == type_id));
 
         }
 
         sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
-        if (channel_idx < (g_config.ch.length)) { // we should have data
+        if (channel_idx < (g_settings.ch.length)) { // we should have data
             //initiate rule structure
             rule_list = document.getElementById(`ch_${channel_idx}:rules`);
             for (rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
@@ -2434,7 +2444,7 @@ function create_channels() {
 
             // schedule controls
             remove_select_options(sch_duration_sel);
-            if (g_config.ch[channel_idx]["type"] != 0) { // only if relay defined
+            if (g_settings.ch[channel_idx]["type"] != 0) { // only if relay defined
                 for (i = 0; i < force_up_mins.length; i++) {
                     min_cur = force_up_mins[i];
                    // duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
@@ -2554,7 +2564,7 @@ function init_ui() {
     hw_template_ctrl = document.getElementById(`hw_template_id`);
     remove_select_options(hw_template_ctrl);
     for (var i = 0; i < g_constants.hw_templates.length; i++) {
-        addOption(hw_template_ctrl, g_constants.hw_templates[i].id, g_constants.hw_templates[i].name, (g_config.hw_template_id == g_constants.hw_templates[i].id));
+        addOption(hw_template_ctrl, g_constants.hw_templates[i].id, g_constants.hw_templates[i].name, (g_settings.hw_template_id == g_constants.hw_templates[i].id));
     }
 
     create_channels();
