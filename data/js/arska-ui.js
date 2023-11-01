@@ -356,33 +356,9 @@ const channel_html = `<div class="col">
                                 </div>
                                 <!--./col-->
 
-
-                                <!-- default *** -->
-                                <div class="input-group mb-3">
-                                <span class="input-group-text">Default state</span>
-                                <input id="ch_(ch#):default_state_0" type="radio"
-                                    class="btn-check" name="ch_(ch#):default_state" checked="">
-                                <label class="btn btn-secondary"
-                                    for="ch_(ch#):default_state_0">
-                                    <span data-feather="zap-off"
-                           class="align-text-bottom" style="pointer-events: none;"></span>
-                                    down</label>
-                                <input id="ch_(ch#):default_state_1" type="radio"
-                                    class="btn-check" name="ch_(ch#):default_state">
-                                <label class="btn btn-secondary"
-                                    for="ch_(ch#):default_state_1">
-                                    <span data-feather="zap"
-                           class="align-text-bottom" style="pointer-events: none;"></span>
-                                    up</label>
-                            </div>
-                            <!-- default *** -->
-
-
                             </div>
                             <!--./row-->
                            
-
-
                             <div id="ch_(ch#):rules"
                                 class="row row row-cols-1 row-cols-md-2 g-3">      
                                 <!--./col-->
@@ -442,6 +418,41 @@ const rule_html = `<div class="col">
          </div> <!-- card body -->
      </div> <!-- rule ends -->
  </div>`;
+
+
+
+
+const default_state_html = `<div class="col">
+<!-- rule starts -->
+<div id="ch_(ch#):default_state:card" class="card rule-card">
+    <div class="card-header">
+        <h5 id="ch_(ch#):default_state:title" class="card-title">Default state</h5>
+        <div class="mt-3" style="margin-left: 0.5rem;"><span id="ch_(ch#):default_state:desc"class="text-muted">If none of rule conditions above match channel is set to default state.</span></div>
+    </div>
+    <div class="card-body">
+        <div class="input-group mb-3">
+            <span class="input-group-text">Default state
+                </span>
+            <input id="ch_(ch#):default_state_0" type="radio"
+                class="btn-check" name="ch_(ch#):default_state" checked="">
+            <label class="btn btn-secondary"
+                for="ch_(ch#):default_state_0">
+                <span data-feather="zap-off"
+       class="align-text-bottom" style="pointer-events: none;"></span>
+                down</label>
+            <input id="ch_(ch#):default_state_1" type="radio"
+                class="btn-check" name="ch_(ch#):default_state">
+            <label class="btn btn-secondary"
+                for="ch_(ch#):default_state_1">
+                <span data-feather="zap"
+       class="align-text-bottom" style="pointer-events: none;"></span>
+                up</label>
+        </div>
+    </div> <!-- card body -->
+</div> <!-- rule ends -->
+</div>`;
+
+
 
 
 const stmt_html = `<div class="row g-1">
@@ -2441,6 +2452,9 @@ function create_channels() {
                     document.getElementById(`${stmt_id}:oper`).addEventListener("focus", focus_oper);
                 }
             }
+            rule_list.insertAdjacentHTML('beforeend', default_state_html.replaceAll("(ch#)", channel_idx));
+            
+            
 
             // schedule controls
             remove_select_options(sch_duration_sel);
