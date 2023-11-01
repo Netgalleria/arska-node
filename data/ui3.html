@@ -810,23 +810,28 @@
                   <div class="card-body">
 
                     <div class="mb-2">
-                      <input type="checkbox" class="form-check-input" id="loadm_active">
-                      <label for="loadm_active" class="form-check-label">Load limiter active</label>
+                      <input type="checkbox" class="form-check-input" id="load_manager_active">
+                      <label for="load_manager_active" class="form-check-label">Load limiter active</label>
                     </div>
                     <div class="mb-2">
-                      <label for="loadm_phase_count" class="form-label">Phase Count</label>
-                      <select id="loadm_phase_count" class="form-select" aria-label="variable">
+                      <label for="load_manager_phase_count" class="form-label">Phase Count</label>
+                      <select id="load_manager_phase_count" class="form-select" aria-label="variable">
                         <option value="1">1</option>
                         <option value='3'>3</option>
                       </select>
                     </div>
                     <div class="mb-2">
-                      <label for="loadm_phase_current_max" class="form-label">Max Phase Current (A)</label>
-                      <input id="loadm_phase_current_max" type="number" class="form-control" placeholder="25" min="0"
+                      <label for="load_manager_current_max" class="form-label">Max Phase Current (A)</label>
+                      <input id="load_manager_current_max" type="number" class="form-control" placeholder="25" min="0"
                         step="1" max="255">
                     </div>
                     <div class="mb-2">
-                      <span id="loadm_status" class="fw-light"></span>
+                      <label for="load_manager_reswitch_moratorium_m" class="form-label">Reswitch wait time (minutes)</label>
+                      <input id="load_manager_reswitch_moratorium_m" type="number" class="form-control" placeholder="25" min="0"
+                        step="1" max="864">
+                    </div>
+                    <div class="mb-2">
+                      <span id="load_manager_status" class="fw-light"></span>
                     </div>
 
                     <div id="loadm:alert"></div>
