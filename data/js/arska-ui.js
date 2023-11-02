@@ -459,9 +459,14 @@ const stmt_html = `<div class="row g-1">
 <div class="col-6">
     <select id="ch_#:r_#:s_#:var"
         class="form-select"
-        aria-label="variable">
+        aria-label="variable" >
     </select>
 </div>
+<div class="col-1">
+<span id="ch_#:r_#:s_#:info" data-bs-toggle="popover" style="height:25px;width:25px;" class="opacity-25">
+<span  data-feather="info" style="pointer-events: none;" ></span>&nbsp;
+</span>
+</div> 
 <div class="col-3">
     <select id="ch_#:r_#:s_#:oper"
         class="form-select visible"
@@ -470,7 +475,7 @@ const stmt_html = `<div class="row g-1">
 
     </select>
 </div>
-<div class="col col-3">
+<div class="col col-2">
     <input id="ch_#:r_#:s_#:const"
         type="number"
         class="form-control visible"
@@ -498,7 +503,7 @@ function setCookie(cname, cvalue, exdays) {
     document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
 }
 
-function getCookie(cname) {
+function get_cookie(cname) {
     let name = cname + "=";
     let ca = document.cookie.split(';');
     for (let i = 0; i < ca.length; i++) {
@@ -539,6 +544,7 @@ var net_exports = [];
 
 let has_history_values = {};
 var variable_history;
+var variable_values = {};
 var channel_history = [];
 
 var prices_first_ts = 0;
@@ -578,6 +584,7 @@ function update_status(repeat) {
             console.log("got status data", textStatus, jqXHR.status);
             // moved from chart creation create_dashboard_chart
             channel_history = data.channel_history;
+            variable_values = data.variables;
             variable_history = data.variable_history;
             for (const variable_code in data.variable_history) {
                 for (i = 0; i < data.variable_history[variable_code].length; i++) {
@@ -586,7 +593,7 @@ function update_status(repeat) {
                         break;
                     }
                 }
-                console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+                //         console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
             }
             //** 
 
@@ -595,7 +602,7 @@ function update_status(repeat) {
 
             document.getElementById("load_manager_status").innerHTML = "";
             if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
-                document.getElementById("load_manager_status").innerHTML += " Reswitching after overload earliest "+ get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 , true, true) + ".";
+                document.getElementById("load_manager_status").innerHTML += " Reswitching after overload earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
             }
             if (data.hasOwnProperty("energy_meter_current_latest")) {
                 document.getElementById("load_manager_status").innerHTML += "Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
@@ -618,7 +625,7 @@ function update_status(repeat) {
                 extra_message = "";
             }
 
-            if (msgdiv && (data.last_msg_ts > getCookie("msg_read"))) {
+            if (msgdiv && (data.last_msg_ts > get_cookie("msg_read"))) {
                 if (data.last_msg_type == 1)
                     msg_type = 'info';
                 else if (data.last_msg_type == 2)
@@ -634,7 +641,6 @@ function update_status(repeat) {
 
                 $('#dashboard\\:alert_i').on('closed.bs.alert', function () {
                     setCookie("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
-                    //   document.getElementById("msgdiv").innerHTML = "";
                 })
             }
 
@@ -644,12 +650,10 @@ function update_status(repeat) {
             selling = isNaN(data.variables[VARIABLE_SELLING_ENERGY]) ? "-" : data.variables[VARIABLE_SELLING_ENERGY] + " Wh";
             document.getElementById("db:export_v").innerHTML = selling;
 
-           // now_period_start = Math.max(data.started, parseInt(data.ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC);
             now_period_start = Math.max(data.started, period_start_ts(data.ts));
-           
+
 
             ///localtime
-            //document.getElementById("db:current_period").innerHTML = "(" + em_period_s_date.toLocaleTimeString('fi-FI', { hour12: false }).substring(0, 5) + "-" + em_period_e_date.toLocaleTimeString('fi-FI', { hour12: false }).substring(0, 5) + ")";
             document.getElementById("db:current_period").innerHTML = "(" + get_time_string_from_ts(now_period_start, false) + "-" + get_time_string_from_ts(data.ts, false) + ")";
             document.getElementById("db:production_d").style.display = isNaN(data.variables[VARIABLE_PRODUCTION_ENERGY]) ? "none" : "block";
 
@@ -670,31 +674,42 @@ function update_status(repeat) {
             }
             now_ts = Date.now() / 1000;
             now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
-           
+
             // TODO: update
 
             if (show_variables) {
                 //   document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
                 $("#tblVariables_tb").empty();
                 $.each(data.variables, function (id, variable) {
-
-                    var_this = getVariable(id);
+                    var_this = get_variable(id);
                     variable_name = "";
                     variable_desc = "";
+                    var value_txt = "";
                     if (var_this) {
-                        if (var_this[0] in variable_list) {
-                            // variable_desc = variable_list[var_this[0]]["en"]; //TODO: multilang
-                            variable_desc = _ltext(variable_list[var_this[0]], "desc");
+                        if (variable == "null") {
+                            value_txt = "undefined";
                         }
-                        if (Array.isArray(variable)) {
-                            var_value = JSON.stringify(variable);
+                        else if (Array.isArray(variable)) {
+                            value_txt = JSON.stringify(variable);
                         }
                         else {
-                            var_value = variable.replace('"', '').replace('"', '');
+                            value_txt = variable.replace('"', '').replace('"', '');
                         }
-                        newRow = '<tr><th scope="row">' + var_this[0] + '</th><td>' + var_this[1] + '</td><td>' + var_value + '</td><td>' + variable_desc + '</td></tr>';
-                        $(newRow).appendTo($("#tblVariables_tb"));
+                        if (id in variable_list) {
+                            variable_desc = _ltext(variable_list[id], "desc");
+                            if ("unit" in variable_list[id]) {
+                                if (value_txt != "undefined") {
+                                    value_txt += " " + variable_list[id]["unit"];
+                                }
+                            }
+                            variable_desc += ", unit: " + variable_list[id]["unit"];
+                        }
                     }
+
+                    ///double work...
+                    variable_desc = get_variable_desc(id, false);
+                    newRow = '<tr><th scope="row">' + var_this[0] + '</th><td>' + var_this[1] + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
+                    $(newRow).appendTo($("#tblVariables_tb"));
 
                 });
 
@@ -732,6 +747,55 @@ function update_status(repeat) {
     }
 }
 
+function get_variable_desc(var_id, include_value, channel_idx) {
+    var variable_desc = "";
+    var value_txt = "";
+    var unit_txt = "";
+    var range_txt = "";
+    var var_value_obj = variable_values[var_id];
+    var var_obj;
+
+    if (var_id in variable_list) {
+        var_obj = variable_list[var_id];
+        variable_desc = _ltext(var_obj, "desc");
+        if (var_obj.hasOwnProperty("unit")) {
+            unit_txt = ", unit: " + var_obj["unit"];
+        }
+        if (var_obj.hasOwnProperty("min") && var_obj.hasOwnProperty("max")) {
+            range_txt = ", range: " + var_obj["min"] + " - " + var_obj["max"];
+        }
+        else if (var_obj.hasOwnProperty("min")) {
+            range_txt = ", min: " + var_obj["min"];
+        }
+        else if (var_obj.hasOwnProperty("max")) {
+            range_txt = ", max: " + var_obj["max"];
+        }
+    }
+    else {
+        return "Error. Unknown variable."; //we should not end up here
+    }
+    if (include_value) {
+        if (var_value_obj != "null") { //!== null
+            value_txt = ", current value: ";
+            if (Array.isArray(var_value_obj)) {
+                //value_txt += JSON.stringify(var_value_obj);
+                value_txt += var_value_obj[channel_idx];
+            }
+            else {
+                value_txt += var_value_obj;//.replace('"', '').replace('"', '');
+            }
+            value_txt += " " + unit_txt;
+        }
+        else {
+            value_txt = ", current value: undefined";
+        }
+    }
+    else {
+        value_txt = "";
+    }
+    return variable_desc + value_txt + range_txt + ".";
+}
+
 
 function populate_channel_status(channel_idx, ch) {
     //TODO: update this to new...
@@ -751,13 +815,13 @@ function populate_channel_status(channel_idx, ch) {
         update_fup_schedule_element(channel_idx);
 
         duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
-       // duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
+        // duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
         duration_c_str = ts_duration_str(ch.force_up_until - ch.force_up_from, false);
         sch_duration_c_span.innerHTML = duration_c_str;
 
         sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_up_until, false, true);
-     
-        
+
+
         //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
     }
     else {
@@ -808,8 +872,8 @@ function populate_channel_status(channel_idx, ch) {
            else if ((ch.active_condition == -1))
                info_text += "Down, no matching rules. ";
        }*/
-   
-    
+
+
     if (g_settings.ch[channel_idx]["type"] != 0) {
         if (ch.transit == CH_STATE_NONE)
             transit_txt = "";
@@ -820,12 +884,12 @@ function populate_channel_status(channel_idx, ch) {
         else if (ch.transit == CH_STATE_BYLMGMT)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>overload</a>";
         else if (ch.transit == CH_STATE_BYDEFAULT)
-            transit_txt = "channel default"; 
+            transit_txt = "channel default";
         else if (ch.transit == CH_STATE_BYLMGMT_MORATORIUM)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>reswitch delay</a>";
         else if (ch.transit == CH_STATE_BYLMGMT_NOCAPACITY)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load limited</a>";
-            
+
     }
     else
         transit_txt = "";
@@ -860,16 +924,16 @@ function ts_date_time(ts, include_year = true) {
 
 function ts_duration_str(ts_dur, include_seconds = false) {
     days = parseInt(ts_dur / (3600 * 24));
-    hours = parseInt((ts_dur % (3600*24))/3600);
-    minutes = parseInt((ts_dur % 3600)/60);
+    hours = parseInt((ts_dur % (3600 * 24)) / 3600);
+    minutes = parseInt((ts_dur % 3600) / 60);
     seconds = parseInt(ts_dur % 60);
-    date_str =''
+    date_str = ''
     if (days > 0) {
-        date_str += ''+ days + 'd ';
+        date_str += '' + days + 'd ';
     }
     date_str += pad_to_2digits(hours) + ':' + pad_to_2digits(minutes);
     if (include_seconds) {
-        date_str +=  ':' + pad_to_2digits(seconds);  
+        date_str += ':' + pad_to_2digits(seconds);
     }
     return date_str;
 }
@@ -1006,7 +1070,7 @@ function create_dashboard_chart() {
                 for (idx = 0; idx < solar_fcst.length; idx++) {
                     // ts = (start + idx * 3600);
                     ts = (start + idx * resolution_sec);
-                    
+
                     if (solar_fcst[idx] > 0)
                         series_started = true;
                     if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period) {
@@ -1376,7 +1440,7 @@ function populate_wifi_ssid_list() {
 //Scheduling functions
 
 //TODO: get from main.cpp
-const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440, 2880,10080];
+const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440, 2880, 10080];
 
 
 function post_schedule_update(channel_idx, duration, start, duration_old) {
@@ -1496,7 +1560,7 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     }
 }
 
-function duration_changed(evt) {
+function duration_changed_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
     update_fup_schedule_element(channel_idx);
     document.getElementById(`sch_${channel_idx}:save`).disabled = false;
@@ -1610,13 +1674,14 @@ function load_application_config() {
 
 };
 
-function getVariable(variable_id) {
+function get_variable(variable_id) {
     for (var i = 0; i < g_constants.variables.length; i++) {
         if (g_constants.variables[i][0] == variable_id)
             return g_constants.variables[i];
     }
     return null;
 }
+
 
 // Add option to a given select element
 function addOption(el, value, text, selected = false, disabled = false) {
@@ -1681,7 +1746,7 @@ function get_idx_from_str(id_str, idx_nbr) {
     return parseInt(fld_a2[1]);
 }
 
-function set_channel_fields_by_type(evt, ch_idx) {
+function channel_type_changed_ev(evt, ch_idx) {
     var ch_type
     if (evt !== null) {
         ch_idx = get_idx_from_str(evt.target.id, 0);
@@ -1787,10 +1852,8 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
     $(`#ch_${channel_idx}\\:rules input[type='number']`).attr('disabled', (rule_mode != 0)); //jos ei iteroi?
     $(`#ch_${channel_idx}\\:rules input[type='number']`).prop('readonly', (rule_mode != 0));
 
-    //$('#rts_' + channel_idx).css({ "display": ((rule_mode == CHANNEL_CONFIG_MODE_RULE) ? "none" : "segment") });
     template_id_ctrl.disabled = (rule_mode == CHANNEL_CONFIG_MODE_RULE);
 
-    //  $('#rtr_' + channel_idx).css({ "display": ((rule_mode == CHANNEL_CONFIG_MODE_RULE) ? "none" : "segment") });
     template_reset_ctrl = document.getElementById(`ch_${channel_idx}:template_reset`);
     template_reset_ctrl.disabled = (rule_mode == CHANNEL_CONFIG_MODE_RULE);
 
@@ -2029,9 +2092,9 @@ function populate_channel(channel_idx) {
         current_start_ts = ch_cur.force_up_from;
     }
     //color
-    document.getElementById(`sch_${channel_idx}:title`).style.color =ch_cur["channel_color"];
-    document.getElementById(`sch_${channel_idx}:label`).style["background-color"] =ch_cur["channel_color"];
-    document.getElementById(`ch_${channel_idx}:title`).style.color =ch_cur["channel_color"];
+    document.getElementById(`sch_${channel_idx}:title`).style.color = ch_cur["channel_color"];
+    document.getElementById(`sch_${channel_idx}:label`).style["background-color"] = ch_cur["channel_color"];
+    document.getElementById(`ch_${channel_idx}:title`).style.color = ch_cur["channel_color"];
 
     //experimental, is this enough or do we need loop
     //  update_fup_duration_element(channel_idx, current_duration_minute, has_forced_setting);
@@ -2055,7 +2118,7 @@ function populate_channel(channel_idx) {
 
     populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), ch_cur["template_id"]);
 
-    set_channel_fields_by_type(null, channel_idx);
+    channel_type_changed_ev(null, channel_idx);
 
     document.getElementById(`ch_${channel_idx}:r_ip`).value = ch_cur["r_ip"];
     document.getElementById(`ch_${channel_idx}:r_id`).value = ch_cur["r_id"];
@@ -2100,28 +2163,17 @@ function get_var_by_id(id) {
     };
 }
 
-function selected_var(ev) {
-    /* sel_ctrl = ev.target;
-     channel_idx = get_idx_from_str(sel_ctrl.id, 0);
-     rule_idx = get_idx_from_str(sel_ctrl.id, 1);
-     stmt_idx = get_idx_from_str(sel_ctrl.id, 2);*/
+function var_selected_ev(ev) {
 
     var_this = get_var_by_id(ev.target.value);
+    if (var_this) {
+        document.getElementById(sel_ctrl.id.replace(":var", ":info")).classList.remove("opacity-25");
+    }
     oper_ctrl = document.getElementById(ev.target.id.replace("var", "oper"));
     populate_oper(oper_ctrl, var_this);
     // show if hidden in the beginning
     oper_ctrl.classList.remove("invisible");
     oper_ctrl.classList.add("visible");
-
-    //const_ctrl = document.getElementById(ev.target.id.replace("var", "const"));
-
-    // console.log("variable", var_this, "is_var_logical(var_this[2])", is_var_logical(var_this[2]));
-    //const_ctrl.style.display = (is_var_logical(var_this[2])) ? "none" : "segment"; //const-style
-
-    //    if (g_constants.opers[i][0] == stmt[1]) {
-    //      el_const.style.display = (g_constants.opers[i][5] || g_constants.opers[i][6]) ? "none" : "segment"; //const-style
-    //  }
-
 }
 
 // operator select changed, show next statement fields if hidden
@@ -2149,7 +2201,7 @@ function selected_oper(el_oper) {
     el_const.classList.remove(show_const ? "invisible" : "visible");
     el_const.classList.add(show_const ? "visible" : "invisible");
 }
-function selected_oper_ev(ev) {
+function oper_selected_ev(ev) {
     selected_oper(ev.target);
 }
 
@@ -2163,13 +2215,18 @@ function populate_var(sel_ctrl, selected = -1) {
             addOption(sel_ctrl, g_constants.variables[i][0], id_str, false); //(stmt[0] == g_constants.variables[i][0]));
         }
         // TODO: check that only one instance exists
-        sel_ctrl.addEventListener("change", selected_var);
+        sel_ctrl.addEventListener("change", var_selected_ev);
     }
-    if (selected != -1)
+
+    if (selected != -1) {
         sel_ctrl.value = selected;
+    }
+    else {
+        document.getElementById(sel_ctrl.id.replace(":var", ":info")).classList.add("opacity-25");//***** */
+    }
 }
 
-function focus_var(ev) {
+function var_focus_ev(ev) {
     sel_ctrl = ev.target;
     populate_var(sel_ctrl);
 }
@@ -2180,7 +2237,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     stmt_idx = get_idx_from_str(el_oper.id, 2);
 
     if (el_oper.options.length <= 1) {
-        el_oper.addEventListener("change", selected_oper_ev);
+        el_oper.addEventListener("change", oper_selected_ev);
     }
 
     el_var = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`);
@@ -2241,7 +2298,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     el_const.disabled = ((rule_mode != 0) || !show_constant);
 }
 
-function focus_oper(ev) {
+function oper_focus_ev(ev) {
     sel_ctrl = ev.target;
 }
 
@@ -2448,20 +2505,20 @@ function create_channels() {
                     stmt_list.insertAdjacentHTML('beforeend', stmt_html.replaceAll("ch_#:r_#:s_#", stmt_id));
 
                     // lets try lazy population, var, oper, const
-                    document.getElementById(`${stmt_id}:var`).addEventListener("focus", focus_var);
-                    document.getElementById(`${stmt_id}:oper`).addEventListener("focus", focus_oper);
+                    document.getElementById(`${stmt_id}:var`).addEventListener("focus", var_focus_ev);
+                    document.getElementById(`${stmt_id}:oper`).addEventListener("focus", oper_focus_ev);
                 }
             }
             rule_list.insertAdjacentHTML('beforeend', default_state_html.replaceAll("(ch#)", channel_idx));
-            
-            
+
+
 
             // schedule controls
             remove_select_options(sch_duration_sel);
             if (g_settings.ch[channel_idx]["type"] != 0) { // only if relay defined
                 for (i = 0; i < force_up_mins.length; i++) {
                     min_cur = force_up_mins[i];
-                   // duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
+                    // duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
                     duration_str = ts_duration_str(min_cur * 60, false);
                     addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
                 }
@@ -2472,12 +2529,12 @@ function create_channels() {
         }
 
         //Schedulings listeners
-        sch_duration_sel.addEventListener("change", duration_changed);
+        sch_duration_sel.addEventListener("change", duration_changed_ev);
 
         sch_duration_del = document.getElementById(`sch_${channel_idx}:delete`);
         sch_duration_del.addEventListener("click", delete_schedule);
 
-        channel_type_ctrl.addEventListener("change", set_channel_fields_by_type);
+        channel_type_ctrl.addEventListener("change", channel_type_changed_ev);
 
         // refine template constants
 
@@ -2629,7 +2686,49 @@ function init_ui() {
 
     set_field_editability();
 
+    // var content = $('[id*="yourDivId"]');
+    // var type_indi = is_var_logical(g_constants.variables[i][2]) ? "*" : " "; //logical
+    //         var id_str = '(' + g_constants.variables[i][0] + ') ' + g_constants.variables[i][1] + type_indi;
+
+
+    function get_idx_from_str(id_str, idx_nbr) {
+        const fld_a1 = id_str.split(":");
+        if (fld_a1.length <= idx_nbr)
+            return -1;
+        const fld_a2 = fld_a1[idx_nbr].split("_");
+        if (fld_a2.length < 2)
+            return -1;
+        return parseInt(fld_a2[1]);
+    }
+
+
+    $('[data-bs-toggle="popover"]').popover({
+        html: true,
+        content: function () {
+            // var id = 0; // take from from this.id;
+            var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
+            if (var_id == -1 || var_id == "") {
+                return "Select variable from the list. \"-\" to remove existing condition.";
+            }
+            var channel_idx = get_idx_from_str(this.id, 0);
+            console.log("popover var_id, channel_idx", var_id, channel_idx);
+            return get_variable_desc(var_id, true, channel_idx);
+
+        },
+        title: function () {
+            var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
+            if (var_id in variable_list) {
+                return "(" + var_id + ") " + variable_list[var_id]["id"];
+            }
+            else {
+                return "No variable selected";
+            }
+
+        }
+    });
+
 }
+
 
 function live_alert(card_idstr, message, type) {
     alertPlaceholder = document.getElementById(card_idstr + ':alert');
