@@ -159,8 +159,8 @@ tm tm_struct;
 
 bool wifi_sta_connection_required = false;
 bool wifi_sta_connected = false;
-uint32_t wifi_sta_disconnected_ms = 0; //!< restart if enough time since first try
-uint32_t wifi_connect_tried_last_ms = 0;  //!< reconnect if enough time since first try
+uint32_t wifi_sta_disconnected_ms = 0;   //!< restart if enough time since first try
+uint32_t wifi_connect_tried_last_ms = 0; //!< reconnect if enough time since first try
 
 #define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
 #define WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC 3600
@@ -1587,14 +1587,15 @@ public:
   // T operator [](int i) const    {return registers[i];}
   void clear_store()
   {
-    min_value_idx_ = store.n;
-    max_value_idx_ = -1;
+    store.min_value_idx = store.n;
+    store.max_value_idx = -1;
 
     Serial.println(store.n);
     for (int i = 0; i < store.n; i++)
     {
       store.arr[i] = store.init_value;
     }
+    store.last_update_ts = 0;
   };
 #ifdef NVS_CACHE_ENABLED
   // WiP experimental
@@ -1673,8 +1674,9 @@ public:
     int idx = get_idx(ts);
     if (idx != -1)
       store.arr[idx] = new_value;
-    min_value_idx_ = min(min_value_idx_, idx);
-    max_value_idx_ = max(max_value_idx_, idx);
+    store.min_value_idx = min(store.min_value_idx, idx);
+    store.max_value_idx = max(store.max_value_idx, idx);
+    store.last_update_ts = time(nullptr);
   };
 
   int n() { return store.n; };
@@ -1682,8 +1684,9 @@ public:
   time_t start() { return store.start; };
   time_t end() { return store.start + (int)store.resolution_sec * (store.n - 1); };
 
-  time_t first_set_period() { return store.start + min_value_idx_ * store.resolution_sec; };
-  time_t last_set_period() { return store.start + max_value_idx_ * store.resolution_sec; };
+  time_t first_set_period() { return store.start + store.min_value_idx * store.resolution_sec; };
+  time_t last_set_period() { return store.start + store.max_value_idx * store.resolution_sec; };
+  time_t last_update() { return store.last_update_ts; };
 
   T get(time_t ts = time(nullptr))
   {
@@ -1717,6 +1720,7 @@ public:
 
   void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
   {
+    Serial.printf("stats ts %ld, start_ts %ld, end_ts_incl %ld \n", ts, start_ts, end_ts_incl);
     *avg_ = avg(start_ts, end_ts_incl);
     *differs_avg = get(ts) - *avg_;
     T suma = sum(start_ts, end_ts_incl);
@@ -1785,12 +1789,12 @@ public:
     }
     else if (index_delta < 0)
     {
-      if (min_value_idx_ != store.n)
+      if (store.min_value_idx != store.n)
       {
-        min_value_idx_ = max(min_value_idx_ + index_delta, 0);
+        store.min_value_idx = max(store.min_value_idx + index_delta, 0);
       }
 
-      max_value_idx_ = max(max_value_idx_ + index_delta, -1);
+      store.max_value_idx = max(store.max_value_idx + index_delta, -1);
       for (int i = 0; i < store.n; i++)
       {
         if ((i - index_delta >= 0) && (i - index_delta < store.n))
@@ -1801,9 +1805,9 @@ public:
     }
     else if (index_delta > 0)
     {
-      min_value_idx_ = min(max_value_idx_ + index_delta, store.n);
-      if (max_value_idx_ != -1)
-        max_value_idx_ = min(max_value_idx_ + index_delta, store.n - 1);
+      store.min_value_idx = min(store.max_value_idx + index_delta, store.n);
+      if (store.max_value_idx != -1)
+        store.max_value_idx = min(store.max_value_idx + index_delta, store.n - 1);
 
       for (int i = store.n - 1; i >= 0; i--)
       {
@@ -1824,7 +1828,7 @@ public:
     int start_idx = max(0, get_idx(start_ts));
     int end_idx = min(get_idx(end_ts_incl), store.n);
     int this_period_idx = get_idx(period_ts);
-    //  Serial.printf("get_period_rank start_idx %d, this_period_idx %d, end_idx %d\n", start_idx, end_idx, this_period_idx);
+    //Serial.printf("get_period_rank period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d\n", period_ts, start_idx, this_period_idx, end_idx);
 
     if (start_idx <= this_period_idx && this_period_idx <= end_idx)
     {
@@ -1852,8 +1856,9 @@ private:
   uint8_t id_;
   //  int n_;
   //  time_t start_;
-  int min_value_idx_;
-  int max_value_idx_;
+  // int store.min_value_idx;
+  // int store.max_value_idx;
+  // time_t last_update_ts=0;
   //  uint16_t store.resolution_sec;
 
   //  T arr[TIMESERIES_ELEMENT_MAX]; // here we have the data
@@ -1867,19 +1872,31 @@ private:
     T init_value;
     T arr[TIMESERIES_ELEMENT_MAX];
     time_t expires;
+    int min_value_idx;
+    int max_value_idx;
+    time_t last_update_ts;
   } store;
 
   int get_idx(time_t ts)
   {
     int index_candidate = (ts - store.start) / store.resolution_sec;
+
     if (index_candidate < 0 || index_candidate >= store.n)
     {
-      if (abs(index_candidate) > store.n * 10) // something wrong
+      if (abs(index_candidate) > store.n * 10)
+      { // something wrong
         Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
+      }
+      Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
+
       return -1;
     }
     else
+    {
+      //     Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_,ts, store.start, index_candidate);
+
       return index_candidate;
+    }
   };
 };
 // Time series globals
@@ -3525,7 +3542,7 @@ void calculate_time_based_variables()
   vars.set(VARIABLE_HHMM, (long)(tm_struct.tm_hour) * 100 + tm_struct.tm_min);
   vars.set(VARIABLE_MINUTES, (long)tm_struct.tm_min);
 
-  if (solar_forecast.start() > 0)
+  if (solar_forecast.last_update() > time(nullptr) - SECONDS_IN_DAY)
   { // we have a solar forecast
     time_t day_end_local = day_start_local + 23 * SECONDS_IN_HOUR;
     // uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
@@ -3632,7 +3649,7 @@ void calculate_forecast_variables()
   bool got_future_prices = false;
 
   long period_solar_rank = -1;
-  if (solar_forecast.start() != 0) // do we have the location & data
+  if (solar_forecast.last_update() > time(nullptr) - SECONDS_IN_DAY) // do we have the location & data
     period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start_ts, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
   if (period_solar_rank == -1)
     vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
@@ -3646,7 +3663,7 @@ void calculate_forecast_variables()
 
   // FORECAST_TYPE_FI_LOCAL_SOLAR
   //  next 24 h
-  if (solar_forecast.start() != 0)
+  if (solar_forecast.end() > time(nullptr))
   {
     for (time_t period = current_period_start_ts; period < current_period_start_ts + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
     {
@@ -3658,17 +3675,20 @@ void calculate_forecast_variables()
         Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
         pv_value += pv_value_hour;
         got_future_prices = true; // we got some price data
-        //  Serial.printf("j: %d, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", j, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
+        Serial.printf("solar_forecast.end() %ld", solar_forecast.end());
+        Serial.printf("j: %ld, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", period, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
       }
       yield();
     }
+
+    vars.set(VARIABLE_PVFORECAST_SUM24, (long)(solar_forecast.sum(current_period_start_ts, current_period_start_ts + 23 * SECONDS_IN_HOUR) * s.pv_power / 100) / 1000);
+ 
     // TODO: currently not levelized with
-    if (got_future_prices)
+    if (got_future_prices && vars.get_l(VARIABLE_PVFORECAST_SUM24)>1)
     {
       vars.set(VARIABLE_PVFORECAST_VALUE24, (float)(pv_value * (float)s.pv_power / 100000000));
       vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (float)(pv_value / sum_pv_fcst_with_price));
     }
-    vars.set(VARIABLE_PVFORECAST_SUM24, (long)(solar_forecast.sum(current_period_start_ts, current_period_start_ts + 23 * SECONDS_IN_HOUR) * s.pv_power / 100) / 1000);
   }
 
   // FORECAST_TYPE_FI_WIND
@@ -3754,9 +3774,10 @@ void calculate_price_rank_variables()
 
   // 9 h sliding
   time_t last_ts_in_window = min(current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period());
+  Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  Serial.printf("New way 9 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  Serial.printf("New way 9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
@@ -3945,9 +3966,11 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   client_https.setCACert(ca_cert.c_str());
 
   client_https.setTimeout(5); // was 15 Seconds
+  client_https.setHandshakeTimeout(5);
   yield();
-  Serial.println(F("Connecting with CA check."));
+  Serial.println(F("Connecting FMI with CA check."));
   Serial.println(host_fcst_fmi);
+  delay(1000);
 
   if (!client_https.connect(host_fcst_fmi, httpsPort))
   {
@@ -3983,7 +4006,8 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     Serial.println("client_https connected");
   else
     Serial.println("client_https not connected");
-  yield();
+  // yield();
+  unsigned long task_started = millis();
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
@@ -3993,8 +4017,14 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
       Serial.println("headers received");
       break;
     }
+    if (millis() - task_started > 10000)
+    {
+      Serial.println(PSTR("Timeout in receiving headers"));
+      client_https.stop();
+      return false;
+    }
+    yield();
   }
-  yield();
   Serial.println(F("Waiting the document"));
   String line;
 
@@ -4115,6 +4145,7 @@ bool get_price_data_entsoe()
   client_https.setCACert(ca_cert.c_str());
 
   client_https.setTimeout(5); // was 15 Seconds
+  client_https.setHandshakeTimeout(5);
   delay(1000);
 
   Serial.println(F("Connecting with CA check."));
@@ -4490,7 +4521,6 @@ void read_production_meter()
   }
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
-  // read_ok = read_inverter(total_energy);  // code was inserted here to remove one nesting level
   yield();
   if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
   {
@@ -5111,6 +5141,8 @@ bool get_price_data_elering()
   client_https.setCACert(letsencrypt_ca_certificate);
 
   client_https.setTimeout(15); // was 15 Seconds
+  client_https.setHandshakeTimeout(5);
+
   yield();
   Serial.println(F("Connecting Elering with CA check."));
 
@@ -5143,7 +5175,7 @@ bool get_price_data_elering()
 
   client_https.setTimeout(15); // was 15 Seconds
   delay(1000);
-  Serial.println(F("Connecting with CA check."));
+  Serial.println(F("Connecting Elering with CA check."));
 
   /// api/nps/price/csv?start=2020-05-31T20%3A59%3A59.999Z&end=2020-06-30T20%3A59%3A59.999Z&fields=fi
   snprintf(url, sizeof(url), "/api/nps/price/csv?start=%s&end=%s&fields=%s", date_str_start, date_str_end, country_code);
@@ -5164,15 +5196,26 @@ bool get_price_data_elering()
     return false;
   }
   yield();
+
+  unsigned long task_started = millis();
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
+    // Serial.println(lineh);
     if (lineh == "\r")
     {
-      break; // headers received
+      Serial.println("headers received");
+      break;
     }
+    if (millis() - task_started > 10000)
+    {
+      Serial.println(PSTR("Timeout in receiving headers"));
+      client_https.stop();
+      return false;
+    }
+    yield();
   }
-  yield();
+
   Serial.println(F("Waiting the document"));
 
   delay(1000);
@@ -6533,6 +6576,8 @@ void onWebSeriesGet(AsyncWebServerRequest *request)
       series_obj["first_set_period"] = solar_forecast.first_set_period();
       series_obj["last_set_period"] = solar_forecast.last_set_period();
       series_obj["resolution_sec"] = solar_forecast.resolution_sec();
+      //   Serial.println("DEBUG");
+      //   solar_forecast.debug_print();
     }
   }
   doc["ts"] = time(nullptr);
@@ -6584,15 +6629,14 @@ void loop_watchdog(void *pvParameters)
 void onWebStatusGet(AsyncWebServerRequest *request)
 {
 #ifdef LOOP_WATCHDOG_ENABLED
-  check_loop_is_called(); // call watchdog also here, if task not working
+//  check_loop_is_called(); // call watchdog also here, if task not working
 #endif
-
+   
   if (!request->authenticate(s.http_username, s.http_password))
   {
     return request->requestAuthentication();
   }
 
-  // StaticJsonDocument<2048> doc; //
   DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
   String output;
 
@@ -6820,7 +6864,7 @@ bool connect_wifi()
         delay(1000);
         WiFi.disconnect();
         delay(3000);
-   
+
         break;
       }
       io_tasks(STATE_CONNECTING); // leds, reset
@@ -6852,10 +6896,10 @@ bool connect_wifi()
     }
     return true;
   }
-      wifi_sta_connected = false;
-    wifi_sta_disconnected_ms = millis();
+  wifi_sta_connected = false;
+  wifi_sta_disconnected_ms = millis();
 
-    create_wifi_ap = true;
+  create_wifi_ap = true;
 
   // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
   // create ap-mode ssid for config wifi
@@ -6896,6 +6940,7 @@ void setup()
   delay(2000);               // wait for console to settle - only needed when debugging
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
+
 
   // String
   wifi_mac_short = WiFi.macAddress();
@@ -7261,7 +7306,6 @@ void loop()
   }
 #endif
 
-
 #ifdef OTA_UPDATE_ENABLED
   // Note:  was earlier after time setup
   if (todo_in_loop_update_firmware_partition)
@@ -7287,13 +7331,13 @@ void loop()
   // uint32_t wifi_sta_disconnected_ms = 0    //!< restart if enough time since first try
   //     uint32_t wifi_connect_tried_last_ms = 0 //!< reconnect if enough time since first try
 
-  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_connect_tried_last_ms > WIFI_FAILED_RECONNECT_INTERVAL_SEC*1000)
+  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_connect_tried_last_ms > WIFI_FAILED_RECONNECT_INTERVAL_SEC * 1000)
   {
     Serial.println(PSTR("Trying to reconnect wifi"));
     connect_wifi();
   }
 
-  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_sta_disconnected_ms > WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC*1000)
+  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_sta_disconnected_ms > WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC * 1000)
   {
     WiFi.disconnect();
     log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to missing wifi connection."), true);
@@ -7375,26 +7419,26 @@ void loop()
     set_relays(false);
   }
 
-/*
-  // just in case check the wifi and reconnect/restart if needed
-  if ((WiFi.waitForConnectResult(10000) != WL_CONNECTED) && wifi_sta_connected)
-  {
-    // Wait for the wifi to come up again
-    for (int wait_loop = 0; wait_loop < 20; wait_loop++)
+  /*
+    // just in case check the wifi and reconnect/restart if needed
+    if ((WiFi.waitForConnectResult(10000) != WL_CONNECTED) && wifi_sta_connected)
     {
-      delay(1000);
-      Serial.print('w');
-      if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
-        break;
+      // Wait for the wifi to come up again
+      for (int wait_loop = 0; wait_loop < 20; wait_loop++)
+      {
+        delay(1000);
+        Serial.print('w');
+        if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
+          break;
+      }
+      if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
+      {
+        log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
+        delay(2000);
+        ESP.restart(); // boot if cannot recover wifi in time
+      }
     }
-    if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
-    {
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
-      delay(2000);
-      ESP.restart(); // boot if cannot recover wifi in time
-    }
-  }
-  */
+    */
 
   if ((next_query_price_data_ts <= time(nullptr)) && (prices_expires_ts <= time(nullptr)) && wifi_sta_connected)
   {
