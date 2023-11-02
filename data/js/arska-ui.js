@@ -2007,6 +2007,11 @@ function set_template_constants(channel_idx, ask_confirmation) {
 
     if (template_data.hasOwnProperty('desc'))
         document.getElementById(`ch_${channel_idx}:desc`).innerHTML = _ltext(template_data, "desc");
+    
+    if (template_data.hasOwnProperty('default_state')) {
+        document.getElementById(`ch_${channel_idx}:default_state_0`).checked = template_data["default_state"] ? false : true;
+        document.getElementById(`ch_${channel_idx}:default_state_1`).checked = template_data["default_state"] ? true : false;
+    }
 
     //Create modal form for parameters
     $.each(template_data.rules, function (rule_idx, rule) {

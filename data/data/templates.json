@@ -11,6 +11,7 @@
             "desc": "On only during cheapest night hours. Define number of hours. Deprecated.",
             "desc_fi": "Päällä ainoastaan yösähkön aikana halvimpina tunteina, voit määrittää päällä olevien tuntien määrän.  Poistuva.",
             "uptime_minimum": 300,
+            "default_state" : false,
             "rules": [
                 {
                     "desc": "Up at night on X cheapest hours .",
@@ -46,6 +47,7 @@
             "desc": "On only when there is own overproduction and price is not high. Required data: prices, metering or solar forecast.",
             "desc_fi": "Päällä ainoastaan kun oman tuotannon ylijäämää, mutta kalliin sähkön aikana myydään oma tuotanto. Tarvittava data: hintatiedot, energian mittarointi tai energiasääennuste.",
             "uptime_minimum": 300,
+            "default_state" : false,
             "rules": [
                 {
                     "on": false,
@@ -88,6 +90,7 @@
             "desc": "Use solar if cheap, othwerwise cheapest night hours. Required data: prices, solar energy forecast",
             "desc_fi": "Päällä yöllä kun edullisinta ja jos ei tulossa halpaa aurinkosähköä.  Tarvittava data: hintatiedot, aurinkoenergiaennuste.",
             "uptime_minimum": 300,
+            "default_state" : true,
             "rules": [
                 {
                     "on": false,
@@ -205,6 +208,7 @@
             "name_fi": "Vuorokauden halvimmat tunnit ",
             "desc": "On during cheapest hours of the day (24 h nychthemeron). You can define number of cheapest hours (rank) and max price. Required data: prices.",
             "desc_fi": "Päällä vuorokauden halvimpina tunteina. Lisäksi päällä jos hinta alittaa antamasi rajahinnnan.",
+            "default_state" : false,
             "rules": [
                 {
                     "on": true,
@@ -254,6 +258,7 @@
             "name_fi": "Vuorokauden halvimmat tunnit",
             "desc": "Up during the cheapest hours of the day (24 h), data: price data",
             "desc_fi": "Päällä vuorokauden halvimpina tunteina, data: hintatiedot.",
+            "default_state" : false,
             "rules": [
                 {
                     "on": true,
@@ -296,6 +301,7 @@
             "name_fi": "Vuorokauden 8 tunnin jaksojen halvimmat tunnit",
             "desc": "Up during the cheapest hours of each 8 hours block. Blocks are 1) 23:00-06:59 , 2) 07:00-14:59, 3) 15:00-22:59 . Data used : price data",
             "desc_fi": "Päällä vuorokauden kunkin 8 tunnin jakson halvimpina tuntina. Jaksot: 1) 23:00-06:59 , 2) 07:00-14:59, 3) 15:00-22:59. Tarvittava data: hintatiedot.",
+            "default_state" : true,
             "rules": [
                 {
                     "on": true,
@@ -393,6 +399,7 @@
             "name_fi": "Ennusteen mukaan aurinkoisimpina tunteina",
             "desc": "Up during the most during sunny hours according to the forecast",
             "desc_fi": "Päällä päivällä ennusteen mukaan aurinkoisimpina tunteina. Tarvittava data: FMI energiasääennuste.",
+            "default_state" : false,
             "rules": [
                 {
                     "on": true,
@@ -423,6 +430,7 @@
             "name_fi": "Painota aurinkoisimpia tunteihin ja täydennyksenä yöllä",
             "desc": "On mostly on the sunniest hours according to the forecast and at night during the cheapest hours to get the minimum uptime. Required data: FMI solar forecast.",
             "desc_fi": "Päällä painottuen ennusteen mukaisiin aurinkoisimpiin tunteihin ja täydennyksenä yöllä halvimpina tunteina, jotta minimipäälläoloaika täyttyisi.  Tarvittava data: FMI energiasääennuste. ",
+            "default_state" : false,
             "rules": [
                
                 {
@@ -493,6 +501,7 @@
             "name_fi": "Oman ylituotannnon aikana ja täydennyksenä yöllä",
             "desc": "On when there is own overproduction and at night during the cheapest hours to get the minimum uptime. Required data: prices, net energy info from metering or solar forecast.",
             "desc_fi": "Päällä kun omaa ylituotantoa ja yöllä halvimpina tunteina, jotta minimipäälläoloaika täyttyisi.  Tarvittava data: hintatiedot, ylituotantotieot (mittarointi tai arviointi, tarkista muuttuja 700).",
+            "default_state" : false,
             "rules": [
                 {
                     "on": true,
@@ -555,6 +564,7 @@
             "name_fi": "Ylituotanto, halpa yöhinta ja tuulen odotus",
             "desc": "On whenever there is an overproduction of solar energy and the price is very low. In addition, at night in the cheapest hours when the price is not particularly high. If the night price is expensive and the next night's wind power production is high, expect a possibly cheap price the next night. This can be suitable if the property has, for example, a large water storage tank that does not need to be heated every day. High wind power production does not automatically mean cheap prices, although this is often the case at night. In an exceptional situation, you can schedule manually.",
             "desc_fi": "Päällä kun aurinkoenergian ylituotantoa mutta kalleimmat tunnit voidaan ohjata myyntiin.Lisäksi kun hinta erittäin alhainen. Lisäksi yöllä halvimpina tunteina kun hinta ei erityisen korkea. Mikäli yöhinta kallis ja seuraavana yönä tuulivoiman tuotanto on suurta, odotetaan seuraavan yön mahdollisesti halpaa hintaa. Tämä voi sopia jos kiinteistössä esim. suuri vesivaraaja, jota ei tarvitse lämmittää joka päivä. Korkea tuulivoimatuotanto ei automaattisesti tarkoita halpoja hintoja, vaikka yöllä usein näin onkin. Poikkeustilanteessa voit ajastaa manuaalisesti.",
+            "default_state" : true,
             "rules": [
                 {
                     "on": true,
