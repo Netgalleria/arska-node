@@ -1,5 +1,5 @@
 var g_settings;
-var g_constants;
+var g_application;
 var g_templates;
 
 var g_price_elering_enabled;
@@ -10,6 +10,7 @@ const VARIABLE_LONG_UNKNOWN = -2147483648;
 const MAX_HISTORY_PERIODS = 24
 const HOURS_IN_DAY = 24
 const SECONDS_IN_HOUR = 3600
+const SECONDS_IN_MINUTE = 60
 //const NETTING_PERIOD_SEC = SECONDS_IN_HOUR // from /application constants
 
 //selected constants
@@ -76,8 +77,8 @@ function populate_releases() {
                 $('#releases\\:update').prop('disabled', false);
                 $('#sel_releases').prop('disabled', false);
 
-                if (g_constants.VERSION_SHORT) {
-                    version_base = g_constants.VERSION_SHORT.substring(0, g_constants.VERSION_SHORT.lastIndexOf('.'));
+                if (g_application.VERSION_SHORT) {
+                    version_base = g_application.VERSION_SHORT.substring(0, g_application.VERSION_SHORT.lastIndexOf('.'));
                     console.log('version_base', version_base);
                     $('#sel_releases option:contains(' + version_base + ')').append(' ***');
                     //  $('#sel_releases').val(version_base);
@@ -108,7 +109,7 @@ function whatDecimalSeparator() {
 
 
 function period_start_ts(ts) {
-    return parseInt(ts / g_constants.NETTING_PERIOD_SEC) * g_constants.NETTING_PERIOD_SEC;
+    return parseInt(ts / g_application.NETTING_PERIOD_SEC) * g_application.NETTING_PERIOD_SEC;
 }
 
 const template_form_html = `<div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
@@ -549,7 +550,7 @@ var channel_history = [];
 
 var prices_first_ts = 0;
 var prices_last_ts = 0;
-var price_resolution_sec = SECONDS_IN_HOUR;
+var price_resolution_sec = SECONDS_IN_HOUR; //TODO: read from data
 var prices_expires = 0;
 
 // update variables and channels statuses to channels form
@@ -673,7 +674,7 @@ function update_status(repeat) {
                 document.getElementById(`db:s_${s_idx}:div`).style.display = sensor_has_value ? "block" : "none";
             }
             now_ts = Date.now() / 1000;
-            now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+            now_period_start = period_start_ts(now_ts);
 
             // TODO: update
 
@@ -856,22 +857,6 @@ function populate_channel_status(channel_idx, ch) {
         if (ch.wanna_be_up)
             info_text += ", going up.";
     }
-    /*   else if (ch.is_up) {
-           if ((ch.force_up_from <= now_ts) && (now_ts < ch.force_up_until))
-               info_text += "Up based on manual schedule.";
-           else if (!ch.wanna_be_up)
-               info_text += "Up, but going down.";
-           else if (ch.active_condition > -1)
-               info_text += "Up based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
-       }
-       else {
-           if (ch.wanna_be_up)
-               info_text += "Down, but going up.";
-           else if ((ch.active_condition > -1))
-               info_text += "Down based on <a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>. ";
-           else if ((ch.active_condition == -1))
-               info_text += "Down, no matching rules. ";
-       }*/
 
 
     if (g_settings.ch[channel_idx]["type"] != 0) {
@@ -889,11 +874,9 @@ function populate_channel_status(channel_idx, ch) {
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>reswitch delay</a>";
         else if (ch.transit == CH_STATE_BYLMGMT_NOCAPACITY)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load limited</a>";
-
     }
     else
         transit_txt = "";
-
 
     sch_status_text_span.innerHTML = info_text + (transit_txt ? " (" + transit_txt + ")" : "");
     return;
@@ -904,8 +887,6 @@ function populate_channel_status(channel_idx, ch) {
 function link_to_wiki(article_name) {
     return '<a class="helpUrl" target="wiki" href="https://github.com/Netgalleria/arska-node/wiki/' + article_name + '">ℹ</a>';
 }
-
-
 
 
 function sleep(ms) {
@@ -923,9 +904,9 @@ function ts_date_time(ts, include_year = true) {
 }
 
 function ts_duration_str(ts_dur, include_seconds = false) {
-    days = parseInt(ts_dur / (3600 * 24));
-    hours = parseInt((ts_dur % (3600 * 24)) / 3600);
-    minutes = parseInt((ts_dur % 3600) / 60);
+    days = parseInt(ts_dur / (SECONDS_IN_HOUR * 24));
+    hours = parseInt((ts_dur % (SECONDS_IN_HOUR * 24)) / SECONDS_IN_HOUR);
+    minutes = parseInt((ts_dur % SECONDS_IN_HOUR) / 60);
     seconds = parseInt(ts_dur % 60);
     date_str = ''
     if (days > 0) {
@@ -944,11 +925,10 @@ function create_dashboard_chart() {
     let date;
     let time_labels = [];
     let prices_out = [];
-    let idx = 0;
     let now_idx = 0;
     let now_idx_chh = MAX_HISTORY_PERIODS - 1;
     now_ts = (Date.now() / 1000);
-    now_period_ts = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
+    now_period_ts = period_start_ts(now_ts);
 
     let price_data_exists = (price_data !== null);
     if (!price_data_exists) { //try to get prices now 
@@ -958,10 +938,11 @@ function create_dashboard_chart() {
     if (price_data == null) {
         console.log("create_dashboard_chart: no price data");
         price_data_exists = false;
-        // 48 periods
-        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (g_constants.NETTING_PERIOD_SEC);
-        chart_end_excl_ts = chart_start_ts + (48 * g_constants.NETTING_PERIOD_SEC);
-        chart_resolution_sec = 3600;
+        // 48 hours, now in the middle
+        chart_start_ts = parseInt(now_ts / 86400) * 86400 + (SECONDS_IN_HOUR);
+        chart_end_excl_ts = chart_start_ts + (48 * SECONDS_IN_HOUR);
+        //chart_resolution_sec = SECONDS_IN_HOUR;
+        chart_resolution_sec = g_application.NETTING_PERIOD_SEC;
         now_idx = 0;
         now_idx_chh = MAX_HISTORY_PERIODS - 1;
     }
@@ -969,37 +950,50 @@ function create_dashboard_chart() {
         price_data_exists = true;
         chart_start_ts = price_data.record_start;
         chart_end_excl_ts = price_data.record_end_excl;
-        chart_resolution_sec = price_data.resolution_sec;
+        // chart_resolution_sec = price_data.resolution_sec;
+        chart_resolution_sec = Math.min(price_data.resolution_sec, g_application.NETTING_PERIOD_SEC);
     }
+
+
     const ctx = document.getElementById('day_ahead_chart').getContext('2d');
 
     var tz_offset = new Date().getTimezoneOffset();
-    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - g_constants.NETTING_PERIOD_SEC, false);
+    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - g_application.NETTING_PERIOD_SEC, false);
 
     // now history, if values exists
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
     if (chartExist != undefined)
         chartExist.destroy();
 
+    let idx = 0;
     for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_sec)) {
         if (ts > now_ts && now_idx == 0)
             now_idx = idx - 1;
         time_label = get_time_label(ts);
         time_labels.push(time_label);
 
-        if (price_data_exists) {
-            prices_out.push({ x: time_label, y: Math.round(price_data.prices[idx] / 100) / 10 });
-        }
+        /* if (price_data_exists) {
+             prices_out.push({ x: time_label, y: Math.round(price_data.prices[idx] / 100) / 10 });
+         }*/
         idx++;
     }
 
-    // console.log("time_labels",time_labels);
+    console.log("time_labels", time_labels);
+    // new way
+    if (price_data_exists) {
+        idx = 0;
+        for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_resolution_sec) {
+            prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
+            idx++;
+        }
+    }
+
 
     if (price_data_exists) {
         datasets = [{
             label: 'price ¢/kWh',
             data: prices_out,
-            yAxisID: 'yp',
+            yAxisID: 'y_prices',
             borderColor: ['#2376DD'
             ],
             backgroundColor: '#2376DD',
@@ -1015,27 +1009,55 @@ function create_dashboard_chart() {
     else
         datasets = [];
 
-    console.log("now_idx", now_idx);
 
-    var new_ds = [];
-    console.log("has_history_values", has_history_values);
+    var import_ds = [];
 
     // iterate
+    var period_label = 'h';
+    if (g_application.NETTING_PERIOD_SEC == SECONDS_IN_HOUR) {
+        period_factor = 1;
+    }
+    else {
+        period_label = "" + g_application.NETTING_PERIOD_SEC / SECONDS_IN_MINUTE + " min";
+        period_factor = g_application.NETTING_PERIOD_SEC / SECONDS_IN_HOUR;
+    }
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
         dataset_started = false;
-        for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
-            if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
+        /*  for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
+              if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
+                  dataset_started = true;
+              // should be x/y like???:      prices_out.push({ x: time_label, y: Math.round(price_data.prices[idx] / 100) / 10 });
+              console.log("import",h_idx,variable_history[VARIABLE_SELLING_ENERGY][h_idx]);
+             // import_ds.push(dataset_started ? -variable_history[VARIABLE_SELLING_ENERGY][h_idx] : null);
+          }
+          */
+
+        ts = now_period_ts - (g_application.NETTING_PERIOD_SEC * (variable_history[VARIABLE_SELLING_ENERGY].length - 1));
+        for (h_idx = 0; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
+            if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 0) {
                 dataset_started = true;
-            new_ds.push(dataset_started ? -variable_history[VARIABLE_SELLING_ENERGY][h_idx] : null);
+                if (dataset_started) {
+                    import_ds.push({ x: get_time_label(ts), y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
+                }
+            }
+            ts += g_application.NETTING_PERIOD_SEC;
         }
-        // console.log("new_ds ", VARIABLE_SELLING_ENERGY, new_ds);
+
+        /*   idx = 0;
+           for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_resolution_sec) {
+               prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
+               idx++;
+           }*/
+
+        console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
+
         if (dataset_started)
             datasets.push(
                 {
-                    label: 'import Wh',
-                    data: new_ds,
-                    yAxisID: 'y_energy',
+                    label: 'import Wh/' + period_label,
+                    data: import_ds,
+                    yAxisID: 'energy_y_axis', //'energy_y_axis',
                     cubicInterpolationMode: 'monotone',
                     borderColor: ['#0eb03c'
                     ],
@@ -1050,78 +1072,73 @@ function create_dashboard_chart() {
     }
 
     //experimental solar forecast, could be combinet with get_price_data
-    if (true) {
+    $.ajax({
+        url: '/series?solar_fcst=true',
+        cache: false,
+        dataType: 'json',
+        async: false,
+        success: function (data, textStatus, jqXHR) {
+            console.log('got solar forecast', textStatus, jqXHR.status);
+            let fcst_ds = [];
+            if (!data.hasOwnProperty("solar_forecast"))
+                return false;
 
-        $.ajax({
-            url: '/series?solar_fcst=true',
-            cache: false,
-            dataType: 'json',
-            async: false,
-            success: function (data, textStatus, jqXHR) {
-                console.log('got solar forecast', textStatus, jqXHR.status);
-                let fcst_ds = [];
-                if (!data.hasOwnProperty("solar_forecast"))
-                    return false;
+            solar_fcst = data.solar_forecast.s;
+            start = data.solar_forecast.start;
+            resolution_sec = data.solar_forecast.resolution_sec;
+            series_started = false;
+            for (idx = 0; idx < solar_fcst.length; idx++) {
+                ts = (start + idx * resolution_sec);
 
-                solar_fcst = data.solar_forecast.s;
-                start = data.solar_forecast.start;
-                resolution_sec = data.solar_forecast.resolution_sec;
-                series_started = false;
-                for (idx = 0; idx < solar_fcst.length; idx++) {
-                    // ts = (start + idx * 3600);
-                    ts = (start + idx * resolution_sec);
-
-                    if (solar_fcst[idx] > 0)
-                        series_started = true;
-                    if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period) {
-                        time_label = get_time_label(ts);
-                        if (time_labels.includes(time_label))
-                            fcst_ds.push({ x: time_label, y: solar_fcst[idx] });
-                    }
-
+                if (solar_fcst[idx] > 0)
+                    series_started = true;
+                if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period) {
+                    time_label = get_time_label(ts);
+                    if (time_labels.includes(time_label))
+                        fcst_ds.push({ x: time_label, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
                 }
-                console.log("fcst_ds", fcst_ds);
-                datasets.push(
-                    {
-                        label: 'solar fcst Wh',
-                        data: fcst_ds,
-                        yAxisID: 'y_energy',
-                        cubicInterpolationMode: 'monotone',
-                        borderColor: ['#ffff00'
-                        ],
-                        backgroundColor: '#ffff00',
-                        pointStyle: 'circle',
-                        pointRadius: 1,
-                        pointHoverRadius: 5,
-                        fill: false,
-                        stepped: false,
-                        borderWidth: 2
-                    });
-
-            },
-            error: function (jqXHR, textStatus, errorThrown) {
-                console.log("Cannot get v", textStatus, jqXHR.status);
             }
-        });
 
-    }
+            datasets.push(
+                {
+                    label: 'solar fcst Wh/' + period_label,
+                    data: fcst_ds,
+                    yAxisID: 'energy_y_axis',
+                    cubicInterpolationMode: 'monotone',
+                    borderColor: ['#ffff00'
+                    ],
+                    backgroundColor: '#ffff00',
+                    pointStyle: 'circle',
+                    pointRadius: 1,
+                    pointHoverRadius: 5,
+                    fill: false,
+                    stepped: false,
+                    borderWidth: 2
+                });
+
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get v", textStatus, jqXHR.status);
+        }
+    });
+
 
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
         console.log("VARIABLE_PRODUCTION_ENERGY");
         dataset_started = false;
-        let new_ds = [];
+        let production_ds = [];
         for (h_idx = variable_history[VARIABLE_PRODUCTION_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]) > 1)
                 dataset_started = true;
-            new_ds.push(dataset_started ? variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx] : null);
+            production_ds.push(dataset_started ? variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx] : null);
         }
-        console.log("new_ds ", VARIABLE_PRODUCTION_ENERGY, new_ds);
+        //   console.log("production_ds ", VARIABLE_PRODUCTION_ENERGY, production_ds);
         if (dataset_started)
             datasets.push(
                 {
-                    label: 'production Wh',
-                    data: new_ds,
-                    yAxisID: 'y_energy',
+                    label: 'production Wh/' + period_label,
+                    data: production_ds,
+                    yAxisID: 'energy_y',
                     cubicInterpolationMode: 'monotone',
                     borderColor: ['#f58d42'
                     ],
@@ -1137,33 +1154,16 @@ function create_dashboard_chart() {
 
     var channel_dataset;
     now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
-    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_constants.NETTING_PERIOD_SEC;
-    console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
+    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_application.NETTING_PERIOD_SEC;
+    // console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_settings.ch[channel_idx]["type"] == 0) // undefined
             continue;
         channel_dataset = [];
         dataset_started = false;
 
-        // console.log("chh_idx [x - x [",   now_idx_chh - now_idx, 35  + now_idx_chh - now_idx);
-        /*   for (h_idx = 0; h_idx < 36; h_idx++) {
-               chh_idx = h_idx + now_idx_chh - now_idx;
-               //  console.log("chh_idx",chh_idx);
-               if (chh_idx < 0)
-                   channel_dataset.push(null);
-               else if (chh_idx > 23) {//?
-                   console.log("chh_idx > 23", chh_idx);
-                   break;
-               }
-               else {
-                   if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
-                       dataset_started = true;
-                   channel_dataset.push(dataset_started ? channel_history[channel_idx][chh_idx] : null);
-                   //    console.log("pushed",dataset_started ? channel_history[channel_idx][chh_idx] : null);
-               }
-           } */
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
-            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_constants.NETTING_PERIOD_SEC;
+            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_application.NETTING_PERIOD_SEC;
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
@@ -1175,14 +1175,14 @@ function create_dashboard_chart() {
         }
 
         // console.log("channel_history", channel_idx, channel_history[channel_idx]);
-        console.log("channel_dataset", channel_dataset);
+        // console.log("channel_dataset", channel_dataset);
         datasets.push({
             label: g_settings.ch[channel_idx]["id_str"],
             hidden: true,
             type: 'bar',
             parsing: true,
             data: channel_dataset,
-            yAxisID: 'ych',
+            yAxisID: 'y_minutes',
             borderColor: [g_settings.ch[channel_idx]["channel_color"]
             ],
             backgroundColor: g_settings.ch[channel_idx]["channel_color"],
@@ -1210,7 +1210,7 @@ function create_dashboard_chart() {
                         lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
                 },
-                yp: {
+                y_prices: {
                     beginAtZero: true,
                     ticks: {
                         color: 'black',
@@ -1223,7 +1223,7 @@ function create_dashboard_chart() {
                         lineWidth: 1, color: "#47470e", borderWidth: 1, borderColor: '#47470e'
                     }
                 },
-                y_energy: {
+                energy_y: {
                     display: 'auto',
                     beginAtZero: true,
                     grid: { display: false },
@@ -1231,21 +1231,21 @@ function create_dashboard_chart() {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
-                            return value + ' Wh';
+                            return value + 'Wh';
                         }
                     }
                 },
-                ych: {
+                y_minutes: {
                     display: 'auto',
                     beginAtZero: true,
                     min: 0,
-                    max: 60,
+                    max: (g_application.NETTING_PERIOD_SEC / 60),
                     grid: { display: false },
                     ticks: {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
-                            return value + ' m';
+                            return value + ' min';
                         }
                     }
                 },
@@ -1406,8 +1406,7 @@ function get_time_label(ts) {
     else
         day_indicator = "(+" + day_diff + ")"; //">"+day_diff;
 
-    //return day_indicator + " " + tmpStr;
-    return tmpStr + " " + day_indicator;
+    return (tmpStr + " " + day_indicator).trim();
 }
 
 function populate_wifi_ssid_list_2() {
@@ -1472,9 +1471,9 @@ function post_schedule_update(channel_idx, duration, start, duration_old) {
 
 
 // single channel schedule update
-function schedule_update(evt) {
+function schedule_update_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
-    console.log("schedule_update channel_idx:", channel_idx);
+    console.log("schedule_update_ev channel_idx:", channel_idx);
     post_schedule_update(channel_idx, document.getElementById(`sch_${channel_idx}:duration`).value, document.getElementById(`sch_${channel_idx}:start`).value);
     console.log("next update_fup_duration_element");
     // update select list
@@ -1495,12 +1494,10 @@ function schedule_update(evt) {
 
 function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     //dropdown, TODO: recalculate when new hour 
-
     now_ts = Date.now() / 1000;
     sch_start_sel = document.getElementById(`sch_${channel_idx}:start`);
     sch_save_radio = document.getElementById(`sch_${channel_idx}:save`);
     sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`)
-
 
     if (g_settings.ch[channel_idx]["type"] == 0) {
         sch_start_sel.disabled = true;
@@ -1508,7 +1505,6 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         sch_duration_sel.disabled = true;
         return;
     }
-
 
     prev_selected = sch_start_sel.value;
     //TODO: price and so on
@@ -1566,7 +1562,7 @@ function duration_changed_ev(evt) {
     document.getElementById(`sch_${channel_idx}:save`).disabled = false;
 }
 
-function delete_schedule(evt) {
+function delete_schedule_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
     post_schedule_update(channel_idx, 0, 0);
     document.getElementById(`sch_${channel_idx}:delete`).disabled = true;
@@ -1585,6 +1581,41 @@ function remove_select_options(select_element) {
 
 //End of scheduling functions
 
+function load_and_update_settings() {
+    //current config
+    $.ajax({
+        type: "GET",
+        cache: false,
+        url: '/settings',
+        dataType: 'json',
+        async: false,
+        success: function (data) { g_settings = data; console.log("got g_settings"); return true; },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get g_settings", textStatus, jqXHR.status, errorThrown);
+            return false;
+        }
+    });
+
+    //TODO:  save_card_ev could call thsis with card parameters - if we want to update values back from the back-end
+    //iterate g_settings array and updates UI elements
+    for (const property in g_settings) {
+        ctrl = document.getElementById(property);
+        if (ctrl !== null) {
+            //      console.log(ctrl.id, ctrl.type.toLowerCase());
+            if (ctrl.type.toLowerCase() == 'checkbox') {
+                ctrl.checked = g_settings[property];
+            }
+            else { // normal text 
+                ctrl.value = g_settings[property];
+            }
+        }
+      /*  else {
+            console.log("not found:",property);
+        }
+    */    }
+    return true;
+}
+
 function load_application_config() {
     // application config
     $.ajax({
@@ -1592,19 +1623,17 @@ function load_application_config() {
         dataType: 'json',
         async: false,
         success: function (data) {
-            g_constants = data; console.log("got g_constants");
+            g_application = data; console.log("got g_application");
             // versions
-            let version_str = "Current version: " + g_constants.VERSION;
-            if (g_constants.VERSION.localeCompare(g_constants.version_fs) != 0) {
-                version_str += ` <span class="text-warning">Filesystem version '${g_constants.version_fs}' differs!</span>`;
+            let version_str = "Current version: " + g_application.VERSION;
+            if (g_application.VERSION.localeCompare(g_application.version_fs) != 0) {
+                version_str += ` <span class="text-warning">Filesystem version '${g_application.version_fs}' differs!</span>`;
             }
             document.getElementById("version").innerHTML = version_str;
-
-            g_price_elering_enabled = g_constants.hasOwnProperty("PRICE_ELERING_ENABLED") ? g_constants.PRICE_ELERING_ENABLED : false;
-
+            g_price_elering_enabled = g_application.hasOwnProperty("PRICE_ELERING_ENABLED") ? g_application.PRICE_ELERING_ENABLED : false;
         },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_constants", textStatus, jqXHR.status);
+            console.log("Cannot get g_application", textStatus, jqXHR.status);
         }
     });
 
@@ -1624,60 +1653,36 @@ function load_application_config() {
         price_area_ctrl.addEventListener(
             "change",
             function () {
-                set_field_editability();
+                set_field_editability_ev();
             },
             false
         );
         var info_span = document.getElementById("price_data:info");
         info_span.innerHTML = info_span.innerHTML + " Elering provides price data for Estonia, Finland, Lithuania and Latvia without an API key."
-
     }
 
     document.getElementById("energy_meter_type").addEventListener(
         "change",
         function () {
-            set_field_editability();
+            set_field_editability_ev();
         },
         false
     );
 
 
-    //current config
-    $.ajax({
-        type: "GET",
-        cache: false,
-        url: '/settings',
-        dataType: 'json',
-        async: false,
-        success: function (data) { g_settings = data; console.log("got g_settings"); },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get g_settings", textStatus, jqXHR.status, errorThrown);
-        }
-    });
+    //load  application settings and update UI elements
+    load_and_update_settings();
 
-    for (const property in g_settings) {
-        ctrl = document.getElementById(property);
-        if (ctrl !== null) {
-            if (ctrl.type.toLowerCase() == 'checkbox') {
-                ctrl.checked = g_settings[property];
-            }
-            else { // normal text 
-                ctrl.value = g_settings[property];
-            }
-        }
-    }
 
     $.getJSON('/data/variable-info.json', function (data) {
         variable_list = data;
     });
-
-
 };
 
 function get_variable(variable_id) {
-    for (var i = 0; i < g_constants.variables.length; i++) {
-        if (g_constants.variables[i][0] == variable_id)
-            return g_constants.variables[i];
+    for (var i = 0; i < g_application.variables.length; i++) {
+        if (g_application.variables[i][0] == variable_id)
+            return g_application.variables[i];
     }
     return null;
 }
@@ -1732,7 +1737,7 @@ function set_channel_fields_relay_type(channel_idx, chtype_in) {
         chtype = chtype_in;
     set_relay_field_visibility(channel_idx, chtype);
     chtype = chtype_in;
-    for (var t = 0; t < g_constants.RULE_STATEMENTS_MAX; t++) {
+    for (var t = 0; t < g_application.RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
     }
 }
@@ -1756,7 +1761,7 @@ function channel_type_changed_ev(evt, ch_idx) {
         ch_type = document.getElementById(`ch_${ch_idx}:type`).value
 
     set_relay_field_visibility(ch_idx, ch_type);
-    for (var t = 0; t < g_constants.RULE_STATEMENTS_MAX; t++) {
+    for (var t = 0; t < g_application.RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (ch_type == CH_TYPE_UNDEFINED));
     }
 }
@@ -1793,8 +1798,9 @@ function get_template_list() {
 function populateTemplateSel(selEl, template_id = -1) {
     get_template_list();
     if (selEl.options && selEl.options.length > 1) {
-        console.log("already populated", selEl.options.length);
-        return; //already populated
+        //   console.log("already populated", selEl.options.length);
+        //   return; //already populated
+        ;
     }
     if (selEl.length == 0)
         addOption(selEl, -1, "Select template", false);
@@ -1813,7 +1819,7 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
     //template desc
     document.getElementById(`ch_${channel_idx}:desc`).innerHTML = "";
     //template rule desc
-    for (let rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+    for (let rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
         document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = "";
     }
 
@@ -1884,7 +1890,7 @@ function delete_stmts_from_UI(channel_idx) {
 
 
     // reset up/down checkboxes
-    //for (let cond_idx = 0; cond_idx < g_constants.CHANNEL_CONDITIONS_MAX; cond_idx++) {
+    //for (let cond_idx = 0; cond_idx < g_application.CHANNEL_CONDITIONS_MAX; cond_idx++) {
     //    set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
     //}
 }
@@ -1943,8 +1949,8 @@ function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]
             if (var_select_array[i].options.length > 0 && var_select_array[i].value > -1)
                 stmt_idx = Math.max(i + 1, stmt_idx);
         }
-        /*    if (stmtDivs.length >= g_constants.RULE_STATEMENTS_MAX) {
-                alert('Max ' + g_constants.RULE_STATEMENTS_MAX + ' statements allowed');
+        /*    if (stmtDivs.length >= g_application.RULE_STATEMENTS_MAX) {
+                alert('Max ' + g_application.RULE_STATEMENTS_MAX + ' statements allowed');
                 return false;
             }*/
     }
@@ -1952,9 +1958,9 @@ function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]
     populateStmtField(channel_idx, rule_idx, stmt_idx, stmt);
 
 }
-function template_reset(ev) { //ch_0:template_reset
+function template_reset_ev(ev) {
     channel_idx = get_idx_from_str(ev.target.id, 0);
-    console.log(ev, "---", ev.target.id, "template_reset channel_idx", channel_idx);
+    console.log(ev, "---", ev.target.id, "template_reset_ev channel_idx", channel_idx);
     set_template_constants(channel_idx, false);
 }
 
@@ -2001,13 +2007,13 @@ function set_template_constants(channel_idx, ask_confirmation) {
 
     document.getElementById(`ch_${channel_idx}:desc`).innerHTML = "";
     //template rule desc
-    for (let rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+    for (let rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
         document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = "";
     }
 
     if (template_data.hasOwnProperty('desc'))
         document.getElementById(`ch_${channel_idx}:desc`).innerHTML = _ltext(template_data, "desc");
-    
+
     if (template_data.hasOwnProperty('default_state')) {
         document.getElementById(`ch_${channel_idx}:default_state_0`).checked = template_data["default_state"] ? false : true;
         document.getElementById(`ch_${channel_idx}:default_state_1`).checked = template_data["default_state"] ? true : false;
@@ -2068,11 +2074,11 @@ function set_template_constants(channel_idx, ask_confirmation) {
 }
 
 
-function changed_template(ev, selEl) {
+function changed_template_ev(ev, selEl) {
     if (ev !== null) {
         channel_idx = get_idx_from_str(ev.target.id, 0);
     }
-    // console.log("changed_template channel_idx", channel_idx);
+    // console.log("changed_template_ev channel_idx", channel_idx);
     if (!set_template_constants(channel_idx, true)) {
         console.log("back to previous...");
     }
@@ -2137,14 +2143,14 @@ function populate_channel(channel_idx) {
 
     document.getElementById(`ch_${channel_idx}:default_state_0`).checked = ch_cur["default_state"] ? false : true;
     document.getElementById(`ch_${channel_idx}:default_state_1`).checked = ch_cur["default_state"] ? true : false;
-    console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
+    // console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
 
     if ("rules" in ch_cur) {
-        for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_constants.CHANNEL_CONDITIONS_MAX); rule_idx++) {
+        for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_CONDITIONS_MAX); rule_idx++) {
             this_rule = ch_cur["rules"][rule_idx];
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = this_rule["on"] ? false : true;
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
-            for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_constants.RULE_STATEMENTS_MAX); stmt_idx++) {
+            for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_application.RULE_STATEMENTS_MAX); stmt_idx++) {
                 this_stmt = this_rule["stmts"][stmt_idx];
 
                 populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
@@ -2161,9 +2167,9 @@ function is_var_logical(constant_type) {
 }
 
 function get_var_by_id(id) {
-    for (var i = 0; i < g_constants.variables.length; i++) {
-        if (g_constants.variables[i][0] == id) {
-            return g_constants.variables[i];
+    for (var i = 0; i < g_application.variables.length; i++) {
+        if (g_application.variables[i][0] == id) {
+            return g_application.variables[i];
         }
     };
 }
@@ -2192,14 +2198,14 @@ function selected_oper(el_oper) {
     var show_const = false;
     if ((el_oper.value >= 0)) {
         // show initially hidden rules
-        // if ((cond_idx + 1) < g_constants.CHANNEL_CONDITIONS_MAX) {
+        // if ((cond_idx + 1) < g_application.CHANNEL_CONDITIONS_MAX) {
         //     document.getElementById("ru_" + channel_idx + "_" + (cond_idx + 1)).style.display = "segment";
         // }
 
         // set constant visibility (defined oper use no constants)
-        // console.log("show_const params:", g_constants.opers[el_oper.value][5], g_constants.opers[el_oper.value][6])
-        show_const = !(g_constants.opers[el_oper.value][5] || g_constants.opers[el_oper.value][6]);
-        //   el_const.style.display = (g_constants.opers[el_oper.value][5] || g_constants.opers[el_oper.value][6]) ? "none" : "segment"; // const-style
+        // console.log("show_const params:", g_application.opers[el_oper.value][5], g_application.opers[el_oper.value][6])
+        show_const = !(g_application.opers[el_oper.value][5] || g_application.opers[el_oper.value][6]);
+        //   el_const.style.display = (g_application.opers[el_oper.value][5] || g_application.opers[el_oper.value][6]) ? "none" : "segment"; // const-style
     }
 
     // console.log(el_const.id,show_const);
@@ -2214,11 +2220,12 @@ function populate_var(sel_ctrl, selected = -1) {
     // TODO: reads currently description from hardcoded source, could read variable-info variable_list
     if (sel_ctrl.options.length == 0) {
         addOption(sel_ctrl, -1, "-", false);
-        for (var i = 0; i < g_constants.variables.length; i++) {
-            var type_indi = is_var_logical(g_constants.variables[i][2]) ? "*" : " "; //logical
-            var id_str = '(' + g_constants.variables[i][0] + ') ' + g_constants.variables[i][1] + type_indi;
-            addOption(sel_ctrl, g_constants.variables[i][0], id_str, false); //(stmt[0] == g_constants.variables[i][0]));
+        for (var i = 0; i < g_application.variables.length; i++) {
+            var type_indi = is_var_logical(g_application.variables[i][2]) ? "*" : " "; //logical
+            var id_str = '(' + g_application.variables[i][0] + ') ' + g_application.variables[i][1] + type_indi;
+            addOption(sel_ctrl, g_application.variables[i][0], id_str, false); //(stmt[0] == g_application.variables[i][0]));
         }
+
         // TODO: check that only one instance exists
         sel_ctrl.addEventListener("change", var_selected_ev);
     }
@@ -2264,21 +2271,21 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     var show_constant = false;
     if (var_this) {
         //populate oper select
-        //console.log("populate oper select, length ", g_constants.opers.length);
-        for (let i = 0; i < g_constants.opers.length; i++) {
-            if (g_constants.opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
+        //console.log("populate oper select, length ", g_application.opers.length);
+        for (let i = 0; i < g_application.opers.length; i++) {
+            if (g_application.opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
                 void (0); // do nothing, do not skip
-            else if (is_var_logical(var_this[2]) && !g_constants.opers[i][5]) //boolean variable, not boolean oper
+            else if (is_var_logical(var_this[2]) && !g_application.opers[i][5]) //boolean variable, not boolean oper
                 continue;
-            else if (!is_var_logical(var_this[2]) && g_constants.opers[i][5]) // numeric variable, boolean oper
+            else if (!is_var_logical(var_this[2]) && g_application.opers[i][5]) // numeric variable, boolean oper
                 continue;
             el_oper.style.display = "segment";
             // constant element visibility
 
-            addOption(el_oper, g_constants.opers[i][0], g_constants.opers[i][1], (g_constants.opers[i][0] == stmt[1]));
-            if (g_constants.opers[i][0] == stmt[1]) {
-                //  el_const.style.display = (g_constants.opers[i][5] || g_constants.opers[i][6]) ? "none" : "segment"; //const-style  
-                show_constant = !(g_constants.opers[i][5] || g_constants.opers[i][6])
+            addOption(el_oper, g_application.opers[i][0], g_application.opers[i][1], (g_application.opers[i][0] == stmt[1]));
+            if (g_application.opers[i][0] == stmt[1]) {
+                //  el_const.style.display = (g_application.opers[i][5] || g_application.opers[i][6]) ? "none" : "segment"; //const-style  
+                show_constant = !(g_application.opers[i][5] || g_application.opers[i][6])
             }
         }
     }
@@ -2308,7 +2315,7 @@ function oper_focus_ev(ev) {
 }
 
 // Template field modal form for is closed and channel rules are updated with given values 
-function template_form_closed(ev) {
+function template_form_closed_ev(ev) {
     id_a = ev.target.id.split("_");
     channel_idx = id_a[1];
     delete_stmts_from_UI(channel_idx);
@@ -2460,18 +2467,18 @@ function create_channels() {
     console.log("create_channels");
 
     //front page 
-    for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) { //
+    for (channel_idx = 0; channel_idx < g_application.CHANNEL_COUNT; channel_idx++) { //
         //  console.log("creating scheduling for ch " + channel_idx);
         document.getElementById("schedules").insertAdjacentHTML('beforeend', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx));
     }
-    /*   for (channel_idx = g_constants.CHANNEL_COUNT - 1; channel_idx > -1; channel_idx--) { //beforeend
+    /*   for (channel_idx = g_application.CHANNEL_COUNT - 1; channel_idx > -1; channel_idx--) { //beforeend
            document.getElementById("schedules").insertAdjacentHTML('afterbegin', schedule_html.replaceAll("sch_(ch#)", "sch_" + channel_idx).replaceAll("(ch#)", channel_idx));
        }*/
 
 
     // channel settings page
     channels = document.getElementById("channels_row");
-    for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
+    for (channel_idx = 0; channel_idx < g_application.CHANNEL_COUNT; channel_idx++) {
         channels.insertAdjacentHTML('beforeend', channel_html.replaceAll("(ch#)", channel_idx));
 
         // populate types, "channel_types": [
@@ -2480,9 +2487,9 @@ function create_channels() {
         //  console.log(`ch_${channel_idx}:type`);
         var locked = g_settings.ch[channel_idx].locked;
         // add right type to select list, right captions/texts
-        for (var i = 0; i < g_constants.channel_types.length; i++) {
-            var type_name = g_constants.channel_types[i].name;
-            var type_id = g_constants.channel_types[i].id;
+        for (var i = 0; i < g_application.channel_types.length; i++) {
+            var type_name = g_application.channel_types[i].name;
+            var type_id = g_application.channel_types[i].id;
             var output_register = g_settings.hasOwnProperty("output_register") ? g_settings.output_register : false;
             if (output_register) {
                 type_name = type_name.replaceAll("GPIO", "internal"); // use different term with shift register relays
@@ -2499,13 +2506,13 @@ function create_channels() {
         if (channel_idx < (g_settings.ch.length)) { // we should have data
             //initiate rule structure
             rule_list = document.getElementById(`ch_${channel_idx}:rules`);
-            for (rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+            for (rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
                 rule_id = `ch_${channel_idx}:r_${rule_idx}`;
                 rule_list.insertAdjacentHTML('beforeend', rule_html.replaceAll("ch_#:r_#", rule_id));
                 document.getElementById(`${rule_id}:title`).innerText = "Rule " + (rule_idx + 1);
 
                 stmt_list = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:stmts`);
-                for (stmt_idx = 0; stmt_idx < g_constants.RULE_STATEMENTS_MAX; stmt_idx++) {
+                for (stmt_idx = 0; stmt_idx < g_application.RULE_STATEMENTS_MAX; stmt_idx++) {
                     stmt_id = `ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}`;
                     stmt_list.insertAdjacentHTML('beforeend', stmt_html.replaceAll("ch_#:r_#:s_#", stmt_id));
 
@@ -2537,18 +2544,18 @@ function create_channels() {
         sch_duration_sel.addEventListener("change", duration_changed_ev);
 
         sch_duration_del = document.getElementById(`sch_${channel_idx}:delete`);
-        sch_duration_del.addEventListener("click", delete_schedule);
+        sch_duration_del.addEventListener("click", delete_schedule_ev);
 
         channel_type_ctrl.addEventListener("change", channel_type_changed_ev);
 
         // refine template constants
 
         template_reset_ctrl = document.getElementById(`ch_${channel_idx}:template_reset`);
-        template_reset_ctrl.addEventListener("click", template_reset);
+        template_reset_ctrl.addEventListener("click", template_reset_ev);
 
         //modal closing
-        document.getElementById(`ch_${channel_idx}_tmpl_close`).addEventListener("click", template_form_closed);
-        document.getElementById(`ch_${channel_idx}:template_id`).addEventListener("change", changed_template);
+        document.getElementById(`ch_${channel_idx}_tmpl_close`).addEventListener("click", template_form_closed_ev);
+        document.getElementById(`ch_${channel_idx}:template_id`).addEventListener("change", changed_template_ev);
     }
     let cm_buttons = document.querySelectorAll("input[id*=':config_mode_']");
 
@@ -2566,7 +2573,7 @@ function create_channels() {
 }
 
 function populate_channels() {
-    for (channel_idx = 0; channel_idx < g_constants.CHANNEL_COUNT; channel_idx++) {
+    for (channel_idx = 0; channel_idx < g_application.CHANNEL_COUNT; channel_idx++) {
         populate_channel(channel_idx);
     }
 
@@ -2619,7 +2626,7 @@ function compare_wifis(a, b) {
     return ((a.rssi > b.rssi) ? -1 : 1);
 }
 
-function set_field_editability() {
+function set_field_editability_ev() {
     document.getElementById("entsoe_api_key").disabled = document.getElementById("entsoe_area_code").value.startsWith("elering:");
     var p1_direct = (document.getElementById("energy_meter_type").value == 5);
     document.getElementById("energy_meter_gpio").disabled = !p1_direct;
@@ -2631,6 +2638,7 @@ function set_field_editability() {
 }
 
 
+// triggred from window onload
 function init_ui() {
     console.log("Init ui");
 
@@ -2639,8 +2647,8 @@ function init_ui() {
     //   hw templates from the app 
     hw_template_ctrl = document.getElementById(`hw_template_id`);
     remove_select_options(hw_template_ctrl);
-    for (var i = 0; i < g_constants.hw_templates.length; i++) {
-        addOption(hw_template_ctrl, g_constants.hw_templates[i].id, g_constants.hw_templates[i].name, (g_settings.hw_template_id == g_constants.hw_templates[i].id));
+    for (var i = 0; i < g_application.hw_templates.length; i++) {
+        addOption(hw_template_ctrl, g_application.hw_templates[i].id, g_application.hw_templates[i].name, (g_settings.hw_template_id == g_application.hw_templates[i].id));
     }
 
     create_channels();
@@ -2648,11 +2656,11 @@ function init_ui() {
     save_buttons = document.querySelectorAll("[id$=':save']");
     for (let i = 0; i < save_buttons.length; i++) {
         if (save_buttons[i].id.startsWith("ch_"))
-            save_buttons[i].addEventListener("click", save_channel);
+            save_buttons[i].addEventListener("click", save_channel_ev);
         else if (save_buttons[i].id.startsWith("sch_"))
-            save_buttons[i].addEventListener("change", schedule_update);
+            save_buttons[i].addEventListener("change", schedule_update_ev);
         else
-            save_buttons[i].addEventListener("click", save_card);
+            save_buttons[i].addEventListener("click", save_card_ev);
         if (!(save_buttons[i].id.startsWith("sch_"))) {
             save_buttons[i].disabled = true;
             console.log("save_buttons[i].disabled");
@@ -2671,9 +2679,9 @@ function init_ui() {
     for (let i = 0; i < input_controls.length; i++) {
         //  should be input to catch changes before leaving the input field
         if (input_controls[i].type == "radio")
-            input_controls[i].addEventListener("click", ctrl_changed);
+            input_controls[i].addEventListener("click", ctrl_changed_ev);
         else
-            input_controls[i].addEventListener("change", ctrl_changed);
+            input_controls[i].addEventListener("change", ctrl_changed_ev);
     }
 
     // delay loading
@@ -2689,24 +2697,9 @@ function init_ui() {
 
     get_price_data(true); //TODO: also update at 2pm
 
-    set_field_editability();
+    set_field_editability_ev();
 
-    // var content = $('[id*="yourDivId"]');
-    // var type_indi = is_var_logical(g_constants.variables[i][2]) ? "*" : " "; //logical
-    //         var id_str = '(' + g_constants.variables[i][0] + ') ' + g_constants.variables[i][1] + type_indi;
-
-
-    function get_idx_from_str(id_str, idx_nbr) {
-        const fld_a1 = id_str.split(":");
-        if (fld_a1.length <= idx_nbr)
-            return -1;
-        const fld_a2 = fld_a1[idx_nbr].split("_");
-        if (fld_a2.length < 2)
-            return -1;
-        return parseInt(fld_a2[1]);
-    }
-
-
+    // set info popovers
     $('[data-bs-toggle="popover"]').popover({
         html: true,
         content: function () {
@@ -2753,13 +2746,6 @@ function live_alert(card_idstr, message, type) {
         alert(message + " . " + card_idstr + ':alert');
     }
 }
-/*
-const alertTrigger = document.getElementById('liveAlertBtn')
-if (alertTrigger) {
-  alertTrigger.addEventListener('click', () => {
-    alert('Nice, you triggered this alert message!', 'success')
-  })
-} */
 
 
 function find_pid(el, id) {
@@ -2783,9 +2769,9 @@ function find_parent_card(el) {
     return "";
 }
 // enables save button after content change
-function ctrl_changed(ev) {
+function ctrl_changed_ev(ev) {
     let parent_card = find_parent_card(ev.target);
-    console.log("ctrl_changed", ev.target.id, parent_card ? parent_card : "no parent card");
+    console.log("ctrl_changed_ev", ev.target.id, parent_card ? parent_card : "no parent card");
     if (parent_card) {
         save_el = document.getElementById(parent_card + ":save");
         if ((save_el !== null))
@@ -2842,9 +2828,9 @@ function start_fw_update() {
         return;
     }
 
-    console.log("new_version, g_constants.VERSION_SHORT", new_version, g_constants.VERSION_SHORT);
-    if (g_constants.VERSION_SHORT.startsWith(new_version)) {
-        if (!confirm("Firmware version is already " + g_constants.VERSION_SHORT + ". Do you want to reinstall?"))
+    console.log("new_version, g_application.VERSION_SHORT", new_version, g_application.VERSION_SHORT);
+    if (g_application.VERSION_SHORT.startsWith(new_version)) {
+        if (!confirm("Firmware version is already " + g_application.VERSION_SHORT + ". Do you want to reinstall?"))
             return;
     }
     if (confirm("Backup your configuration before update!\r\r Update firmware to " + new_version + " now?")) {
@@ -2857,7 +2843,7 @@ function start_fw_update() {
 }
 
 
-function save_channel(ev) {
+function save_channel_ev(ev) {
     channel_idx = get_idx_from_str(ev.target.id, 0);
     if (channel_idx == -1) {
         alert("Invalid channel idx. System error, ev.target.id:" + ev.target.id);
@@ -2865,7 +2851,7 @@ function save_channel(ev) {
     }
     var data_ch = { "idx": channel_idx };
     card = "ch_" + channel_idx
-    console.log("save_channel channel_idx", channel_idx, ev.target.id);
+    console.log("save_channel_ev channel_idx", channel_idx, ev.target.id);
 
     data_ch["id_str"] = document.getElementById(`ch_${channel_idx}:id_str`).value;
     data_ch["uptime_minimum"] = parseInt(document.getElementById(`ch_${channel_idx}:uptime_minimum_m`).value * 60);
@@ -2888,12 +2874,12 @@ function save_channel(ev) {
 
     rules = [];
 
-    for (rule_idx = 0; rule_idx < g_constants.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+    for (rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
         stmt_count = 0;
         rule_stmts = [];
         up_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked ? false : true;
 
-        for (stmt_idx = 0; stmt_idx < g_constants.RULE_STATEMENTS_MAX; stmt_idx++) {
+        for (stmt_idx = 0; stmt_idx < g_application.RULE_STATEMENTS_MAX; stmt_idx++) {
             var_value = parseInt(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`).value);
             oper_value = parseInt(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:oper`).value);
             const_value = parseFloat(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`).value);
@@ -2933,7 +2919,6 @@ function save_channel(ev) {
             live_alert(card, "Updated", 'success');
             console.log("success, card", card, data);
             document.getElementById(card + ":save").disabled = true;
-            console.log("save_channel save disabled");
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);
@@ -2974,7 +2959,7 @@ function toggle_show(el) {
 
 }
 
-function save_card(ev) {
+function save_card_ev(ev) {
     id_a = ev.target.id.split(":");
     card = id_a[0];
     var post_data = {};
@@ -3012,24 +2997,24 @@ function save_card(ev) {
         dataType: "json",
         success: function (data) {
             document.getElementById(card + ":save").disabled = true;
-            if (["metering", "production", "network"].includes(card)) {
+            if (["admin","metering", "production", "network"].includes(card)) {
                 let do_restart = confirm("Settings updated. Do you want to restart?");
                 if (do_restart) {
                     launch_action("restart", card, {});
                     return;
                 }
             }
+           
             live_alert(card, "Settings updated", 'success');
             console.log("success, card ", card, data);
+
+            //TODO: could call load_and_update_settings() with card name parameter (only fields from the cards are updated to the fields)
+
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);
             live_alert(card, "Update failed: " + error + ", " + errorThrown, 'warning');
         }
     });
-
-
-
-
 }
 
