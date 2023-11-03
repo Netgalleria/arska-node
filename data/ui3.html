@@ -1124,6 +1124,15 @@
                               <a href="/update">Manual upgrade</a>
                             </div>
 
+                            <div class="mb-2">
+                              <label for="netting_period_sec" class="form-label">Netting period</label>
+                                <select id="netting_period_sec" class="form-select" aria-label="variable">
+                                  <option value="3600">1 hour</option>
+                                  <option value="900">15 minutes (experimental)</option>
+                                </select>
+                                <span class="text-muted">Imbalance settlement period (ISP)</span>
+                            </div>
+
                             <div id="admin:alert"></div>
 
 
@@ -1153,12 +1162,12 @@
 
                   </div>
                   <div class="card-body">
-                    <label for="production_meter_type" class="form-label">Data sources:</label>
+                    <label class="form-label">Data sources:</label>
                     <p>Day-ahead prices <a
                         href="https://transparency.entsoe.eu/"">ENTSO-E Transparency Platform</a> and  <a href="https://dashboard.elering.ee/et">Elering</a>, FMI Energy weather (Finland only) <a href="
                         https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste">FMI</a></p>
 
-                    <label for="production_meter_type" class="form-label">Open source licenses:</label>
+                    <label class="form-label">Open source licenses:</label>
                     <p>
                       <a href="https://github.com/jquery/jquery">JQuery</a>, <a
                         href="https://github.com/me-no-dev/ESPAsyncWebServer">ESPAsyncWebServer</a>, <a
