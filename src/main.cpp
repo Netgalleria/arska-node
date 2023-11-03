@@ -247,8 +247,8 @@ bool rtc_found = false;
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
-// #pragma message("Testing with altered NETTING_PERIOD_SEC")
-#define NETTING_PERIOD_SEC 3600 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
+//#pragma message("Testing with altered NETTING_PERIOD_SEC")
+//#define NETTING_PERIOD_SEC 900 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
 
 #define SECONDS_IN_HOUR 3600
 #define PRICE_RESOLUTION_SEC 3600
@@ -932,7 +932,7 @@ typedef struct
   uint32_t baseload; //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
   uint32_t pv_power; //!<
 #ifdef LOAD_MGMT_ENABLED
-  bool load_manager_active;                    //!< //not yet export/import
+  bool load_manager_active;                    //!< //
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
   uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
   uint16_t load_manager_reswitch_moratorium_m; //<!
@@ -1270,7 +1270,7 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_24, "price rank 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "pv forecast 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "pv value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "pv price avg 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future pv higher", CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, "overproduction", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "production (per) W", 0}, {VARIABLE_SELLING_POWER, "selling W", 0}, {VARIABLE_SELLING_ENERGY, "selling Wh", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now W", 0}, {VARIABLE_PRODUCTION_ENERGY, "production Wh", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_MINUTES, "minutes 0-59", CONSTANT_TYPE_CHAR_2}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}, {VARIABLE_CHANNEL_UTIL_PERIOD, "ch up period, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_8H, "ch up in 8 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_24H, "ch up in 24 h, min", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, "ch up -2,-1,0 block", CONSTANT_TYPE_INT}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, "consumption estim.", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_MINUTES_TUNED, "virtual solar count", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, "solar prod. estim.", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1_FI, "FI wind d+1, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2_FI, "FI wind d+2, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1B_FI, "FI wind d+1 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2B_FI, "FI wind d+2 bl, MW", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_RANK_FIXED_24, "solar rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_NET_ESTIMATE_SOURCE, "Netting source", CONSTANT_TYPE_INT}, {VARIABLE_SELLING_ENERGY_ESTIMATE, "Selling estim. Wh", CONSTANT_TYPE_INT}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, "price", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_9, "price rank 9h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_24, "price rank 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_24, "price rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8, "rank in 8 h block", CONSTANT_TYPE_INT}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, "8 h block id"}, {VARIABLE_PRICEAVG_9, "price avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, "price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, "p ratio to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, "p diff to avg 9h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, "p diff to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, "p ratio to avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, "p ratio fixed 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, "solar forecast 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, "solar value 24 h", CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, "solar price avg 24h", CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, "future solar higher", CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, "overproduction", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, "produced power", 0}, {VARIABLE_SELLING_POWER, "selling power", 0}, {VARIABLE_SELLING_ENERGY, "selling energy", 0}, {VARIABLE_SELLING_POWER_NOW, "selling now", 0}, {VARIABLE_PRODUCTION_ENERGY, "production", 0}, {VARIABLE_MM, "mm, month", CONSTANT_TYPE_CHAR_2}, {VARIABLE_MMDD, "mmdd", CONSTANT_TYPE_CHAR_4}, {VARIABLE_WDAY, "weekday (1-7)", 0}, {VARIABLE_HH, "hh, hour", CONSTANT_TYPE_CHAR_2}, {VARIABLE_HHMM, "hhmm", CONSTANT_TYPE_CHAR_4}, {VARIABLE_MINUTES, "minutes 0-59", CONSTANT_TYPE_CHAR_2}, {VARIABLE_DAYENERGY_FI, "day", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_WINTERDAY_FI, "winterday", CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_SENSOR_1, "sensor 1", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 1, "sensor 2", CONSTANT_TYPE_DEC1}, {VARIABLE_SENSOR_1 + 2, "sensor 3", CONSTANT_TYPE_DEC1}, {VARIABLE_CHANNEL_UTIL_PERIOD, "ch up period,", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_8H, "ch up in 8 h", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_24H, "ch up in 24 h", CONSTANT_TYPE_INT}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, "ch up -2,-1,0 block", CONSTANT_TYPE_INT}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, "consumption estim.", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_MINUTES_TUNED, "virtual solar count", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, "solar prod. estim.", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1_FI, "FI wind d+1", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2_FI, "FI wind d+2", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY1B_FI, "FI wind d+1 bl", CONSTANT_TYPE_INT}, {VARIABLE_WIND_AVG_DAY2B_FI, "FI wind d+2 bl", CONSTANT_TYPE_INT}, {VARIABLE_SOLAR_RANK_FIXED_24, "solar rank fix 24h", CONSTANT_TYPE_INT}, {VARIABLE_NET_ESTIMATE_SOURCE, "Netting source", CONSTANT_TYPE_INT}, {VARIABLE_SELLING_ENERGY_ESTIMATE, "Selling estim.", CONSTANT_TYPE_INT}};
 
   int get_variable_index(int id);
 };
@@ -1912,7 +1912,7 @@ timeSeries wind_forecast(2, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
  */
 time_t get_netting_period_start_time(time_t ts)
 {
-  return long(ts / (NETTING_PERIOD_SEC)) * (NETTING_PERIOD_SEC);
+  return long(ts / (s.netting_period_sec)) * (s.netting_period_sec);
 }
 
 // experimental with channel_idx, resolve ch_counters reference
@@ -2917,7 +2917,7 @@ float check_current_load()
 // postprocessing after succesfully received measure date
 void process_energy_meter_readings()
 {
-  bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+  bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
   energy_meter_read_ok_count++; // global
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
@@ -3474,7 +3474,7 @@ bool read_inverter(long int &total_energy)
   // long int total_energy = 0;
   long int current_power = 0;
   bool read_ok = false;
-  bool period_changed_since_last_read = ((production_meter_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+  bool period_changed_since_last_read = ((production_meter_read_last_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
 
   yield();
   if ((s.production_meter_type == PRODUCTIONM_FRONIUS_SOLAR))
@@ -3547,7 +3547,7 @@ void calculate_time_based_variables()
     time_t day_end_local = day_start_local + 23 * SECONDS_IN_HOUR;
     // uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
     long period_power_fcst = max((long)0, (long)(solar_forecast.get(time(nullptr)) * s.pv_power / 1000));
-    long period_power_fcst_available = max((long)0, (long)(solar_forecast.get(time(nullptr)) * s.pv_power / 1000 - (s.baseload * NETTING_PERIOD_SEC / SECONDS_IN_HOUR)));
+    long period_power_fcst_available = max((long)0, (long)(solar_forecast.get(time(nullptr)) * s.pv_power / 1000 - (s.baseload * s.netting_period_sec / SECONDS_IN_HOUR)));
 
     long day_sum_tuned = 0;
 
@@ -3575,7 +3575,7 @@ void calculate_time_based_variables()
       vars.set(VARIABLE_OVERPRODUCTION, (long)vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE) > 0L ? 1L : 0L);
       Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; prod %ld , channels %ld , baseload so far %ld  \n", vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE), production_estimate_sofar, vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION), baseload_energy_period_sofar);
 #else // allocate all estimated available energy for use from actual start to the end of period, less swtiching
-      long estimated_available_energy = max(0L, (current_period_start_ts + NETTING_PERIOD_SEC - period_started_real) * (period_power_fcst - (long)s.baseload) / 3600);
+      long estimated_available_energy = max(0L, (current_period_start_ts + s.netting_period_sec - period_started_real) * (period_power_fcst - (long)s.baseload) / 3600);
       vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, estimated_available_energy - (vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0)));
       vars.set(VARIABLE_OVERPRODUCTION, (long)vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE) > 0L ? 1L : 0L);
       Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; available %ld , channels used  %ld  \n", vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE), estimated_available_energy, vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION));
@@ -3672,10 +3672,10 @@ void calculate_forecast_variables()
       {
         sum_pv_fcst_with_price += (float)solar_forecast.get(period);
         pv_value_hour = price / 1000.0 * (float)solar_forecast.get(period);
-        Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
+      //  Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
         pv_value += pv_value_hour;
         got_future_prices = true; // we got some price data
-        Serial.printf("solar_forecast.end() %ld", solar_forecast.end());
+    //    Serial.printf("solar_forecast.end() %ld", solar_forecast.end());
         Serial.printf("j: %ld, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", period, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
       }
       yield();
@@ -4352,7 +4352,7 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
   doc["CHANNEL_CONDITIONS_MAX"] = CHANNEL_CONDITIONS_MAX;
 
-  doc["NETTING_PERIOD_SEC"] = NETTING_PERIOD_SEC; // this could be also from /settings, but should not change so often anyway
+  doc["NETTING_PERIOD_SEC"] = s.netting_period_sec; // this could be also from /settings, but should not change so often anyway
 
   // some debug info
   doc["ts"] = time(nullptr);
@@ -4510,7 +4510,7 @@ void read_production_meter()
   bool internet_connection_ok = false;
   long int total_energy = 0;
   long int current_power = 0;
-  bool period_changed_since_last_read = ((production_meter_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
+  bool period_changed_since_last_read = ((production_meter_read_last_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
 
   Serial.println("read_production_meter");
 
@@ -5272,11 +5272,6 @@ bool get_price_data_elering()
       price_idx2 = price_idx2 % MAX_PRICE_PERIODS;
     }
 
-    // commented in nvs cache
-    //  prices_record_start = ts_min_stored;
-    //  prices_record_end_excl = ts_max + NETTING_PERIOD_SEC;
-    // price_resolution_sec = PRICE_RESOLUTION_SEC;
-    // prices_ts = now_infunc;
 
     // prices_expires_ts = prices_record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
     prices_expires_ts = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
@@ -5672,6 +5667,7 @@ void reset_config()
   s.ota_update_phase = OTA_PHASE_NONE;
   s.energy_meter_type = ENERGYM_NONE;
   s.energy_meter_port = 80;
+  s.netting_period_sec = 3600;
   s.production_meter_type = PRODUCTIONM_NONE;
   s.production_meter_port = 80;
   s.production_meter_id = 3;
@@ -5801,6 +5797,9 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["baseload"] = s.baseload;
   doc["pv_power"] = s.pv_power;
   doc["energy_meter_type"] = s.energy_meter_type;
+  doc["netting_period_sec"] = s.netting_period_sec;
+
+  
   if (s.energy_meter_type != ENERGYM_NONE)
   {
     doc["energy_meter_ip"] = s.energy_meter_ip.toString();
@@ -6079,6 +6078,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
 
   s.hw_template_id = ajson_int_get(doc, (char *)"hw_template_id", s.hw_template_id);
   hw_template_idx = get_hw_template_idx(s.hw_template_id); // update cached variable
+  s.netting_period_sec = ajson_int_get(doc, (char *)"netting_period_sec", s.netting_period_sec);
 
   s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
