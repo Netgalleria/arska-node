@@ -51,11 +51,14 @@ window.onload = function () {
 
 let load_count = 0;
 function populate_releases() {
+    var start = new Date().getTime();
     $.ajax({
         url: '/releases',
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
+            console.log("/releases took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
             load_count++;
             console.log('got releases');
             hw = data.hw;
@@ -571,13 +574,15 @@ function update_status(repeat) {
     const process_time_s = 15;
     let next_query_in = interval_s;
 
-
+    var start = new Date().getTime();
     var jqxhr_obj = $.ajax({
         url: '/status',
         cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
+            console.log("/status took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
             console.log("got status data", textStatus, jqXHR.status);
             // moved from chart creation create_dashboard_chart
             channel_history = data.channel_history;
@@ -1072,12 +1077,15 @@ function create_dashboard_chart() {
     }
 
     //experimental solar forecast, could be combinet with get_price_data
+    var start = new Date().getTime();
     $.ajax({
         url: '/series?solar_fcst=true',
         cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
+            console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
             console.log('got solar forecast', textStatus, jqXHR.status);
             let fcst_ds = [];
             if (!data.hasOwnProperty("solar_forecast"))
@@ -1092,7 +1100,7 @@ function create_dashboard_chart() {
 
                 if (solar_fcst[idx] > 0)
                     series_started = true;
-                if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period <= ts && ts <= data.solar_forecast.last_set_period) {
+                if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period_ts <= ts && ts <= data.solar_forecast.last_set_period_ts) {
                     time_label = get_time_label(ts);
                     if (time_labels.includes(time_label))
                         fcst_ds.push({ x: time_label, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
@@ -1315,13 +1323,15 @@ function get_price_data(repeat = true) {
         return;
     }
     console.log("get_price_data starting");
-
+    var start = new Date().getTime();
     $.ajax({
         url: '/prices',
         cache: false,
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
+            console.log("/prices took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
             if (data.record_end_excl > now_ts) {
                 console.log('got /prices', textStatus, jqXHR.status);
                 price_data = data; //TODO: remove redundancy in variables
@@ -1584,6 +1594,7 @@ function remove_select_options(select_element) {
 
 function load_and_update_settings() {
     //current config
+    var start = new Date().getTime();
     $.ajax({
         type: "GET",
         cache: false,
@@ -1599,6 +1610,8 @@ function load_and_update_settings() {
             else {
                 isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
             }
+            console.log("/settings took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
             console.log("got g_settings"); return true;
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -1783,12 +1796,15 @@ var g_template_version = "";
 function get_template_list() {
     if (g_template_list.length > 0)
         return;
-
+    
+    var start = new Date().getTime();
     $.ajax({
         url: '/data/templates.json',
         dataType: 'json',
         async: false,
         success: function (data) {
+            console.log("/data/templates.json took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
             g_templates = data.templates;
             g_template_version = data.info.version;
             if (document.getElementById("version_templates"))

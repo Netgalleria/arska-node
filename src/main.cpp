@@ -247,9 +247,8 @@ bool rtc_found = false;
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
 
-//#pragma message("Testing with altered NETTING_PERIOD_SEC")
-//#define NETTING_PERIOD_SEC 900 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
-
+// #pragma message("Testing with altered NETTING_PERIOD_SEC")
+// #define NETTING_PERIOD_SEC 900 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
 
 #define PRICE_RESOLUTION_SEC 3600
 #define SOLAR_FORECAST_RESOLUTION_SEC 3600
@@ -699,6 +698,7 @@ time_t previous_period_start_ts = 0;
 time_t day_start_local = 0; //<! epoch time stamp of 00:00 in local time, TODO: DST change days
 
 time_t started_ts = 0;
+bool first_loop_ended = false;
 bool period_changed = true;
 
 time_t production_meter_read_last_ts = 0; //!< ts of last succesfull inverter read
@@ -1583,11 +1583,12 @@ public:
     store.n = n;
     store.resolution_sec = resolution_sec;
     store.init_value = init_value;
-    clear_store();
+    clear_store(false);
+ 
   }
 
   // T operator [](int i) const    {return registers[i];}
-  void clear_store()
+  void clear_store(bool reset_cache=true)
   {
     store.min_value_idx = store.n;
     store.max_value_idx = -1;
@@ -1598,7 +1599,12 @@ public:
       store.arr[i] = store.init_value;
     }
     store.last_update_ts = 0;
+    if (reset_cache) {
+    save_to_cache(0);
+    }
+
   };
+
 #ifdef NVS_CACHE_ENABLED
   // WiP experimental
   // WiP experimental
@@ -1629,7 +1635,9 @@ public:
     // Close
 
     nvs_close(my_handle);
-    Serial.printf("save_to_cache, wrote time series %d, expiration %lu\n", (int)id_, expires);
+   // Serial.printf("save_to_cache, wrote time series %d, expiration %lu\n", (int)id_, expires);
+  //  if (id_==0) Serial.printf("save_to_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
+
 
     return true;
   }
@@ -1666,7 +1674,7 @@ public:
     }
     // Close
     nvs_close(my_handle);
-    Serial.printf("read_from_cache, got time series %d, expiration %lu\n", (int)id_, store.expires);
+   // if (id_==0) Serial.printf("read_from_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
     return (store.expires > expires); // check expiration
   };
 #endif
@@ -1674,10 +1682,13 @@ public:
   void set(time_t ts, T new_value)
   {
     int idx = get_idx(ts);
-    if (idx != -1)
-      store.arr[idx] = new_value;
+    if (idx == -1)
+      return;
+
+    store.arr[idx] = new_value;
     store.min_value_idx = min(store.min_value_idx, idx);
     store.max_value_idx = max(store.max_value_idx, idx);
+  //  if (id_==0) Serial.printf("debug set ts %ld %d = max(store.max_value_idx %d, idx %d)\n",ts,store.max_value_idx, store.max_value_idx, idx);
     store.last_update_ts = time(nullptr);
   };
 
@@ -1686,8 +1697,12 @@ public:
   time_t start() { return store.start; };
   time_t end() { return store.start + (int)store.resolution_sec * (store.n - 1); };
 
-  time_t first_set_period() { return store.start + store.min_value_idx * store.resolution_sec; };
-  time_t last_set_period() { return store.start + store.max_value_idx * store.resolution_sec; };
+  time_t first_set_period_ts() { return store.start + store.min_value_idx * store.resolution_sec; };
+  time_t last_set_period_ts() {
+
+ //   if (id_==0) Serial.printf("last_set_period_ts: store.start %ld, store.max_value_idx %d, store.resolution_sec %d\n",store.start, (int)store.max_value_idx , (int)store.resolution_sec);
+    return store.start + store.max_value_idx * store.resolution_sec;
+  };
   time_t last_update() { return store.last_update_ts; };
 
   T get(time_t ts = time(nullptr))
@@ -1777,7 +1792,7 @@ public:
   void set_store_start(time_t new_start)
   {
     int index_delta = (int)((store.start - new_start) / store.resolution_sec);
-    Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
+ //   Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
     if (index_delta == 0)
       return;
 
@@ -1787,7 +1802,7 @@ public:
     if (abs(index_delta) >= store.n)
     {
       // huge shift, nothing to save, just init
-      clear_store();
+      clear_store(false);
     }
     else if (index_delta < 0)
     {
@@ -1797,6 +1812,8 @@ public:
       }
 
       store.max_value_idx = max(store.max_value_idx + index_delta, -1);
+    //  Serial.printf("set_store_start 1 set %d = max(store.max_value_idx+index_delta %d, -1),  index_delta %d\n",store.max_value_idx, store.max_value_idx+index_delta,index_delta);
+
       for (int i = 0; i < store.n; i++)
       {
         if ((i - index_delta >= 0) && (i - index_delta < store.n))
@@ -1808,8 +1825,10 @@ public:
     else if (index_delta > 0)
     {
       store.min_value_idx = min(store.max_value_idx + index_delta, store.n);
-      if (store.max_value_idx != -1)
+      if (store.max_value_idx != -1) {
         store.max_value_idx = min(store.max_value_idx + index_delta, store.n - 1);
+    //    Serial.printf("Debug now store.max_value_idx %d, index_delta %d, store.n %d\n",index_delta, store.n,store.max_value_idx);
+      }
 
       for (int i = store.n - 1; i >= 0; i--)
       {
@@ -1819,7 +1838,7 @@ public:
           store.arr[i] = store.init_value;
       }
     }
-    Serial.println(PSTR("DEBUG set_store_start ended"));
+//    Serial.println(PSTR("DEBUG set_store_start ended"));
   }
 
   // new experimental version of time series ranking
@@ -1830,7 +1849,7 @@ public:
     int start_idx = max(0, get_idx(start_ts));
     int end_idx = min(get_idx(end_ts_incl), store.n);
     int this_period_idx = get_idx(period_ts);
-    //Serial.printf("get_period_rank period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d\n", period_ts, start_idx, this_period_idx, end_idx);
+    // Serial.printf("get_period_rank period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d\n", period_ts, start_idx, this_period_idx, end_idx);
 
     if (start_idx <= this_period_idx && this_period_idx <= end_idx)
     {
@@ -1856,15 +1875,6 @@ public:
 
 private:
   uint8_t id_;
-  //  int n_;
-  //  time_t start_;
-  // int store.min_value_idx;
-  // int store.max_value_idx;
-  // time_t last_update_ts=0;
-  //  uint16_t store.resolution_sec;
-
-  //  T arr[TIMESERIES_ELEMENT_MAX]; // here we have the data
-  //  T init_value_;
 
   struct
   {
@@ -1895,7 +1905,7 @@ private:
     }
     else
     {
-      //     Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_,ts, store.start, index_candidate);
+           Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_,ts, store.start, index_candidate);
 
       return index_candidate;
     }
@@ -3561,14 +3571,15 @@ void calculate_time_based_variables()
     uint8_t isp_minutes = s.netting_period_sec / SECONDS_IN_MINUTE;
     if (period_power_fcst_available < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)HOURS_IN_DAY * 60);
-    else
-      if (s.netting_period_sec == SECONDS_IN_HOUR) {
+    else if (s.netting_period_sec == SECONDS_IN_HOUR)
+    {
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)(tm_struct.tm_min * day_sum_tuned / period_power_fcst_available));
-      }
-      else {
-        //under construction, to be checked
-        vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)((tm_struct.tm_min%isp_minutes) * day_sum_tuned / period_power_fcst_available));
-      }
+    }
+    else
+    {
+      // under construction, to be checked
+      vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)((tm_struct.tm_min % isp_minutes) * day_sum_tuned / period_power_fcst_available));
+    }
 
     vars.set(VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, (long)(tm_struct.tm_min * period_power_fcst / 60));
 
@@ -3681,19 +3692,19 @@ void calculate_forecast_variables()
       {
         sum_pv_fcst_with_price += (float)solar_forecast.get(period);
         pv_value_hour = price / 1000.0 * (float)solar_forecast.get(period);
-      //  Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
+        //  Serial.printf("period %lu, price %ld, pv_value_hour %f, forecast %f \n", period, price, pv_value_hour, (float)solar_forecast.get(period));
         pv_value += pv_value_hour;
         got_future_prices = true; // we got some price data
-    //    Serial.printf("solar_forecast.end() %ld", solar_forecast.end());
+                                  //    Serial.printf("solar_forecast.end() %ld", solar_forecast.end());
         Serial.printf("j: %ld, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", period, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
       }
       yield();
     }
 
     vars.set(VARIABLE_PVFORECAST_SUM24, (long)(solar_forecast.sum(current_period_start_ts, current_period_start_ts + 23 * SECONDS_IN_HOUR) * s.pv_power / 100) / 1000);
- 
+
     // TODO: currently not levelized with
-    if (got_future_prices && vars.get_l(VARIABLE_PVFORECAST_SUM24)>1)
+    if (got_future_prices && vars.get_l(VARIABLE_PVFORECAST_SUM24) > 1)
     {
       vars.set(VARIABLE_PVFORECAST_VALUE24, (float)(pv_value * (float)s.pv_power / 100000000));
       vars.set(VARIABLE_PVFORECAST_AVGPRICE24, (float)(pv_value / sum_pv_fcst_with_price));
@@ -3782,8 +3793,8 @@ void calculate_price_rank_variables()
   yield();
 
   // 9 h sliding
-  time_t last_ts_in_window = min(current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period());
-  Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period());
+  time_t last_ts_in_window = min(current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
+  Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   Serial.printf("New way 9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
@@ -3795,7 +3806,7 @@ void calculate_price_rank_variables()
   yield();
 
   // 24 h sliding
-  last_ts_in_window = min(current_period_start_ts + 23 * prices2.resolution_sec(), prices2.last_set_period());
+  last_ts_in_window = min(current_period_start_ts + 23 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
@@ -5281,7 +5292,6 @@ bool get_price_data_elering()
       price_idx2 = price_idx2 % MAX_PRICE_PERIODS;
     }
 
-
     // prices_expires_ts = prices_record_end_excl - (11 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
     prices_expires_ts = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
     Serial.printf("prices_expires_ts %lu\n", prices_expires_ts);
@@ -5808,7 +5818,6 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["energy_meter_type"] = s.energy_meter_type;
   doc["netting_period_sec"] = s.netting_period_sec;
 
-  
   if (s.energy_meter_type != ENERGYM_NONE)
   {
     doc["energy_meter_ip"] = s.energy_meter_ip.toString();
@@ -6433,9 +6442,10 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
   {
     todo_in_loop_restart_local = true;
     // expire caches
-    prices2.save_to_cache(0); 
-    solar_forecast.save_to_cache(0);
-    wind_forecast.save_to_cache(0);
+    prices2.clear_store();
+    //prices2.save_to_cache(0); 
+   // solar_forecast.save_to_cache(0);
+   // wind_forecast.save_to_cache(0);
     
   }
   if (doc["action"] == "scan_sensors")
@@ -6582,8 +6592,8 @@ void onWebSeriesGet(AsyncWebServerRequest *request)
       }
 
       series_obj["start"] = solar_forecast.start();
-      series_obj["first_set_period"] = solar_forecast.first_set_period();
-      series_obj["last_set_period"] = solar_forecast.last_set_period();
+      series_obj["first_set_period_ts"] = solar_forecast.first_set_period_ts();
+      series_obj["last_set_period_ts"] = solar_forecast.last_set_period_ts();
       series_obj["resolution_sec"] = solar_forecast.resolution_sec();
       //   Serial.println("DEBUG");
       //   solar_forecast.debug_print();
@@ -6640,7 +6650,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 #ifdef LOOP_WATCHDOG_ENABLED
 //  check_loop_is_called(); // call watchdog also here, if task not working
 #endif
-   
+
   if (!request->authenticate(s.http_username, s.http_password))
   {
     return request->requestAuthentication();
@@ -6950,7 +6960,6 @@ void setup()
   randomSeed(analogRead(0)); // initiate random generator
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
-
   // String
   wifi_mac_short = WiFi.macAddress();
   for (int i = 14; i > 0; i -= 3)
@@ -7167,9 +7176,12 @@ void setup()
   // server_web.on("/", HTTP_GET, onWebUIGet);
   server_web.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
                 { if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();  
-
+    return request->requestAuthentication(); 
+    if (!first_loop_ended && WiFi.getMode() == WIFI_STA )  
+      request->send(200, "text/html", PSTR("<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"10\"></head><body><p>I'm waking up, wait a while...</p></body></html>"));
+    else
   request->send(FILESYSTEM, "/ui3.html", "text/html"); });
+
 
   server_web.on(
       "/update.schedule", HTTP_POST,
@@ -7392,6 +7404,7 @@ void loop()
     recorded_period_start_ts = started_ts;
     current_period_start_ts = get_netting_period_start_time(started_ts);
     period_changed = true;
+    yield();
   }
 
   // Below business logic actions that require mcu clock in time -->
@@ -7601,4 +7614,5 @@ void loop()
   yield();
   delay(50); // short break
   io_tasks();
+  first_loop_ended = true;
 }
