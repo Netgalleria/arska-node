@@ -174,7 +174,7 @@
     },
     "117": {
         "id": "minute",
-        "desc": "Current minutes",
+        "desc": "Now minutes",
         "desc_fi": "Kuluva minuutti",
         "min": 0,
         "max": 59

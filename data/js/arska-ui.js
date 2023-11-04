@@ -3,6 +3,7 @@ var g_application;
 var g_templates;
 
 var g_price_elering_enabled;
+var isp_label; //imbalance setting period
 
 var day_ahead_chart_obj;
 
@@ -101,15 +102,10 @@ function completeHandler(event) { _('status').innerHTML = event.target.responseT
 function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; }
 function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; }
 
-function whatDecimalSeparator() {
-    var n = 1.1;
-    n = n.toLocaleString().substring(1, 2);
-    return n;
-}
 
 
 function period_start_ts(ts) {
-    return parseInt(ts / g_application.NETTING_PERIOD_SEC) * g_application.NETTING_PERIOD_SEC;
+    return parseInt(ts / g_settings.netting_period_sec) * g_settings.netting_period_sec;
 }
 
 const template_form_html = `<div class="modal fade"  id="ch_(ch#)_tmpl_form" aria-hidden="true" aria-labelledby="ch_(ch#)_tmpl_title" tabindex="-1">
@@ -497,7 +493,7 @@ function _ltext(obj, prop) {
 
 
 // cookie function, check messages read etc, https://www.w3schools.com/js/js_cookies.asp
-function setCookie(cname, cvalue, exdays) {
+function set_cookien(cname, cvalue, exdays) {
     const d = new Date();
     d.setTime(d.getTime() + (exdays * HOURS_IN_DAY * 60 * 60 * 1000));
     let expires = "expires=" + d.toUTCString();
@@ -521,7 +517,7 @@ function get_cookie(cname) {
 
 let last_chart_update = 0;
 
-function createElem(tagName, id = null, value = null, class_ = "", type = null) {
+function create_elem(tagName, id = null, value = null, class_ = "", type = null) {
     const elem = document.createElement(tagName);
     if (id)
         elem.id = id;
@@ -602,11 +598,12 @@ function update_status(repeat) {
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
             document.getElementById("load_manager_status").innerHTML = "";
-            if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
-                document.getElementById("load_manager_status").innerHTML += " Reswitching after overload earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
-            }
+     
             if (data.hasOwnProperty("energy_meter_current_latest")) {
-                document.getElementById("load_manager_status").innerHTML += "Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+                document.getElementById("load_manager_status").innerHTML += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+            }
+            if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
+                document.getElementById("load_manager_status").innerHTML += "<br>Overload at " +get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
             }
 
             get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
@@ -641,7 +638,7 @@ function update_status(repeat) {
                 live_alert("dashboard", msgDateStr + ' ' + data.last_msg_msg + extra_message, msg_type);
 
                 $('#dashboard\\:alert_i').on('closed.bs.alert', function () {
-                    setCookie("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
+                    set_cookien("msg_read", Math.floor((new Date()).getTime() / 1000), 10);
                 })
             }
 
@@ -655,8 +652,10 @@ function update_status(repeat) {
 
 
             ///localtime
-            document.getElementById("db:current_period").innerHTML = "(" + get_time_string_from_ts(now_period_start, false) + "-" + get_time_string_from_ts(data.ts, false) + ")";
-            document.getElementById("db:production_d").style.display = isNaN(data.variables[VARIABLE_PRODUCTION_ENERGY]) ? "none" : "block";
+            isp_text = (g_settings.netting_period_sec != SECONDS_IN_HOUR) ?", ISP: "+ isp_label : ""; //netting period, imbalance settlement period 
+            
+            document.getElementById("db:current_period").innerHTML = "(" + get_time_string_from_ts(now_period_start, false) + "-" + get_time_string_from_ts(data.ts, false) + isp_text+ ")";
+                document.getElementById("db:production_d").style.display = isNaN(data.variables[VARIABLE_PRODUCTION_ENERGY]) ? "none" : "block";
 
             if (!isNaN(data.variables[VARIABLE_PRODUCTION_POWER])) {
                 document.getElementById("db:production_v").innerHTML = data.variables[VARIABLE_PRODUCTION_ENERGY] + " Wh";;
@@ -942,7 +941,7 @@ function create_dashboard_chart() {
         chart_start_ts = parseInt(now_ts / 86400) * 86400 + (SECONDS_IN_HOUR);
         chart_end_excl_ts = chart_start_ts + (48 * SECONDS_IN_HOUR);
         //chart_resolution_sec = SECONDS_IN_HOUR;
-        chart_resolution_sec = g_application.NETTING_PERIOD_SEC;
+        chart_resolution_sec = g_settings.netting_period_sec;
         now_idx = 0;
         now_idx_chh = MAX_HISTORY_PERIODS - 1;
     }
@@ -951,14 +950,14 @@ function create_dashboard_chart() {
         chart_start_ts = price_data.record_start;
         chart_end_excl_ts = price_data.record_end_excl;
         // chart_resolution_sec = price_data.resolution_sec;
-        chart_resolution_sec = Math.min(price_data.resolution_sec, g_application.NETTING_PERIOD_SEC);
+        chart_resolution_sec = Math.min(price_data.resolution_sec, g_settings.netting_period_sec);
     }
 
 
     const ctx = document.getElementById('day_ahead_chart').getContext('2d');
 
     var tz_offset = new Date().getTimezoneOffset();
-    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - g_application.NETTING_PERIOD_SEC, false);
+    start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - g_settings.netting_period_sec, false);
 
     // now history, if values exists
     var chartExist = Chart.getChart("day_ahead_chart"); // <canvas> id
@@ -978,7 +977,7 @@ function create_dashboard_chart() {
         idx++;
     }
 
-    console.log("time_labels", time_labels);
+    //console.log("time_labels", time_labels);
     // new way
     if (price_data_exists) {
         idx = 0;
@@ -1014,12 +1013,12 @@ function create_dashboard_chart() {
 
     // iterate
     var period_label = 'h';
-    if (g_application.NETTING_PERIOD_SEC == SECONDS_IN_HOUR) {
+    if (g_settings.netting_period_sec == SECONDS_IN_HOUR) {
         period_factor = 1;
     }
     else {
-        period_label = "" + g_application.NETTING_PERIOD_SEC / SECONDS_IN_MINUTE + " min";
-        period_factor = g_application.NETTING_PERIOD_SEC / SECONDS_IN_HOUR;
+        period_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
+        period_factor = g_settings.netting_period_sec / SECONDS_IN_HOUR;
     }
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
@@ -1033,7 +1032,7 @@ function create_dashboard_chart() {
           }
           */
 
-        ts = now_period_ts - (g_application.NETTING_PERIOD_SEC * (variable_history[VARIABLE_SELLING_ENERGY].length - 1));
+        ts = now_period_ts - (g_settings.netting_period_sec * (variable_history[VARIABLE_SELLING_ENERGY].length - 1));
         for (h_idx = 0; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 0) {
                 dataset_started = true;
@@ -1041,7 +1040,7 @@ function create_dashboard_chart() {
                     import_ds.push({ x: get_time_label(ts), y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
                 }
             }
-            ts += g_application.NETTING_PERIOD_SEC;
+            ts += g_settings.netting_period_sec;
         }
 
         /*   idx = 0;
@@ -1051,13 +1050,14 @@ function create_dashboard_chart() {
            }*/
 
         console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
+        console.log("now_idx", now_idx);
 
         if (dataset_started)
             datasets.push(
                 {
-                    label: 'import Wh/' + period_label,
                     data: import_ds,
-                    yAxisID: 'energy_y_axis', //'energy_y_axis',
+                    yAxisID: 'y_energy',
+                    label: 'import Wh/' + period_label,
                     cubicInterpolationMode: 'monotone',
                     borderColor: ['#0eb03c'
                     ],
@@ -1103,7 +1103,7 @@ function create_dashboard_chart() {
                 {
                     label: 'solar fcst Wh/' + period_label,
                     data: fcst_ds,
-                    yAxisID: 'energy_y_axis',
+                    yAxisID: 'y_energy',
                     cubicInterpolationMode: 'monotone',
                     borderColor: ['#ffff00'
                     ],
@@ -1138,7 +1138,7 @@ function create_dashboard_chart() {
                 {
                     label: 'production Wh/' + period_label,
                     data: production_ds,
-                    yAxisID: 'energy_y',
+                    yAxisID: 'y_energy',
                     cubicInterpolationMode: 'monotone',
                     borderColor: ['#f58d42'
                     ],
@@ -1154,7 +1154,7 @@ function create_dashboard_chart() {
 
     var channel_dataset;
     now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
-    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_application.NETTING_PERIOD_SEC;
+    first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_settings.netting_period_sec;
     // console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_settings.ch[channel_idx]["type"] == 0) // undefined
@@ -1163,7 +1163,7 @@ function create_dashboard_chart() {
         dataset_started = false;
 
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
-            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_application.NETTING_PERIOD_SEC;
+            ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_settings.netting_period_sec;
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
@@ -1200,12 +1200,13 @@ function create_dashboard_chart() {
         options: {
             responsive: true,
             scales: {
-                ynow: {
+                y_now: {
                     beginAtZero: true,
                     ticks: {
                         display: false
                     },
-                    position: { x: now_idx + 0.5 }, grid: {
+                    position: { x: now_idx + 0.5 },
+                    grid: {
                         display: false,
                         lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
@@ -1223,29 +1224,29 @@ function create_dashboard_chart() {
                         lineWidth: 1, color: "#47470e", borderWidth: 1, borderColor: '#47470e'
                     }
                 },
-                energy_y: {
-                    display: 'auto',
-                    beginAtZero: true,
-                    grid: { display: false },
-                    ticks: {
-                        color: '#4f4f42',
-                        font: { size: 12 },
-                        callback: function (value, index, values) {
-                            return value + 'Wh';
-                        }
-                    }
-                },
                 y_minutes: {
                     display: 'auto',
                     beginAtZero: true,
                     min: 0,
-                    max: (g_application.NETTING_PERIOD_SEC / 60),
+                    max: (g_settings.netting_period_sec / 60),
                     grid: { display: false },
                     ticks: {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
                             return value + ' min';
+                        }
+                    }
+                },
+                y_energy: {
+                    display: 'auto',
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: {
+                        color: '#4f4f42',
+                        font: { size: 12 },
+                        callback: function (value, index, values) {
+                            return value + ' Wh';
                         }
                     }
                 },
@@ -1589,7 +1590,17 @@ function load_and_update_settings() {
         url: '/settings',
         dataType: 'json',
         async: false,
-        success: function (data) { g_settings = data; console.log("got g_settings"); return true; },
+        success: function (data) {
+            g_settings = data;
+            // iterate
+            if (g_settings.netting_period_sec == SECONDS_IN_HOUR) {
+                isp_label = 'h';
+            }
+            else {
+                isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
+            }
+            console.log("got g_settings"); return true;
+        },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get g_settings", textStatus, jqXHR.status, errorThrown);
             return false;
@@ -1795,11 +1806,11 @@ function get_template_list() {
 }
 
 
-function populateTemplateSel(selEl, template_id = -1) {
+function populate_template_select(selEl, template_id = -1) {
     get_template_list();
     if (selEl.options && selEl.options.length > 1) {
         //   console.log("already populated", selEl.options.length);
-        //   return; //already populated
+        return; //already populated
         ;
     }
     if (selEl.length == 0)
@@ -1825,7 +1836,7 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
 
     if (rule_mode == CHANNEL_CONFIG_MODE_TEMPLATE) { //template mode
         if (template_id_ctrl) {
-            populateTemplateSel(template_id_ctrl, template_id);
+            populate_template_select(template_id_ctrl, template_id);
             if (reset)
                 template_id_ctrl.value = -1;
         }
@@ -1887,8 +1898,6 @@ function delete_stmts_from_UI(channel_idx) {
         const_select.classList.add("invisible");
     });
 
-
-
     // reset up/down checkboxes
     //for (let cond_idx = 0; cond_idx < g_application.CHANNEL_CONDITIONS_MAX; cond_idx++) {
     //    set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
@@ -1896,7 +1905,7 @@ function delete_stmts_from_UI(channel_idx) {
 }
 
 
-function changed_rule_mode(ev) {
+function changed_rule_mode_ev(ev) {
     channel_idx = get_idx_from_str(ev.target.id, 0);
 
     rule_mode = ev.target.value;
@@ -2030,18 +2039,18 @@ function set_template_constants(channel_idx, ask_confirmation) {
                 hasPrompts = true;
                 console.log(form_fld_idx, stmt_obj);
 
-                const name_label = createElem("label", `ch_${channel_idx}_templ_field_${form_fld_idx}_name`, null, "form-label", null);
+                const name_label = create_elem("label", `ch_${channel_idx}_templ_field_${form_fld_idx}_name`, null, "form-label", null);
                 name_label.setAttribute("for", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`);
                 var_this = get_var_by_id(stmt_obj[0]);
                 name_label.innerHTML = var_this[1] + " (" + var_this[0] + ")  ";// variable name & id
                 field_list.appendChild(name_label);
 
-                const desc_span = createElem("span", `ch_${channel_idx}_templ_field_${form_fld_idx}_desc`, null, "text-muted", null);
+                const desc_span = create_elem("span", `ch_${channel_idx}_templ_field_${form_fld_idx}_desc`, null, "text-muted", null);
                 desc_span.innerHTML = "<br>" + _ltext(stmt_obj[4], "prompt"); //template variable prompt
                 field_list.appendChild(desc_span);
                 field_list.appendChild(document.createElement("br"));
 
-                const value_input = createElem("input", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[2], "form-control", "number");
+                const value_input = create_elem("input", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`, stmt_obj[2], "form-control", "number");
 
                 const value_in_rule_ctrl = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
                 if (value_in_rule_ctrl.value.toString().length > 0) {
@@ -2127,7 +2136,7 @@ function populate_channel(channel_idx) {
     document.getElementById(`ch_${channel_idx}:priority`).value = (ch_cur["priority"]);
     document.getElementById(`ch_${channel_idx}:load`).value = (ch_cur["load"]);
 
-    populateTemplateSel(document.getElementById(`ch_${channel_idx}:template_id`), ch_cur["template_id"]);
+    populate_template_select(document.getElementById(`ch_${channel_idx}:template_id`), ch_cur["template_id"]);
 
     channel_type_changed_ev(null, channel_idx);
 
@@ -2560,7 +2569,7 @@ function create_channels() {
     let cm_buttons = document.querySelectorAll("input[id*=':config_mode_']");
 
     for (let i = 0; i < cm_buttons.length; i++) {
-        cm_buttons[i].addEventListener("click", changed_rule_mode);
+        cm_buttons[i].addEventListener("click", changed_rule_mode_ev);
     }
 
 
@@ -2997,14 +3006,14 @@ function save_card_ev(ev) {
         dataType: "json",
         success: function (data) {
             document.getElementById(card + ":save").disabled = true;
-            if (["admin","metering", "production", "network"].includes(card)) {
+            if (["admin", "metering", "production", "network"].includes(card)) {
                 let do_restart = confirm("Settings updated. Do you want to restart?");
                 if (do_restart) {
                     launch_action("restart", card, {});
                     return;
                 }
             }
-           
+
             live_alert(card, "Settings updated", 'success');
             console.log("success, card ", card, data);
 

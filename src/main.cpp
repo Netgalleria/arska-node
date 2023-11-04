@@ -250,11 +250,13 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 //#pragma message("Testing with altered NETTING_PERIOD_SEC")
 //#define NETTING_PERIOD_SEC 900 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
 
-#define SECONDS_IN_HOUR 3600
+
 #define PRICE_RESOLUTION_SEC 3600
 #define SOLAR_FORECAST_RESOLUTION_SEC 3600
 
 #define SECONDS_IN_DAY 86400
+#define SECONDS_IN_HOUR 3600
+#define SECONDS_IN_MINUTE 60
 #define HOURS_IN_DAY 24
 
 #define FIRST_BLOCK_START_HOUR 23
@@ -3556,10 +3558,17 @@ void calculate_time_based_variables()
       day_sum_tuned += max((long)0, (long)(solar_forecast.get(period) * s.pv_power / 1000 - s.baseload));
     }
 
+    uint8_t isp_minutes = s.netting_period_sec / SECONDS_IN_MINUTE;
     if (period_power_fcst_available < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)HOURS_IN_DAY * 60);
     else
+      if (s.netting_period_sec == SECONDS_IN_HOUR) {
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)(tm_struct.tm_min * day_sum_tuned / period_power_fcst_available));
+      }
+      else {
+        //under construction, to be checked
+        vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)((tm_struct.tm_min%isp_minutes) * day_sum_tuned / period_power_fcst_available));
+      }
 
     vars.set(VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, (long)(tm_struct.tm_min * period_power_fcst / 60));
 

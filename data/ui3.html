@@ -980,13 +980,19 @@
                       </div>
                     </div>
                     <div id="password_note"></div>
+                    <!--
                     <div class="mb-2">
-                      <label for="http_password" class="form-label">Password for 'admin'</label>
-                      <input type="password" class="form-control" id="http_password" placeholder="">
+                      <label for="http_password_current" class="form-label">Current password for 'admin'</label>
+                      <input type="password" class="form-control" id="http_password_current" placeholder=""  autocomplete="current-password">
+                    </div>
+                    -->
+                    <div class="mb-2">
+                      <label for="http_password" class="form-label">New password for 'admin'</label>
+                      <input type="password" class="form-control" id="http_password" placeholder=""  autocomplete="new-password">
                     </div>
                     <div class="mb-2">
                       <label for="http_password2" class="form-label">Rewrite 'admin' password to change</label>
-                      <input type="password" class="form-control" id="http_password2" placeholder="">
+                      <input type="password" class="form-control" id="http_password2" placeholder="" autocomplete="new-password">
                     </div>
 
                     <div id="network:alert"></div>
@@ -1125,12 +1131,12 @@
                             </div>
 
                             <div class="mb-2">
-                              <label for="netting_period_sec" class="form-label">Netting period</label>
+                              <label for="netting_period_sec" class="form-label">Imbalance settlement period (ISP)</label>
                                 <select id="netting_period_sec" class="form-select" aria-label="variable">
                                   <option value="3600">1 hour</option>
                                   <option value="900">15 minutes (experimental)</option>
                                 </select>
-                                <span class="text-muted">Imbalance settlement period (ISP)</span>
+                                <span class="text-muted"></span>
                             </div>
 
                             <div id="admin:alert"></div>
