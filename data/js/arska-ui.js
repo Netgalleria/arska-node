@@ -34,6 +34,9 @@ const VARIABLE_SELLING_POWER = "102";
 const VARIABLE_SELLING_ENERGY = "103";
 const VARIABLE_PRODUCTION_ENERGY = "105";
 
+const VAR_IDX_ID = 0; //variables from g_application.variables
+const VAR_IDX_TYPE = 1;
+
 const CH_STATE_NONE = 0
 const CH_STATE_BYRULE = 1
 const CH_STATE_BYFORCE = 2
@@ -43,7 +46,7 @@ const CH_STATE_BYLMGMT_MORATORIUM = 6
 const CH_STATE_BYLMGMT_NOCAPACITY = 7
 
 
-let variable_list = {}; // populate later
+let variable_list = {}; // populate later from json
 
 window.onload = function () {
     init_ui();
@@ -686,7 +689,7 @@ function update_status(repeat) {
                 //   document.getElementById("variables").style.display = document.getElementById("statusauto").checked ? "block" : "none";
                 $("#tblVariables_tb").empty();
                 $.each(data.variables, function (id, variable) {
-                    var_this = get_variable(id);
+                    var_this = get_variable_by_id(id);
                     variable_name = "";
                     variable_desc = "";
                     var value_txt = "";
@@ -713,7 +716,8 @@ function update_status(repeat) {
 
                     ///double work...
                     variable_desc = get_variable_desc(id, false);
-                    newRow = '<tr><th scope="row">' + var_this[0] + '</th><td>' + var_this[1] + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
+                    var_code = variable_list[id]["code"]; //replace  var_this[1]
+                    newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code+ '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
                     $(newRow).appendTo($("#tblVariables_tb"));
 
                 });
@@ -1703,12 +1707,14 @@ function load_application_config() {
     });
 };
 
-function get_variable(variable_id) {
+
+
+function get_variable_by_id(id) {
     for (var i = 0; i < g_application.variables.length; i++) {
-        if (g_application.variables[i][0] == variable_id)
+        if (g_application.variables[i][0] == id) {
             return g_application.variables[i];
-    }
-    return null;
+        }
+    };
 }
 
 
@@ -1950,7 +1956,7 @@ function changed_rule_mode_ev(ev) {
 function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0]) {
     //console.log("populateStmtField", channel_idx, rule_idx, stmt_idx, stmt);
     var_ctrl = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`);
-    var_this = get_var_by_id(stmt[0]);
+    var_this = get_variable_by_id(stmt[0]);
     populate_var(var_ctrl, stmt[0]);
 
     oper_ctrl = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:oper`);
@@ -2053,12 +2059,13 @@ function set_template_constants(channel_idx, ask_confirmation) {
         $.each(rule.stmts, function (stmt_idx, stmt_obj) {
             if (stmt_obj.length > 4 && stmt_obj[4].hasOwnProperty('prompt')) {
                 hasPrompts = true;
+                var_id = stmt_obj[0];
                 console.log(form_fld_idx, stmt_obj);
 
                 const name_label = create_elem("label", `ch_${channel_idx}_templ_field_${form_fld_idx}_name`, null, "form-label", null);
                 name_label.setAttribute("for", `ch_${channel_idx}_templ_field_${form_fld_idx}_value`);
-                var_this = get_var_by_id(stmt_obj[0]);
-                name_label.innerHTML = var_this[1] + " (" + var_this[0] + ")  ";// variable name & id
+                var_this = get_variable_by_id(stmt_obj[0]);
+                name_label.innerHTML = variable_list[var_id]["code"] + " (" + var_id + ")  ";// variable name & id
                 field_list.appendChild(name_label);
 
                 const desc_span = create_elem("span", `ch_${channel_idx}_templ_field_${form_fld_idx}_desc`, null, "text-muted", null);
@@ -2191,17 +2198,9 @@ function is_var_logical(constant_type) {
     return (constant_type >= 50 && constant_type <= 51);
 }
 
-function get_var_by_id(id) {
-    for (var i = 0; i < g_application.variables.length; i++) {
-        if (g_application.variables[i][0] == id) {
-            return g_application.variables[i];
-        }
-    };
-}
 
 function var_selected_ev(ev) {
-
-    var_this = get_var_by_id(ev.target.value);
+    var_this = get_variable_by_id(ev.target.value);
     if (var_this) {
         document.getElementById(sel_ctrl.id.replace(":var", ":info")).classList.remove("opacity-25");
     }
@@ -2243,12 +2242,15 @@ function oper_selected_ev(ev) {
 
 function populate_var(sel_ctrl, selected = -1) {
     // TODO: reads currently description from hardcoded source, could read variable-info variable_list
+    var var_id;
     if (sel_ctrl.options.length == 0) {
         addOption(sel_ctrl, -1, "-", false);
         for (var i = 0; i < g_application.variables.length; i++) {
+            var_id = g_application.variables[i][0];
             var type_indi = is_var_logical(g_application.variables[i][2]) ? "*" : " "; //logical
-            var id_str = '(' + g_application.variables[i][0] + ') ' + g_application.variables[i][1] + type_indi;
-            addOption(sel_ctrl, g_application.variables[i][0], id_str, false); //(stmt[0] == g_application.variables[i][0]));
+       //     var id_str = '(' + g_application.variables[i][0] + ') ' + g_application.variables[i][1] + type_indi;
+            var id_str = '(' + var_id + ') ' + variable_list[var_id]["code"] + type_indi; 
+            addOption(sel_ctrl, var_id, id_str, false); 
         }
 
         // TODO: check that only one instance exists
@@ -2300,9 +2302,9 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
         for (let i = 0; i < g_application.opers.length; i++) {
             if (g_application.opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
                 void (0); // do nothing, do not skip
-            else if (is_var_logical(var_this[2]) && !g_application.opers[i][5]) //boolean variable, not boolean oper
+            else if (is_var_logical(var_this[VAR_IDX_TYPE]) && !g_application.opers[i][5]) //boolean variable, not boolean oper
                 continue;
-            else if (!is_var_logical(var_this[2]) && g_application.opers[i][5]) // numeric variable, boolean oper
+            else if (!is_var_logical(var_this[VAR_IDX_TYPE]) && g_application.opers[i][5]) // numeric variable, boolean oper
                 continue;
             el_oper.style.display = "segment";
             // constant element visibility
@@ -2321,7 +2323,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
 
     //*** */
     if (typeof var_this != "undefined")
-        show_constant = !is_var_logical(var_this[2]);
+        show_constant = !is_var_logical(var_this[VAR_IDX_TYPE]);
     else
         show_constant = true;
 
@@ -2715,7 +2717,7 @@ function init_ui() {
     document.getElementsByTagName('body')[0].appendChild(script);
 
     setTimeout(function () { populate_channels(); update_status(true); }, 2 * 1000);
-    setTimeout(function () { create_dashboard_chart(); }, 45000); //one time, hopefully with all data
+    setTimeout(function () { create_dashboard_chart(); }, 10000); //one time, hopefully with all data
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
@@ -2741,7 +2743,7 @@ function init_ui() {
         title: function () {
             var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
             if (var_id in variable_list) {
-                return "(" + var_id + ") " + variable_list[var_id]["id"];
+                return "(" + var_id + ") " + variable_list[var_id]["code"];
             }
             else {
                 return "No variable selected";
