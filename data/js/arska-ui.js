@@ -36,6 +36,7 @@ const VARIABLE_PRODUCTION_ENERGY = "105";
 
 const VAR_IDX_ID = 0; //variables from g_application.variables
 const VAR_IDX_TYPE = 1;
+const VAR_IDX_BITMASK = 2;
 
 const CH_STATE_NONE = 0
 const CH_STATE_BYRULE = 1
@@ -843,10 +844,10 @@ function populate_channel_status(channel_idx, ch) {
     sch_status_label.classList.add(ch.is_up ? "text-bg-success" : "text-bg-danger");
 
     info_text = "";
-    if (ch.active_condition > -1)
-        // rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_condition + "\");'";
+    if (ch.active_rule > -1)
+        // rule_link_a = " onclick='activate_section(\"channels_c" + channel_idx + "r" + ch.active_rule + "\");'";
         rule_link_a = "";
-    rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":r_" + ch.active_condition + "\");'";
+    rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":r_" + ch.active_rule + "\");'";
 
 
     if (g_settings.ch[channel_idx]["type"] == 0) {
@@ -871,7 +872,7 @@ function populate_channel_status(channel_idx, ch) {
         if (ch.transit == CH_STATE_NONE)
             transit_txt = "";
         else if (ch.transit == CH_STATE_BYRULE)
-            transit_txt = "<a class='chlink' " + rule_link_a + ">rule " + (ch.active_condition + 1) + "</a>";
+            transit_txt = "<a class='chlink' " + rule_link_a + ">rule " + (ch.active_rule + 1) + "</a>";
         else if (ch.transit == CH_STATE_BYFORCE)
             transit_txt = "manual schedule";
         else if (ch.transit == CH_STATE_BYLMGMT)
@@ -1852,7 +1853,7 @@ function switch_rule_mode(channel_idx, rule_mode, reset, template_id) {
     //template desc
     document.getElementById(`ch_${channel_idx}:desc`).innerHTML = "";
     //template rule desc
-    for (let rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+    for (let rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
         document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = "";
     }
 
@@ -1921,8 +1922,8 @@ function delete_stmts_from_UI(channel_idx) {
     });
 
     // reset up/down checkboxes
-    //for (let cond_idx = 0; cond_idx < g_application.CHANNEL_CONDITIONS_MAX; cond_idx++) {
-    //    set_radiob("ctrb_" + channel_idx + "_" + cond_idx, "0");
+    //for (let rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
+    //    set_radiob("ctrb_" + channel_idx + "_" + rule_idx, "0");
     //}
 }
 
@@ -2038,7 +2039,7 @@ function set_template_constants(channel_idx, ask_confirmation) {
 
     document.getElementById(`ch_${channel_idx}:desc`).innerHTML = "";
     //template rule desc
-    for (let rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+    for (let rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
         document.getElementById(`ch_${channel_idx}:r_${rule_idx}:desc`).innerHTML = "";
     }
 
@@ -2178,7 +2179,7 @@ function populate_channel(channel_idx) {
     // console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
 
     if ("rules" in ch_cur) {
-        for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_CONDITIONS_MAX); rule_idx++) {
+        for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
             this_rule = ch_cur["rules"][rule_idx];
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = this_rule["on"] ? false : true;
             document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
@@ -2222,8 +2223,8 @@ function selected_oper(el_oper) {
     var show_const = false;
     if ((el_oper.value >= 0)) {
         // show initially hidden rules
-        // if ((cond_idx + 1) < g_application.CHANNEL_CONDITIONS_MAX) {
-        //     document.getElementById("ru_" + channel_idx + "_" + (cond_idx + 1)).style.display = "segment";
+        // if ((rule_idx + 1) < g_application.CHANNEL_RULES_MAX) {
+        //     document.getElementById("ru_" + channel_idx + "_" + (rule_idx + 1)).style.display = "segment";
         // }
 
         // set constant visibility (defined oper use no constants)
@@ -2350,10 +2351,10 @@ function template_form_closed_ev(ev) {
     entered_field_values = {}; // given values for copying to other statements, NOTE! A prompt value must be before target in the statement
     console.log("******** adding new fields");
     // assume global variable template_data.conditions populated  when creating the form
-    $.each(template_data.rules, function (cond_idx, rule) {
-        //  console.log("cond_idx, rule", cond_idx, rule);
-        document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_0`).checked = !rule["on"];
-        document.getElementById(`ch_${channel_idx}:r_${cond_idx}:up_1`).checked = rule["on"];
+    $.each(template_data.rules, function (rule_idx, rule) {
+        //  console.log("rule_idx, rule", rule_idx, rule);
+        document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = !rule["on"];
+        document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = rule["on"];
 
         $.each(rule.stmts, function (j, stmt_obj) {
             // stmt_obj = stmt;
@@ -2387,8 +2388,8 @@ function template_form_closed_ev(ev) {
 
 
             stmt_obj2 = [stmt_obj[0], stmt_obj[1], null, new_value];
-            console.log("before addStmt: ", channel_idx, cond_idx, stmt_obj, stmt_obj2);
-            addStmt(channel_idx, cond_idx, j, stmt_obj2);
+            console.log("before addStmt: ", channel_idx, rule_idx, stmt_obj, stmt_obj2);
+            addStmt(channel_idx, rule_idx, j, stmt_obj2);
         });
     });
     var template_modal = bootstrap.Modal.getOrCreateInstance(document.getElementById(`ch_${channel_idx}_tmpl_form`));
@@ -2533,7 +2534,7 @@ function create_channels() {
         if (channel_idx < (g_settings.ch.length)) { // we should have data
             //initiate rule structure
             rule_list = document.getElementById(`ch_${channel_idx}:rules`);
-            for (rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+            for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
                 rule_id = `ch_${channel_idx}:r_${rule_idx}`;
                 rule_list.insertAdjacentHTML('beforeend', rule_html.replaceAll("ch_#:r_#", rule_id));
                 document.getElementById(`${rule_id}:title`).innerText = "Rule " + (rule_idx + 1);
@@ -2901,7 +2902,7 @@ function save_channel_ev(ev) {
 
     rules = [];
 
-    for (rule_idx = 0; rule_idx < g_application.CHANNEL_CONDITIONS_MAX; rule_idx++) {
+    for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
         stmt_count = 0;
         rule_stmts = [];
         up_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked ? false : true;
