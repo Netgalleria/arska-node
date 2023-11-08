@@ -19,14 +19,25 @@ DEVEL BRANCH
 #define INFLUX_REPORT_ENABLED
 #define SENSOR_DS18B20_ENABLED // DS18B20 funtionality
 #define RTC_DS3231_ENABLED //real time clock functionality
-#define VARIABLE_SOURCE_ENABLED  // RFU for source/replica mode
-10.11.2022 removed esp8266 options
 */
-#define EEPROM_CHECK_VALUE 10103
-#define DEBUG_MODE
 
+// Features enabled
+#define METER_SHELLY3EM_ENABLED           //!< Shelly 3EM functionality enabled
+#define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
+#define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
+#define METER_HAN_ENABLED
+#define METER_HAN_DIRECT_ENABLED
+#define LOAD_MGMT_ENABLED
+#define PING_ENABLED            // for testing if internet connection etc ok
+#define PRICE_ELERING_ENABLED // Experimental price query from Elering
+#define OTA_UPDATE_ENABLED // OTA general
+#define DEBUG_FILE_ENABLED
+// #define HW_EXTENSIONS_ENABLED //!<uncomment  line to enable SN74HC595, LED and reset button functionality (Shelly),The device must be defined in  hw_templates array
+#define DEBUG_MODE_ENABLED
 #define NVS_CACHE_ENABLED // experimental
-#define STORAGE_NAMESPACE "cache"
+
+
+
 #ifdef NVS_CACHE_ENABLED
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -67,355 +78,55 @@ String version_fs_base; //= "";
 #include <time.h>
 #include <WiFiClient.h>
 
-// 1024 default in non 5
 #define DYNAMIC_JSON_DOCUMENT_SIZE 4096
 #include "AsyncJson.h" //https://github.com/me-no-dev/ESPAsyncWebServer#json-body-handling-with-arduinojson
 #include <ArduinoJson.h>
-
-// features enabled
-// moved to platformio.ini build parameters
-#define MAX_DS18B20_SENSORS 3             //!< max number of sensors
-#define SENSOR_VALUE_EXPIRE_TIME 1200     //!< if new value cannot read in this time (seconds), sensor value is set to 0
-#define METER_SHELLY3EM_ENABLED           //!< Shelly 3EM functionality enabled
-#define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
-#define INVERTER_SMA_MODBUS_ENABLED       // can read SMA inverter Modbus TCP
-#define METER_HAN_ENABLED
-#define METER_HAN_DIRECT_ENABLED
-
-// experimental,move this to correct place, get from parameters/hw templates
-#define DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS 2000 // delay after longer queries (price, energy forecast) to keep more responsive in the init
-
-#define LOAD_MGMT_ENABLED
-#define WATTS_TO_AMPERES_FACTOR 230.0
-
-#define MDNS_ENABLED_NOTENABLED // experimental, disabled due to stability concerns
-#define PING_ENABLED            // for testing if internet connection etc ok
-
-#define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to variables
-
-#define PRICE_ELERING_ENABLED // Experimental price query from Elering
-
-#define OTA_UPDATE_ENABLED // OTA general
-// #define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
-
-#define eepromaddr 0
-#define WATT_EPSILON 50
-
-const char *default_http_password PROGMEM = "arska";
-const char *filename_config_in = "/cache/config_in.json";
-const char *template_filename PROGMEM = "/data/templates.json";
-const char *shadow_settings_filename PROGMEM = "/shadow_settings.json";
-
-const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
-const char *ntp_server_2 PROGMEM = "time.google.com";
-const char *ntp_server_3 PROGMEM = "time.windows.com";
-
-#define MSG_TYPE_INFO 0
-#define MSG_TYPE_WARN 1
-#define MSG_TYPE_ERROR 2
-#define MSG_TYPE_FATAL 3
-
-IPAddress IP_UNDEFINED(0, 0, 0, 0);
-
-#define ACCEPTED_TIMESTAMP_MINIMUM 1656200000 // if timetstamp is greater, we assume it is from a real-time clock
-
-
-//** Signatures
-
- /* WiP
-bool 	test_host (IPAddress hostip, uint8_t count); // test/ping connection to a host
- 
-void 	ts_to_date_str (time_t *tsp, char *out_str); //Utility, writes date string generated from a time stamp to memory buffer.
- 
-void 	log_msg (uint8_t type, const char *msg, bool write_to_file); //Store latest log message.
-
-bool 	check_filesystem_version (); //Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
- 
-int 	get_variable_history_idx (int id);
- 
-int 	get_hw_template_idx (int id);
- 
-void 	ch_prio_sort ();
- 
-bool 	is_wifi_relay (uint8_t type);
- 
-bool 	is_local_relay (uint8_t type);
- 
-void 	io_tasks (uint8_t state);
- 
-//void 	str_to_uint_array (const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SIZE], const char *separator); //Parse char array to uint16_t array (e.g. states, ip address)
- 
-void 	scan_and_store_wifis (bool print_out, bool store); //Scans wireless networks on the area and stores list to a file.
- 
-//bool 	copy_doc_str (StaticJsonDocument< CONFIG_JSON_SIZE_MAX > &doc, char *key, char *tostr, size_t buffer_length); //Utility for reading a json config file to memory structures- to be tuned.
- 
-//long 	get_doc_long (StaticJsonDocument< CONFIG_JSON_SIZE_MAX > &doc, const char *key, long default_val=VARIABLE_LONG_UNKNOWN); // Get long value from Arduino json object.
- 
-bool 	set_netting_source (); //Set the netting source variable based on settings, called after setting change/init.
- 
-void 	readFromEEPROM (); //Reads settings from eeprom to s and s_influx data structures.
- 
-void 	writeToEEPROM ();  //Writes settings to eeprom.
- 
-String 	httpGETRequest (const char *url, int32_t connect_timeout_s); 
- 
-void 	set_relays (bool grid_protection_delay_used); // Set relays up and down.
- 
-float 	check_current_load (); 
-
-void 	process_energy_meter_readings ();
- 
-bool 	get_han_ts (String *strp, time_t *returned);
- 
-bool 	get_han_dbl (String *strp, const char *obis_code, double *returned);
- 
-bool 	parse_han_row (String *row_in_p);
- 
-bool 	receive_energy_meter_han_direct ();
- 
-bool 	read_energy_meter_han_wifi (); //Read HAN P1 meter telegram message from tcp port (http)
- 
-bool 	read_energy_meter_shelly3em (); //Read energy export/import values from Shelly3EM energy meter.
- 
-bool 	read_inverter_fronius_data (long int &total_energy, long int &current_power); //Reads production data from Fronius invertes (http/json Solar API)
- 
-//bool 	cb (Modbus::ResultCode event, uint16_t transactionId, void *data); //callback for ModBus, currently just debugging
- 
-long int 	get_mbus_value (IPAddress remote, const int reg_offset, uint16_t reg_num, uint8_t modbusip_unit); //Get the ModBus Hreg value.
- 
-bool 	read_inverter_sma_data (long int &total_energy, long int &current_power); //Reads production data from SMA inverted (ModBus TCP)
- 
-void 	calculate_time_based_variables (); //Read production data from inverters, calls inverter specific functions.
- 
-void 	calculate_meter_based_variables (); //Updates global variables based inverter readings.
- 
-long 	round_divide (long lval, long divider); //Utility function to round both positive and negative long values.
- 
-void 	calculate_forecast_variables (); //Calculate variables based on forecasts, eg. solar.
- 
-void 	calculate_price_rank_variables (); //Calculate price rank variables for current period.
- 
-String 	getElementValue (String outerXML); //Get the Element Value from piece of xml.
- 
-time_t 	ElementToUTCts (String elem); //Convert date time string to UTC time stamp.
- 
-String 	read_http11_line (WiFiClientSecure *client_https);
- 
-//bool 	get_renewable_forecast (uint8_t forecast_type, timeSeries *time_series); //Get the solar forecast from FMI open data.
- 
-bool 	get_price_data_entsoe (); //Gets SPOT-prices from EntroE to a json file (price_data_file_name)
- 
-
-bool 	is_force_up_valid (int channel_idx);
- 
-int 	get_channel_active_rule (int channel_idx);
- 
-void 	onWebApplicationGet (AsyncWebServerRequest *request); //Generate application constants for the user interface.
- 
-void 	onWebWifisGet (AsyncWebServerRequest *request);
- 
-void 	read_energy_meter (); //Read grid or production info from energy meter/inverter.
- 
-void 	read_production_meter (); // Read production info from an inverter.
- 
-int 	get_channel_to_switch (bool is_rise, int switch_count); //Get a channel to switch next.
- 
-int 	get_channel_to_switch_prio (bool is_rise); //Get a channel to switch next, using channel priority.
- 
-int 	get_channel_to_switch_prio (bool is_rise, int n);
- 
-bool 	test_set_gpio_pinmode (int channel_idx, bool set_pinmode); //Test gpio and optionally set pin mode for gpio switches.
- 
-bool 	switch_http_relay (int channel_idx, bool up); //Switch http get relays.
- 
-bool 	apply_relay_state (int channel_idx, bool init_relay); //Sets a channel relay up/down.
- 
-void 	update_channel_states (); //Check which channels can be raised /dropped.
- 
-bool 	get_price_data_elering ();
- 
-void 	onWebUpdateGet (AsyncWebServerRequest *request); //Returns update form from memory variable. (no littlefs required)
- 
-void 	handleFirmwareUpdate (AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final); //Process update chunks.
- 
-void 	reset_config ();
- 
-void 	clean_str (char *str);
- 
-bool 	ajson_str_to_mem (JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length); //Copies string value from a json node to a char buffer.
- 
-void 	create_settings_doc (DynamicJsonDocument &doc, bool include_password);
- 
-void 	onWebSettingsGet (AsyncWebServerRequest *request); //Export current configuration in json to web response.
- 
-int32_t 	ajson_int_get (JsonVariant parent_node, char *doc_key, int32_t default_val); // Gets integer value from a json node.
- 
-IPAddress 	ajson_ip_get (JsonVariant parent_node, char *doc_key, IPAddress default_val); //Gets an ip address from a json node.
- 
-double 	ajson_double_get (JsonVariant parent_node, char *doc_key, double default_val); //Gets a double (float) from a json node.
- 
-bool 	ajson_bool_get (JsonVariant parent_node, char *doc_key, bool default_val); //Gets a boolean value from a json node.
- 
-bool 	store_settings_from_json_doc_dyn (DynamicJsonDocument doc); //Stores settings from a json document (from UI or restore upload)
- 
-bool 	create_shadow_settings ();
- 
-bool 	read_shadow_settings ();
- 
-void 	onWebUploadConfig (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);
- 
-void 	onScheduleUpdate (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total); //Process dashboard form, forcing channels up, JSON update, work in progress.
- 
-void 	onWebSettingsPost (AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total); //Handles chunks from post to /settings, called by UI Settings.
- 
-void 	onWebPricesGet (AsyncWebServerRequest *request); // "/prices" ur handler for getting price data in json format
- 
-void 	onWebSeriesGet (AsyncWebServerRequest *request);
- 
-void 	check_loop_is_called ();
- 
-void 	loop_watchdog (void *pvParameters);
- 
-void 	onWebStatusGet (AsyncWebServerRequest *request); // "/status" url handler, returns status in json
- 
-void 	set_time_settings (bool set_tz, bool set_ntp); // Set the timezone info etc after wifi connected.
- 
-void 	wifi_event_handler (WiFiEvent_t event); // Reports (acts on) changing wifi states.
- 
-bool 	connect_wifi (); 
-*/
+// 1024 default in non 5
 
 
 #ifdef PING_ENABLED
 #include <ESP32Ping.h>
-    bool ping_enabled = true;
-/**
- * @brief test/ping connection to a host
- *
- * @param hostip
- * @param count
- * @return true
- * @return false
- */
-bool test_host(IPAddress hostip, uint8_t count = 5)
-{
-  Serial.printf("Pinging %s\n", hostip.toString().c_str());
-  yield();
-  bool success = Ping.ping(hostip, count);
-  Serial.println(success ? "success" : "no response");
-  return success;
-}
-#else
-    bool ping_enabled = false;
-bool test_host(IPAddress hostip, uint8_t count = 5) return true; // stub, not in use
-
 #endif
 
-struct variable_st
-{
-  uint16_t id;
-  uint8_t type;
-  uint16_t bitmask;
-  long val_l;
-};
-
-tm tm_struct;
-
-// for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
-
-bool wifi_sta_connection_required = false;
-bool wifi_sta_connected = false;
-uint32_t wifi_sta_disconnected_ms = 0;   //!< restart if enough time since first try
-uint32_t wifi_connect_tried_last_ms = 0; //!< reconnect if enough time since first try
-
-#define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
-#define WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC 3600
-
-bool config_resetted = false; // true if configuration cleared when version upgraded
-bool fs_mounted = false;      // true
-bool cooling_down_state = false;
-
-#define ERROR_MSG_LEN 100
-#define DEBUG_FILE_ENABLED
-#ifdef DEBUG_FILE_ENABLED
-const char *debug_filename PROGMEM = "/data/log.txt";
+#ifdef RTC_DS3231_ENABLED
+#include <RTClib.h>
+#include <coredecls.h>
 #endif
 
-
-struct msg_st
-{
-  uint8_t type; // 0 info, 1-warn, 2 - error, 3-fatal
-  time_t ts;
-  char msg[ERROR_MSG_LEN];
-};
-
-msg_st last_msg;
-
-/**
- * @brief Utility, writes date string generated from a time stamp to memory buffer
- *
- * @param tsp
- * @param out_str
- */
-void ts_to_date_str(time_t *tsp, char *out_str)
-{
-  tm tm_local;
-  gmtime_r(tsp, &tm_local);
-  sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
-}
-
-tm tm_struct_g;
-tm tm_struct_l;
-
-/**
- * @brief Store latest log message
- *
- * @param type
- * @param msg
- * @param write_to_file
- */
-void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
-{
-  memset(last_msg.msg, 0, ERROR_MSG_LEN);
-  strncpy(last_msg.msg, msg, (ERROR_MSG_LEN - 1));
-  last_msg.type = type;
-  last_msg.ts = time(nullptr);
-
-#ifdef DEBUG_FILE_ENABLED
-  char datebuff[35];
-  if (write_to_file && fs_mounted)
-  {
-    File log_file = FILESYSTEM.open(debug_filename, "a");
-    if (!log_file)
-    {
-      Serial.println(F("Cannot open the log file."));
-      return;
-    }
-    gmtime_r(&last_msg.ts, &tm_struct_g);
-    sprintf(datebuff, "%04d-%02d-%02dT%02d:%02d:%02dZ (%lu)", tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour, tm_struct_g.tm_min, tm_struct_g.tm_sec, millis());
-    log_file.printf("%s %d %s\n", datebuff, (int)type, msg);
-    log_file.close();
-    // debug debug
-    Serial.println("Writing to log file:");
-    Serial.printf("%s %d %s\n", datebuff, (int)type, msg);
-  }
+#ifdef HW_EXTENSIONS_ENABLED
+#include "driver/adc.h"
 #endif
-}
 
-// #ifdef MDNS_ENABLED
-// #include "ESPmDNS.h"
-// #endif
+#ifdef SENSOR_DS18B20_ENABLED
+#include <OneWire.h>
+#include <DallasTemperature.h> // tätä ei ehkä välttämättä tarvita, jos käyttäisi onewire.h:n rutineeja
+#endif
 
-AsyncWebServer server_web(80);
+#ifdef INVERTER_SMA_MODBUS_ENABLED
+#include <ModbusIP_ESP8266.h>
+#endif
 
-// Clock functions, supports optional DS3231 RTC
-bool rtc_found = false;
+#ifdef INFLUX_REPORT_ENABLED
+#include <InfluxDbClient.h>
+#endif
 
-const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
-const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
+#ifdef OTA_DOWNLOAD_ENABLED
+#include <HTTPUpdate.h> //
+#endif
 
-// #pragma message("Testing with altered NETTING_PERIOD_SEC")
-// #define NETTING_PERIOD_SEC 900 //!< Netting time in seconds, (in Finland) 60 -> 15 minutes 2023
+#include <Update.h>
+
+
+
+
+#define EEPROM_CHECK_VALUE 10103  //!< increment this is data structure changes
+#define eepromaddr 0
+#define MAX_DS18B20_SENSORS 3             //!< max number of sensors
+#define SENSOR_VALUE_EXPIRE_TIME 1200     //!< if new value cannot read in this time (seconds), sensor value is set to 0
+// experimental,move this to correct place, get from parameters/hw templates
+#define DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS 2000 // delay after longer queries (price, energy forecast) to keep more responsive in the init
+#define WATTS_TO_AMPERES_FACTOR 230.0
+#define TARIFF_VARIABLES_FI // add Finnish tariffs (yösähkö,kausisähkö) to variables
 
 #define PRICE_RESOLUTION_SEC 3600
 #define SOLAR_FORECAST_RESOLUTION_SEC 3600
@@ -433,16 +144,50 @@ const int price_variable_blocks[] = {9, 24};          //!< price ranks are calcu
 #define MAX_PRICE_PERIODS 48 //!< number of price period in the memory array
 #define MAX_HISTORY_PERIODS 24
 #define HISTORY_VARIABLE_COUNT 2
-#define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 
 #define HW_TEMPLATE_COUNT 7
 #define HW_TEMPLATE_GPIO_COUNT 4 //!< template  max number of hardcoded gpio relays
 
-time_t prices_first_period = 0;
+#define CH_TYPE_UNDEFINED 0
+#define CH_TYPE_GPIO_FIXED 1
+#define CH_TYPE_GPIO_USER_DEF 3
+#define CH_TYPE_SHELLY_1GEN 2        // new, was CH_TYPE_SHELLY_ONOFF
+#define CH_TYPE_SHELLY_2GEN 4        //
+#define CH_TYPE_TASMOTA 5            //
+#define CH_TYPE_GPIO_USR_INVERSED 10 // inversed
+#define CH_TYPE_MODBUS_RTU 20        // RFU
+#define CH_TYPE_DISABLED 255         // RFU, we could have disabled, but allocated channels (binary )
 
-time_t prices_record_start;
-// time_t prices_record_end_excl;
-time_t prices_expires_ts = 0;
+// #define CHANNEL_RULES_MAX 3 //platformio.ini
+#define RULE_STATEMENTS_MAX 5
+#define MAX_CHANNELS_SWITCHED_AT_TIME 1
+
+#define MAX_CH_ID_STR_LENGTH 20
+#define MAX_ID_STR_LENGTH 30
+#define MAX_PWD_STR_LENGTH 15
+
+// Current phase of OTA update, s.ota_update_phase
+#define OTA_PHASE_NONE 0
+#define OTA_PHASE_FWUPDATED_CHECKFS 100
+
+// Energy metering types
+#define ENERGYM_NONE 0
+#define ENERGYM_SHELLY3EM 1
+#define ENERGYM_SHELLY_GEN2 2
+#define ENERGYM_HAN_WIFI 4
+#define ENERGYM_HAN_DIRECT 5
+
+// Production metering (inverter) types
+#define PRODUCTIONM_NONE 0
+#define PRODUCTIONM_FRONIUS_SOLAR 1
+#define PRODUCTIONM_SMA_MODBUS_TCP 2
+
+#define ID_NA 255
+#define CHANNEL_TYPE_COUNT 6
+
+#define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
+#define WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC 3600
+#define ERROR_MSG_LEN 100
 
 // API
 // const char *host_prices PROGMEM = "transparency.entsoe.eu"; //!< EntsoE reporting server for day-ahead prices
@@ -471,291 +216,45 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 #define CH_STATE_BYDEFAULT 5
 #define CH_STATE_BYLMGMT_MORATORIUM 6
 #define CH_STATE_BYLMGMT_NOCAPACITY 7
-
-uint8_t chstate_transit[CHANNEL_COUNT]; // logging why the channel is in this state, latest transit decision (also blocking)
-bool channel_forced_down[CHANNEL_COUNT];
-
-// Jos LMGMT blokkaa niin palataan entiseen eli käytännössä syyksi muuttuu CH_STATE_BYLMGMT
-// Mutta ehdot lasketaan uusiksi, joten ei syytä jättää transitioon pidemmäksi aikaa, mutta priorisointi tehdään vasta myöhemmin
-//  katso update_channel_states, get_channel_to_switch_prio
-//  voisi olla paras tehdä aina prio-sortattu taulukko kanavista
-
-// String url_base = "/api?documentType=A44&processType=A16";
-const char *url_base PROGMEM = "/api?documentType=A44&processType=A16";
-// API documents: https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_areas
-
-time_t next_query_price_data_ts = 0;
-time_t next_query_fcst_data_ts = 0;
-
-// https://transparency.entsoe.eu/api?securityToken=XXX&documentType=A44&In_Domain=10YFI-1--------U&Out_Domain=10YFI-1--------U&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202104200000&periodEnd=202104200100
-const int httpsPort = 443;
-
-#ifdef RTC_DS3231_ENABLED
-
-#include <RTClib.h>
-#include <coredecls.h>
-
-RTC_DS3231 rtc; //!< Real time clock object
-/*
-
-   Take a broken-down time and convert it to calendar time (seconds since the Epoch 1970)
-   Expects the input value to be Coordinated Universal Time (UTC)
-
-   Parameters and values:
-   - year  [1970..2038]
-   - month [1..12]  ! - start with 1 for January
-   - mday  [1..31]
-   - hour  [0..23]
-   - min   [0..59]
-   - sec   [0..59]
-   Code based on https://de.wikipedia.org/wiki/Unixzeit example "unixzeit"
-*/
-// Utility function to convert datetime elements to epoch time
-
-/**
- * @brief print time of RTC to Serial, debugging function
- *
- */
-void printRTC()
-{
-  DateTime dtrtc = rtc.now(); // get date time from RTC i
-  if (!dtrtc.isValid())
-  {
-    Serial.println(F("E103: RTC not valid"));
-  }
-  else
-  {
-    time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
-    Serial.print(F("RTC:"));
-    Serial.print(newTime);
-    Serial.print(F(", Temperature:"));
-    Serial.println(rtc.getTemperature());
-  }
-}
-
-/**
- * @brief set date/time of external RTC. Used only if RTC is enabled.
- *
- */
-void setRTC()
-{
-  Serial.println(F("setRTC --> from internal time"));
-  time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
-  tm tm;                         // the structure tm holds time information in a more convient way
-  gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
-  rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
-}
-
-/**
- * @brief Callback function (registered with settimeofday_cb ) called when ntp time update received, sets RTC
- *
- * @param from_sntp true if update is from sntp service
- */
-void time_is_set(bool from_sntp)
-{
-  if (from_sntp) // needs Core 3.0.0 or higher!
-  {
-    Serial.println(F("The internal time is set from SNTP."));
-    setRTC();
-    printRTC();
-  }
-  else
-  {
-    Serial.println(F("The internal time is set."));
-  }
-}
-
-/**
- * @brief Reads time from external RTC and set value to internal time
- *
- */
-void getRTC()
-{
-  Serial.println(F("getRTC --> update internal clock"));
-  DateTime dtrtc = rtc.now(); // get date time from RTC i
-  if (!dtrtc.isValid())
-  {
-    Serial.print(F("E127: RTC not valid"));
-  }
-  else
-  {
-    time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
-    setInternalTime(newTime);
-    printRTC();
-  }
-}
-#endif // rtc
-
-// uncomment following line to enable SN74HC595, LED and reset button functionality
-//  The device must be defined in  hw_templates array
-// #define HW_EXTENSIONS_ENABLED
+// #define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
+#define WATT_EPSILON 50
 
 #define MAX_LED_COUNT 3
-struct hw_io_struct
-{
-  uint8_t reset_button_gpio;
-  bool output_register; // false
-  uint8_t rclk_gpio;    // if shifted
-  uint8_t ser_gpio;
-  uint8_t srclk_gpio;
-  uint8_t status_led_type; // STATUS_LED_TYPE_...
-  uint8_t status_led_ids[MAX_LED_COUNT];
-};
-// temperature, updated only if hw extensions
-uint8_t cpu_temp_f = 128;
 
-#ifdef HW_EXTENSIONS_ENABLED
-#pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
+const char *default_http_password PROGMEM = "arska";
+const char *filename_config_in = "/cache/config_in.json";
+const char *template_filename PROGMEM = "/data/templates.json";
+const char *shadow_settings_filename PROGMEM = "/shadow_settings.json";
 
-#include "driver/adc.h"
+const char *ntp_server_1 PROGMEM = "europe.pool.ntp.org";
+const char *ntp_server_2 PROGMEM = "time.google.com";
+const char *ntp_server_3 PROGMEM = "time.windows.com";
 
-// Hardware extension
+#define MSG_TYPE_INFO 0
+#define MSG_TYPE_WARN 1
+#define MSG_TYPE_ERROR 2
+#define MSG_TYPE_FATAL 3
 
-#define STATUS_LED_TYPE_NONE 0
-#define STATUS_LED_TYPE_RGB3 30
-
-#define RGB_NONE 0
-#define RGB_BLUE 1
-#define RGB_GREEN 2
-#define RGB_CYAN 3
-#define RGB_RED 4
-#define RGB_PURPLE 5
-#define RGB_YELLOW 6
-#define RGB_WHITE 7
-
-#define BIT_RELAY 0     // Qa
-#define BIT_LED_OUT2 1  // Qb
-#define BIT_LED_BLUE 2  // Qc
-#define BIT_LED_GREEN 3 // Qd
-#define BIT_LED_RED 4   // Qe
-
-#define MAX_REGISTER_BITS 8
-uint8_t register_out = 0;
-
-#ifdef __cplusplus
-extern "C"
-{
+// Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
+#ifdef INVERTER_SMA_MODBUS_ENABLED
+// Modbus registry offsets
+#define SMA_DAYENERGY_OFFSET 30535
+#define SMA_TOTALENERGY_OFFSET 30529
+#define SMA_POWER_OFFSET 30775
 #endif
-  uint8_t temprature_sens_read();
-#ifdef __cplusplus
-}
-#endif
-uint8_t temprature_sens_read();
 
-// reset button
-uint32_t state_started = millis();
-int reset_button_triggering_state = HIGH;
-int reset_button_previous_state = reset_button_triggering_state;
+#define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
-uint32_t last_temp_read = millis();
+#define PROCESS_INTERVAL_SECS 60      //!< process interval, eg. energy meter polling and variable calculation
+#define ACCEPTED_TIMESTAMP_MINIMUM 1656200000 // if timestamp is greater, we assume it is from a real-time clock
 
-#endif // hw_extensions
-
-/**
- * @brief Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
- *
- * @return true
- * @return false
- */
-bool check_filesystem_version()
-{
-  bool is_ok;
-  if (!fs_mounted)
-    return false;
-
-  String current_version;
-  File info_file = FILESYSTEM.open("/data/version.txt", "r");
-
-  if (info_file.available())
-  {
-    String current_fs_version = info_file.readStringUntil('\n'); // e.g. 0.92.0-rc1.1102 - 2022-09-28 12:24:56
-    version_fs_base = current_fs_version.substring(0, current_fs_version.lastIndexOf('.'));
-    Serial.printf("version_fs_base: %s ,  VERSION_BASE %s\n", version_fs_base.c_str(), VERSION_BASE);
-    strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
-    is_ok = version_fs_base.equals(VERSION_BASE);
-    if (is_ok)
-      Serial.println("No need for filesystem update.");
-    else
-      Serial.println("Filesystem update required.");
-  }
-  else
-  {
-    is_ok = false;
-    Serial.println(F("Cannot open version.txt for reading."));
-  }
-
-  info_file.close();
-  return is_ok;
-}
-
-/**
- * @brief Operator handling rules
-
- *
- */
-struct oper_st
-{
-  uint8_t id;        //!< identifier used in data structures
-  char code[10];     //!< code used in UI
-  bool gt;           //!< true if variable is greater than the compared value
-  bool eq;           //!< true if variable is equal with then compared value
-  bool reverse;      //!< negate comparison result
-  bool boolean_only; //!< hand variable value as boolean (1=true), eq and reverse possible
-  bool has_value;    //!< true if not value not VARIABLE_LONG_UNKNOWN, reverse possible
-};
-
-#define OPER_COUNT 10
-/**
- * @brief Statament checking rules
- * @details
-0, "=", eq=true  \n
-1, ">", gt=true  \n
-2, "<", gt and eq are true, result is reversed so reverse=true \n
-3, ">=",gt and eq are true \n
-4, "<=", gt=true and result is reversed so reverse=true \n
-5, "<>", eq=true and thre result is reversed so reverse=true \n
-6, "is", boolean_only=true \n
-7, "not",  boolean_only=true and because not reverse=true
-8, "defined", true if variable has value
-9, "undefined", true is variable value is not set
- */
-// TODO: maybe operator NA - not available
-const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false}, {1, ">", true, false, false, false, false}, {2, "<", true, true, true, false, false}, {3, ">=", true, true, false, false, false}, {4, "<=", true, false, true, false, false}, {5, "<>", false, true, true, false, false}, {6, "is", false, false, false, true, false}, {7, "not", false, false, true, true, false}, {8, "defined", false, false, false, false, true}, {9, "undefined", false, false, true, false, true}};
-
-/*constant_type, variable_type
-long val_l
-type = 0 default long
-type = 1  10**1 stored to long  , ie. 1.5 -> 15
-... 10
-*/
-#define CONSTANT_TYPE_INT 0                 //!< integer(long) value
-#define CONSTANT_TYPE_DEC1 1                //!< numeric value, 1 decimal
-#define CONSTANT_TYPE_CHAR_2 22             //!< 2 characters string to long, e.g. hh
-#define CONSTANT_TYPE_CHAR_4 24             //!< 4 characters string to long, e.g. hhmm
-#define CONSTANT_TYPE_BOOLEAN_NO_REVERSE 50 //!< boolean , no reverse allowed
-#define CONSTANT_TYPE_BOOLEAN_REVERSE_OK 51 //!< boolean , reverse allowed
-
-#define CONSTANT_BITMASK_NONE 0
-#define CONSTANT_BITMASK_MONTH 112
-#define CONSTANT_BITMASK_WEEKDAY 207
-#define CONSTANT_BITMASK_HOUR 324
-#define CONSTANT_BITMASK_BLOCK8H 403
+#define CONFIG_JSON_SIZE_MAX 6144
 
 
-/**
- * @brief Statement structure, rules (rules) consist of one or more statements
- *
- */
-struct statement_st
-{
-  int variable_id;
-  uint8_t oper_id;
-  uint8_t constant_type;
-  long const_val;
-};
-
-// do not change variable id:s (will broke statements)
+/* Application variable constants */
 #define VARIABLE_COUNT 48
+#define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
+// do not change variable id:s (will broke statements)
 
 #define VARIABLE_PRICE 0                     //!< price of current period, 1 decimal
 #define VARIABLE_PRICERANK_9 1               //!< price rank within 9 hours window
@@ -814,6 +313,828 @@ struct statement_st
 #define VARIABLE_NET_ESTIMATE_SOURCE_SOLAR_FORECAST 3L
 #define VARIABLE_SELLING_ENERGY_ESTIMATE 702 // Estimate/measured selling energy in period
 
+/*constant_type, variable_type
+long val_l
+type = 0 default long
+type = 1  10**1 stored to long  , ie. 1.5 -> 15
+... 10
+*/
+#define CONSTANT_TYPE_INT 0                 //!< integer(long) value
+#define CONSTANT_TYPE_DEC1 1                //!< numeric value, 1 decimal
+#define CONSTANT_TYPE_CHAR_2 22             //!< 2 characters string to long, e.g. hh
+#define CONSTANT_TYPE_CHAR_4 24             //!< 4 characters string to long, e.g. hhmm
+#define CONSTANT_TYPE_BOOLEAN_NO_REVERSE 50 //!< boolean , no reverse allowed
+#define CONSTANT_TYPE_BOOLEAN_REVERSE_OK 51 //!< boolean , reverse allowed
+
+#define CONSTANT_BITMASK_NONE 0
+#define CONSTANT_BITMASK_MONTH 112
+#define CONSTANT_BITMASK_WEEKDAY 207
+#define CONSTANT_BITMASK_HOUR 324
+#define CONSTANT_BITMASK_BLOCK8H 403
+
+//io_tasks states
+#define STATE_NA 0
+#define STATE_NONE 1
+#define STATE_INIT 2
+#define STATE_CONNECTING 10
+#define STATE_PROCESSING 50
+#define STATE_UPLOADING 90
+#define STATE_COOLING 99
+
+#ifdef HW_EXTENSIONS_ENABLED
+#pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
+// Hardware extension / Shelly
+#define STATUS_LED_TYPE_NONE 0
+#define STATUS_LED_TYPE_RGB3 30
+
+#define RGB_NONE 0
+#define RGB_BLUE 1
+#define RGB_GREEN 2
+#define RGB_CYAN 3
+#define RGB_RED 4
+#define RGB_PURPLE 5
+#define RGB_YELLOW 6
+#define RGB_WHITE 7
+
+#define BIT_RELAY 0     // Qa
+#define BIT_LED_OUT2 1  // Qb
+#define BIT_LED_BLUE 2  // Qc
+#define BIT_LED_GREEN 3 // Qd
+#define BIT_LED_RED 4   // Qe
+
+#define MAX_REGISTER_BITS 8
+// HW extensions shift register, led etc...
+
+
+#define COOLING_PANIC_SHUTDOWN_F 203 // 95C
+#define COOLING_START_F 194          // 90C
+#define COOLING_RECOVER_TO_F 185     // 85 C
+/*  Testing
+#define COOLING_PANIC_SHUTDOWN_F 167 // 75 C
+#define COOLING_START_F 149          // 65C
+#define COOLING_RECOVER_TO_F 131     // 55
+*/
+#endif
+
+#define CHANNEL_CONFIG_MODE_RULE 0
+#define CHANNEL_CONFIG_MODE_TEMPLATE 1
+
+#define TIMESERIES_ELEMENT_MAX 72
+
+#define OPER_COUNT 10
+/**
+ * @brief Statament checking rules
+ * @details
+0, "=", eq=true  \n
+1, ">", gt=true  \n
+2, "<", gt and eq are true, result is reversed so reverse=true \n
+3, ">=",gt and eq are true \n
+4, "<=", gt=true and result is reversed so reverse=true \n
+5, "<>", eq=true and thre result is reversed so reverse=true \n
+6, "is", boolean_only=true \n
+7, "not",  boolean_only=true and because not reverse=true
+8, "defined", true if variable has value
+9, "undefined", true is variable value is not set
+ */
+// TODO: maybe operator NA - not available
+
+
+
+/* Application variable definitions */
+struct variable_st
+{
+  uint16_t id;
+  uint8_t type;
+  uint16_t bitmask;
+  long val_l;
+};
+
+/**
+ * @brief Statement structure, rules (rules) consist of one or more statements
+ *
+ */
+struct statement_st
+{
+  int variable_id;
+  uint8_t oper_id;
+  uint8_t constant_type;
+  long const_val;
+};
+
+struct msg_st
+{
+  uint8_t type; // 0 info, 1-warn, 2 - error, 3-fatal
+  time_t ts;
+  char msg[ERROR_MSG_LEN];
+};
+
+struct hw_io_struct
+{
+  uint8_t reset_button_gpio;
+  bool output_register; // false
+  uint8_t rclk_gpio;    // if shifted
+  uint8_t ser_gpio;
+  uint8_t srclk_gpio;
+  uint8_t status_led_type; // STATUS_LED_TYPE_...
+  uint8_t status_led_ids[MAX_LED_COUNT];
+};
+
+/**
+ * @brief Operator handling rules
+
+ *
+ */
+struct oper_st
+{
+  uint8_t id;        //!< identifier used in data structures
+  char code[10];     //!< code used in UI
+  bool gt;           //!< true if variable is greater than the compared value
+  bool eq;           //!< true if variable is equal with then compared value
+  bool reverse;      //!< negate comparison result
+  bool boolean_only; //!< hand variable value as boolean (1=true), eq and reverse possible
+  bool has_value;    //!< true if not value not VARIABLE_LONG_UNKNOWN, reverse possible
+};
+
+const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false}, {1, ">", true, false, false, false, false}, {2, "<", true, true, true, false, false}, {3, ">=", true, true, false, false, false}, {4, "<=", true, false, true, false, false}, {5, "<>", false, true, true, false, false}, {6, "is", false, false, false, true, false}, {7, "not", false, false, true, true, false}, {8, "defined", false, false, false, false, true}, {9, "undefined", false, false, true, false, true}};
+
+struct channel_type_st
+{
+  uint8_t id;
+  const char *name;
+  bool inversed;
+};
+
+// later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
+/*
+struct device_db_struct
+{
+  const char *app;
+  uint8_t switch_type;
+  uint8_t outputs;
+};
+
+device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
+*/
+struct hw_template_st
+{
+  int id;
+  const char *name;
+  uint8_t locked_channels;
+  uint8_t relay_id[HW_TEMPLATE_GPIO_COUNT];
+  uint8_t energy_meter_gpio;
+  hw_io_struct hw_io;
+};
+
+// Target/rule row stucture, elements of target array in channel, stored in non-volatile memory
+typedef struct
+{
+  statement_st statements[RULE_STATEMENTS_MAX];
+  float target_val; // TODO: remove
+  bool on;
+  bool rule_active; // for showing if the rule is currently active, for tracing
+} rule_struct;      // size 88
+
+// Channel stucture, elements of channel array in setting, stored in non-volatile memory
+typedef struct
+{
+  rule_struct rules[CHANNEL_RULES_MAX];
+  char id_str[MAX_CH_ID_STR_LENGTH];
+  uint8_t relay_id;         //!< relay id, eg. gpio, number modbus server id
+  uint8_t relay_unit_id;    //!<  unit id, eg. port id in a relay device
+  uint8_t relay_iface_id;   // RFU, interface, eg eth, wifi
+  IPAddress relay_ip;       //!< relay ip address
+  bool is_up;               //!< is channel currently up
+  bool wanna_be_up;         //!< should channel be switched up (when the time is right)
+  bool default_state;       //!< channel up/down value if no rule matches
+  uint8_t type;             //!< channel type, for values see constants CH_TYPE_...
+  time_t uptime_minimum;    //!< minimum time channel should be up
+  time_t up_last_ts;        //!< last time up time
+  time_t force_up_from_ts;  //<! force channel up starting from
+  time_t force_up_until_ts; //<! force channel up until
+  uint8_t config_mode;      //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
+  int template_id;          //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
+  uint32_t channel_color;   //<! channel UI color in graphs etc
+  uint8_t priority;         //<! channel switching priority, channel with the lowest priority value is switched on first and off last
+  uint16_t load;            //<! estimated device load in Watts
+} channel_struct;
+
+typedef struct
+{
+  DeviceAddress address;             //!< 1-wire hardware address of the sensor device
+  char id_str[MAX_CH_ID_STR_LENGTH]; //!< sensor id string, RFU
+} sensor_struct;
+
+
+// Setting stucture, stored in non-volatile memory
+typedef struct
+{
+  int check_value;                       //!< version number of memory struct, if equals one in the eeprom, stored data can be directly used
+  char wifi_ssid[MAX_ID_STR_LENGTH];     //!< WiFi SSID
+  char wifi_password[MAX_ID_STR_LENGTH]; //!< WiFi password
+  char http_username[MAX_ID_STR_LENGTH];
+  char http_password[MAX_ID_STR_LENGTH];
+  channel_struct ch[CHANNEL_COUNT];
+  char variable_server[MAX_ID_STR_LENGTH]; //!< projected to be used in replica mode, RFU
+  char entsoe_api_key[37];                 //!< EntsoE API key
+  char entsoe_area_code[17];               //!< Price area code in day ahead market
+  char custom_ntp_server[35];              //!< RFU, TODO:UI to set up
+  char timezone[4];                        //!< EET,CET supported
+  uint8_t ota_update_phase;                //!< Phase of curent OTA update, if updating
+  uint16_t netting_period_sec;             //!< Variable netting period in seconds, was in constant NETTING_PERIOD_SEC
+  uint8_t energy_meter_type;               //!< energy metering type, see constants: ENERGYM_
+  IPAddress energy_meter_ip;               //!< enerygy meter address string
+  uint16_t energy_meter_port;              //!< energy meter port,  tcp port if energy_meter_type in (ENERGYM_HAN_WIFI,  ENERGYM_SHELLY3EM,ENERGYM_SHELLY_GEN2)
+  uint8_t energy_meter_pollingfreq;        //!< polling based meters, frequency in secs
+#ifdef METER_HAN_DIRECT_ENABLED
+  uint8_t energy_meter_gpio; //!< energy meter gpio , ENERGYM_HAN_DIRECT
+#endif
+  char energy_meter_password[MAX_PWD_STR_LENGTH];
+  uint8_t production_meter_type;
+  IPAddress production_meter_ip;
+  uint16_t production_meter_port;
+  uint8_t production_meter_id;
+  char forecast_loc[MAX_ID_STR_LENGTH]; //!< Energy forecast location, FMI-energy location
+  char lang[3];                         //<! preferred language
+#ifdef SENSOR_DS18B20_ENABLED
+  sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
+#endif
+  int hw_template_id; //!< hardware template defining channel gpios, see hw_templates
+  // bool mdns_activated; //!< is mDSN device discovery active, currently deactivatated due to stability concerns
+#ifdef INFLUX_REPORT_ENABLED
+  char influx_url[70];
+  char influx_token[100];
+  char influx_org[30];
+  char influx_bucket[20];
+#endif
+  uint32_t baseload; //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
+  uint32_t pv_power; //!<
+#ifdef LOAD_MGMT_ENABLED
+  bool load_manager_active;                    //!< //
+  uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
+  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
+  uint16_t load_manager_reswitch_moratorium_m; //<!
+#endif
+} settings_struct;
+
+typedef struct
+{
+  bool state;
+  time_t this_state_started_period_ts; //!< current state start time within period (minimum period start)
+  time_t this_state_started_epoch_ts;
+  int on_time;
+  int off_time;
+} channel_log_struct;
+
+struct wifi_st
+{
+  char ssid[MAX_ID_STR_LENGTH]; //!< WiFi SSID
+  int32_t rssi;
+};
+
+
+/**
+ * @brief Class defines variables defined by measurements, calculations and used to define channel statuses
+ *
+ */
+
+class Variables
+{
+public:
+  Variables();
+  bool is_set(int id);
+  void set(int id, long value_l);
+  void set(int id, float val_f);
+  void set_NA(int id);
+  long get_l(int id);
+  long get_l(int id, long default_val);
+  float get_f(int id);
+  bool is_statement_true(statement_st *statement, bool default_value, int channel_idx);
+  int get_variable_by_id(int id, variable_st *variable);
+  int get_variable_by_id(int id, variable_st *variable, int channel_idx);
+  void get_variable_by_idx(int idx, variable_st *variable);
+  long float_to_internal_l(int id, float val_float);
+  float const_to_float(int id, long const_in);
+  int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
+  int get_variable_count() { return VARIABLE_COUNT; };
+  void rotate_period();
+
+private:
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
+  int get_variable_index(int id);
+};
+
+
+/**
+ * @brief Handling channel utilization (uptime/downtime) statistics
+ *
+ */
+class ChannelCounters
+{
+public:
+  ChannelCounters();
+  void init();
+  void new_log_period(time_t ts_report);
+  void update_times(int channel_idx);
+  void set_state(int channel_idx, bool new_state);
+  time_t get_duration_in_this_state(int channel_idx);
+  uint16_t get_period_uptime(int channel_idx);
+  void update_utilization(int channel_idx);
+private:
+  channel_log_struct channel_logs[CHANNEL_COUNT];
+};
+
+typedef int32_t T; //timeSeries data type
+/**
+ * @brief time series support class proving cached store, statistics etc.
+ *
+ */
+class timeSeries
+{
+public:
+  timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value);
+
+#define STORAGE_NAMESPACE "cache"
+
+  time_t expires() { return store.expires; }
+  bool save_to_cache(time_t expires);
+  bool read_from_cache(time_t expires);
+  void clear_store(bool reset_cache);
+  void set(time_t ts, T new_value);
+  int n() { return store.n; };
+  uint16_t resolution_sec() { return store.resolution_sec; };
+  time_t start() { return store.start; };
+  time_t end() { return store.start + (int)store.resolution_sec * (store.n - 1); };
+
+  time_t first_set_period_ts() { return store.start + store.min_value_idx * store.resolution_sec; };
+  time_t last_set_period_ts();
+  time_t last_update() { return store.last_update_ts; };
+  T get(time_t ts );
+  T get_pos(int idx);
+  T get(time_t ts, T default_value);
+  T avg(time_t start_ts, time_t end_ts_incl);
+  void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg);
+  int32_t sum(time_t start_ts, time_t end_ts_incl);
+  int32_t sum();
+  void debug_print(time_t start_ts, time_t end_ts_incl);
+  void debug_print();
+  void set_store_start(time_t new_start);
+  // new experimental version of time series ranking
+  int get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
+ 
+private:
+  uint8_t id_;
+  struct
+  {
+    time_t start;
+    int n;
+    uint16_t resolution_sec;
+    T init_value;
+    T arr[TIMESERIES_ELEMENT_MAX];
+    time_t expires;
+    int min_value_idx;
+    int max_value_idx;
+    time_t last_update_ts;
+  } store;
+
+  int get_idx(time_t ts);
+}; //Time series 
+// ****** Function declarations
+
+// *** Application Logic Core Functions
+// * Variables calculations
+void calculate_forecast_variables();
+void calculate_meter_based_variables();
+void calculate_price_rank_variables();
+void calculate_time_based_variables();
+
+// * Channel handling
+void calculate_channel_states();
+void ch_prio_sort();
+long channel_history_cumulative_minutes(int channel_idx, int periods);
+int get_channel_active_rule(int channel_idx);
+int get_channel_to_switch_prio(bool is_rise);
+bool is_force_up_valid(int channel_idx);
+
+// * Relay handling
+void set_relays(bool grid_protection_delay_used);
+bool apply_relay_state(int channel_idx, bool init_relay);
+bool switch_http_relay(int channel_idx, bool up);
+bool is_local_relay(uint8_t type);
+bool is_wifi_relay(uint8_t type);
+bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode);
+void updateShiftRegister();
+
+
+time_t get_block_start_ts(const time_t time);
+int get_variable_history_idx(int id);
+time_t get_netting_period_start_time(time_t ts);
+bool set_netting_source();
+
+// *** Application Interface Functions
+// * Get data from external sources 
+bool get_price_data_elering();
+bool get_price_data_entsoe();
+// bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series);
+
+void read_energy_meter();
+bool read_energy_meter_han_wifi();
+bool read_energy_meter_shelly3em();
+bool receive_energy_meter_han_direct();
+void process_energy_meter_readings();
+
+void read_production_meter();
+bool read_inverter_fronius_data(long int &total_energy, long int &current_power);
+bool read_inverter_sma_data(long int &total_energy, long int &current_power);
+
+void print_onewire_address(DeviceAddress deviceAddress);
+bool read_ds18b20_sensors();
+bool scan_sensors();
+
+// * Read Utilities
+String httpGETRequest(const char *url, int32_t connect_timeout_s);
+String read_http11_line(WiFiClientSecure *client_https);
+// bool cb(Modbus::ResultCode event, uint16_t transactionId, void *data);
+long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num, uint8_t modbusip_unit);
+
+// * HAN P1 message parsing
+bool get_han_dbl(String *strp, const char *obis_code, double *returned);
+bool get_han_ts(String *strp, time_t *returned);
+bool parse_han_row(String *row_in_p);
+
+// * Json node values to memory
+bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length);
+bool ajson_bool_get(JsonVariant parent_node, char *doc_key, bool default_val);
+int32_t ajson_int_get(JsonVariant parent_node, char *doc_key, int32_t default_val);
+IPAddress ajson_ip_get(JsonVariant parent_node, char *doc_key, IPAddress default_val);
+time_t ElementToUTCts(String elem);
+String getElementValue(String outerXML);
+
+// * Write to external destinations, Influx
+bool update_prices_to_influx();
+void add_period_variables_to_influx_buffer(time_t ts_report);
+bool write_buffer_to_influx();
+bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer);
+
+// * Config store/read, Backup, restore 
+void readFromEEPROM();
+void writeToEEPROM();
+void reset_config();
+void create_settings_doc(DynamicJsonDocument &doc, bool include_password);
+bool create_shadow_settings();
+bool read_shadow_settings();
+bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc);
+
+// * Update Firmware, filesystem
+void flash_update_ended();
+void fs_update_ended();
+bool get_releases();
+void update_firmware_partition(uint8_t partition_type);
+t_httpUpdate_return update_fs();
+void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final);
+t_httpUpdate_return update_program();
+
+// * System time 
+void set_timezone_ntp_settings(bool set_tz, bool set_ntp);
+
+// * Real-time-clock, currently deprecated
+void getRTC();
+void printRTC();
+void setRTC();
+void ntp_time_is_set(bool from_sntp);
+
+// * System management
+void loop_watchdog(void *pvParameters);
+void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms);
+void io_tasks(uint8_t state);
+void log_msg(uint8_t type, const char *msg, bool write_to_file);
+
+// * Web interface, get
+void onWebApplicationGet(AsyncWebServerRequest *request);
+void onWebPricesGet(AsyncWebServerRequest *request);
+void onWebSeriesGet(AsyncWebServerRequest *request);
+void onWebSettingsGet(AsyncWebServerRequest *request);
+void onWebStatusGet(AsyncWebServerRequest *request);
+void onWebUpdateGet(AsyncWebServerRequest *request);
+void onWebUploadConfigPost(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);
+void onWebWifisGet(AsyncWebServerRequest *request);
+
+// * Web interface, post
+void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);
+void onWebUpdatePost(AsyncWebServerRequest *request);
+void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total);
+
+// * Utility
+long round_divide(long lval, long divider);
+int get_hw_template_idx(int id);
+void ts_to_date_str(time_t *tsp, char *out_str);
+
+// wifi connectivity
+bool connect_wifi();
+void scan_and_store_wifis(bool print_out, bool store);
+void wifi_event_handler(WiFiEvent_t event);
+bool test_host(IPAddress hostip, uint8_t);
+
+//* System main functions, naming from Arduino platform
+void setup();
+void loop();
+
+
+
+IPAddress IP_UNDEFINED(0, 0, 0, 0);
+
+/**/
+#ifdef PING_ENABLED
+bool ping_enabled = true;
+/**
+ * @brief test/ping connection to a host
+ *
+ * @param hostip
+ * @param count
+ * @return true
+ * @return false
+ */
+bool test_host(IPAddress hostip, uint8_t count = 5)
+{
+  Serial.printf("Pinging %s\n", hostip.toString().c_str());
+  yield();
+  bool success = Ping.ping(hostip, count);
+  Serial.println(success ? "success" : "no response");
+  return success;
+}
+#else
+bool ping_enabled = false;
+bool test_host(IPAddress hostip, uint8_t count = 5) return true; // stub, not in use
+
+#endif
+
+
+tm tm_struct;
+
+// for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
+
+bool wifi_sta_connection_required = false;
+bool wifi_sta_connected = false;
+uint32_t wifi_sta_disconnected_ms = 0;   //!< restart if enough time since first try
+uint32_t wifi_connect_tried_last_ms = 0; //!< reconnect if enough time since first try
+
+bool config_resetted = false; // true if configuration cleared when version upgraded
+bool fs_mounted = false;      // true
+bool cooling_down_state = false;
+
+
+#ifdef DEBUG_FILE_ENABLED
+const char *debug_filename PROGMEM = "/data/log.txt";
+#endif
+
+msg_st last_msg; //!< last system message
+tm tm_struct_g; //!< time structure variables for splitting time stamp
+tm tm_struct_l;
+
+
+/**
+ * @brief Utility, writes date string generated from a time stamp to memory buffer
+ *
+ * @param tsp
+ * @param out_str
+ */
+void ts_to_date_str(time_t *tsp, char *out_str)
+{
+  tm tm_local;
+  gmtime_r(tsp, &tm_local);
+  sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
+}
+
+
+/**
+ * @brief Store latest log message
+ *
+ * @param type
+ * @param msg
+ * @param write_to_file
+ */
+void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
+{
+  memset(last_msg.msg, 0, ERROR_MSG_LEN);
+  strncpy(last_msg.msg, msg, (ERROR_MSG_LEN - 1));
+  last_msg.type = type;
+  last_msg.ts = time(nullptr);
+
+#ifdef DEBUG_FILE_ENABLED
+  char datebuff[35];
+  if (write_to_file && fs_mounted)
+  {
+    File log_file = FILESYSTEM.open(debug_filename, "a");
+    if (!log_file)
+    {
+      Serial.println(F("Cannot open the log file."));
+      return;
+    }
+    gmtime_r(&last_msg.ts, &tm_struct_g);
+    sprintf(datebuff, "%04d-%02d-%02dT%02d:%02d:%02dZ (%lu)", tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour, tm_struct_g.tm_min, tm_struct_g.tm_sec, millis());
+    log_file.printf("%s %d %s\n", datebuff, (int)type, msg);
+    log_file.close();
+    // debug debug
+    Serial.println("Writing to log file:");
+    Serial.printf("%s %d %s\n", datebuff, (int)type, msg);
+  }
+#endif
+}
+
+AsyncWebServer server_web(80);
+
+// Clock functions, supports optional DS3231 RTC
+bool rtc_found = false;
+
+const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
+const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
+
+
+
+time_t prices_first_period = 0;
+
+time_t prices_record_start;
+// time_t prices_record_end_excl;
+time_t prices_expires_ts = 0;
+
+uint8_t chstate_transit[CHANNEL_COUNT]; // logging why the channel is in this state, latest transit decision (also blocking)
+bool channel_forced_down[CHANNEL_COUNT];
+
+// Jos LMGMT blokkaa niin palataan entiseen eli käytännössä syyksi muuttuu CH_STATE_BYLMGMT
+// Mutta ehdot lasketaan uusiksi, joten ei syytä jättää transitioon pidemmäksi aikaa, mutta priorisointi tehdään vasta myöhemmin
+//  katso calculate_channel_states, get_channel_to_switch_prio
+//  voisi olla paras tehdä aina prio-sortattu taulukko kanavista
+
+// String url_base = "/api?documentType=A44&processType=A16";
+const char *url_base PROGMEM = "/api?documentType=A44&processType=A16";
+// API documents: https://transparency.entsoe.eu/content/static_content/Static%20content/web%20api/Guide.html#_areas
+
+time_t next_query_price_data_ts = 0;
+time_t next_query_fcst_data_ts = 0;
+
+// https://transparency.entsoe.eu/api?securityToken=XXX&documentType=A44&In_Domain=10YFI-1--------U&Out_Domain=10YFI-1--------U&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202104200000&periodEnd=202104200100
+const int httpsPort = 443;
+
+#ifdef RTC_DS3231_ENABLED
+
+RTC_DS3231 rtc; //!< Real time clock object
+/*
+
+   Take a broken-down time and convert it to calendar time (seconds since the Epoch 1970)
+   Expects the input value to be Coordinated Universal Time (UTC)
+
+   Parameters and values:
+   - year  [1970..2038]
+   - month [1..12]  ! - start with 1 for January
+   - mday  [1..31]
+   - hour  [0..23]
+   - min   [0..59]
+   - sec   [0..59]
+   Code based on https://de.wikipedia.org/wiki/Unixzeit example "unixzeit"
+*/
+// Utility function to convert datetime elements to epoch time
+
+/**
+ * @brief print time of RTC to Serial, debugging function
+ *
+ */
+void printRTC()
+{
+  DateTime dtrtc = rtc.now(); // get date time from RTC i
+  if (!dtrtc.isValid())
+  {
+    Serial.println(F("E103: RTC not valid"));
+  }
+  else
+  {
+    time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
+    Serial.print(F("RTC:"));
+    Serial.print(newTime);
+    Serial.print(F(", Temperature:"));
+    Serial.println(rtc.getTemperature());
+  }
+}
+
+/**
+ * @brief set date/time of external RTC. Used only if RTC is enabled.
+ *
+ */
+void setRTC()
+{
+  Serial.println(F("setRTC --> from internal time"));
+  time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
+  tm tm;                         // the structure tm holds time information in a more convient way
+  gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
+  rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
+}
+
+/**
+ * @brief Callback function (registered with settimeofday_cb ) called when ntp time update received, sets RTC
+ *
+ * @param from_sntp true if update is from sntp service
+ */
+void ntp_time_is_set(bool from_sntp)
+{
+  if (from_sntp) // needs Core 3.0.0 or higher!
+  {
+    Serial.println(F("The internal time is set from NTP."));
+    setRTC();
+    printRTC();
+  }
+  else
+  {
+    Serial.println(F("The internal time is set."));
+  }
+}
+
+/**
+ * @brief Reads time from external RTC and set value to internal time
+ *
+ */
+void getRTC()
+{
+  Serial.println(F("getRTC --> update internal clock"));
+  DateTime dtrtc = rtc.now(); // get date time from RTC i
+  if (!dtrtc.isValid())
+  {
+    Serial.print(F("E127: RTC not valid"));
+  }
+  else
+  {
+    time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
+    setInternalTime(newTime);
+    printRTC();
+  }
+}
+#endif // rtc
+
+
+
+// temperature, updated only if hw extensions
+uint8_t cpu_temp_f = 128;
+
+#ifdef HW_EXTENSIONS_ENABLED
+
+
+uint8_t register_out = 0;
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+  uint8_t temprature_sens_read();
+#ifdef __cplusplus
+}
+#endif
+uint8_t temprature_sens_read();
+
+// reset button
+uint32_t state_started = millis();
+int reset_button_triggering_state = HIGH;
+int reset_button_previous_state = reset_button_triggering_state;
+
+uint32_t last_temp_read = millis();
+
+#endif // hw_extensions
+
+/**
+ * @brief Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
+ *
+ * @return true
+ * @return false
+ */
+bool check_filesystem_version()
+{
+  bool is_ok;
+  if (!fs_mounted)
+    return false;
+
+  String current_version;
+  File info_file = FILESYSTEM.open("/data/version.txt", "r");
+
+  if (info_file.available())
+  {
+    String current_fs_version = info_file.readStringUntil('\n'); // e.g. 0.92.0-rc1.1102 - 2022-09-28 12:24:56
+    version_fs_base = current_fs_version.substring(0, current_fs_version.lastIndexOf('.'));
+    Serial.printf("version_fs_base: %s ,  VERSION_BASE %s\n", version_fs_base.c_str(), VERSION_BASE);
+    strncpy(version_fs, current_fs_version.c_str(), sizeof(version_fs) - 1);
+    is_ok = version_fs_base.equals(VERSION_BASE);
+    if (is_ok)
+      Serial.println("No need for filesystem update.");
+    else
+      Serial.println("Filesystem update required.");
+  }
+  else
+  {
+    is_ok = false;
+    Serial.println(F("Cannot open version.txt for reading."));
+  }
+
+  info_file.close();
+  return is_ok;
+}
+
+
+
 long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
 
 uint8_t channel_attr[CHANNEL_COUNT];
@@ -823,9 +1144,9 @@ int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIAB
 
 /**
  * @brief Returns idx of history variable based on variable id in history variable array
- * 
- * @param id 
- * @return int 
+ *
+ * @param id
+ * @return int
  */
 int get_variable_history_idx(int id)
 {
@@ -835,12 +1156,9 @@ int get_variable_history_idx(int id)
   return -1;
 }
 
-
 #ifdef SENSOR_DS18B20_ENABLED
 bool sensor_ds18b20_enabled = true;
 // see: https://randomnerdtutorials.com/esp8266-ds18b20-temperature-sensor-web-server-with-arduino-ide/
-#include <OneWire.h>
-#include <DallasTemperature.h> // tätä ei ehkä välttämättä tarvita, jos käyttäisi onewire.h:n rutineeja
 
 time_t temperature_updated_ts = 0;
 
@@ -855,18 +1173,7 @@ int sensor_count = 0;
 bool sensor_ds18b20_enabled = false;
 #endif
 
-// Non-volatile memory https://github.com/CuriousTech/ESP-HVAC/blob/master/Arduino/eeMem.cpp
-#ifdef INVERTER_SMA_MODBUS_ENABLED
-#include <ModbusIP_ESP8266.h>
-// Modbus registry offsets
-#define SMA_DAYENERGY_OFFSET 30535
-#define SMA_TOTALENERGY_OFFSET 30529
-#define SMA_POWER_OFFSET 30775
-#endif
 
-#define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
-
-#define PROCESS_INTERVAL_SECS 60      // process interval
 time_t next_process_ts = 0;           // start reading as soon as you get to first loop
 time_t next_energy_meter_read_ts = 0; // start reading as soon as you get to first loop
 
@@ -879,8 +1186,8 @@ time_t current_period_start_ts = 0;  //!< updated in loop
 time_t previous_period_start_ts = 0;
 time_t day_start_local = 0; //<! epoch time stamp of 00:00 in local time, TODO: DST change days
 
-time_t processing_started_ts = 0; //<! timestamp of time clock was set and actual data processing started 
-bool first_loop_ended = false;//<! true after running first time loop() to the and start to serve UI
+time_t processing_started_ts = 0; //<! timestamp of time clock was set and actual data processing started
+bool first_loop_ended = false;    //<! true after running first time loop() to the and start to serve UI
 
 time_t production_meter_read_last_ts = 0; //!< ts of last succesfull inverter read
 long int production_meter_read_last = 0;  //!< last succesfull inverter value
@@ -935,50 +1242,11 @@ bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters 
 
 bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 
-#define CH_TYPE_UNDEFINED 0
-#define CH_TYPE_GPIO_FIXED 1
-#define CH_TYPE_GPIO_USER_DEF 3
-#define CH_TYPE_SHELLY_1GEN 2        // new, was CH_TYPE_SHELLY_ONOFF
-#define CH_TYPE_SHELLY_2GEN 4        //
-#define CH_TYPE_TASMOTA 5            //
-#define CH_TYPE_GPIO_USR_INVERSED 10 // inversed
-#define CH_TYPE_MODBUS_RTU 20        // RFU
-#define CH_TYPE_DISABLED 255         // RFU, we could have disabled, but allocated channels (binary )
 
-struct channel_type_st
-{
-  uint8_t id;
-  const char *name;
-  bool inversed;
-};
-// #define CH_TYPE_SHELLY_ONOFF 2  -> 10
-// #define CH_TYPE_DISABLED 255 // RFU, we could have disabled, but allocated channels (binary )
 
-#define CHANNEL_TYPE_COUNT 6
 
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 
-// later , {CH_TYPE_MODBUS_RTU, "Modbus RTU"}
-/*
-struct device_db_struct
-{
-  const char *app;
-  uint8_t switch_type;
-  uint8_t outputs;
-};
-
-device_db_struct device_db[] PROGMEM = {{"shelly1l", CH_TYPE_SHELLY_1GEN, 1}, {"shellyswitch", CH_TYPE_SHELLY_1GEN, 2}, {"shellyswitch25", CH_TYPE_SHELLY_1GEN, 2}, {"shelly4pro", CH_TYPE_SHELLY_1GEN, 4}, {"shellyplug", CH_TYPE_SHELLY_1GEN, 1}, {"shellyplug-s", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem", CH_TYPE_SHELLY_1GEN, 1}, {"shellyem3", CH_TYPE_SHELLY_1GEN, 1}, {"shellypro2", CH_TYPE_SHELLY_2GEN, 2}};
-*/
-struct hw_template_st
-{
-  int id;
-  const char *name;
-  uint8_t locked_channels;
-  uint8_t relay_id[HW_TEMPLATE_GPIO_COUNT];
-  uint8_t energy_meter_gpio;
-  hw_io_struct hw_io;
-};
-#define ID_NA 255
 // hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
@@ -989,31 +1257,6 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}}};
 
-// #define CHANNEL_RULES_MAX 3 //platformio.ini
-#define CHANNEL_STATES_MAX 10
-#define RULE_STATEMENTS_MAX 5
-#define MAX_CHANNELS_SWITCHED_AT_TIME 1
-
-#define MAX_CH_ID_STR_LENGTH 20
-#define MAX_ID_STR_LENGTH 30
-#define MAX_URL_STR_LENGTH 70
-#define MAX_PWD_STR_LENGTH 15
-
-// Current phase of OTA update, s.ota_update_phase
-#define OTA_PHASE_NONE 0
-#define OTA_PHASE_FWUPDATED_CHECKFS 100
-
-// Energy metering types
-#define ENERGYM_NONE 0
-#define ENERGYM_SHELLY3EM 1
-#define ENERGYM_SHELLY_GEN2 2
-#define ENERGYM_HAN_WIFI 4
-#define ENERGYM_HAN_DIRECT 5
-
-// Production metering (inverter) types
-#define PRODUCTIONM_NONE 0
-#define PRODUCTIONM_FRONIUS_SOLAR 1
-#define PRODUCTIONM_SMA_MODBUS_TCP 2
 
 // Type texts for config ui - now hardcoded in html
 // const char *energy_meter_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
@@ -1027,105 +1270,21 @@ uint32_t energy_produced_period = 0;
 uint32_t power_produced_period_avg = 0;
 #endif
 
-// Target/rule row stucture, elements of target array in channel, stored in non-volatile memory
-typedef struct
-{
-  statement_st statements[RULE_STATEMENTS_MAX];
-  float target_val; // TODO: remove
-  bool on;
-  bool rule_active; // for showing if the rule is currently active, for tracing
-} rule_struct;      // size 88
 
-#define CHANNEL_CONFIG_MODE_RULE 0
-#define CHANNEL_CONFIG_MODE_TEMPLATE 1
-// Channel stucture, elements of channel array in setting, stored in non-volatile memory
-typedef struct
-{
-  rule_struct rules[CHANNEL_RULES_MAX];
-  char id_str[MAX_CH_ID_STR_LENGTH];
-  uint8_t relay_id;         //!< relay id, eg. gpio, number modbus server id
-  uint8_t relay_unit_id;    //!<  unit id, eg. port id in a relay device
-  uint8_t relay_iface_id;   // RFU, interface, eg eth, wifi
-  IPAddress relay_ip;       //!< relay ip address
-  bool is_up;               //!< is channel currently up
-  bool wanna_be_up;         //!< should channel be switched up (when the time is right)
-  bool default_state;       //!< channel up/down value if no rule matches
-  uint8_t type;             //!< channel type, for values see constants CH_TYPE_...
-  time_t uptime_minimum;    //!< minimum time channel should be up
-  time_t up_last_ts;        //!< last time up time
-  time_t force_up_from_ts;  //<! force channel up starting from
-  time_t force_up_until_ts; //<! force channel up until
-  uint8_t config_mode;      //<! rule config mode: CHANNEL_CONFIG_MODE_RULE, CHANNEL_CONFIG_MODE_TEMPLATE
-  int template_id;          //<! template id if config mode is CHANNEL_CONFIG_MODE_TEMPLATE
-  uint32_t channel_color;   //<! channel UI color in graphs etc
-  uint8_t priority;         //<! channel switching priority, channel with the lowest priority value is switched on first and off last
-  uint16_t load;            //<! estimated device load in Watts
-} channel_struct;
+
 
 #ifdef SENSOR_DS18B20_ENABLED
-typedef struct
-{
-  DeviceAddress address;             //!< 1-wire hardware address of the sensor device
-  char id_str[MAX_CH_ID_STR_LENGTH]; //!< sensor id string, RFU
-} sensor_struct;
-#endif
-
-// TODO: add fixed ip, subnet?
-// Setting stucture, stored in non-volatile memory
-typedef struct
-{
-  int check_value;                       //!< version number of memory struct, if equals one in the eeprom, stored data can be directly used
-  char wifi_ssid[MAX_ID_STR_LENGTH];     //!< WiFi SSID
-  char wifi_password[MAX_ID_STR_LENGTH]; //!< WiFi password
-  char http_username[MAX_ID_STR_LENGTH];
-  char http_password[MAX_ID_STR_LENGTH];
-  channel_struct ch[CHANNEL_COUNT];
-  char variable_server[MAX_ID_STR_LENGTH]; //!< projected to be used in replica mode, RFU
-  char entsoe_api_key[37];                 //!< EntsoE API key
-  char entsoe_area_code[17];               //!< Price area code in day ahead market
-  char custom_ntp_server[35];              //!< RFU, TODO:UI to set up
-  char timezone[4];                        //!< EET,CET supported
-  uint8_t ota_update_phase;                //!< Phase of curent OTA update, if updating
-  uint16_t netting_period_sec;             //!< Variable netting period in seconds, was in constant NETTING_PERIOD_SEC
-  uint8_t energy_meter_type;               //!< energy metering type, see constants: ENERGYM_
-  IPAddress energy_meter_ip;               //!< enerygy meter address string
-  uint16_t energy_meter_port;              //!< energy meter port,  tcp port if energy_meter_type in (ENERGYM_HAN_WIFI,  ENERGYM_SHELLY3EM,ENERGYM_SHELLY_GEN2)
-  uint8_t energy_meter_pollingfreq;        //!< polling based meters, frequency in secs
-#ifdef METER_HAN_DIRECT_ENABLED
-  uint8_t energy_meter_gpio; //!< energy meter gpio , ENERGYM_HAN_DIRECT
-#endif
-  char energy_meter_password[MAX_PWD_STR_LENGTH];
-  uint8_t production_meter_type;
-  IPAddress production_meter_ip;
-  uint16_t production_meter_port;
-  uint8_t production_meter_id;
-  char forecast_loc[MAX_ID_STR_LENGTH]; //!< Energy forecast location, FMI-energy location
-  char lang[3];                         //<! preferred language
-#ifdef SENSOR_DS18B20_ENABLED
-  sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
-#endif
-  int hw_template_id; //!< hardware template defining channel gpios, see hw_templates
-  // bool mdns_activated; //!< is mDSN device discovery active, currently deactivatated due to stability concerns
-#ifdef INFLUX_REPORT_ENABLED
-  char influx_url[70];
-  char influx_token[100];
-  char influx_org[30];
-  char influx_bucket[20];
-#endif
-  uint32_t baseload; //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
-  uint32_t pv_power; //!<
-#ifdef LOAD_MGMT_ENABLED
-  bool load_manager_active;                    //!< //
-  uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
-  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
-  uint16_t load_manager_reswitch_moratorium_m; //<!
-#endif
-} settings_struct;
 
 // this stores settings also to eeprom
 settings_struct s;
-int hw_template_idx = -1; // cached hw_io copied from hw_template if id > 0
 
+int hw_template_idx = -1; // cached hw_io copied from hw_template if id > 0
+/**
+ * @brief Get index in template array based on template id
+ *
+ * @param id
+ * @return int
+ */
 int get_hw_template_idx(int id)
 {
   for (int i = 0; i < HW_TEMPLATE_COUNT; i++)
@@ -1137,26 +1296,14 @@ int get_hw_template_idx(int id)
   }
   return -1;
 }
-// HW extensions shift register, led etc...
-#define STATE_NA 0
-#define STATE_NONE 1
-#define STATE_INIT 2
-#define STATE_CONNECTING 10
-#define STATE_PROCESSING 50
-#define STATE_UPLOADING 90
-#define STATE_COOLING 99
 
-#define COOLING_PANIC_SHUTDOWN_F 203 // 95C
-#define COOLING_START_F 194          // 90C
-#define COOLING_RECOVER_TO_F 185     // 85 C
-/*  Testing
-#define COOLING_PANIC_SHUTDOWN_F 167 // 75 C
-#define COOLING_START_F 149          // 65C
-#define COOLING_RECOVER_TO_F 131     // 55
-*/
 
 int ch_prio_sorted[CHANNEL_COUNT];
-// sort channels to priority order
+//
+/**
+ * @brief Sort channel indexes to priority order to array ch_prio_sorted
+ *
+ */
 void ch_prio_sort()
 {
   // init
@@ -1345,9 +1492,9 @@ void io_tasks(uint8_t state = STATE_NA)
 }
 /**
  * @brief Handles cool down to given temperature
- * 
- * @param cool_down_to_f 
- * @param max_wait_ms 
+ *
+ * @param cool_down_to_f
+ * @param max_wait_ms
  */
 void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
 {
@@ -1418,84 +1565,20 @@ void io_tasks(uint8_t state = STATE_NA)
 #endif // HW_EXTENSIONS_ENABLED
 
 #ifdef INFLUX_REPORT_ENABLED
-#include <InfluxDbClient.h>
 const char *influx_device_id_prefix PROGMEM = "arska-";
 String wifi_mac_short;
 
 Point point_sensor_values("sensors");
 Point point_period_avg("period_avg"); //!< Influx buffer
+#endif
+ChannelCounters ch_counters;
 
-/**
- * @brief Class defines variables defined by measurements, calculations and used to define channel statuses
- *
- */
 
-class Variables
-{
-public:
-  Variables()
+Variables::Variables()
   {
     for (int variable_idx = 0; variable_idx < VARIABLE_COUNT; variable_idx++)
       variables[variable_idx].val_l = VARIABLE_LONG_UNKNOWN;
   }
-
-  bool is_set(int id);
-  void set(int id, long value_l);
-  void set(int id, float val_f);
-  void set_NA(int id);
-  long get_l(int id);
-  long get_l(int id, long default_val);
-  float get_f(int id);
-
-  bool is_statement_true(statement_st *statement, bool default_value, int channel_idx);
-  int get_variable_by_id(int id, variable_st *variable);
-  int get_variable_by_id(int id, variable_st *variable, int channel_idx);
-  void get_variable_by_idx(int idx, variable_st *variable);
-  long float_to_internal_l(int id, float val_float);
-  float const_to_float(int id, long const_in);
-  int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
-  int get_variable_count() { return VARIABLE_COUNT; };
-  void rotate_period();
-
-private:
-
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1,0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT,CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT,CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT,CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT,CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT,CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0,0}, {VARIABLE_SELLING_ENERGY, 0,0}, {VARIABLE_SELLING_POWER_NOW, 0,0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2,CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4,0}, {VARIABLE_WDAY, 0,CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2,CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4,0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2,0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK,0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK,0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1,0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1,0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1,0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT,0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT,0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT,0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT,0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT,0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT,0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT,0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT,0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT,0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT,0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT,0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT,CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT,0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT,0}};
-
-  int get_variable_index(int id);
-};
-
-typedef struct
-{
-  bool state;
-  time_t this_state_started_period_ts; //!< current state start time within period (minimum period start)
-  time_t this_state_started_epoch_ts;
-  int on_time;
-  int off_time;
-} channel_log_struct;
-
-/**
- * @brief Handling channel utilization (uptime/downtime) statistics
- *
- */
-class ChannelCounters
-{
-public:
-  ChannelCounters()
-  {
-    init();
-  }
-  void init();
-  void new_log_period(time_t ts_report);
-  void update_times(int channel_idx);
-  void set_state(int channel_idx, bool new_state);
-  time_t get_duration_in_this_state(int channel_idx);
-  uint16_t get_period_uptime(int channel_idx);
-  void update_utilization(int channel_idx);
-
-private:
-  channel_log_struct channel_logs[CHANNEL_COUNT];
-};
-ChannelCounters ch_counters;
 /**
  * @brief Rotates history variables value in the array to one index down, 0 earliest, MAX_HISTORY_PERIODS - 1 is current
  *
@@ -1586,10 +1669,10 @@ long Variables::get_l(int id)
 }
 /**
  * @brief Get variable store value without conversions, default value if undefined
- * 
- * @param id 
- * @param default_val 
- * @return long 
+ *
+ * @param id
+ * @param default_val
+ * @return long
  */
 long Variables::get_l(int id, long default_val)
 {
@@ -1762,18 +1845,7 @@ int Variables::get_variable_by_id(int id, variable_st *variable)
     return -1;
 }
 
-#define TIMESERIES_ELEMENT_MAX 72
-
-typedef int32_t T;
-
-/**
- * @brief time series support class proving cached store, statistics etc.
- * 
- */
-class timeSeries
-{
-public:
-  timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value)
+timeSeries::timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value)
   {
     id_ = id;
     store.start = start;
@@ -1784,7 +1856,7 @@ public:
   }
 
   // T operator [](int i) const    {return registers[i];}
-  void clear_store(bool reset_cache = true)
+  void timeSeries::clear_store(bool reset_cache = true)
   {
     store.min_value_idx = store.n;
     store.max_value_idx = -1;
@@ -1800,20 +1872,14 @@ public:
       save_to_cache(0);
     }
   };
-
-#ifdef NVS_CACHE_ENABLED
-  // WiP experimental
-  // WiP experimental
-  time_t expires() { return store.expires; }
-
-  /**
+ /**
    * @brief Save timeseries to cache (non-volatile memory)
-   * 
+   *
    * @param expires Expiry timestamp of the data
-   * @return true 
-   * @return false 
+   * @return true
+   * @return false
    */
-  bool save_to_cache(time_t expires) // save to nvs,true if successfull
+  bool timeSeries::save_to_cache(time_t expires) // save to nvs,true if successfull
   {
     store.expires = expires;
     nvs_handle_t my_handle;
@@ -1844,14 +1910,14 @@ public:
     return true;
   }
 
-/**
- * @brief  read from cache, true if succesfull and not expired
- * 
- * @param expires expiry timestamp, expired data is not valid
- * @return true if found and not expired
- * @return false 
- */
-  bool read_from_cache(time_t expires) //  https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
+  /**
+   * @brief  read from cache, true if succesfull and not expired
+   *
+   * @param expires expiry timestamp, expired data is not valid
+   * @return true if found and not expired
+   * @return false
+   */
+  bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
   {
     nvs_handle_t my_handle;
     char key[6];
@@ -1886,9 +1952,7 @@ public:
     // if (id_==0) Serial.printf("read_from_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
     return (store.expires > expires); // check expiration
   };
-#endif
-
-  void set(time_t ts, T new_value)
+ void timeSeries::set(time_t ts, T new_value)
   {
     int idx = get_idx(ts);
     if (idx == -1)
@@ -1900,22 +1964,34 @@ public:
     //  if (id_==0) Serial.printf("debug set ts %ld %d = max(store.max_value_idx %d, idx %d)\n",ts,store.max_value_idx, store.max_value_idx, idx);
     store.last_update_ts = time(nullptr);
   };
+  int timeSeries::get_idx(time_t ts)
+  {
+    int index_candidate = (ts - store.start) / store.resolution_sec;
 
-  int n() { return store.n; };
-  uint16_t resolution_sec() { return store.resolution_sec; };
-  time_t start() { return store.start; };
-  time_t end() { return store.start + (int)store.resolution_sec * (store.n - 1); };
+    if (index_candidate < 0 || index_candidate >= store.n)
+    {
+      if (abs(index_candidate) > store.n * 10)
+      { // something wrong
+        Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
+      }
+      Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
 
-  time_t first_set_period_ts() { return store.start + store.min_value_idx * store.resolution_sec; };
-  time_t last_set_period_ts()
+      return -1;
+    }
+    else
+    {
+      //    Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
+      return index_candidate;
+    }
+  };
+ time_t timeSeries::last_set_period_ts()
   {
 
     //   if (id_==0) Serial.printf("last_set_period_ts: store.start %ld, store.max_value_idx %d, store.resolution_sec %d\n",store.start, (int)store.max_value_idx , (int)store.resolution_sec);
     return store.start + store.max_value_idx * store.resolution_sec;
   };
-  time_t last_update() { return store.last_update_ts; };
 
-  T get(time_t ts = time(nullptr))
+  T timeSeries::get(time_t ts = time(nullptr))
   {
     int idx = get_idx(ts);
     if (idx == -1)
@@ -1923,7 +1999,7 @@ public:
     else
       return store.arr[idx];
   }
-  T get_pos(int idx)
+  T timeSeries::get_pos(int idx)
   {
     if (idx < 0 || idx >= store.n)
       return store.init_value;
@@ -1931,7 +2007,7 @@ public:
       return store.arr[idx];
   }
 
-  T get(time_t ts, T default_value)
+  T timeSeries::get(time_t ts, T default_value)
   {
     int idx = get_idx(ts);
     if (idx == -1)
@@ -1940,12 +2016,12 @@ public:
       return store.arr[idx];
   }
 
-  T avg(time_t start_ts, time_t end_ts_incl)
+  T timeSeries::avg(time_t start_ts, time_t end_ts_incl)
   {
     return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / store.resolution_sec + 1);
   }
 
-  void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
+  void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
   {
     Serial.printf("stats ts %ld, start_ts %ld, end_ts_incl %ld \n", ts, start_ts, end_ts_incl);
     *avg_ = avg(start_ts, end_ts_incl);
@@ -1959,8 +2035,8 @@ public:
       *ratio_avg = VARIABLE_LONG_UNKNOWN;
   }
 
-  // oli T datatyyppiä
-  int32_t sum(time_t start_ts, time_t end_ts_incl)
+
+  int32_t timeSeries::sum(time_t start_ts, time_t end_ts_incl)
   { // TODO: check DST change nights
     int32_t cum_sum = 0;
     int start_idx = max(0, get_idx(start_ts));
@@ -1973,12 +2049,11 @@ public:
     return cum_sum;
   }
 
-  int32_t sum()
+  int32_t timeSeries::sum()
   {
     return sum(store.start, store.start + (store.n - 1) * store.resolution_sec);
   }
-
-  void debug_print(time_t start_ts, time_t end_ts_incl)
+  void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl)
   {
     Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1);
 
@@ -1994,12 +2069,11 @@ public:
     Serial.println(avg(start_ts, end_ts_incl));
   }
 
-  void debug_print()
+  void timeSeries::debug_print()
   {
     debug_print(store.start, store.start + (store.n - 1) * store.resolution_sec);
   }
-
-  void set_store_start(time_t new_start)
+ void timeSeries::set_store_start(time_t new_start)
   {
     int index_delta = (int)((store.start - new_start) / store.resolution_sec);
     //   Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
@@ -2052,8 +2126,7 @@ public:
     //    Serial.println(PSTR("DEBUG set_store_start ended"));
   }
 
-  // new experimental version of time series ranking
-  int get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
+ int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
   {
     yield();
     int rank = 1;
@@ -2084,43 +2157,7 @@ public:
     return rank;
   }
 
-private:
-  uint8_t id_;
 
-  struct
-  {
-    time_t start;
-    int n;
-    uint16_t resolution_sec;
-    T init_value;
-    T arr[TIMESERIES_ELEMENT_MAX];
-    time_t expires;
-    int min_value_idx;
-    int max_value_idx;
-    time_t last_update_ts;
-  } store;
-
-  int get_idx(time_t ts)
-  {
-    int index_candidate = (ts - store.start) / store.resolution_sec;
-
-    if (index_candidate < 0 || index_candidate >= store.n)
-    {
-      if (abs(index_candidate) > store.n * 10)
-      { // something wrong
-        Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
-      }
-      Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
-
-      return -1;
-    }
-    else
-    {
-  //    Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
-      return index_candidate;
-    }
-  };
-};
 // Time series globals
 timeSeries prices2(0, 0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, 0);
 timeSeries solar_forecast(1, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
@@ -2180,7 +2217,7 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
   return (long)((history_cum_secs + 30) / 60);
 }
 
-time_t get_block_start(const time_t time)
+time_t get_block_start_ts(const time_t time)
 {
   localtime_r(&time, &tm_struct_l);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
@@ -2219,7 +2256,7 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     }
     else if (VARIABLE_CHANNEL_UTIL_BLOCK_0 <= id && id <= VARIABLE_CHANNEL_UTIL_BLOCK_M2_0)
     {
-      now_nth_period_in_hour = (current_period_start_ts - get_block_start(current_period_start_ts)) / SECONDS_IN_HOUR;
+      now_nth_period_in_hour = (current_period_start_ts - get_block_start_ts(current_period_start_ts)) / SECONDS_IN_HOUR;
       variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour + (id - VARIABLE_CHANNEL_UTIL_BLOCK_0) * DAY_BLOCK_SIZE_HOURS); // this block hours + optional previous blocks
     }
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
@@ -2316,6 +2353,11 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
 }
 
 Variables vars;
+
+ChannelCounters::ChannelCounters()
+  {
+    init();
+  }
 /**
  * @brief Initiate channle updatime counters
  *
@@ -2511,7 +2553,7 @@ bool write_buffer_to_influx()
     return false;
 
 // add current debug and sensor values to the buffer and write later them
-#ifdef DEBUG_MODE
+#ifdef DEBUG_MODE_ENABLED
   point_sensor_values.addField("uptime", (long)(millis() / 1000));
 #endif
 
@@ -2662,45 +2704,13 @@ bool update_prices_to_influx()
 
 #define MAX_SPLIT_ARRAY_SIZE 10 // TODO: check if we do still need fixed array here
 
-/**
- * @brief  Parse char array to uint16_t array (e.g. states, ip address)
- * @details description note: current version alter str_in, so use copy in calls if original still needed
- * @param str_in
- * @param array_out
- * @param separator
- */
-void str_to_uint_array(const char *str_in, uint16_t array_out[MAX_SPLIT_ARRAY_SIZE], const char *separator)
-{
-  char *ptr = strtok((char *)str_in, separator); // breaks string str into a series of tokens using the delimiter delim.
-  uint8_t i = 0;
-  for (int ch_state_idx = 0; ch_state_idx < MAX_SPLIT_ARRAY_SIZE; ch_state_idx++)
-  {
-    array_out[ch_state_idx] = 0;
-  }
-  while (ptr)
-  {
-    array_out[i] = atol(ptr);
-    ptr = strtok(NULL, separator);
-    i++;
-    if (i == MAX_SPLIT_ARRAY_SIZE)
-    {
-      break;
-    }
-  }
-  return;
-}
-
 // Serial command interface
 String serial_command;
 uint8_t serial_command_state = 0;
 int network_count = 0;
 
 #define WIFI_LIST_COUNT 6
-struct wifi_st
-{
-  char ssid[MAX_ID_STR_LENGTH]; //!< WiFi SSID
-  int32_t rssi;
-};
+
 wifi_st wifis[WIFI_LIST_COUNT];
 
 /**
@@ -2714,8 +2724,6 @@ void scan_and_store_wifis(bool print_out, bool store)
   network_count = WiFi.scanNetworks();
   if (store)
     memset(wifis, 0, sizeof(wifis));
-
-  //  StaticJsonDocument<1248> doc;
 
   if (print_out)
     Serial.println("Available WiFi networks:\n");
@@ -2732,9 +2740,6 @@ void scan_and_store_wifis(bool print_out, bool store)
       strncpy(wifis[array_i].ssid, WiFi.SSID(i).c_str(), MAX_ID_STR_LENGTH - 1);
     }
     array_i++;
-    // JsonObject json_wifi = doc.createNestedObject();
-    // json_wifi["id"] = WiFi.SSID(i);
-    // json_wifi["rssi"] = WiFi.RSSI(i);
   }
 
   if (print_out)
@@ -2748,47 +2753,6 @@ void scan_and_store_wifis(bool print_out, bool store)
      serializeJson(doc, wifi_file);
      wifi_file.close();
    }*/
-}
-
-#define CONFIG_JSON_SIZE_MAX 6144
-/**
- * @brief Utility for reading a json config file to memory structures- to be tuned
- *
- * @param doc
- * @param key
- * @param tostr
- * @return true
- * @return false
- */
-
-bool copy_doc_str(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, char *key, char *tostr, size_t buffer_length)
-{
-#ifdef DEBUG_MODE
-  Serial.print("debug: ");
-  Serial.println(key);
-#endif
-  if (doc.containsKey(key))
-  {
-    strncpy(tostr, doc[key], buffer_length);
-    return true;
-  }
-  return false;
-}
-/**
- * @brief Get long value from Arduino json object
- *
- * @param doc
- * @param key
- * @param default_val
- * @return long
- */
-long get_doc_long(StaticJsonDocument<CONFIG_JSON_SIZE_MAX> &doc, const char *key, long default_val = VARIABLE_LONG_UNKNOWN)
-{
-  if (doc.containsKey(key))
-  {
-    return (long)doc[key];
-  }
-  return default_val;
 }
 
 /**
@@ -2840,7 +2804,7 @@ void readFromEEPROM()
 
   hw_template_idx = get_hw_template_idx(s.hw_template_id); // update cached variable
 
-   if (s.netting_period_sec == 0) //TODO: should not happen normally, only if not well resetted
+  if (s.netting_period_sec == 0) // TODO: should not happen normally, only if not well resetted
     s.netting_period_sec = 3600;
 
   set_netting_source();
@@ -3144,7 +3108,7 @@ float check_current_load()
 // postprocessing after succesfully received measure date
 void process_energy_meter_readings()
 {
- 
+
   bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
   energy_meter_read_ok_count++; // global
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
@@ -3268,9 +3232,9 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 }
 
 #ifdef METER_HAN_DIRECT_ENABLED
-//#define HAN_P1_SERIAL Serial2
+// #define HAN_P1_SERIAL Serial2
 #define HAN_P1_SERIAL Serial1
-#pragma message("Testing with Serial 1 should be 2")
+// #pragma message("Testing with Serial 1 should be 2")
 
 bool parse_han_row(String *row_in_p)
 {
@@ -3309,7 +3273,6 @@ bool receive_energy_meter_han_direct() // direct
 
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
-
 
   size_t available = HAN_P1_SERIAL.available();
 
@@ -4024,13 +3987,13 @@ String getElementValue(String outerXML)
   return outerXML.substring(s1 + 1, s1 + s2 + 1);
 }
 /**
- * @brief Convert date time string to UTC time stamp
+ * @brief Convert date time string YYYYMMDDTmmhhss to UTC time stamp
  *
  * @param elem
  * @return time_t
  */
 time_t ElementToUTCts(String elem)
-{
+{ //
   String str_val = getElementValue(elem);
   return getTimestamp(str_val.substring(0, 4).toInt(), str_val.substring(5, 7).toInt(), str_val.substring(8, 10).toInt(), str_val.substring(11, 13).toInt(), str_val.substring(14, 16).toInt(), 0);
 }
@@ -4493,9 +4456,9 @@ bool is_force_up_valid(int channel_idx)
 }
 /**
  * @brief Returns active rule of the channel, -1 if no active
- * 
- * @param channel_idx 
- * @return int 
+ *
+ * @param channel_idx
+ * @return int
  */
 int get_channel_active_rule(int channel_idx)
 {
@@ -4506,6 +4469,33 @@ int get_channel_active_rule(int channel_idx)
   }
   return -1;
 }
+
+#if defined(ARDUINO)
+#define JSON_DOCUMENT DynamicJsonDocument
+#define CREATE_JSON_DOCUMENT(doc) DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX)
+
+#define ADD_JSON_TEXT(parent, node_name, text) parent[node_name] = text
+#define ADD_JSON_NUMBER(parent, node_name, number) parent[node_name] = number
+#define ADD_JSON_BOOL(parent, node_name, bool_value) parent[node_name] = bool_value
+
+#define ADD_JSON_ARRAY_NUMBER(parent, value) parent.add(value)
+#define ADD_JSON_ARRAY_TEXT(parent, value) parent.add(value)
+#define ADD_JSON_ARRAY_BOOL(parent, value) parent.add(value)
+
+#define JSON_ARRAY_NODE JsonArray
+#define ADD_JSON_ARRAY(parent, node_name, node) parent.createNestedArray(node_name)
+#define ADD_JSON_ARRAY_NODE(parent, node) parent.createNestedArray()
+
+#define JSON_CHILD_NODE JsonObject
+#define ADD_JSON_CHILD_NODE(parent, node) parent.createNestedObject()
+
+#define JSON_SERIALIZE(doc, output_string) \
+  String output_string;                    \
+  serializeJson(doc, output_string);
+#define JSON_SEND(request, output_string) request->send(200, "application/json", output_string);
+#define JSON_FREE_RESOURCES(output_string) ;
+
+#endif
 
 /**
  * @brief Generate application constants for the user interface
@@ -4523,89 +4513,143 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
     return request->requestAuthentication();
   }
 
-  // No up-to-date json cache file, let's create one
-  // DynamicJsonDocument doc(8192);
-  DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
-  doc["compile_date"] = compile_date;
-  doc["HWID"] = HWID;
+  CREATE_JSON_DOCUMENT(doc);
 
-  doc["VERSION"] = VERSION;
-  doc["VERSION_SHORT"] = VERSION_SHORT;
-  doc["version_fs"] = version_fs;
-  doc["RULE_STATEMENTS_MAX"] = RULE_STATEMENTS_MAX;
-  doc["CHANNEL_COUNT"] = CHANNEL_COUNT;
-  doc["CHANNEL_RULES_MAX"] = CHANNEL_RULES_MAX;
+  /*********************/
+
+  /**
+    CREATE_JSON_DOCUMENT(doc);
+    ADD_JSON_TEXT(doc, "test", "testvalue");
+    // list of  objects
+    JSON_ARRAY_NODE p0 = ADD_JSON_ARRAY(doc, "p0", p0);
+    JSON_CHILD_NODE n0;
+    for (int i = 0; i < 2; i++)
+    {
+        n0 = ADD_JSON_CHILD_NODE(p0, n0);
+        ADD_JSON_TEXT(n0, "f1", "f1value");
+        ADD_JSON_NUMBER(n0, "f2", 2);
+        ADD_JSON_BOOL(n0, "f3", true);
+    }
+
+    JSON_ARRAY_NODE p1 = ADD_JSON_ARRAY(doc, "test1", p1);
+    JSON_ARRAY_NODE oper;
+    for (int i = 0; i < 2; i++)
+    {
+        oper = ADD_JSON_ARRAY_NODE(p1, oper);
+        ADD_JSON_ARRAY_NUMBER(oper, i);
+        ADD_JSON_ARRAY_NUMBER(oper, i * 2);
+        ADD_JSON_ARRAY_TEXT(oper, "OIoi2");
+    }
+    */
+  /*********************/
+
+  ADD_JSON_TEXT(doc, "compile_date", compile_date);
+  ADD_JSON_TEXT(doc, "HWID", HWID);
+  ADD_JSON_TEXT(doc, "VERSION", VERSION);
+  ADD_JSON_TEXT(doc, "VERSION_SHORT", VERSION_SHORT);
+  ADD_JSON_TEXT(doc, "version_fs", version_fs);
+
+  ADD_JSON_NUMBER(doc, "RULE_STATEMENTS_MAX", RULE_STATEMENTS_MAX);
+  ADD_JSON_NUMBER(doc, "CHANNEL_COUNT", CHANNEL_COUNT);
+  ADD_JSON_NUMBER(doc, "CHANNEL_RULES_MAX", CHANNEL_RULES_MAX);
 
   // some debug info
-  doc["ts"] = time(nullptr);
-  doc["free_heap"] = ESP.getFreeHeap();
-  doc["fs_mounted"] = fs_mounted;
+  ADD_JSON_NUMBER(doc, "ts", time(nullptr));
+  ADD_JSON_NUMBER(doc, "free_heap", ESP.getFreeHeap());
+  ADD_JSON_BOOL(doc, "fs_mounted", fs_mounted);
 
 #ifdef INFLUX_REPORT_ENABLED
-  doc["INFLUX_REPORT_ENABLED"] = true;
+  ADD_JSON_BOOL(doc, "INFLUX_REPORT_ENABLED", true);
 #else
-  doc["INFLUX_REPORT_ENABLED"] = false;
+  ADD_JSON_BOOL(doc, "INFLUX_REPORT_ENABLED", false);
 #endif
 
 #ifdef PRICE_ELERING_ENABLED
-  doc["PRICE_ELERING_ENABLED"] = true;
+  ADD_JSON_BOOL(doc, "PRICE_ELERING_ENABLED", true);
 #endif
 
-#ifdef DEBUG_MODE
-  doc["DEBUG_MODE"] = true;
+#ifdef DEBUG_MODE_ENABLED
+  ADD_JSON_BOOL(doc, "DEBUG_MODE_ENABLED", true);
 #else
-  doc["DEBUG_MODE"] = false;
+  ADD_JSON_BOOL(doc, "DEBUG_MODE_ENABLED", false);
 #endif
 
-  JsonArray json_opers = doc.createNestedArray("opers");
+  // JsonArray json_opers = doc.createNestedArray("opers");
+  JSON_ARRAY_NODE json_opers = ADD_JSON_ARRAY(doc, "opers", json_opers);
   for (int i = 0; i < OPER_COUNT; i++)
   {
-    JsonArray json_oper = json_opers.createNestedArray();
-    json_oper.add(opers[i].id);
-    json_oper.add(opers[i].code);
-    json_oper.add(opers[i].gt);
-    json_oper.add(opers[i].eq);
-    json_oper.add(opers[i].reverse);
-    json_oper.add(opers[i].boolean_only);
-    json_oper.add(opers[i].has_value);
+    // JsonArray json_oper = json_opers.createNestedArray();
+    JSON_ARRAY_NODE json_oper = ADD_JSON_ARRAY_NODE(json_opers, json_oper);
+    // json_oper.add(opers[i].id);
+    ADD_JSON_ARRAY_NUMBER(json_oper, opers[i].id);
+    // json_oper.add(opers[i].code);
+    ADD_JSON_ARRAY_TEXT(json_oper, opers[i].code);
+    // json_oper.add(opers[i].gt);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].gt);
+    // json_oper.add(opers[i].eq);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].eq);
+    // json_oper.add(opers[i].reverse);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].reverse);
+
+    // json_oper.add(opers[i].boolean_only);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].boolean_only);
+
+    // json_oper.add(opers[i].has_value);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].has_value);
   }
 
   int variable_count = vars.get_variable_count();
   variable_st variable;
-  String output;
-  JsonArray json_variables = doc.createNestedArray("variables");
+  // String output;
+  //  JsonArray json_variables = doc.createNestedArray("variables");
+  JSON_ARRAY_NODE json_variables = ADD_JSON_ARRAY(doc, "variables", json_variables);
   for (int variable_idx = 0; variable_idx < variable_count; variable_idx++)
   {
-    JsonArray json_variable = json_variables.createNestedArray();
+    // JsonArray json_variable = json_variables.createNestedArray();
+    JSON_ARRAY_NODE json_variable = ADD_JSON_ARRAY_NODE(json_variables, json_variable);
     vars.get_variable_by_idx(variable_idx, &variable);
-    json_variable.add(variable.id);
-    //   json_variable.add(variable.code);
-    json_variable.add(variable.type);
-    json_variable.add(variable.bitmask);
+    // json_variable.add(variable.id);
+    ADD_JSON_ARRAY_NUMBER(json_variable, variable.id);
+    // json_variable.add(variable.type);
+    ADD_JSON_ARRAY_NUMBER(json_variable, variable.type);
+    //  json_variable.add(variable.bitmask);
+    ADD_JSON_ARRAY_NUMBER(json_variable, variable.bitmask);
   }
 
-  JsonArray json_channel_types = doc.createNestedArray("channel_types");
+  // JsonArray json_channel_types = doc.createNestedArray("channel_types");
+  JSON_ARRAY_NODE json_channel_types = ADD_JSON_ARRAY(doc, "channel_types", json_channel_types);
   for (int channel_type_idx = 0; channel_type_idx < CHANNEL_TYPE_COUNT; channel_type_idx++)
   {
-    JsonObject json_channel_type = json_channel_types.createNestedObject();
-    json_channel_type["id"] = (int)channel_types[channel_type_idx].id;
-    json_channel_type["name"] = channel_types[channel_type_idx].name;
+    // JsonObject json_channel_type = json_channel_types.createNestedObject();
+    JSON_CHILD_NODE json_channel_type = ADD_JSON_CHILD_NODE(json_channel_types, json_channel_type);
+    // json_channel_type["id"] = (int)channel_types[channel_type_idx].id;
+    ADD_JSON_NUMBER(json_channel_type, "id", (int)channel_types[channel_type_idx].id);
+    // json_channel_type["name"] = channel_types[channel_type_idx].name;
+
+    ADD_JSON_TEXT(json_channel_type, "name", channel_types[channel_type_idx].name);
   }
 
-  JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
+  // JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
+  JSON_ARRAY_NODE json_hs_templates = ADD_JSON_ARRAY(doc, "hw_templates", json_hs_templates);
   for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
   {
 #ifndef HW_EXTENSIONS_ENABLED // skip register templates
     if (hw_templates[hw_template_idx].hw_io.output_register)
       continue;
 #endif
-    JsonObject json_hs_template = json_hs_templates.createNestedObject();
-    json_hs_template["id"] = (int)hw_templates[hw_template_idx].id;
-    json_hs_template["name"] = hw_templates[hw_template_idx].name;
-  }
-  serializeJson(doc, output);
+    //  JsonObject json_hs_template = json_hs_templates.createNestedObject();
+    JSON_CHILD_NODE json_hs_template = ADD_JSON_CHILD_NODE(json_hs_templates, json_hs_template);
 
-  request->send(200, "application/json", output);
+    //  json_hs_template["id"] = (int)hw_templates[hw_template_idx].id;
+    ADD_JSON_NUMBER(json_hs_template, "id", (int)hw_templates[hw_template_idx].id);
+
+    //  json_hs_template["name"] = hw_templates[hw_template_idx].name;
+    ADD_JSON_TEXT(json_hs_template, "name", hw_templates[hw_template_idx].name);
+  }
+
+  JSON_SERIALIZE(doc, output);
+  JSON_SEND(request, output);
+  JSON_FREE_RESOURCES(output_string);
 }
 
 void onWebWifisGet(AsyncWebServerRequest *request)
@@ -4769,36 +4813,6 @@ void read_production_meter()
 //
 
 /**
- * @brief Get a channel to switch next
- * @details There can be multiple channels which could be switched but not all are switched at the same round
- *
- * @param is_rise
- * @param switch_count
- * @return int
- */
-int get_channel_to_switch(bool is_rise, int switch_count)
-{
-  int nth_channel = random(0, switch_count) + 1;
-  int match_count = 0;
-  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {
-    if (is_rise && !s.ch[channel_idx].is_up && s.ch[channel_idx].wanna_be_up)
-    { // we should rise this up
-      match_count++;
-      if (match_count == nth_channel)
-        return channel_idx;
-    }
-    if (!is_rise && s.ch[channel_idx].is_up && !s.ch[channel_idx].wanna_be_up)
-    { // we should drop this channel
-      match_count++;
-      if (match_count == nth_channel)
-        return channel_idx;
-    }
-  }
-  return -1; // we should not end up here
-}
-
-/**
  * @brief Get a channel to switch next, using channel priority
  * @details There can be multiple channels which could be switched but not all are switched at the same round
  *
@@ -4806,34 +4820,6 @@ int get_channel_to_switch(bool is_rise, int switch_count)
  * @return int
  */
 int get_channel_to_switch_prio(bool is_rise)
-{
-  uint8_t matching_prio;
-  int matching_prio_channel = -1;
-  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
-  {
-    if (is_rise && !s.ch[channel_idx].is_up && s.ch[channel_idx].wanna_be_up)
-    { // we should rise this up, select down channel with lowest priority value
-      Serial.printf("get_channel_to_switch_prio ch %d wanna to be up \n", channel_idx);
-      if (matching_prio_channel == -1 || matching_prio > s.ch[channel_idx].priority)
-      {
-        matching_prio = s.ch[channel_idx].priority;
-        matching_prio_channel = channel_idx;
-      }
-    }
-    if (!is_rise && s.ch[channel_idx].is_up && !s.ch[channel_idx].wanna_be_up)
-    { // we should drop this channel, select up channel with highest priority value
-      Serial.printf("get_channel_to_switch_prio ch %d wanna be down , matching_prio %d, priority %d\n", channel_idx, (int)matching_prio, s.ch[channel_idx].priority);
-      if (matching_prio_channel == -1 || matching_prio < s.ch[channel_idx].priority)
-      {
-        matching_prio = s.ch[channel_idx].priority;
-        matching_prio_channel = channel_idx;
-      }
-    }
-  }
-  return matching_prio_channel;
-}
-// experimental give n:th in the row...
-int get_channel_to_switch_prio(bool is_rise, int n)
 {
   uint8_t matching_prio;
   int matching_prio_channel = -1;
@@ -5048,7 +5034,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
  * @brief Check which channels can be raised /dropped
  *
  */
-void update_channel_states()
+void calculate_channel_states()
 {
   bool forced_up;
   float current_capacity_available = 9999;
@@ -5145,7 +5131,7 @@ void update_channel_states()
         if (statement->variable_id != -1) // statement defined
         {
           nof_valid_statements++;
-          //   Serial.printf("update_channel_states statement.variable_id: %d\n", statement->variable_id);
+          //   Serial.printf("calculate_channel_states statement.variable_id: %d\n", statement->variable_id);
           statement_true = vars.is_statement_true(statement, false, channel_idx);
           if (!statement_true)
           {
@@ -5244,7 +5230,6 @@ void set_relays(bool grid_protection_delay_used)
 
     for (int i = 0; i < switchings_to_todo; i++)
     {
-      // int ch_to_switch = get_channel_to_switch(is_rise, oper_count--); // return in random order if many
       int ch_to_switch = get_channel_to_switch_prio(is_rise); // return in priority order
       Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
       s.ch[ch_to_switch].is_up = is_rise;
@@ -5476,7 +5461,6 @@ bool get_price_data_elering()
 #endif
 
 #ifdef OTA_DOWNLOAD_ENABLED
-#include <HTTPUpdate.h> //
 
 String update_releases = "{}"; // software releases for updates, cached in RAM
 String update_release_selected = "";
@@ -5672,7 +5656,7 @@ void update_firmware_partition(uint8_t partition_type = U_FLASH)
 
 // only manual update, automatic is integrated
 const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => { init_document(); }); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { /* document.getElementById('frm2').addEventListener('submit', (event) => { return confirm('Update software, this can take several minutes.'); });*/ $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get /application', textStatus, jqXHR.status); } }); } else { console.log('Cannot load jQuery library'); } } function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/update'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Arska firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h3>Upload firmware files</h3> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div> </div> Current versions:<br> <table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table> <br><a href='/'>Return to Arska</a></body></html>";
-#include <Update.h>
+
 #define U_PART U_SPIFFS
 /**
  * @brief Sends update form (url: /update)
@@ -5909,18 +5893,6 @@ void reset_config()
   Serial.println(F("Finishing reset_config"));
 }
 
-void clean_str(char *str)
-{
-  for (int j = 0; j < strlen(str); j++)
-  {
-    Serial.printf("%x ", str[j]);
-    if ((str[j] < 32) && (str[j] > 0))
-    {
-      str[j] = '_';
-    }
-  }
-}
-
 /**
  * @brief Copies string value from a json node to a char buffer.
  *
@@ -6055,7 +6027,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
 
     // rules[rule_idx].rule_active
     active_rule_idx = -1;
-    rule_idx_output = 0; 
+    rule_idx_output = 0;
     int active_rule_count = 0;
     for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
     {
@@ -6176,26 +6148,7 @@ IPAddress ajson_ip_get(JsonVariant parent_node, char *doc_key, IPAddress default
   }
   return default_val;
 }
-/**
- * @brief Gets a double (float) from a json node.
- *
- * @param parent_node
- * @param doc_key
- * @param default_val
- * @return double
- */
-double ajson_double_get(JsonVariant parent_node, char *doc_key, double default_val = 0)
-{
-  JsonVariant element = parent_node[doc_key];
-  if (!element.isNull())
-  {
-    if (element.is<double>())
-      return element.as<double>();
-    // else
-    //   return atof(cJSON_GetObjectItem(parent_node, doc_key)->valuestring);
-  }
-  return default_val;
-}
+
 /**
  * @brief Gets a boolean value from a json node.
  *
@@ -6234,7 +6187,6 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
   ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
 
-  // copy_doc_str(doc, (char *)"variable_server", s.variable_server, sizeof(s.variable_server));
   ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
   ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
   ajson_str_to_mem(doc, (char *)"lang", s.lang, sizeof(s.lang));
@@ -6444,7 +6396,7 @@ bool read_shadow_settings()
  */
 // String * 8
 
-void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+void onWebUploadConfigPost(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
 {
 
   if (!request->authenticate(s.http_username, s.http_password))
@@ -6466,7 +6418,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
 
   if (final) // last call
   {
-    Serial.println("onWebUploadConfig final");
+    Serial.println("onWebUploadConfigPost final");
     // close the file handle as the upload is now done
     request->_tempFile.close();
 
@@ -6495,7 +6447,7 @@ void onWebUploadConfig(AsyncWebServerRequest *request, uint8_t *data, size_t len
  * @param request
  */
 
-void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
+void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total)
 {
   int channel_idx;
   bool force_up_changes = false;
@@ -6542,7 +6494,7 @@ void onScheduleUpdate(AsyncWebServerRequest *request, uint8_t *data, size_t len,
       else
         force_up_from_ts = max(time(nullptr), from); // absolute unix ts is waited
 
-      Serial.printf("onScheduleUpdate channel_idx: %d, force_up_minutes: %ld , force_up_from_ts %ld  \n", channel_idx, force_up_minutes, force_up_from_ts);
+      Serial.printf("onScheduleUpdatePost channel_idx: %d, force_up_minutes: %ld , force_up_from_ts %ld  \n", channel_idx, force_up_minutes, force_up_from_ts);
 
       if (force_up_minutes > 0)
       {
@@ -6650,7 +6602,6 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
 
-  // Serial.printf("onWebSettingsPost authenticated len index total len %u, index %u, total %u\n", len, index, total);
   bool final = ((len + index) == total);
 
   if (!index) // first chunk, initiate
@@ -6665,7 +6616,6 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
     StaticJsonDocument<256> out_doc; // global doc to discoveries
     String output;
 
-    //  StaticJsonDocument<CONFIG_JSON_SIZE_MAX> doc; //
     DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
 
     DeserializationError error = deserializeJson(doc, in_buffer);
@@ -6703,19 +6653,12 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
 void onWebPricesGet(AsyncWebServerRequest *request)
 {
   StaticJsonDocument<1024> doc; //
-  // DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
   String output;
 
   JsonArray prices_a = doc.createNestedArray("prices");
 
   Serial.printf("DEBUG onWebPricesGet %lu - %lu (%d)\n", prices2.start(), prices2.end(), prices2.n());
 
-  /*  int i = 0;
-    for (time_t period = prices2.start(); period <= prices2.end(); period += prices2.resolution_sec())
-    {
-      prices_a[i] = prices2.get(period);
-      i++;
-    }*/
   if (prices2.start() > 0)
   {
     for (int i = 0; i < MAX_PRICE_PERIODS; i++)
@@ -6868,7 +6811,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
   sprintf(var_id_str, "%d", (int)VARIABLE_CHANNEL_UTIL_BLOCK_M2_0);
   v_channel_array = var_obj.createNestedArray(var_id_str);
-  int now_nth_period_in_hour = (current_period_start_ts - get_block_start(current_period_start_ts)) / SECONDS_IN_HOUR;
+  int now_nth_period_in_hour = (current_period_start_ts - get_block_start_ts(current_period_start_ts)) / SECONDS_IN_HOUR;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   { // this and previous 2 blocks utilization
     v_channel_array.add(channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour + DAY_BLOCK_SIZE_HOURS * 2));
@@ -6938,7 +6881,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
  * @brief Set the timezone info etc after wifi connected
  *
  */
-void set_time_settings(bool set_tz, bool set_ntp)
+void set_timezone_ntp_settings(bool set_tz, bool set_ntp)
 {
   //  Set timezone info
   if (set_tz)
@@ -6988,7 +6931,7 @@ void wifi_event_handler(WiFiEvent_t event)
   case SYSTEM_EVENT_STA_GOT_IP:
     wifi_sta_connected = true;
     Serial.println(F("Got IP"));
-    set_time_settings(true, true);
+    set_timezone_ntp_settings(true, true);
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     wifi_sta_connected = false;
@@ -7255,7 +7198,7 @@ void setup()
     rtc_found = true;
     Serial.println(F("RTC found"));
     Serial.flush();
-    settimeofday_cb(time_is_set); // register callback if time was sent
+    settimeofday_cb(ntp_time_is_set); // register callback if time was sent
     if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
       getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
   }
@@ -7285,29 +7228,6 @@ void setup()
       { handleFirmwareUpdate(request, filename, index, data, len, final); });
 #endif
 
-  /*
-  #ifdef MDNS_ENABLED
-    if (s.mdns_activated)
-    {
-      if (!MDNS.begin(("arskanode-" + wifi_mac_short).c_str())) // UNIQUE NAME with mac here
-      {
-        Serial.println("Error starting mDNS");
-      }
-      else
-      {
-        Serial.println("Started mDNS service");
-        MDNS.addService("http", "tcp", 80);
-      }
-    }
-    else
-    {
-      Serial.println("mDNS service not activated.");
-    }
-
-    server_web.on("/discover", HTTP_GET, onWebDiscoverGet);
-  #endif
-  */
-  // server_web.on("/do", HTTP_GET, onWebDoGet); // action queueu
 
   server_web.on("/status", HTTP_GET, onWebStatusGet);
 
@@ -7335,7 +7255,7 @@ void setup()
       [](AsyncWebServerRequest *request) {},
       [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
          size_t len, bool final) {},
-      onWebUploadConfig);
+      onWebUploadConfigPost);
 
   // server_web.on("/", HTTP_GET, onWebUIGet);
   server_web.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
@@ -7351,7 +7271,7 @@ void setup()
       [](AsyncWebServerRequest *request) {},
       [](AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
          size_t len, bool final) {},
-      onScheduleUpdate);
+      onScheduleUpdatePost);
 
   server_web.serveStatic("/js/", FILESYSTEM, "/js/").setCacheControl("max-age=84600, public");
   server_web.serveStatic("/css/", FILESYSTEM, "/css/").setCacheControl("max-age=84600, public");
@@ -7391,8 +7311,6 @@ void setup()
 #endif
 } // end of setup()
 
-
-
 //************** L O O P *****************/
 /**
  * @brief Arduino framwork function. This function is executed repeatedly after setup().  Make calls to scheduled functions
@@ -7404,7 +7322,7 @@ void loop()
   last_loop_started = esp_timer_get_time(); // store start time for a watchdog process
 #endif
 
-bool period_changed = false;
+  bool period_changed = false;
 
   bool got_forecast_ok = false;
   bool got_price_ok = false;
@@ -7543,7 +7461,7 @@ bool period_changed = false;
   else if (processing_started_ts == 0) // we have clock set
   {
     // There was a extra waiting here (for ntp time settle ?), removed because most probably not needed
-   
+
     processing_started_ts = time(nullptr);
     calculate_time_based_variables(); // no external info needed for these
 
@@ -7565,10 +7483,10 @@ bool period_changed = false;
     if (give_wifi_relay_warning)
       log_msg(MSG_TYPE_WARN, PSTR("Wifi relays cannot be switched in standalone mode."), true);
 
-    set_time_settings(true, false); // need to set tz
+    set_timezone_ntp_settings(true, false); // need to set tz
 
     ch_counters.init();
-    next_query_price_data_ts = time(nullptr); 
+    next_query_price_data_ts = time(nullptr);
     next_query_fcst_data_ts = time(nullptr);
     recorded_period_start_ts = processing_started_ts;
     current_period_start_ts = get_netting_period_start_time(processing_started_ts);
@@ -7606,7 +7524,7 @@ bool period_changed = false;
   {
     Serial.println("queue task todo_in_loop_set_relays");
     todo_in_loop_set_relays = false;
-    update_channel_states();
+    calculate_channel_states();
     set_relays(false);
   }
 
@@ -7750,7 +7668,7 @@ bool period_changed = false;
     calculate_time_based_variables();                                                                                      // call here for minute level changes
     calculate_meter_based_variables();                                                                                     // TODO: if period change we could set write influx buffer after this?
     next_process_ts = max((time_t)(next_process_ts + PROCESS_INTERVAL_SECS), time(nullptr) + (PROCESS_INTERVAL_SECS / 2)); // max is just in case to allow skipping processing, if processing takes too long
-    update_channel_states();
+    calculate_channel_states();
     set_relays(true); // grid protection delay active
   }
 
