@@ -61,7 +61,7 @@ DEVEL BRANCH
 
 #include "WebAuthentication.h"
 
-#include "ArskaGeneric.h"
+//#include "ArskaGeneric.h"
 
 #include "version.h"
 
@@ -381,7 +381,10 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 
 #define TIMESERIES_ELEMENT_MAX 72
 
-#define OPER_COUNT 10
+#define OPER_COUNT 11
+#pragma message("Testing with selectec oper")
+
+
 /**
  * @brief Statament checking rules
  * @details
@@ -395,6 +398,7 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 7, "not",  boolean_only=true and because not reverse=true
 8, "defined", true if variable has value
 9, "undefined", true is variable value is not set
+10, "selected", if tru can be multiselected
  */
 // TODO: maybe operator NA - not available
 
@@ -451,11 +455,12 @@ struct oper_st
   bool gt;           //!< true if variable is greater than the compared value
   bool eq;           //!< true if variable is equal with then compared value
   bool reverse;      //!< negate comparison result
-  bool boolean_only; //!< hand variable value as boolean (1=true), eq and reverse possible
+  bool boolean_only; //!< handle variable value as boolean (1=true), eq and reverse possible
   bool has_value;    //!< true if not value not VARIABLE_LONG_UNKNOWN, reverse possible
+  bool multiselect;     //!< selected values creating bit combo to value field
 };
 
-const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false}, {1, ">", true, false, false, false, false}, {2, "<", true, true, true, false, false}, {3, ">=", true, true, false, false, false}, {4, "<=", true, false, true, false, false}, {5, "<>", false, true, true, false, false}, {6, "is", false, false, false, true, false}, {7, "not", false, false, true, true, false}, {8, "defined", false, false, false, false, true}, {9, "undefined", false, false, true, false, true}};
+const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false,false}, {1, ">", true, false, false, false, false,false}, {2, "<", true, true, true, false, false,false}, {3, ">=", true, true, false, false, false,false}, {4, "<=", true, false, true, false, false,false}, {5, "<>", false, true, true, false, false,false}, {6, "is", false, false, false, true, false,false}, {7, "not", false, false, true, true, false,false}, {8, "defined", false, false, false, false, true,false}, {9, "undefined", false, false, true, false, true, false}, {10, "selected", false, false, false, false,false,true}};
 
 struct channel_type_st
 {
@@ -518,12 +523,13 @@ typedef struct
   uint16_t load;            //<! estimated device load in Watts
 } channel_struct;
 
+#ifdef SENSOR_DS18B20_ENABLED
 typedef struct
 {
   DeviceAddress address;             //!< 1-wire hardware address of the sensor device
   char id_str[MAX_CH_ID_STR_LENGTH]; //!< sensor id string, RFU
 } sensor_struct;
-
+#endif
 
 // Setting stucture, stored in non-volatile memory
 typedef struct
@@ -699,6 +705,68 @@ private:
   int get_idx(time_t ts);
 }; //Time series 
 // ****** Function declarations
+bool is_chunksize_line(String line);
+void setInternalTime(uint64_t epoch , uint32_t us );
+int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec);
+
+/**
+ * @brief Return true if line is chunk size line in the http response
+ *
+ * @param line
+ * @return true
+ * @return false
+ */
+bool is_chunksize_line(String line)
+{
+    // if line length between 2 and 5, ends with cr and all chars except the last one are hex numbersx 
+    if (line.charAt(line.length() - 1) != 13 || line.length() > 4 || line.length() < 2) // garbage line ends with cr
+        return false;
+    for (int i = 0; i < line.length() - 2;i++) {
+        if (!isxdigit(line.charAt(i)))
+         return false;
+    }
+            Serial.printf(PSTR("Garbage/chunk size removed [%s] (%d) %d\n"), line.substring(0, line.length() - 1).c_str(), line.length(), (int)line.charAt(0));
+            return true;
+       
+}
+
+/**
+ * @brief Set the internal clock from RTC or browser
+ *
+ * @param epoch  epoch (seconds in GMT)
+ * @param microseconds
+ */
+void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
+{
+    struct timeval tv;
+    tv.tv_sec = epoch;
+    tv.tv_usec = us;
+    settimeofday(&tv, NULL);
+}
+
+// https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
+/**
+ * @brief Get the Timestamp based of date/time components
+ *
+ * @param year
+ * @param mon
+ * @param mday
+ * @param hour
+ * @param min
+ * @param sec
+ * @return int64_t
+ */
+int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
+{
+    const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                /* Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag */
+    int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; /* Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr) */
+    int64_t days_since_1970 = (year - 1970) * 365 + leapyears + ytd[mon - 1] + mday - 1;
+    if ((mon > 2) && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
+        days_since_1970 += 1; /* +Schalttag, wenn Jahr Schaltjahr ist */
+    return sec + 60 * (min + 60 * (hour + 24 * days_since_1970));
+}
+
+
 
 // *** Application Logic Core Functions
 // * Variables calculations
@@ -746,9 +814,11 @@ void read_production_meter();
 bool read_inverter_fronius_data(long int &total_energy, long int &current_power);
 bool read_inverter_sma_data(long int &total_energy, long int &current_power);
 
+#ifdef SENSOR_DS18B20_ENABLED
 void print_onewire_address(DeviceAddress deviceAddress);
 bool read_ds18b20_sensors();
 bool scan_sensors();
+#endif
 
 // * Read Utilities
 String httpGETRequest(const char *url, int32_t connect_timeout_s);
@@ -1073,8 +1143,6 @@ void getRTC()
 uint8_t cpu_temp_f = 128;
 
 #ifdef HW_EXTENSIONS_ENABLED
-
-
 uint8_t register_out = 0;
 
 #ifdef __cplusplus
@@ -1273,7 +1341,7 @@ uint32_t power_produced_period_avg = 0;
 
 
 
-#ifdef SENSOR_DS18B20_ENABLED
+//#ifdef SENSOR_DS18B20_ENABLED
 
 // this stores settings also to eeprom
 settings_struct s;
@@ -2459,7 +2527,7 @@ void ChannelCounters::set_state(int channel_idx, bool new_state)
     channel_logs[channel_idx].this_state_started_epoch_ts = time(NULL);
   }
 }
-
+#ifdef INFLUX_REPORT_ENABLED
 /**
  * @brief Add time-series point values to buffer for later database insert
  *
@@ -3665,7 +3733,7 @@ void calculate_time_based_variables()
 {
   time_t now_ts = time(nullptr);
   localtime_r(&now_ts, &tm_struct);
-  Serial.println("DEBUG start alculate_time_based_variables");
+  Serial.println("DEBUG start calculate_time_based_variables");
 
   yield();
   // update globals
@@ -4470,6 +4538,7 @@ int get_channel_active_rule(int channel_idx)
   return -1;
 }
 
+
 #if defined(ARDUINO)
 #define JSON_DOCUMENT DynamicJsonDocument
 #define CREATE_JSON_DOCUMENT(doc) DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX)
@@ -4596,6 +4665,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
 
     // json_oper.add(opers[i].has_value);
     ADD_JSON_ARRAY_BOOL(json_oper, opers[i].has_value);
+
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].multiselect);
   }
 
   int variable_count = vars.get_variable_count();
