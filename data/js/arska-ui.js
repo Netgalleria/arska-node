@@ -471,16 +471,15 @@ const stmt_html = `<div class="row g-1">
 <span  data-feather="info" style="pointer-events: none;" ></span>&nbsp;
 </span>
 </div> 
-<div class="col-3">
-    <select id="ch_#:r_#:s_#:oper"
+<div class="col-3" >
+    <select id="ch_#:r_#:s_#:oper" 
         class="form-select visible"
         aria-label="oper">
         <option value="-1">&nbsp;</option>
-
     </select>
 </div>
-<div class="col col-2">
-    <input id="ch_#:r_#:s_#:const"
+<div class="col col-2" id="ch_#:r_#:s_#:mselect" data-bs-toggle="popover">
+    <input id="ch_#:r_#:s_#:const" 
         type="number"
         class="form-control visible"
         placeholder="value"
@@ -607,12 +606,13 @@ function update_status(repeat) {
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
             document.getElementById("load_manager_status").innerHTML = "";
-     
+
+            //TODO: colours
             if (data.hasOwnProperty("energy_meter_current_latest")) {
                 document.getElementById("load_manager_status").innerHTML += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
             }
             if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
-                document.getElementById("load_manager_status").innerHTML += "<br>Overload at " +get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
+                document.getElementById("load_manager_status").innerHTML += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
             }
 
             get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
@@ -661,10 +661,10 @@ function update_status(repeat) {
 
 
             ///localtime
-            isp_text = (g_settings.netting_period_sec != SECONDS_IN_HOUR) ?", ISP: "+ isp_label : ""; //netting period, imbalance settlement period 
-            
-            document.getElementById("db:current_period").innerHTML = "(" + get_time_string_from_ts(now_period_start, false) + "-" + get_time_string_from_ts(data.ts, false) + isp_text+ ")";
-                document.getElementById("db:production_d").style.display = isNaN(data.variables[VARIABLE_PRODUCTION_ENERGY]) ? "none" : "block";
+            isp_text = (g_settings.netting_period_sec != SECONDS_IN_HOUR) ? ", ISP: " + isp_label : ""; //netting period, imbalance settlement period 
+
+            document.getElementById("db:current_period").innerHTML = "(" + get_time_string_from_ts(now_period_start, false) + "-" + get_time_string_from_ts(data.ts, false) + isp_text + ")";
+            document.getElementById("db:production_d").style.display = isNaN(data.variables[VARIABLE_PRODUCTION_ENERGY]) ? "none" : "block";
 
             if (!isNaN(data.variables[VARIABLE_PRODUCTION_POWER])) {
                 document.getElementById("db:production_v").innerHTML = data.variables[VARIABLE_PRODUCTION_ENERGY] + " Wh";;
@@ -718,7 +718,7 @@ function update_status(repeat) {
                     ///double work...
                     variable_desc = get_variable_desc(id, false);
                     var_code = variable_list[id]["code"]; //replace  var_this[1]
-                    newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code+ '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
+                    newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
                     $(newRow).appendTo($("#tblVariables_tb"));
 
                 });
@@ -1803,7 +1803,7 @@ var g_template_version = "";
 function get_template_list() {
     if (g_template_list.length > 0)
         return;
-    
+
     var start = new Date().getTime();
     $.ajax({
         url: '/data/templates.json',
@@ -2198,6 +2198,9 @@ function populate_channel(channel_idx) {
 function is_var_logical(constant_type) {
     return (constant_type >= 50 && constant_type <= 51);
 }
+function is_var_multiselect(constant_bitmask) {
+    return (constant_bitmask > 0);
+}
 
 
 function var_selected_ev(ev) {
@@ -2249,9 +2252,8 @@ function populate_var(sel_ctrl, selected = -1) {
         for (var i = 0; i < g_application.variables.length; i++) {
             var_id = g_application.variables[i][0];
             var type_indi = is_var_logical(g_application.variables[i][2]) ? "*" : " "; //logical
-       //     var id_str = '(' + g_application.variables[i][0] + ') ' + g_application.variables[i][1] + type_indi;
-            var id_str = '(' + var_id + ') ' + variable_list[var_id]["code"] + type_indi; 
-            addOption(sel_ctrl, var_id, id_str, false); 
+            var id_str = '(' + var_id + ') ' + variable_list[var_id]["code"] + type_indi;
+            addOption(sel_ctrl, var_id, id_str, false);
         }
 
         // TODO: check that only one instance exists
@@ -2299,12 +2301,16 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     var show_constant = false;
     if (var_this) {
         //populate oper select
-        //console.log("populate oper select, length ", g_application.opers.length);
+
         for (let i = 0; i < g_application.opers.length; i++) {
+            //  console.log("is_var_multiselect(var_this[VAR_IDX_BITMASK])", is_var_multiselect(var_this[VAR_IDX_BITMASK]),"g_application.opers[i]",g_application.opers[i],"var_this",var_this);
             if (g_application.opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
                 void (0); // do nothing, do not skip
             else if (is_var_logical(var_this[VAR_IDX_TYPE]) && !g_application.opers[i][5]) //boolean variable, not boolean oper
                 continue;
+            else if (!is_var_multiselect(var_this[VAR_IDX_BITMASK]) && g_application.opers[i][7]) {// not multiselect variable, multiselect  oper
+                continue;
+            }
             else if (!is_var_logical(var_this[VAR_IDX_TYPE]) && g_application.opers[i][5]) // numeric variable, boolean oper
                 continue;
             el_oper.style.display = "segment";
@@ -2665,6 +2671,34 @@ function set_field_editability_ev() {
     return;
 }
 
+//#define CONSTANT_BITMASK_MONTH 112
+//#define CONSTANT_BITMASK_WEEKDAY 207
+//#define CONSTANT_BITMASK_HOUR 324
+//#define CONSTANT_BITMASK_BLOCK8H 403
+bitmaskdef = [['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], ['00-', '01-', '02-', '03-', '04-', '05-', '06-', '07-', '08-', '09-', '10-', '11-', '12-', '13-', '14-', '15-', '16-', '17-', '18-', '19-', '20-', '21-', '22-', '23-'], ['23:00-05:59', '07:00-14:59', '15:00-22:59']];
+console.log(bitmaskdef[0][10], bitmaskdef[1][2], bitmaskdef[2][20]);
+
+function hideConstPopover(stmt_id) {
+    console.log('hiding ' + stmt_id + ':const');
+    const_bm = document.getElementById(stmt_id + ":cbm").value;
+    console.log('const_bm', const_bm);
+    //  bootstrap.Popover.getInstance(document.getElementById(idstr + ':const')).hide();
+    var mask = 0;
+    var elem_count = const_bm % 100;
+    var bm_type = parseInt(const_bm / 100) - 1;
+    for (i = 0; i < elem_count; i++) {
+        id = stmt_id + ":sel_" + i;
+        //  console.log(i, document.getElementById(id).checked);
+        if (document.getElementById(id).checked) {
+            mask += Math.pow(2, i);
+        }
+    }
+    document.getElementById(stmt_id + ":const").value = mask;
+    alert('nyt');
+}
+
+
+
 
 // triggred from window onload
 function init_ui() {
@@ -2723,32 +2757,82 @@ function init_ui() {
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
+
     get_price_data(true); //TODO: also update at 2pm
 
     set_field_editability_ev();
 
     // set info popovers
-    $('[data-bs-toggle="popover"]').popover({
+    //ch_#:r_#:s_#:const
+    /*  $('[data-bs-toggle="popover"]').on("hide.bs.popover", function () {
+          // console.log( $( this ).text() );
+          console.log("hiding");
+          console.log($(this).id);
+          console.log($(this).id());
+      });*/
+    /*
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
+    var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+      return new bootstrap.Popover(popoverTriggerEl)
+    })
+        */
+
+    var stmt_id = "ch_0:r_0:s_0";
+    var const_fld = document.getElementById(stmt_id + ":const");
+    var popover = bootstrap.Popover.getOrCreateInstance((const_fld), {
         html: true,
+        sanitize: false,
         content: function () {
-            // var id = 0; // take from from this.id;
-            var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
-            if (var_id == -1 || var_id == "") {
-                return "Select variable from the list. \"-\" to remove existing condition.";
+            const_bm = 324; //CONSTANT_BITMASK_HOUR 
+            mask = document.getElementById(stmt_id + ":const").value;
+
+            form = "<form><input id='" + stmt_id + ":cbm' type='hidden' value='" + const_bm + "'>";
+            var elem_count = const_bm % 100;
+            var bm_type = parseInt(const_bm / 100) - 1;
+            for (i = 0; i < elem_count; i++) {
+                id = stmt_id + ":sel_" + i;
+                //  console.log(id, bitmaskdef[bm_type][i]);
+                checked = ((mask & (1 << (i))) != 0) ? "checked" : "";
+                form += '<input class="form-check-input" type="checkbox" id="' + id + '" ' + checked + '>';
+                form += '<label class="form-check-label" for="' + id + '">' + bitmaskdef[bm_type][i] + '</label></form>';
             }
-            var channel_idx = get_idx_from_str(this.id, 0);
-            console.log("popover var_id, channel_idx", var_id, channel_idx);
-            return get_variable_desc(var_id, true, channel_idx);
+
+            return form + "<button class='btn save' id='jjj' onClick='hideConstPopover(\"" + stmt_id + "\");'>Close</button>";
+        },
+        title: function () {
+            return '###';
+        }
+    });
+
+
+    $('[data-bs-toggle="popover"]span[id$=":info"] ').popover({
+        html: true,
+        sanitize: false,
+        content: function () {
+            var id = this.id;
+            // var id = "täsä";
+            if (this.id.endsWith(':info')) {
+                var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
+                if (var_id == -1 || var_id == "") {
+                    return "Select variable from the list. \"-\" to remove existing condition.";
+                }
+                var channel_idx = get_idx_from_str(this.id, 0);
+                //  console.log("popover var_id, channel_idx", var_id, channel_idx);
+                return get_variable_desc(var_id, true, channel_idx);
+            }
 
         },
         title: function () {
-            var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
-            if (var_id in variable_list) {
-                return "(" + var_id + ") " + variable_list[var_id]["code"];
+            if (this.id.endsWith(':info')) {
+                var var_id = document.getElementById(this.id.replace(":info", ":var")).value;
+                if (var_id in variable_list) {
+                    return "(" + var_id + ") " + variable_list[var_id]["code"];
+                }
+                else {
+                    return "No variable selected";
+                }
             }
-            else {
-                return "No variable selected";
-            }
+            else return '###';
 
         }
     });
