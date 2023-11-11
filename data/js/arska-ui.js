@@ -14,6 +14,9 @@ const SECONDS_IN_HOUR = 3600
 const SECONDS_IN_MINUTE = 60
 //const NETTING_PERIOD_SEC = SECONDS_IN_HOUR // from /application constants
 
+const multiselect_icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pocket"><path d="M4 3h16a2 2 0 0 1 2 2v6a10 10 0 0 1-10 10A10 10 0 0 1 2 11V5a2 2 0 0 1 2-2z"></path><polyline points="8 10 12 14 16 10"></polyline></svg>';
+
+
 //selected constants
 const CHANNEL_CONFIG_MODE_RULE = 0;
 const CHANNEL_CONFIG_MODE_TEMPLATE = 1;
@@ -45,6 +48,16 @@ const CH_STATE_BYLMGMT = 4
 const CH_STATE_BYDEFAULT = 5
 const CH_STATE_BYLMGMT_MORATORIUM = 6
 const CH_STATE_BYLMGMT_NOCAPACITY = 7
+
+const OPER_IDX_ID = 0
+const OPER_IDX_CODE = 1
+const OPER_IDX_GT = 2
+const OPER_IDX_EQ = 3
+const OPER_IDX_REVERSE = 4
+const OPER_IDX_BOOLEANONLY = 5
+const OPER_IDX_HASVALUE = 6
+const OPER_IDX_MULTISELECT = 7
+
 
 
 let variable_list = {}; // populate later from json
@@ -1986,10 +1999,10 @@ function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]
                 return false;
             }*/
     }
-
     populateStmtField(channel_idx, rule_idx, stmt_idx, stmt);
-
 }
+
+
 function template_reset_ev(ev) {
     channel_idx = get_idx_from_str(ev.target.id, 0);
     console.log(ev, "---", ev.target.id, "template_reset_ev channel_idx", channel_idx);
@@ -2119,7 +2132,6 @@ function changed_template_ev(ev, selEl) {
 }
 
 
-
 //todo: data as parameter?
 function populate_channel(channel_idx) {
     now_ts = Date.now() / 1000;
@@ -2198,6 +2210,7 @@ function populate_channel(channel_idx) {
 function is_var_logical(constant_type) {
     return (constant_type >= 50 && constant_type <= 51);
 }
+
 function is_var_multiselect(constant_bitmask) {
     return (constant_bitmask > 0);
 }
@@ -2224,22 +2237,30 @@ function selected_oper(el_oper) {
     el_const = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
 
     var show_const = false;
-    if ((el_oper.value >= 0)) {
+    if ((el_oper.value >= 0)) { //oper defined, ie > -1
         // show initially hidden rules
         // if ((rule_idx + 1) < g_application.CHANNEL_RULES_MAX) {
         //     document.getElementById("ru_" + channel_idx + "_" + (rule_idx + 1)).style.display = "segment";
         // }
+        show_const = !(g_application.opers[el_oper.value][OPER_IDX_BOOLEANONLY] || g_application.opers[el_oper.value][OPER_IDX_HASVALUE]); //boolean
+        //   el_const.style.display = (g_application.opers[el_oper.value][OPER_IDX_BOOLEANONLY] || g_application.opers[el_oper.value][OPER_IDX_HASVALUE]) ? "none" : "segment"; // const-style
+        if (g_application.opers[el_oper.value][OPER_IDX_MULTISELECT]) {
+            el_const.readOnly = true;
+            define_multiselect_popover(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}`);
+        }
+        else
+            el_const.readOnly = false;
 
-        // set constant visibility (defined oper use no constants)
-        // console.log("show_const params:", g_application.opers[el_oper.value][5], g_application.opers[el_oper.value][6])
-        show_const = !(g_application.opers[el_oper.value][5] || g_application.opers[el_oper.value][6]);
-        //   el_const.style.display = (g_application.opers[el_oper.value][5] || g_application.opers[el_oper.value][6]) ? "none" : "segment"; // const-style
+        // el_const.readOnly = (g_application.opers[el_oper.value][OPER_IDX_MULTISELECT]);
     }
 
     // console.log(el_const.id,show_const);
     el_const.classList.remove(show_const ? "invisible" : "visible");
     el_const.classList.add(show_const ? "visible" : "invisible");
+
+
 }
+
 function oper_selected_ev(ev) {
     selected_oper(ev.target);
 }
@@ -2303,23 +2324,22 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
         //populate oper select
 
         for (let i = 0; i < g_application.opers.length; i++) {
-            //  console.log("is_var_multiselect(var_this[VAR_IDX_BITMASK])", is_var_multiselect(var_this[VAR_IDX_BITMASK]),"g_application.opers[i]",g_application.opers[i],"var_this",var_this);
-            if (g_application.opers[i][6]) //boolean variable, defined/undefined oper is shown for all variables
+            if (g_application.opers[i][OPER_IDX_HASVALUE]) //boolean variable, defined/undefined oper is shown for all variables
                 void (0); // do nothing, do not skip
-            else if (is_var_logical(var_this[VAR_IDX_TYPE]) && !g_application.opers[i][5]) //boolean variable, not boolean oper
+            else if (is_var_logical(var_this[VAR_IDX_TYPE]) && !g_application.opers[i][OPER_IDX_BOOLEANONLY]) //boolean variable, not boolean oper
                 continue;
-            else if (!is_var_multiselect(var_this[VAR_IDX_BITMASK]) && g_application.opers[i][7]) {// not multiselect variable, multiselect  oper
+            else if (!is_var_multiselect(var_this[VAR_IDX_BITMASK]) && g_application.opers[i][OPER_IDX_HASVALUE]) {// not multiselect variable, multiselect  oper
                 continue;
             }
-            else if (!is_var_logical(var_this[VAR_IDX_TYPE]) && g_application.opers[i][5]) // numeric variable, boolean oper
+            else if (!is_var_logical(var_this[VAR_IDX_TYPE]) && g_application.opers[i][OPER_IDX_BOOLEANONLY]) // numeric variable, boolean oper
                 continue;
             el_oper.style.display = "segment";
             // constant element visibility
 
-            addOption(el_oper, g_application.opers[i][0], g_application.opers[i][1], (g_application.opers[i][0] == stmt[1]));
-            if (g_application.opers[i][0] == stmt[1]) {
-                //  el_const.style.display = (g_application.opers[i][5] || g_application.opers[i][6]) ? "none" : "segment"; //const-style  
-                show_constant = !(g_application.opers[i][5] || g_application.opers[i][6])
+            addOption(el_oper, g_application.opers[i][OPER_IDX_ID], g_application.opers[i][OPER_IDX_CODE], (g_application.opers[i][OPER_IDX_ID] == stmt[1]));
+            if (g_application.opers[i][OPER_IDX_ID] == stmt[1]) {
+                //  el_const.style.display = (g_application.opers[i][OPER_IDX_BOOLEANONLY] || g_application.opers[i][OPER_IDX_HASVALUE]) ? "none" : "segment"; //const-style  
+                show_constant = !(g_application.opers[i][OPER_IDX_BOOLEANONLY] || g_application.opers[i][OPER_IDX_HASVALUE])
             }
         }
     }
@@ -2678,11 +2698,52 @@ function set_field_editability_ev() {
 bitmaskdef = [['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], ['00-', '01-', '02-', '03-', '04-', '05-', '06-', '07-', '08-', '09-', '10-', '11-', '12-', '13-', '14-', '15-', '16-', '17-', '18-', '19-', '20-', '21-', '22-', '23-'], ['23:00-05:59', '07:00-14:59', '15:00-22:59']];
 console.log(bitmaskdef[0][10], bitmaskdef[1][2], bitmaskdef[2][20]);
 
-function hideConstPopover(stmt_id) {
+
+function define_multiselect_popover(stmt_id) {
+    var const_fld = document.getElementById(stmt_id + ":const");
+    var popover = bootstrap.Popover.getOrCreateInstance((const_fld), {
+        html: true,
+        sanitize: false,
+        content: function () {
+            //const_bm = 324; //CONSTANT_BITMASK_HOUR 
+            var_id = document.getElementById(stmt_id + ":var").value;
+            var_this = get_variable_by_id(var_id);
+            const_bm = var_this[VAR_IDX_BITMASK]
+
+            selected_mask = document.getElementById(stmt_id + ":const").value;
+
+            form = "<form><input id='" + stmt_id + ":cbm' type='hidden' value='" + const_bm + "'>";
+            var elem_count = const_bm % 100;
+            var bm_type = parseInt(const_bm / 100) - 1;
+            for (i = 0; i < elem_count; i++) {
+                id = stmt_id + ":sel_" + i;
+                //  console.log(id, bitmaskdef[bm_type][i]);
+                checked = ((selected_mask & (1 << (i))) != 0) ? "checked" : "";
+                form += '<input class="form-check-input" type="checkbox" id="' + id + '" ' + checked + '>';
+                form += '<label class="form-check-label" for="' + id + '">' + bitmaskdef[bm_type][i] + '</label></form>';
+            }
+
+            return form + '<div class="d-grid gap-2 d-md-flex justify-content-md-end"><button onClick="save_hide_multiselect_popover(\'' + stmt_id + '\');" class="btn btn-primary me-md-2" type="submit">' + multiselect_icon_svg + '</button></div>';
+
+            //return form + "<button class='btn save' onClick='save_hide_multiselect_popover(\"" + stmt_id + "\");'>Close</button>";
+        },
+        title: function () {
+            var_id = document.getElementById(stmt_id + ":var").value;
+            // var_this = get_variable_by_id(var_id);
+            if (var_id in variable_list) {
+                return "(" + var_id + ") " + variable_list[var_id]["code"];
+            }
+            else {
+                return 'no variable';
+            }
+        }
+    });
+    return popover;
+}
+function save_hide_multiselect_popover(stmt_id) {
     console.log('hiding ' + stmt_id + ':const');
     const_bm = document.getElementById(stmt_id + ":cbm").value;
     console.log('const_bm', const_bm);
-    //  bootstrap.Popover.getInstance(document.getElementById(idstr + ':const')).hide();
     var mask = 0;
     var elem_count = const_bm % 100;
     var bm_type = parseInt(const_bm / 100) - 1;
@@ -2693,11 +2754,15 @@ function hideConstPopover(stmt_id) {
             mask += Math.pow(2, i);
         }
     }
-    document.getElementById(stmt_id + ":const").value = mask;
-    alert('nyt');
+    if (document.getElementById(stmt_id + ":const").value != mask) {
+        document.getElementById(stmt_id + ":const").value = mask;
+        document.getElementById((stmt_id.split(":"))[0] + ":save").disabled = false; // enable channel save button
+    }
+
+    // alert('nyt haidataan: '+mask);
+
+    bootstrap.Popover.getInstance(document.getElementById(stmt_id + ':const')).hide();
 }
-
-
 
 
 // triggred from window onload
@@ -2762,22 +2827,8 @@ function init_ui() {
 
     set_field_editability_ev();
 
-    // set info popovers
-    //ch_#:r_#:s_#:const
-    /*  $('[data-bs-toggle="popover"]').on("hide.bs.popover", function () {
-          // console.log( $( this ).text() );
-          console.log("hiding");
-          console.log($(this).id);
-          console.log($(this).id());
-      });*/
+  
     /*
-        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'))
-    var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
-      return new bootstrap.Popover(popoverTriggerEl)
-    })
-        */
-
-    var stmt_id = "ch_0:r_0:s_0";
     var const_fld = document.getElementById(stmt_id + ":const");
     var popover = bootstrap.Popover.getOrCreateInstance((const_fld), {
         html: true,
@@ -2797,13 +2848,13 @@ function init_ui() {
                 form += '<label class="form-check-label" for="' + id + '">' + bitmaskdef[bm_type][i] + '</label></form>';
             }
 
-            return form + "<button class='btn save' id='jjj' onClick='hideConstPopover(\"" + stmt_id + "\");'>Close</button>";
+            return form + "<button class='btn save' id='jjj' onClick='save_hide_multiselect_popover(\"" + stmt_id + "\");'>Close</button>";
         },
         title: function () {
             return '###';
         }
     });
-
+*/
 
     $('[data-bs-toggle="popover"]span[id$=":info"] ').popover({
         html: true,
@@ -2832,7 +2883,6 @@ function init_ui() {
                     return "No variable selected";
                 }
             }
-            else return '###';
 
         }
     });
@@ -2870,7 +2920,6 @@ function find_pid(el, id) {
 function find_parent_card(el) {
     var p = el;
     while (p = p.parentNode) {
-
         var colon_count = (p.id.match(/:/g) || []).length; //filter out rule sub cards 
         if (p.id && p.id.endsWith(":card") && colon_count == 1) {
             //   console.log("returns:",p.id.replace(":card", ""));

@@ -382,7 +382,7 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define TIMESERIES_ELEMENT_MAX 72
 
 #define OPER_COUNT 11
-#pragma message("Testing with selectec oper")
+#pragma message("Testing with selected oper")
 
 
 /**
@@ -409,7 +409,7 @@ struct variable_st
 {
   uint16_t id;
   uint8_t type;
-  uint16_t bitmask;
+  uint16_t bitmask_config;
   long val_l;
 };
 
@@ -460,7 +460,7 @@ struct oper_st
   bool multiselect;     //!< selected values creating bit combo to value field
 };
 
-const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false,false}, {1, ">", true, false, false, false, false,false}, {2, "<", true, true, true, false, false,false}, {3, ">=", true, true, false, false, false,false}, {4, "<=", true, false, true, false, false,false}, {5, "<>", false, true, true, false, false,false}, {6, "is", false, false, false, true, false,false}, {7, "not", false, false, true, true, false,false}, {8, "defined", false, false, false, false, true,false}, {9, "undefined", false, false, true, false, true, false}, {10, "selected", false, false, false, false,false,true}};
+const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false,false}, {1, ">", true, false, false, false, false,false}, {2, "<", true, true, true, false, false,false}, {3, ">=", true, true, false, false, false,false}, {4, "<=", true, false, true, false, false,false}, {5, "<>", false, true, true, false, false,false}, {6, "is", false, false, false, true, false,false}, {7, "not", false, false, true, true, false,false}, {8, "defined", false, false, false, false, true,false}, {9, "undefined", false, false, true, false, true, false}, {10, "select", false, false, false, false,false,true}};
 
 struct channel_type_st
 {
@@ -2390,7 +2390,31 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
   }
   bool result = false;
 
-  if (oper.has_value)
+  if (oper.multiselect) {
+    int elem_count = variables[variable_idx].bitmask_config % 100;
+    u_int32_t cur_idx_value;
+    // hours are 0-indexed(range: 0..), the others 1-indexed (range: 1..)
+    if (int(variables[variable_idx].bitmask_config/100)==3) {
+      cur_idx_value = var.val_l;
+    }
+    else {
+      cur_idx_value = var.val_l-1;
+    }
+    for (int i = 0; (i < elem_count && i <= var.val_l); i++)
+    {
+      // 1) i:th bit in constant is set, i.e. i:th element (0-indexed) in the list would make condition true
+      // 2) variable value is i
+      if ((bitRead(statement->const_val, i) == 1) && (cur_idx_value == i)) {
+        Serial.printf("DEBUG variable %d multiselect match const_val %ld, cur_idx_value %ud, i %d\n", statement->variable_id, statement->const_val, cur_idx_value, i);
+        return true;
+      }
+    }
+    Serial.printf("DEBUG variable %d NO multiselect match const_val %ld\n", statement->variable_id, statement->const_val);
+    return false; //if oper is multiselect no other rule apply
+  }
+
+
+  if (oper.has_value) // check only if variable is defined
   {
     if (oper.reverse)
       return (var.val_l == VARIABLE_LONG_UNKNOWN);
@@ -2398,7 +2422,7 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
       return (var.val_l != VARIABLE_LONG_UNKNOWN);
   }
 
-  // variable value undefined
+  // we want to have value, but it is undefined so return default
   if ((var.val_l == VARIABLE_LONG_UNKNOWN))
     return default_value;
 
@@ -2406,9 +2430,10 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
     result = (var.val_l == 1);
   else
   {
+    // checking if variable value is equal to statement constant ,
     if (oper.eq && var.val_l == statement->const_val)
       result = true;
-
+    // handles lest than, greater than...
     if (oper.gt && var.val_l > statement->const_val)
       result = true;
   }
@@ -4683,8 +4708,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
     ADD_JSON_ARRAY_NUMBER(json_variable, variable.id);
     // json_variable.add(variable.type);
     ADD_JSON_ARRAY_NUMBER(json_variable, variable.type);
-    //  json_variable.add(variable.bitmask);
-    ADD_JSON_ARRAY_NUMBER(json_variable, variable.bitmask);
+    //  json_variable.add(variable.bitmask_config);
+    ADD_JSON_ARRAY_NUMBER(json_variable, variable.bitmask_config);
   }
 
   // JsonArray json_channel_types = doc.createNestedArray("channel_types");
@@ -6904,7 +6929,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["is_up"] = s.ch[channel_idx].is_up;
     doc["ch"][channel_idx]["wanna_be_up"] = s.ch[channel_idx].wanna_be_up;
 
-    doc["ch"][channel_idx]["get_channel_active_rule"] = get_channel_active_rule(channel_idx);
+    doc["ch"][channel_idx]["active_rule"] = get_channel_active_rule(channel_idx);
     // doc["ch"][channel_idx]["force_up"] = is_force_up_valid(channel_idx);
     doc["ch"][channel_idx]["force_up_from"] = s.ch[channel_idx].force_up_from_ts;
     doc["ch"][channel_idx]["force_up_until"] = s.ch[channel_idx].force_up_until_ts;
