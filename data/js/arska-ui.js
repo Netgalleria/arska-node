@@ -497,6 +497,8 @@ const stmt_html = `<div class="row g-1">
         class="form-control visible"
         placeholder="value"
         aria-label="value">
+        <button id="ch_#:r_#:s_#:msb" class="form-control d-none btn btn-secondary">(?)</button> 
+
 </div>
 </div>`;
 
@@ -1729,6 +1731,15 @@ function get_variable_by_id(id) {
             return g_application.variables[i];
         }
     };
+    return null;
+}
+
+function get_oper_by_id(id) {
+    for (var i = 0; i < g_application.opers.length; i++) {
+        if (g_application.opers[i][0] == id) {
+            return g_application.opers[i];
+        }
+    };
 }
 
 
@@ -2235,30 +2246,31 @@ function selected_oper(el_oper) {
     rule_idx = get_idx_from_str(el_oper.id, 1);
     stmt_idx = get_idx_from_str(el_oper.id, 2);
     el_const = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`);
+    el_msb = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:msb`);
 
     var show_const = false;
-    if ((el_oper.value >= 0)) { //oper defined, ie > -1
-        // show initially hidden rules
-        // if ((rule_idx + 1) < g_application.CHANNEL_RULES_MAX) {
-        //     document.getElementById("ru_" + channel_idx + "_" + (rule_idx + 1)).style.display = "segment";
-        // }
-        show_const = !(g_application.opers[el_oper.value][OPER_IDX_BOOLEANONLY] || g_application.opers[el_oper.value][OPER_IDX_HASVALUE]); //boolean
-        //   el_const.style.display = (g_application.opers[el_oper.value][OPER_IDX_BOOLEANONLY] || g_application.opers[el_oper.value][OPER_IDX_HASVALUE]) ? "none" : "segment"; // const-style
-        if (g_application.opers[el_oper.value][OPER_IDX_MULTISELECT]) {
-            el_const.readOnly = true;
+    var oper_id = el_oper.value;
+    var oper = get_oper_by_id(oper_id);
+    // var oper_idx = 
+    if ((oper_id >= 0)) { //oper defined, ie > -1
+
+        show_const = !(oper[OPER_IDX_BOOLEANONLY] || oper[OPER_IDX_HASVALUE]); //boolean
+
+        if (oper[OPER_IDX_MULTISELECT]) {
+            //   el_const.readOnly = true;
+            el_const.classList.add("d-none");
+            el_msb.classList.remove("d-none");
+            update_multiselect_count(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}`);
             define_multiselect_popover(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}`);
         }
-        else
-            el_const.readOnly = false;
-
-        // el_const.readOnly = (g_application.opers[el_oper.value][OPER_IDX_MULTISELECT]);
+        else {
+            //  el_const.readOnly = false;
+            el_const.classList.remove("d-none");
+            el_msb.classList.add("d-none");
+        }
     }
-
-    // console.log(el_const.id,show_const);
     el_const.classList.remove(show_const ? "invisible" : "visible");
     el_const.classList.add(show_const ? "visible" : "invisible");
-
-
 }
 
 function oper_selected_ev(ev) {
@@ -2283,6 +2295,8 @@ function populate_var(sel_ctrl, selected = -1) {
 
     if (selected != -1) {
         sel_ctrl.value = selected;
+        document.getElementById(sel_ctrl.id.replace(":var", ":info")).classList.remove("opacity-25");
+
     }
     else {
         document.getElementById(sel_ctrl.id.replace(":var", ":info")).classList.add("opacity-25");//***** */
@@ -2349,7 +2363,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
     el_oper.classList.add("visible");
 
     //*** */
-    if (typeof var_this != "undefined")
+    if (var_this !== null && typeof var_this != "undefined")
         show_constant = !is_var_logical(var_this[VAR_IDX_TYPE]);
     else
         show_constant = true;
@@ -2700,8 +2714,9 @@ console.log(bitmaskdef[0][10], bitmaskdef[1][2], bitmaskdef[2][20]);
 
 
 function define_multiselect_popover(stmt_id) {
-    var const_fld = document.getElementById(stmt_id + ":const");
-    var popover = bootstrap.Popover.getOrCreateInstance((const_fld), {
+    var parent_fld = document.getElementById(stmt_id + ":msb");
+    //  var const_fld = document.getElementById(stmt_id + ":const");
+    var popover = bootstrap.Popover.getOrCreateInstance((parent_fld), {
         html: true,
         sanitize: false,
         content: function () {
@@ -2712,18 +2727,23 @@ function define_multiselect_popover(stmt_id) {
 
             selected_mask = document.getElementById(stmt_id + ":const").value;
 
-            form = "<form><input id='" + stmt_id + ":cbm' type='hidden' value='" + const_bm + "'>";
+            form = "<div class='multiselector'>";
             var elem_count = const_bm % 100;
             var bm_type = parseInt(const_bm / 100) - 1;
+            var sel_count = 0;
             for (i = 0; i < elem_count; i++) {
                 id = stmt_id + ":sel_" + i;
                 //  console.log(id, bitmaskdef[bm_type][i]);
                 checked = ((selected_mask & (1 << (i))) != 0) ? "checked" : "";
+                if (checked)
+                    sel_count++;
                 form += '<input class="form-check-input" type="checkbox" id="' + id + '" ' + checked + '>';
-                form += '<label class="form-check-label" for="' + id + '">' + bitmaskdef[bm_type][i] + '</label></form>';
+                form += '<label class="form-check-label" for="' + id + '">' + bitmaskdef[bm_type][i] + '</label>';
             }
+            parent_fld.innerHTML = "(" + sel_count + ")";
 
-            return form + '<div class="d-grid gap-2 d-md-flex justify-content-md-end"><button onClick="save_hide_multiselect_popover(\'' + stmt_id + '\');" class="btn btn-primary me-md-2" type="submit">' + multiselect_icon_svg + '</button></div>';
+
+            return form + '<div class="d-grid gap-2 d-md-flex justify-content-md-end"><button onClick="save_hide_multiselect_popover(\'' + stmt_id + '\');" class="btn btn-primary me-md-2" type="submit">' + multiselect_icon_svg + '</button></div></div>';
 
             //return form + "<button class='btn save' onClick='save_hide_multiselect_popover(\"" + stmt_id + "\");'>Close</button>";
         },
@@ -2740,9 +2760,35 @@ function define_multiselect_popover(stmt_id) {
     });
     return popover;
 }
+function update_multiselect_count(stmt_id) {
+    if (document.getElementById(stmt_id + ":var") === null) {
+        console.log("not found", stmt_id + ":var");
+        return;
+    }
+    var_id = document.getElementById(stmt_id + ":var").value;
+    if (var_id === null)
+        return;
+    var_this = get_variable_by_id(var_id);
+    if (var_this !== null) {
+        const_bm = var_this[VAR_IDX_BITMASK];
+        var elem_count = const_bm % 100;
+        var sel_count = 0;
+        var selected_mask = document.getElementById(stmt_id + ":const").value;
+        for (i = 0; i < elem_count; i++) {
+            id = stmt_id + ":sel_" + i;
+            if ((selected_mask & (1 << (i))) != 0)
+                sel_count++;
+        }
+        document.getElementById(stmt_id + ":msb").innerHTML = "(" + sel_count + ")";
+    }
+}
+
 function save_hide_multiselect_popover(stmt_id) {
     console.log('hiding ' + stmt_id + ':const');
-    const_bm = document.getElementById(stmt_id + ":cbm").value;
+   // const_bm = document.getElementById(stmt_id + ":cbm").value;
+    var_this = get_variable_by_id(document.getElementById(stmt_id + ":var").value);
+    const_bm = var_this[VAR_IDX_BITMASK];
+
     console.log('const_bm', const_bm);
     var mask = 0;
     var elem_count = const_bm % 100;
@@ -2758,10 +2804,10 @@ function save_hide_multiselect_popover(stmt_id) {
         document.getElementById(stmt_id + ":const").value = mask;
         document.getElementById((stmt_id.split(":"))[0] + ":save").disabled = false; // enable channel save button
     }
-
     // alert('nyt haidataan: '+mask);
+    update_multiselect_count(stmt_id);
 
-    bootstrap.Popover.getInstance(document.getElementById(stmt_id + ':const')).hide();
+    bootstrap.Popover.getInstance(document.getElementById(stmt_id + ':msb')).hide();
 }
 
 
@@ -2827,7 +2873,7 @@ function init_ui() {
 
     set_field_editability_ev();
 
-  
+
     /*
     var const_fld = document.getElementById(stmt_id + ":const");
     var popover = bootstrap.Popover.getOrCreateInstance((const_fld), {

@@ -460,7 +460,7 @@ struct oper_st
   bool multiselect;     //!< selected values creating bit combo to value field
 };
 
-const oper_st opers[OPER_COUNT] = {{0, "=", false, true, false, false, false,false}, {1, ">", true, false, false, false, false,false}, {2, "<", true, true, true, false, false,false}, {3, ">=", true, true, false, false, false,false}, {4, "<=", true, false, true, false, false,false}, {5, "<>", false, true, true, false, false,false}, {6, "is", false, false, false, true, false,false}, {7, "not", false, false, true, true, false,false}, {8, "defined", false, false, false, false, true,false}, {9, "undefined", false, false, true, false, true, false}, {10, "select", false, false, false, false,false,true}};
+const oper_st opers[OPER_COUNT] = {{10, "select", false, false, false, false,false,true},{0, "=", false, true, false, false, false,false}, {1, ">", true, false, false, false, false,false}, {2, "<", true, true, true, false, false,false}, {3, ">=", true, true, false, false, false,false}, {4, "<=", true, false, true, false, false,false}, {5, "<>", false, true, true, false, false,false}, {6, "is", false, false, false, true, false,false}, {7, "not", false, false, true, true, false,false}, {8, "defined", false, false, false, false, true,false}, {9, "undefined", false, false, true, false, true, false}};
 
 struct channel_type_st
 {

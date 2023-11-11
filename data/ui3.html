@@ -89,6 +89,31 @@
     input[type=file]::file-selector-button:hover {
       background: #029378;
     }
+
+    .multiselector input {
+  display: none!important;
+}
+
+.multiselector input[type=checkbox] + label {
+  display: inline-block;
+  border-radius: 4px;
+  background: #dddddd;
+  height: 30px;
+  margin-right: 3px;
+  margin-top: 6px;
+  line-height: 30px;
+  text-align: center;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: .875rem;
+    border-radius: 0.25rem;
+}
+
+.multiselector input[type=checkbox]:checked + label {
+  background: #00b595;
+  color: #ffffff;
+}
+
   </style>
   <!-- Custom styles for this template -->
   <link href="/css/dashboard.css" rel="stylesheet">
