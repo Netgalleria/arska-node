@@ -30,8 +30,12 @@ def delete_files_in_directory(directory_path):
 
 # we will wait the firmware.bin to be created 
 def before_upload(source, target, env):
-    #print("before_upload")
-    # env.Dump()
+    print("before_upload:",source, target,env)
+    if env['PIOENV'] not in envs:
+        print ("Not in environments to build:" ,env['PIOENV'])
+        return
+
+    #print (env.Dump())
     filesystem = env.GetProjectOption("board_build.filesystem")
     
     fs_filename = filesystem + ".bin"
@@ -57,11 +61,10 @@ def before_upload(source, target, env):
 
     print ("version_base: [" + version_base + "]")
 
+    
+    
     # copy binary files for release, version based destination 
     if path.exists(file_directory) and path.isdir(file_directory):
-  
-      
-
         for env_id in envs:   
             # remove old stuff
             delete_files_in_directory(file_directory+env_id)
