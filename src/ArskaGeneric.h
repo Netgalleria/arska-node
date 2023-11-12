@@ -15,6 +15,10 @@
 #include <stdint.h>
 #include <time.h>
 
+bool is_chunksize_line(String line);
+void setInternalTime(uint64_t epoch , uint32_t us );
+int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec);
+
 /**
  * @brief Return true if line is chunk size line in the http response
  *

@@ -22,7 +22,10 @@ import os
 
 print("Compressing UI script(s)")
   # gzip script(s) automatically and keep unzipped for editing, Olli 24.5.2023
-os.system("gzip -kf data/js/arska-ui.js" ) 
+print (os.system("gzip -kf data/js/arska-ui.js" ))
+print("Compressed\n\n")
+print()
+
 
 if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
   print("Building filesystem. No new version. BUILD_TARGETS:")
