@@ -58,12 +58,59 @@ const OPER_IDX_BOOLEANONLY = 5
 const OPER_IDX_HASVALUE = 6
 const OPER_IDX_MULTISELECT = 7
 
-
-
 let variable_list = {}; // populate later from json
+
+function goodbye(e) {
+    if (!e) e = window.event;
+    e.cancelBubble = true;
+    e.returnValue = 'You sure you want to leave?';
+    if (e.stopPropagation) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+}
+
 
 window.onload = function () {
     init_ui();
+
+    //ch_0:save
+
+    // warn if leaving without saving
+    window.onbeforeunload = goodbye;
+    $('button[data-bs-toggle="pill"]').on('show.bs.tab', function (e) {
+
+        /* var activeTab = e.target; // newly activated tab
+         var previousTab = e.relatedTarget; // previous active tab
+         console.log('Active tab:', activeTab.id);
+         console.log('Previous tab:', previousTab.id);
+ */
+
+        if (e.relatedTarget.id == 'channels-tab')
+            buttons_to_check = document.querySelectorAll("[id$=':save'][id^='ch_']");
+        else if (e.relatedTarget.id == 'admin-tab')
+            buttons_to_check = document.querySelectorAll("[id$=':save']:not([id^='ch_'],[id^='sch_'])");
+        else
+            buttons_to_check = document.querySelectorAll("[id$=':dontmatch']");
+
+        var non_saved_cards = false;
+        //    console.log("testing non_saved_cards");
+        for (let i = 0; i < buttons_to_check.length; i++) {
+            if (!buttons_to_check[i].disabled) {
+                console.log('unsaved', buttons_to_check[i].id);
+                non_saved_cards = true;
+            }
+        }
+
+        if (non_saved_cards) {
+            if (confirm('You have\'t saved all the changes. Do you want to change the active tab anyway?')) {
+                // User clicked OK
+            } else {
+                // User clicked Cancel
+                e.preventDefault();
+            }
+        }
+    });
 }
 
 let load_count = 0;
@@ -501,6 +548,8 @@ const stmt_html = `<div class="row g-1">
 
 </div>
 </div>`;
+
+
 
 //localised text
 function _ltext(obj, prop) {
@@ -2567,7 +2616,6 @@ function create_channels() {
             var internal_relay = [CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(type_id));
             if ((locked && internal_relay) || (!locked && !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
                 addOption(channel_type_ctrl, type_id, type_name, (g_settings.ch[channel_idx]["type"] == type_id));
-
         }
 
         sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
@@ -2590,8 +2638,6 @@ function create_channels() {
                 }
             }
             rule_list.insertAdjacentHTML('beforeend', default_state_html.replaceAll("(ch#)", channel_idx));
-
-
 
             // schedule controls
             remove_select_options(sch_duration_sel);
@@ -2644,12 +2690,13 @@ function populate_channels() {
     for (channel_idx = 0; channel_idx < g_application.CHANNEL_COUNT; channel_idx++) {
         populate_channel(channel_idx);
     }
-
 }
+
 function jump(section_id_full) {
     //onclick="activate_section("channels:ch_4:r_0");"
     url_a = section_id_full.split(":");
     section_id = url_a[0];
+
 
     // hide mobileMenu, just in case
     //document.getElementById("mobileMenu").classList.remove("show");
@@ -2785,7 +2832,7 @@ function update_multiselect_count(stmt_id) {
 
 function save_hide_multiselect_popover(stmt_id) {
     console.log('hiding ' + stmt_id + ':const');
-   // const_bm = document.getElementById(stmt_id + ":cbm").value;
+    // const_bm = document.getElementById(stmt_id + ":cbm").value;
     var_this = get_variable_by_id(document.getElementById(stmt_id + ":var").value);
     const_bm = var_this[VAR_IDX_BITMASK];
 
