@@ -28,15 +28,13 @@ DEVEL BRANCH
 #define METER_HAN_ENABLED
 #define METER_HAN_DIRECT_ENABLED
 #define LOAD_MGMT_ENABLED
-#define PING_ENABLED            // for testing if internet connection etc ok
+#define PING_ENABLED          // for testing if internet connection etc ok
 #define PRICE_ELERING_ENABLED // Experimental price query from Elering
-#define OTA_UPDATE_ENABLED // OTA general
+#define OTA_UPDATE_ENABLED    // OTA general
 #define DEBUG_FILE_ENABLED
 // #define HW_EXTENSIONS_ENABLED //!<uncomment  line to enable SN74HC595, LED and reset button functionality (Shelly),The device must be defined in  hw_templates array
 #define DEBUG_MODE_ENABLED
 #define NVS_CACHE_ENABLED // experimental
-
-
 
 #ifdef NVS_CACHE_ENABLED
 #include "nvs_flash.h"
@@ -61,7 +59,6 @@ DEVEL BRANCH
 
 #include "WebAuthentication.h"
 
-//#include "ArskaGeneric.h"
 
 #include "version.h"
 
@@ -82,7 +79,6 @@ String version_fs_base; //= "";
 #include "AsyncJson.h" //https://github.com/me-no-dev/ESPAsyncWebServer#json-body-handling-with-arduinojson
 #include <ArduinoJson.h>
 // 1024 default in non 5
-
 
 #ifdef PING_ENABLED
 #include <ESP32Ping.h>
@@ -116,13 +112,10 @@ String version_fs_base; //= "";
 
 #include <Update.h>
 
-
-
-
-#define EEPROM_CHECK_VALUE 10103  //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10103 //!< increment this is data structure changes
 #define eepromaddr 0
-#define MAX_DS18B20_SENSORS 3             //!< max number of sensors
-#define SENSOR_VALUE_EXPIRE_TIME 1200     //!< if new value cannot read in this time (seconds), sensor value is set to 0
+#define MAX_DS18B20_SENSORS 3         //!< max number of sensors
+#define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
 // experimental,move this to correct place, get from parameters/hw templates
 #define DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS 2000 // delay after longer queries (price, energy forecast) to keep more responsive in the init
 #define WATTS_TO_AMPERES_FACTOR 230.0
@@ -245,11 +238,10 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
-#define PROCESS_INTERVAL_SECS 60      //!< process interval, eg. energy meter polling and variable calculation
+#define PROCESS_INTERVAL_SECS 60              //!< process interval, eg. energy meter polling and variable calculation
 #define ACCEPTED_TIMESTAMP_MINIMUM 1656200000 // if timestamp is greater, we assume it is from a real-time clock
 
 #define CONFIG_JSON_SIZE_MAX 6144
-
 
 /* Application variable constants */
 #define VARIABLE_COUNT 48
@@ -332,7 +324,7 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define CONSTANT_BITMASK_HOUR 324
 #define CONSTANT_BITMASK_BLOCK8H 403
 
-//io_tasks states
+// io_tasks states
 #define STATE_NA 0
 #define STATE_NONE 1
 #define STATE_INIT 2
@@ -365,7 +357,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define MAX_REGISTER_BITS 8
 // HW extensions shift register, led etc...
 
-
 #define COOLING_PANIC_SHUTDOWN_F 203 // 95C
 #define COOLING_START_F 194          // 90C
 #define COOLING_RECOVER_TO_F 185     // 85 C
@@ -382,8 +373,7 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define TIMESERIES_ELEMENT_MAX 72
 
 #define OPER_COUNT 11
-#pragma message("Testing with selected oper")
-
+// #pragma message("Testing with selected oper")
 
 /**
  * @brief Statament checking rules
@@ -401,8 +391,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 10, "selected", if tru can be multiselected
  */
 // TODO: maybe operator NA - not available
-
-
 
 /* Application variable definitions */
 struct variable_st
@@ -457,10 +445,10 @@ struct oper_st
   bool reverse;      //!< negate comparison result
   bool boolean_only; //!< handle variable value as boolean (1=true), eq and reverse possible
   bool has_value;    //!< true if not value not VARIABLE_LONG_UNKNOWN, reverse possible
-  bool multiselect;     //!< selected values creating bit combo to value field
+  bool multiselect;  //!< selected values creating bit combo to value field
 };
 
-const oper_st opers[OPER_COUNT] = {{10, "select", false, false, false, false,false,true},{0, "=", false, true, false, false, false,false}, {1, ">", true, false, false, false, false,false}, {2, "<", true, true, true, false, false,false}, {3, ">=", true, true, false, false, false,false}, {4, "<=", true, false, true, false, false,false}, {5, "<>", false, true, true, false, false,false}, {6, "is", false, false, false, true, false,false}, {7, "not", false, false, true, true, false,false}, {8, "defined", false, false, false, false, true,false}, {9, "undefined", false, false, true, false, true, false}};
+const oper_st opers[OPER_COUNT] = {{10, "select", false, false, false, false, false, true}, {0, "=", false, true, false, false, false, false}, {1, ">", true, false, false, false, false, false}, {2, "<", true, true, true, false, false, false}, {3, ">=", true, true, false, false, false, false}, {4, "<=", true, false, true, false, false, false}, {5, "<>", false, true, true, false, false, false}, {6, "is", false, false, false, true, false, false}, {7, "not", false, false, true, true, false, false}, {8, "defined", false, false, false, false, true, false}, {9, "undefined", false, false, true, false, true, false}};
 
 struct channel_type_st
 {
@@ -597,7 +585,6 @@ struct wifi_st
   int32_t rssi;
 };
 
-
 /**
  * @brief Class defines variables defined by measurements, calculations and used to define channel statuses
  *
@@ -629,7 +616,6 @@ private:
   int get_variable_index(int id);
 };
 
-
 /**
  * @brief Handling channel utilization (uptime/downtime) statistics
  *
@@ -645,11 +631,12 @@ public:
   time_t get_duration_in_this_state(int channel_idx);
   uint16_t get_period_uptime(int channel_idx);
   void update_utilization(int channel_idx);
+
 private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
 };
 
-typedef int32_t T; //timeSeries data type
+typedef int32_t T; // timeSeries data type
 /**
  * @brief time series support class proving cached store, statistics etc.
  *
@@ -674,7 +661,7 @@ public:
   time_t first_set_period_ts() { return store.start + store.min_value_idx * store.resolution_sec; };
   time_t last_set_period_ts();
   time_t last_update() { return store.last_update_ts; };
-  T get(time_t ts );
+  T get(time_t ts);
   T get_pos(int idx);
   T get(time_t ts, T default_value);
   T avg(time_t start_ts, time_t end_ts_incl);
@@ -686,7 +673,7 @@ public:
   void set_store_start(time_t new_start);
   // new experimental version of time series ranking
   int get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
- 
+
 private:
   uint8_t id_;
   struct
@@ -703,10 +690,10 @@ private:
   } store;
 
   int get_idx(time_t ts);
-}; //Time series 
+}; // Time series
 // ****** Function declarations
 bool is_chunksize_line(String line);
-void setInternalTime(uint64_t epoch , uint32_t us );
+void setInternalTime(uint64_t epoch, uint32_t us);
 int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec);
 
 /**
@@ -718,16 +705,16 @@ int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec);
  */
 bool is_chunksize_line(String line)
 {
-    // if line length between 2 and 5, ends with cr and all chars except the last one are hex numbersx 
-    if (line.charAt(line.length() - 1) != 13 || line.length() > 4 || line.length() < 2) // garbage line ends with cr
-        return false;
-    for (int i = 0; i < line.length() - 2;i++) {
-        if (!isxdigit(line.charAt(i)))
-         return false;
-    }
-            Serial.printf(PSTR("Garbage/chunk size removed [%s] (%d) %d\n"), line.substring(0, line.length() - 1).c_str(), line.length(), (int)line.charAt(0));
-            return true;
-       
+  // if line length between 2 and 5, ends with cr and all chars except the last one are hex numbersx
+  if (line.charAt(line.length() - 1) != 13 || line.length() > 4 || line.length() < 2) // garbage line ends with cr
+    return false;
+  for (int i = 0; i < line.length() - 2; i++)
+  {
+    if (!isxdigit(line.charAt(i)))
+      return false;
+  }
+  Serial.printf(PSTR("Garbage/chunk size removed [%s] (%d) %d\n"), line.substring(0, line.length() - 1).c_str(), line.length(), (int)line.charAt(0));
+  return true;
 }
 
 /**
@@ -738,10 +725,10 @@ bool is_chunksize_line(String line)
  */
 void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
 {
-    struct timeval tv;
-    tv.tv_sec = epoch;
-    tv.tv_usec = us;
-    settimeofday(&tv, NULL);
+  struct timeval tv;
+  tv.tv_sec = epoch;
+  tv.tv_usec = us;
+  settimeofday(&tv, NULL);
 }
 
 // https://werner.rothschopf.net/microcontroller/202112_arduino_esp_ntp_rtc_en.htm
@@ -758,15 +745,13 @@ void setInternalTime(uint64_t epoch = 0, uint32_t us = 0)
  */
 int64_t getTimestamp(int year, int mon, int mday, int hour, int min, int sec)
 {
-    const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                /* Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag */
-    int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; /* Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr) */
-    int64_t days_since_1970 = (year - 1970) * 365 + leapyears + ytd[mon - 1] + mday - 1;
-    if ((mon > 2) && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
-        days_since_1970 += 1; /* +Schalttag, wenn Jahr Schaltjahr ist */
-    return sec + 60 * (min + 60 * (hour + 24 * days_since_1970));
+  const uint16_t ytd[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};                /* Anzahl der Tage seit Jahresanfang ohne Tage des aktuellen Monats und ohne Schalttag */
+  int leapyears = ((year - 1) - 1968) / 4 - ((year - 1) - 1900) / 100 + ((year - 1) - 1600) / 400; /* Anzahl der Schaltjahre seit 1970 (ohne das evtl. laufende Schaltjahr) */
+  int64_t days_since_1970 = (year - 1970) * 365 + leapyears + ytd[mon - 1] + mday - 1;
+  if ((mon > 2) && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)))
+    days_since_1970 += 1; /* +Schalttag, wenn Jahr Schaltjahr ist */
+  return sec + 60 * (min + 60 * (hour + 24 * days_since_1970));
 }
-
-
 
 // *** Application Logic Core Functions
 // * Variables calculations
@@ -792,14 +777,13 @@ bool is_wifi_relay(uint8_t type);
 bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode);
 void updateShiftRegister();
 
-
 time_t get_block_start_ts(const time_t time);
 int get_variable_history_idx(int id);
 time_t get_netting_period_start_time(time_t ts);
 bool set_netting_source();
 
 // *** Application Interface Functions
-// * Get data from external sources 
+// * Get data from external sources
 bool get_price_data_elering();
 bool get_price_data_entsoe();
 // bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series);
@@ -845,7 +829,7 @@ void add_period_variables_to_influx_buffer(time_t ts_report);
 bool write_buffer_to_influx();
 bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer);
 
-// * Config store/read, Backup, restore 
+// * Config store/read, Backup, restore
 void readFromEEPROM();
 void writeToEEPROM();
 void reset_config();
@@ -863,7 +847,7 @@ t_httpUpdate_return update_fs();
 void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final);
 t_httpUpdate_return update_program();
 
-// * System time 
+// * System time
 void set_timezone_ntp_settings(bool set_tz, bool set_ntp);
 
 // * Real-time-clock, currently deprecated
@@ -908,8 +892,6 @@ bool test_host(IPAddress hostip, uint8_t);
 void setup();
 void loop();
 
-
-
 IPAddress IP_UNDEFINED(0, 0, 0, 0);
 
 /**/
@@ -937,7 +919,6 @@ bool test_host(IPAddress hostip, uint8_t count = 5) return true; // stub, not in
 
 #endif
 
-
 tm tm_struct;
 
 // for timezone https://github.com/nayarsystems/posix_tz_db/blob/master/zones.csv
@@ -951,15 +932,13 @@ bool config_resetted = false; // true if configuration cleared when version upgr
 bool fs_mounted = false;      // true
 bool cooling_down_state = false;
 
-
 #ifdef DEBUG_FILE_ENABLED
 const char *debug_filename PROGMEM = "/data/log.txt";
 #endif
 
 msg_st last_msg; //!< last system message
-tm tm_struct_g; //!< time structure variables for splitting time stamp
+tm tm_struct_g;  //!< time structure variables for splitting time stamp
 tm tm_struct_l;
-
 
 /**
  * @brief Utility, writes date string generated from a time stamp to memory buffer
@@ -973,7 +952,6 @@ void ts_to_date_str(time_t *tsp, char *out_str)
   gmtime_r(tsp, &tm_local);
   sprintf(out_str, "%04d-%02d-%02dT%02d:%02d:00Z", tm_local.tm_year + 1900, tm_local.tm_mon + 1, tm_local.tm_mday, tm_local.tm_hour, tm_local.tm_min);
 }
-
 
 /**
  * @brief Store latest log message
@@ -1017,8 +995,6 @@ bool rtc_found = false;
 
 const int force_up_hours[] = {0, 1, 2, 4, 8, 12, 24}; //!< dashboard forced channel duration times
 const int price_variable_blocks[] = {9, 24};          //!< price ranks are calculated in 9 and 24 period windows
-
-
 
 time_t prices_first_period = 0;
 
@@ -1137,8 +1113,6 @@ void getRTC()
 }
 #endif // rtc
 
-
-
 // temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
 
@@ -1201,8 +1175,6 @@ bool check_filesystem_version()
   return is_ok;
 }
 
-
-
 long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
 
 uint8_t channel_attr[CHANNEL_COUNT];
@@ -1240,7 +1212,6 @@ int sensor_count = 0;
 #else
 bool sensor_ds18b20_enabled = false;
 #endif
-
 
 time_t next_process_ts = 0;           // start reading as soon as you get to first loop
 time_t next_energy_meter_read_ts = 0; // start reading as soon as you get to first loop
@@ -1310,9 +1281,6 @@ bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters 
 
 bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 
-
-
-
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 
 // hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
@@ -1324,7 +1292,6 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}}};
-
 
 // Type texts for config ui - now hardcoded in html
 // const char *energy_meter_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
@@ -1338,10 +1305,7 @@ uint32_t energy_produced_period = 0;
 uint32_t power_produced_period_avg = 0;
 #endif
 
-
-
-
-//#ifdef SENSOR_DS18B20_ENABLED
+// #ifdef SENSOR_DS18B20_ENABLED
 
 // this stores settings also to eeprom
 settings_struct s;
@@ -1364,7 +1328,6 @@ int get_hw_template_idx(int id)
   }
   return -1;
 }
-
 
 int ch_prio_sorted[CHANNEL_COUNT];
 //
@@ -1641,12 +1604,11 @@ Point point_period_avg("period_avg"); //!< Influx buffer
 #endif
 ChannelCounters ch_counters;
 
-
 Variables::Variables()
-  {
-    for (int variable_idx = 0; variable_idx < VARIABLE_COUNT; variable_idx++)
-      variables[variable_idx].val_l = VARIABLE_LONG_UNKNOWN;
-  }
+{
+  for (int variable_idx = 0; variable_idx < VARIABLE_COUNT; variable_idx++)
+    variables[variable_idx].val_l = VARIABLE_LONG_UNKNOWN;
+}
 /**
  * @brief Rotates history variables value in the array to one index down, 0 earliest, MAX_HISTORY_PERIODS - 1 is current
  *
@@ -1914,317 +1876,315 @@ int Variables::get_variable_by_id(int id, variable_st *variable)
 }
 
 timeSeries::timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value)
+{
+  id_ = id;
+  store.start = start;
+  store.n = n;
+  store.resolution_sec = resolution_sec;
+  store.init_value = init_value;
+  clear_store(false);
+}
+
+// T operator [](int i) const    {return registers[i];}
+void timeSeries::clear_store(bool reset_cache = true)
+{
+  store.min_value_idx = store.n;
+  store.max_value_idx = -1;
+
+  Serial.println(store.n);
+  for (int i = 0; i < store.n; i++)
   {
-    id_ = id;
-    store.start = start;
-    store.n = n;
-    store.resolution_sec = resolution_sec;
-    store.init_value = init_value;
+    store.arr[i] = store.init_value;
+  }
+  store.last_update_ts = 0;
+  if (reset_cache)
+  {
+    save_to_cache(0);
+  }
+};
+/**
+ * @brief Save timeseries to cache (non-volatile memory)
+ *
+ * @param expires Expiry timestamp of the data
+ * @return true
+ * @return false
+ */
+bool timeSeries::save_to_cache(time_t expires) // save to nvs,true if successfull
+{
+  store.expires = expires;
+  nvs_handle_t my_handle;
+  esp_err_t err;
+  char key[6];
+  sprintf(key, "TS%du", (int)id_);
+
+  // Open
+  err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+  if (err != ESP_OK)
+    return false;
+
+  // Write blob
+  err = nvs_set_blob(my_handle, key, &this->store, sizeof(store));
+  if (err != ESP_OK)
+    return false;
+
+  // Commit
+  err = nvs_commit(my_handle);
+  if (err != ESP_OK)
+    return false;
+  // Close
+
+  nvs_close(my_handle);
+  // Serial.printf("save_to_cache, wrote time series %d, expiration %lu\n", (int)id_, expires);
+  //  if (id_==0) Serial.printf("save_to_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
+
+  return true;
+}
+
+/**
+ * @brief  read from cache, true if succesfull and not expired
+ *
+ * @param expires expiry timestamp, expired data is not valid
+ * @return true if found and not expired
+ * @return false
+ */
+bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
+{
+  nvs_handle_t my_handle;
+  char key[6];
+  sprintf(key, "TS%du", (int)id_);
+  esp_err_t err;
+  // Open
+  err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
+  if (err != ESP_OK)
+    return err;
+
+  // Read run time blob
+  size_t required_size = 0; // value will default to 0, if not set yet in NVS
+  // obtain required memory space to store blob being read from NVS
+  err = nvs_get_blob(my_handle, key, NULL, &required_size);
+  if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
+    return false;
+  if (required_size == 0)
+  {
+    printf("Nothing saved yet!\n");
+    return false;
+  }
+  else
+  {
+    err = nvs_get_blob(my_handle, key, &store, &required_size);
+    if (err != ESP_OK)
+    {
+      return false;
+    }
+  }
+  // Close
+  nvs_close(my_handle);
+  // if (id_==0) Serial.printf("read_from_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
+  return (store.expires > expires); // check expiration
+};
+void timeSeries::set(time_t ts, T new_value)
+{
+  int idx = get_idx(ts);
+  if (idx == -1)
+    return;
+
+  store.arr[idx] = new_value;
+  store.min_value_idx = min(store.min_value_idx, idx);
+  store.max_value_idx = max(store.max_value_idx, idx);
+  //  if (id_==0) Serial.printf("debug set ts %ld %d = max(store.max_value_idx %d, idx %d)\n",ts,store.max_value_idx, store.max_value_idx, idx);
+  store.last_update_ts = time(nullptr);
+};
+int timeSeries::get_idx(time_t ts)
+{
+  int index_candidate = (ts - store.start) / store.resolution_sec;
+
+  if (index_candidate < 0 || index_candidate >= store.n)
+  {
+    if (abs(index_candidate) > store.n * 10)
+    { // something wrong
+      Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
+    }
+    Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
+
+    return -1;
+  }
+  else
+  {
+    //    Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
+    return index_candidate;
+  }
+};
+time_t timeSeries::last_set_period_ts()
+{
+
+  //   if (id_==0) Serial.printf("last_set_period_ts: store.start %ld, store.max_value_idx %d, store.resolution_sec %d\n",store.start, (int)store.max_value_idx , (int)store.resolution_sec);
+  return store.start + store.max_value_idx * store.resolution_sec;
+};
+
+T timeSeries::get(time_t ts = time(nullptr))
+{
+  int idx = get_idx(ts);
+  if (idx == -1)
+    return store.init_value;
+  else
+    return store.arr[idx];
+}
+T timeSeries::get_pos(int idx)
+{
+  if (idx < 0 || idx >= store.n)
+    return store.init_value;
+  else
+    return store.arr[idx];
+}
+
+T timeSeries::get(time_t ts, T default_value)
+{
+  int idx = get_idx(ts);
+  if (idx == -1)
+    return default_value;
+  else
+    return store.arr[idx];
+}
+
+T timeSeries::avg(time_t start_ts, time_t end_ts_incl)
+{
+  return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / store.resolution_sec + 1);
+}
+
+void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
+{
+  Serial.printf("stats ts %ld, start_ts %ld, end_ts_incl %ld \n", ts, start_ts, end_ts_incl);
+  *avg_ = avg(start_ts, end_ts_incl);
+  *differs_avg = get(ts) - *avg_;
+  T suma = sum(start_ts, end_ts_incl);
+  if (abs(suma) > 0)
+  {
+    *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (get(ts) * 1000) / suma;
+  }
+  else
+    *ratio_avg = VARIABLE_LONG_UNKNOWN;
+}
+
+int32_t timeSeries::sum(time_t start_ts, time_t end_ts_incl)
+{ // TODO: check DST change nights
+  int32_t cum_sum = 0;
+  int start_idx = max(0, get_idx(start_ts));
+  int end_idx = min(get_idx(end_ts_incl), store.n);
+  if (start_idx <= end_idx)
+  {
+    for (int i = start_idx; i <= end_idx; i++)
+      cum_sum += store.arr[i];
+  }
+  return cum_sum;
+}
+
+int32_t timeSeries::sum()
+{
+  return sum(store.start, store.start + (store.n - 1) * store.resolution_sec);
+}
+void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl)
+{
+  Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1);
+
+  yield();
+  for (int i = 0; i < store.n; i++)
+  {
+    Serial.printf("%d, %lu  ", i, store.start + i * store.resolution_sec);
+    Serial.println(store.arr[i]);
+  }
+  Serial.print("Cumulative sum:");
+  Serial.println(sum(start_ts, end_ts_incl));
+  Serial.print("Avg:");
+  Serial.println(avg(start_ts, end_ts_incl));
+}
+
+void timeSeries::debug_print()
+{
+  debug_print(store.start, store.start + (store.n - 1) * store.resolution_sec);
+}
+void timeSeries::set_store_start(time_t new_start)
+{
+  int index_delta = (int)((store.start - new_start) / store.resolution_sec);
+  //   Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
+  if (index_delta == 0)
+    return;
+
+  store.start = new_start;
+  yield();
+
+  if (abs(index_delta) >= store.n)
+  {
+    // huge shift, nothing to save, just init
     clear_store(false);
   }
-
-  // T operator [](int i) const    {return registers[i];}
-  void timeSeries::clear_store(bool reset_cache = true)
+  else if (index_delta < 0)
   {
-    store.min_value_idx = store.n;
-    store.max_value_idx = -1;
+    if (store.min_value_idx != store.n)
+    {
+      store.min_value_idx = max(store.min_value_idx + index_delta, 0);
+    }
 
-    Serial.println(store.n);
+    store.max_value_idx = max(store.max_value_idx + index_delta, -1);
+    //  Serial.printf("set_store_start 1 set %d = max(store.max_value_idx+index_delta %d, -1),  index_delta %d\n",store.max_value_idx, store.max_value_idx+index_delta,index_delta);
+
     for (int i = 0; i < store.n; i++)
     {
-      store.arr[i] = store.init_value;
-    }
-    store.last_update_ts = 0;
-    if (reset_cache)
-    {
-      save_to_cache(0);
-    }
-  };
- /**
-   * @brief Save timeseries to cache (non-volatile memory)
-   *
-   * @param expires Expiry timestamp of the data
-   * @return true
-   * @return false
-   */
-  bool timeSeries::save_to_cache(time_t expires) // save to nvs,true if successfull
-  {
-    store.expires = expires;
-    nvs_handle_t my_handle;
-    esp_err_t err;
-    char key[6];
-    sprintf(key, "TS%du", (int)id_);
-
-    // Open
-    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-      return false;
-
-    // Write blob
-    err = nvs_set_blob(my_handle, key, &this->store, sizeof(store));
-    if (err != ESP_OK)
-      return false;
-
-    // Commit
-    err = nvs_commit(my_handle);
-    if (err != ESP_OK)
-      return false;
-    // Close
-
-    nvs_close(my_handle);
-    // Serial.printf("save_to_cache, wrote time series %d, expiration %lu\n", (int)id_, expires);
-    //  if (id_==0) Serial.printf("save_to_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
-
-    return true;
-  }
-
-  /**
-   * @brief  read from cache, true if succesfull and not expired
-   *
-   * @param expires expiry timestamp, expired data is not valid
-   * @return true if found and not expired
-   * @return false
-   */
-  bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
-  {
-    nvs_handle_t my_handle;
-    char key[6];
-    sprintf(key, "TS%du", (int)id_);
-    esp_err_t err;
-    // Open
-    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
-    if (err != ESP_OK)
-      return err;
-
-    // Read run time blob
-    size_t required_size = 0; // value will default to 0, if not set yet in NVS
-    // obtain required memory space to store blob being read from NVS
-    err = nvs_get_blob(my_handle, key, NULL, &required_size);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
-      return false;
-    if (required_size == 0)
-    {
-      printf("Nothing saved yet!\n");
-      return false;
-    }
-    else
-    {
-      err = nvs_get_blob(my_handle, key, &store, &required_size);
-      if (err != ESP_OK)
-      {
-        return false;
-      }
-    }
-    // Close
-    nvs_close(my_handle);
-    // if (id_==0) Serial.printf("read_from_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
-    return (store.expires > expires); // check expiration
-  };
- void timeSeries::set(time_t ts, T new_value)
-  {
-    int idx = get_idx(ts);
-    if (idx == -1)
-      return;
-
-    store.arr[idx] = new_value;
-    store.min_value_idx = min(store.min_value_idx, idx);
-    store.max_value_idx = max(store.max_value_idx, idx);
-    //  if (id_==0) Serial.printf("debug set ts %ld %d = max(store.max_value_idx %d, idx %d)\n",ts,store.max_value_idx, store.max_value_idx, idx);
-    store.last_update_ts = time(nullptr);
-  };
-  int timeSeries::get_idx(time_t ts)
-  {
-    int index_candidate = (ts - store.start) / store.resolution_sec;
-
-    if (index_candidate < 0 || index_candidate >= store.n)
-    {
-      if (abs(index_candidate) > store.n * 10)
-      { // something wrong
-        Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
-      }
-      Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
-
-      return -1;
-    }
-    else
-    {
-      //    Serial.printf("DEBUG get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
-      return index_candidate;
-    }
-  };
- time_t timeSeries::last_set_period_ts()
-  {
-
-    //   if (id_==0) Serial.printf("last_set_period_ts: store.start %ld, store.max_value_idx %d, store.resolution_sec %d\n",store.start, (int)store.max_value_idx , (int)store.resolution_sec);
-    return store.start + store.max_value_idx * store.resolution_sec;
-  };
-
-  T timeSeries::get(time_t ts = time(nullptr))
-  {
-    int idx = get_idx(ts);
-    if (idx == -1)
-      return store.init_value;
-    else
-      return store.arr[idx];
-  }
-  T timeSeries::get_pos(int idx)
-  {
-    if (idx < 0 || idx >= store.n)
-      return store.init_value;
-    else
-      return store.arr[idx];
-  }
-
-  T timeSeries::get(time_t ts, T default_value)
-  {
-    int idx = get_idx(ts);
-    if (idx == -1)
-      return default_value;
-    else
-      return store.arr[idx];
-  }
-
-  T timeSeries::avg(time_t start_ts, time_t end_ts_incl)
-  {
-    return sum(start_ts, end_ts_incl) / ((end_ts_incl - start_ts) / store.resolution_sec + 1);
-  }
-
-  void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
-  {
-    Serial.printf("stats ts %ld, start_ts %ld, end_ts_incl %ld \n", ts, start_ts, end_ts_incl);
-    *avg_ = avg(start_ts, end_ts_incl);
-    *differs_avg = get(ts) - *avg_;
-    T suma = sum(start_ts, end_ts_incl);
-    if (abs(suma) > 0)
-    {
-      *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (get(ts) * 1000) / suma;
-    }
-    else
-      *ratio_avg = VARIABLE_LONG_UNKNOWN;
-  }
-
-
-  int32_t timeSeries::sum(time_t start_ts, time_t end_ts_incl)
-  { // TODO: check DST change nights
-    int32_t cum_sum = 0;
-    int start_idx = max(0, get_idx(start_ts));
-    int end_idx = min(get_idx(end_ts_incl), store.n);
-    if (start_idx <= end_idx)
-    {
-      for (int i = start_idx; i <= end_idx; i++)
-        cum_sum += store.arr[i];
-    }
-    return cum_sum;
-  }
-
-  int32_t timeSeries::sum()
-  {
-    return sum(store.start, store.start + (store.n - 1) * store.resolution_sec);
-  }
-  void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl)
-  {
-    Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1);
-
-    yield();
-    for (int i = 0; i < store.n; i++)
-    {
-      Serial.printf("%d, %lu  ", i, store.start + i * store.resolution_sec);
-      Serial.println(store.arr[i]);
-    }
-    Serial.print("Cumulative sum:");
-    Serial.println(sum(start_ts, end_ts_incl));
-    Serial.print("Avg:");
-    Serial.println(avg(start_ts, end_ts_incl));
-  }
-
-  void timeSeries::debug_print()
-  {
-    debug_print(store.start, store.start + (store.n - 1) * store.resolution_sec);
-  }
- void timeSeries::set_store_start(time_t new_start)
-  {
-    int index_delta = (int)((store.start - new_start) / store.resolution_sec);
-    //   Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
-    if (index_delta == 0)
-      return;
-
-    store.start = new_start;
-    yield();
-
-    if (abs(index_delta) >= store.n)
-    {
-      // huge shift, nothing to save, just init
-      clear_store(false);
-    }
-    else if (index_delta < 0)
-    {
-      if (store.min_value_idx != store.n)
-      {
-        store.min_value_idx = max(store.min_value_idx + index_delta, 0);
-      }
-
-      store.max_value_idx = max(store.max_value_idx + index_delta, -1);
-      //  Serial.printf("set_store_start 1 set %d = max(store.max_value_idx+index_delta %d, -1),  index_delta %d\n",store.max_value_idx, store.max_value_idx+index_delta,index_delta);
-
-      for (int i = 0; i < store.n; i++)
-      {
-        if ((i - index_delta >= 0) && (i - index_delta < store.n))
-          store.arr[i] = store.arr[i - index_delta];
-        else
-          store.arr[i] = store.init_value;
-      }
-    }
-    else if (index_delta > 0)
-    {
-      store.min_value_idx = min(store.max_value_idx + index_delta, store.n);
-      if (store.max_value_idx != -1)
-      {
-        store.max_value_idx = min(store.max_value_idx + index_delta, store.n - 1);
-        //    Serial.printf("Debug now store.max_value_idx %d, index_delta %d, store.n %d\n",index_delta, store.n,store.max_value_idx);
-      }
-
-      for (int i = store.n - 1; i >= 0; i--)
-      {
-        if (i - index_delta >= 0 && i - index_delta < store.n)
-          store.arr[i] = store.arr[i - index_delta];
-        else
-          store.arr[i] = store.init_value;
-      }
-    }
-    //    Serial.println(PSTR("DEBUG set_store_start ended"));
-  }
-
- int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
-  {
-    yield();
-    int rank = 1;
-    int start_idx = max(0, get_idx(start_ts));
-    int end_idx = min(get_idx(end_ts_incl), store.n);
-    int this_period_idx = get_idx(period_ts);
-    // Serial.printf("get_period_rank period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d\n", period_ts, start_idx, this_period_idx, end_idx);
-
-    if (start_idx <= this_period_idx && this_period_idx <= end_idx)
-    {
-      for (int i = start_idx; i <= end_idx; i++)
-      {
-        // TODO: should it be <= to have 24 as 0 rank
-        if (store.arr[i] < store.arr[this_period_idx] && i != this_period_idx)
-        {
-          rank++;
-        }
-      }
-      if (descending)
-        return end_idx - start_idx + 2 - rank;
+      if ((i - index_delta >= 0) && (i - index_delta < store.n))
+        store.arr[i] = store.arr[i - index_delta];
       else
-        return rank;
+        store.arr[i] = store.init_value;
     }
-    else
-      return -1;
-
-    yield();
-    return rank;
   }
+  else if (index_delta > 0)
+  {
+    store.min_value_idx = min(store.max_value_idx + index_delta, store.n);
+    if (store.max_value_idx != -1)
+    {
+      store.max_value_idx = min(store.max_value_idx + index_delta, store.n - 1);
+      //    Serial.printf("Debug now store.max_value_idx %d, index_delta %d, store.n %d\n",index_delta, store.n,store.max_value_idx);
+    }
 
+    for (int i = store.n - 1; i >= 0; i--)
+    {
+      if (i - index_delta >= 0 && i - index_delta < store.n)
+        store.arr[i] = store.arr[i - index_delta];
+      else
+        store.arr[i] = store.init_value;
+    }
+  }
+  //    Serial.println(PSTR("DEBUG set_store_start ended"));
+}
+
+int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
+{
+  yield();
+  int rank = 1;
+  int start_idx = max(0, get_idx(start_ts));
+  int end_idx = min(get_idx(end_ts_incl), store.n);
+  int this_period_idx = get_idx(period_ts);
+  // Serial.printf("get_period_rank period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d\n", period_ts, start_idx, this_period_idx, end_idx);
+
+  if (start_idx <= this_period_idx && this_period_idx <= end_idx)
+  {
+    for (int i = start_idx; i <= end_idx; i++)
+    {
+      // TODO: should it be <= to have 24 as 0 rank
+      if (store.arr[i] < store.arr[this_period_idx] && i != this_period_idx)
+      {
+        rank++;
+      }
+    }
+    if (descending)
+      return end_idx - start_idx + 2 - rank;
+    else
+      return rank;
+  }
+  else
+    return -1;
+
+  yield();
+  return rank;
+}
 
 // Time series globals
 timeSeries prices2(0, 0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, 0);
@@ -2390,29 +2350,32 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
   }
   bool result = false;
 
-  if (oper.multiselect) {
+  if (oper.multiselect)
+  {
     int elem_count = variables[variable_idx].bitmask_config % 100;
     u_int32_t cur_idx_value;
     // hours are 0-indexed(range: 0..), the others 1-indexed (range: 1..)
-    if (int(variables[variable_idx].bitmask_config/100)==3) {
+    if (int(variables[variable_idx].bitmask_config / 100) == 3)
+    {
       cur_idx_value = var.val_l;
     }
-    else {
-      cur_idx_value = var.val_l-1;
+    else
+    {
+      cur_idx_value = var.val_l - 1;
     }
     for (int i = 0; (i < elem_count && i <= var.val_l); i++)
     {
       // 1) i:th bit in constant is set, i.e. i:th element (0-indexed) in the list would make condition true
       // 2) variable value is i
-      if ((bitRead(statement->const_val, i) == 1) && (cur_idx_value == i)) {
+      if ((bitRead(statement->const_val, i) == 1) && (cur_idx_value == i))
+      {
         Serial.printf("DEBUG variable %d multiselect match const_val %ld, cur_idx_value %ud, i %d\n", statement->variable_id, statement->const_val, cur_idx_value, i);
         return true;
       }
     }
     Serial.printf("DEBUG variable %d NO multiselect match const_val %ld\n", statement->variable_id, statement->const_val);
-    return false; //if oper is multiselect no other rule apply
+    return false; // if oper is multiselect no other rule apply
   }
-
 
   if (oper.has_value) // check only if variable is defined
   {
@@ -2448,9 +2411,9 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
 Variables vars;
 
 ChannelCounters::ChannelCounters()
-  {
-    init();
-  }
+{
+  init();
+}
 /**
  * @brief Initiate channle updatime counters
  *
@@ -2805,6 +2768,7 @@ int network_count = 0;
 #define WIFI_LIST_COUNT 6
 
 wifi_st wifis[WIFI_LIST_COUNT];
+#define WIFI_OPTION_NOWIFI_SERIAL 1 // 1 if no wifi option in serial console input, else 0
 
 /**
  * @brief Scans wireless networks on the area and stores list to a file.
@@ -2821,12 +2785,17 @@ void scan_and_store_wifis(bool print_out, bool store)
   if (print_out)
     Serial.println("Available WiFi networks:\n");
 
+  if (WIFI_OPTION_NOWIFI_SERIAL == 1)
+  {
+    Serial.println(PSTR("0 - WiFi disabled"));
+  }
+
   for (int i = 0; i < network_count; ++i)
   {
     if (WiFi.RSSI(i) < -80) // too weak signals not listed, could be actually -75
       continue;
     if (print_out)
-      Serial.printf("%d - %s (%ld)\n", i, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+      Serial.printf("%d - %s (%ld)\n", i + WIFI_OPTION_NOWIFI_SERIAL, WiFi.SSID(i).c_str(), WiFi.RSSI(i));
     if (store & array_i < WIFI_LIST_COUNT)
     {
       wifis[array_i].rssi = WiFi.RSSI(i);
@@ -2840,12 +2809,6 @@ void scan_and_store_wifis(bool print_out, bool store)
     Serial.println("-");
     Serial.flush();
   }
-  /** if (store)
-   {
-     File wifi_file = FILESYSTEM.open(wifis_filename, "w"); // Open file for writing
-     serializeJson(doc, wifi_file);
-     wifi_file.close();
-   }*/
 }
 
 /**
@@ -3500,6 +3463,8 @@ bool read_energy_meter_shelly3em()
   float power[3];
   energy_meter_cumulative_latest_in = 0;
   energy_meter_cumulative_latest_out = 0;
+  energy_meter_power_latest_in = 0;
+  energy_meter_power_latest_out = 0;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
   {
     for (JsonObject emeter : doc["emeters"].as<JsonArray>())
@@ -3508,6 +3473,7 @@ bool read_energy_meter_shelly3em()
       power_tot += power[idx];
       if (emeter["is_valid"])
       {
+        energy_meter_power_latest_in += (float)emeter["power"];
         energy_meter_cumulative_latest_in += (float)emeter["total"];
         energy_meter_cumulative_latest_out += (float)emeter["total_returned"];
         energy_meter_current_latest[idx] = (double)emeter["current"];
@@ -4073,12 +4039,30 @@ void calculate_price_rank_variables()
  * @param outerXML
  * @return String
  */
+
+/** Old, pior 16.11.2023
 String getElementValue(String outerXML)
 {
   int s1 = outerXML.indexOf(">", 0);
   int s2 = outerXML.substring(s1 + 1).indexOf("<");
   return outerXML.substring(s1 + 1, s1 + s2 + 1);
+}*/
+
+String getElementValue(String outerXML)
+{
+  int s, e;
+  s = outerXML.indexOf(">", 0) + 1;
+  e = outerXML.indexOf("</");
+  if (e == -1) // end tag missing, try to read to the end
+    e = outerXML.length();
+  if (s > e) // no start tag found in the beging (but the end), get from the start of the string
+    s = 0;
+
+  //    Serial.printf("getElementValue: %d, %d\n", s, e);
+  //    Serial.printf("getElementValue: [%s] %d, %d -> [%s]\n", outerXML.c_str(), s, e, outerXML.substring(s, e).c_str());
+  return outerXML.substring(s, e);
 }
+
 /**
  * @brief Convert date time string YYYYMMDDTmmhhss to UTC time stamp
  *
@@ -4091,7 +4075,7 @@ time_t ElementToUTCts(String elem)
   return getTimestamp(str_val.substring(0, 4).toInt(), str_val.substring(5, 7).toInt(), str_val.substring(8, 10).toInt(), str_val.substring(11, 13).toInt(), str_val.substring(14, 16).toInt(), 0);
 }
 
-String read_http11_line(WiFiClientSecure *client_https)
+String read_http11_line_old(WiFiClientSecure *client_https)
 {
   String line;
   String line2;
@@ -4101,7 +4085,7 @@ String read_http11_line(WiFiClientSecure *client_https)
     if (!line_incomplete)
     {
       line = client_https->readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
-                                                  //  Serial.println(line);
+                                                  // Serial.print("line:");Serial.println(line);
       if (line.charAt(line.length() - 1) == 13)
       {
         if (is_chunksize_line(line))
@@ -4130,6 +4114,7 @@ String read_http11_line(WiFiClientSecure *client_https)
     else // line is incomplete, we will get more to add
     {
       line2 = client_https->readStringUntil('\n');
+      // Serial.print("line2:");
       // Serial.println(line2);
       if (line2.charAt(line2.length() - 1) == 13)
       {
@@ -4147,6 +4132,43 @@ String read_http11_line(WiFiClientSecure *client_https)
     }
   }
   return line;
+}
+
+// Initial testing 16.8.23 ok, but needs more testing. Headers should be handled before (possibly)
+
+String read_http11_line(WiFiClientSecure *client_https)
+{
+  String line;
+  String line2;
+  if (client_https->available())
+  {
+    line = client_https->readStringUntil('\n');
+    if (line.charAt(line.length() - 1) == 13)
+    {
+      line = line.substring(0, line.length() - 1); // remove cr
+      if (client_https->available())
+      {
+        line2 = client_https->readStringUntil('\n');
+        if (is_chunksize_line(line2))
+        { // skip this line and read  next one
+          Serial.print("Skipped line:");
+          Serial.println(line2);
+          if (client_https->available())
+          {
+            line2 = client_https->readStringUntil('\n');
+          }
+          else
+            line2 = "";
+        }
+        return line + line2;
+      }
+      else
+        return line;
+    }
+    else
+      return line;
+  }
+  return "";
 }
 
 char in_buffer[2048]; // common buffer for multi chunk response and multiline input
@@ -4271,14 +4293,14 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   yield();
   bool actual_data;
 
-  while (client_https.available())
+  while (client_https.available() > 1) // last byte in the end causes an error message
   {
     line = read_http11_line(&client_https);
     // Serial.println(line);
     line.trim();
-    line.replace("000.0", "");
+    line.replace("000.0", ""); // timestamp millisec -> sec
 
-    if (line.indexOf("\"data\":") > -1)
+    if (line.indexOf("\"data\":") > -1) // process only node "data"
       actual_data = true;
     else if (actual_data)
     {
@@ -4359,13 +4381,16 @@ bool get_price_data_entsoe()
 
   time(&now_infunc);
   start_ts = now_infunc - (SECONDS_IN_HOUR * 22); // no previous day after 22h, assume we have data ready for next day
+  //  #pragma message("Testing with special date setting, REMOVE")
+  //    start_ts = start_ts - 14 * 3600;
+  //    start_ts = 1691107200;
+
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
   int pos = -1;
   long price = VARIABLE_LONG_UNKNOWN;
 
   // initiate prices
-
   localtime_r(&start_ts, &tm_struct);
   Serial.println(start_ts);
   snprintf(date_str_start, sizeof(date_str_start), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
@@ -4382,8 +4407,8 @@ bool get_price_data_entsoe()
   String ca_cert = FILESYSTEM.open(entsoe_ca_filename, "r").readString();
   client_https.setCACert(ca_cert.c_str());
 
-  client_https.setTimeout(5); // was 15 Seconds
-  client_https.setHandshakeTimeout(5);
+  client_https.setTimeout(15); // was 5,15 Seconds
+  client_https.setHandshakeTimeout(15);
   delay(1000);
 
   Serial.println(F("Connecting with CA check."));
@@ -4413,22 +4438,34 @@ bool get_price_data_entsoe()
   client_https.print(String("GET ") + url + " HTTP/1.1\r\n" +
                      "Host: " + host_prices + "\r\n" +
                      "User-Agent: ArskaNodeESP\r\n" +
+                     "Accept: */*\r\n" +
                      "Connection: close\r\n\r\n");
 
   Serial.println("request sent");
 
   bool save_on = false;
   bool read_ok = false;
+
+  unsigned long task_started = millis();
+
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-    Serial.println(lineh);
+    // Serial.println(lineh);
     if (lineh == "\r")
     {
       Serial.println("headers received");
       break;
     }
+    if (millis() - task_started > 10000)
+    {
+      Serial.println(PSTR("Timeout in receiving headers"));
+      client_https.stop();
+      return false;
+    }
+    yield();
   }
+
   Serial.println(F("Waiting the document"));
   String line;
   String line2;
@@ -4438,6 +4475,11 @@ bool get_price_data_entsoe()
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
+    Serial.printf("[%s]\n", line.c_str());
+    // Serial.print("[");
+    // Serial.print(line);
+    // Serial.println("]");
+
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
     if (line.indexOf("</Publication_MarketDocument>") > -1)
@@ -4473,8 +4515,12 @@ bool get_price_data_entsoe()
     else if (line.endsWith(F("</price.amount>")))
     {
       price = int(getElementValue(line).toFloat() * 100);
-      if ((abs(price) < 0.001) || (price > 400000)) // suspicious value, could be parsing/data error
+      if ((abs(price) < 0.001) || (price > 400000))
+      { // suspicious value, could be parsing/data error
         contains_suspicious_prices = true;
+        Serial.print("Suspicious prices:");
+        Serial.println(getElementValue(line));
+      }
       price_rows++;
     }
     else if (line.endsWith("</Point>"))
@@ -4562,7 +4608,6 @@ int get_channel_active_rule(int channel_idx)
   }
   return -1;
 }
-
 
 #if defined(ARDUINO)
 #define JSON_DOCUMENT DynamicJsonDocument
@@ -7324,7 +7369,6 @@ void setup()
       { handleFirmwareUpdate(request, filename, index, data, len, final); });
 #endif
 
-
   server_web.on("/status", HTTP_GET, onWebStatusGet);
 
   server_web.on("/prices", HTTP_GET, onWebPricesGet);
@@ -7434,18 +7478,34 @@ void loop()
       if (serial_command.c_str()[0] == 's')
       {
         scan_and_store_wifis(true, false);
+        delay(10);
         return;
       }
       if (isdigit(serial_command[0]))
       {
-        int wifi_idx = serial_command.toInt();
-        if (wifi_idx < network_count)
+        // Serial.print("Debug serial:");
+
+        int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
+        if (wifi_idx < network_count + WIFI_OPTION_NOWIFI_SERIAL && wifi_idx >= WIFI_OPTION_NOWIFI_SERIAL)
         {
           strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
           Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
           Serial.println();
           Serial.flush();
           serial_command_state = 1;
+        }
+        else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL muust be 1
+        {
+          s.wifi_ssid[0] = 0;
+          writeToEEPROM();
+          log_msg(MSG_TYPE_FATAL, PSTR("Restarting with disabled WiFI."), true);
+          delay(2000);
+          ESP.restart();
+        }
+        else
+        {
+          Serial.println("SERIAL");
+          Serial.println(wifi_idx);
         }
       }
     }
