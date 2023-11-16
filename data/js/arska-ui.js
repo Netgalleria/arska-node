@@ -669,15 +669,29 @@ function update_status(repeat) {
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
-            document.getElementById("load_manager_status").innerHTML = "";
+            
 
-            //TODO: colours
+            var lm_status = 'success';
+            var lm_info = '';
+            var lm_status_el = document.getElementById("load_manager_status");
             if (data.hasOwnProperty("energy_meter_current_latest")) {
-                document.getElementById("load_manager_status").innerHTML += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+                lm_info += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
             }
             if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
-                document.getElementById("load_manager_status").innerHTML += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
+                lm_info += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
+                lm_status = 'warning';
             }
+            lm_status_el.innerHTML = lm_info;
+            if (lm_status == 'success') {
+                lm_status_el.classList.add("alert-success");
+                lm_status_el.classList.remove("alert-warning");
+            }
+            else {
+               
+                lm_status_el.classList.add("alert-warning");
+                lm_status_el.classList.remove("alert-success");
+            }
+        
 
             get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
 
@@ -1056,7 +1070,9 @@ function create_dashboard_chart() {
     if (price_data_exists) {
         idx = 0;
         for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_resolution_sec) {
-            prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
+            if (price_data.prices[idx] != VARIABLE_LONG_UNKNOWN) {
+                prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
+            }
             idx++;
         }
     }
