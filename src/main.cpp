@@ -239,7 +239,7 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
 
 #define PROCESS_INTERVAL_SECS 60              //!< process interval, eg. energy meter polling and variable calculation
-#define ACCEPTED_TIMESTAMP_MINIMUM 1656200000 // if timestamp is greater, we assume it is from a real-time clock
+#define ACCEPTED_TIMESTAMP_MINIMUM 1700000000 // if timestamp is greater, we assume it is from a real-time clock
 
 #define CONFIG_JSON_SIZE_MAX 6144
 
@@ -1284,10 +1284,51 @@ bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the ene
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 
 // hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
+/* 
+{
+  int id;
+  const char *name;
+  uint8_t locked_channels;
+  uint8_t relay_id[HW_TEMPLATE_GPIO_COUNT];
+  uint8_t energy_meter_gpio;
+  hw_io_struct hw_io;
+};
+
+|----------------------------------------------------------------------------------------------------|
+| id | board code          |  fixed relays | relay gpios/ids | energy_meter_gpio |    extented gpios |
+|--------------------------|---------------|-----------------|-------------------|-------------------|
+| 0  | manual              |             0 |               ? |                 ? |                NA |
+| 1  | esp32lilygo-4ch     |             4 |   21, 19, 18, 5 |                36 |                NA |
+| 2  | esp32wroom-4ch-a    |             4 |  32, 33, 25, 26 |                35 |                NA |
+| 3  | devantech-esp32lr42 |             4 |  33, 25, 26, 27 |                NA |                NA |
+| 4  | shelly-pro-1        |             1 |          ids: 0 |                NA | 35, 4, 13, 14, 30 |
+| 5  | olimex-esp32-evb    |             2 |          32, 33 |      36 (uext rx) |                NA |
+| 6  | shelly-pro-2        |             2 |       ids: 0, 1 |                NA | 35, 4, 13, 14, 30 |
+|--------------------------|---------------|-----------------|-------------------|-------------------|
+
+Extra notes about the boards:
+- manual: all pins configured from the UI
+- devantech-esp32lr42: no extra pins
+
+Attributes:
+- fixed relays: number of relays on hw, which cannot be edited
+- energy_meter_gpio: gpio of HAN P1 meter input (RXD)
+- extended: SN74hc595 shift register and leds supported,  current some Shelly pro models
+
+Additional reserved gpios:
+-  ONEWIRE_DATA_GPIO 27 
+
+  uint8_t reset_button_gpio;
+  bool output_register; // false
+  uint8_t rclk_gpio;    // if shifted
+  uint8_t ser_gpio;
+  uint8_t srclk_gpio;
+  
+*/
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
@@ -3248,7 +3289,8 @@ bool get_han_ts(String *strp, time_t *returned)
   // assume that we get clock from direct connection
   if (s.energy_meter_type == ENERGYM_HAN_DIRECT && time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
   {
-    Serial.println("Set internal clock");
+    Serial.println("get_han_ts: set internal clock:");
+     Serial.println(*returned);
     setInternalTime(*returned);
   }
 
@@ -4446,6 +4488,8 @@ bool get_price_data_entsoe()
   bool save_on = false;
   bool read_ok = false;
 
+
+
   unsigned long task_started = millis();
 
   while (client_https.connected())
@@ -4475,7 +4519,7 @@ bool get_price_data_entsoe()
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
-    Serial.printf("[%s]\n", line.c_str());
+   // Serial.printf("[%s]\n", line.c_str());
     // Serial.print("[");
     // Serial.print(line);
     // Serial.println("]");

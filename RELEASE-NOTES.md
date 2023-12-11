@@ -1,5 +1,17 @@
 # Arska release notes
 
+## Arska 1.1
+### New features 
+ * Direct updates from an energy meter with a HAN P1 port
+ * Load management
+ * Developed channel rules UI: picking blocks, hours, etc and default rule / channel
+
+### Bug Fixes
+* http 1.1 response handling/cleanup rewritten. Should fix Entso-E price query zero price errors.
+
+### Other Changes
+* Price time series are cached in the NVR. New price query not needed after restart of MCU if price data is valid.
+
 ## Arska 0.99
 * Please note that upgrade from earlier version (before  0.99) requires a cable connection.
 * Major user interface (UI) upgrade. The **Dashboard** contains latest time series for prices, import, production and channel utilization as well as manual scheduling. Time series are not stored in the non-volatile memory so restart of the device will clear them. The **Channels** sections contains relay settings and channel rules. The **Settings** sections is for system parameters and administration tasks.
