@@ -8,6 +8,7 @@ FILENAME_VERSION_H = 'include/version.h'
 
 #version = '1.1.0-alfa1'
 version = '1.1.0-beta1'
+esp_idf_version_custom = "4.4.5" #use to approximate bootloader version 
 #version = '1.1.0-rc1'
 #version = '0.92.0-stable'
 
@@ -62,7 +63,10 @@ else:
   #ifndef VERSION_SHORT
     #define VERSION_SHORT "{}"
   #endif
-  """.format(version_base,version_base, build_no, version_with_build, str(datetime.datetime.now())[:19], version_with_build)
+  #ifndef ESP_IDF_VERSION_CUSTOM
+    #define ESP_IDF_VERSION_CUSTOM "{}"
+  #endif
+  """.format(version_base,version_base, build_no, version_with_build, str(datetime.datetime.now())[:19], version_with_build,esp_idf_version_custom)
   with open(FILENAME_VERSION_H, 'w+') as f:
       f.write(hf)
   # FS  versioning added by Olli Rinne 2022

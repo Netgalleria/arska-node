@@ -52,9 +52,18 @@ def before_upload(source, target, env):
         print('Starting build number from 1..')
         build_no = 1
 
+    ESP_IDF_VERSION_CUSTOM = "0.0.0"
     try:
         with open(FILENAME_VERSION_H) as f: #first line contains version commented
             version_base = f.readline().replace("//","").strip()
+            while True:
+                line = f.readline()
+                if not line:
+                    break
+                if "#define ESP_IDF_VERSION_CUSTOM" in line:
+                    ESP_IDF_VERSION_CUSTOM = line.replace("#define ESP_IDF_VERSION_CUSTOM","").replace('"','').strip()
+                    print("ESP_IDF_VERSION_CUSTOM: {}".format( ESP_IDF_VERSION_CUSTOM))
+
     except:
         print('Unknown version_base')
         exit(0)
@@ -109,6 +118,15 @@ def before_upload(source, target, env):
             
             print("md5 -q "+ dest_dir+"bootloader.bin >" + dest_dir + "bootloader.md5")
             os.system("md5 -q "+ dest_dir+"bootloader.bin >" + dest_dir + "bootloader.md5" ) 
+
+            if (ESP_IDF_VERSION_CUSTOM != "0.0.0"):
+                with open(dest_dir+"esp_idf_version", 'w+') as f:
+                    ver_a = ESP_IDF_VERSION_CUSTOM.split(".")
+                    ver_num = int(ver_a[0])*256*256+int(ver_a[1])*256+int(ver_a[2])
+                    f.write(str(ver_num))
+
+            #with open("include/version.h.txt", "a") as f:
+            #    f.write("#define BOOTLOADER_MD5\n")
 
 
 if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
