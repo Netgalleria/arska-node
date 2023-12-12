@@ -8,11 +8,12 @@ Arska is a ESP32 microcontroller based application for managing energy consumpti
  
 ## Intro Videos 
 
-[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/blob/main/docs/img/Arska-youtube-thumbnail.png)](https://www.youtube.com/watch?v=MvDFJclwr6A)
+[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)](https://www.youtube.com/watch?v=MvDFJclwr6A)
 
-[![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/blob/devel-ui/docs/img/youtube2_tn.png)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
+[![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
 
-![Arska Diagram](https://github.com/Netgalleria/arska-node/blob/devel-ui/docs/img/Arska%20Node%20ESP32%20diagram%20202309.drawio.png)
+![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
+
 
 
 Arska can control various electric switches connected to e.g. water heater and car chargers. It can also privide potential-free signal for temperature control for example to heat-pumps. Arska controls devices based on following data:
