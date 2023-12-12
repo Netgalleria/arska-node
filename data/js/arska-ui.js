@@ -1782,12 +1782,11 @@ function load_application_config() {
     //load  application settings and update UI elements
     load_and_update_settings();
 
-
-    $.getJSON('/data/variable-info.json', function (data) {
+    // prevent caching when version changed
+    $.getJSON('/data/variable-info.json', { _: g_application.VERSION_SHORT },function (data) {
         variable_list = data;
     });
 };
-
 
 
 function get_variable_by_id(id) {
@@ -3167,12 +3166,7 @@ function save_channel_ev(ev) {
 
     const post_data = { "ch": [data_ch] };
 
-    // testing a BIG message
-    /*
-    for (i = 0; i < parseInt(document.getElementById(`ch_0:uptime_minimum_m`).value ); i++) {
-        post_data['property_' + i] = i;
-    }
-    */
+
 
     //POST
     console.log("sending post_data", post_data);
