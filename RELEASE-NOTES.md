@@ -2,9 +2,10 @@
 
 ## Arska 1.1
 ### New features 
- * Direct updates from an energy meter with a HAN P1 port
- * Load management
+ * Direct updates from an energy meter with HAN P1 Serial adapter
+ * Load management based on measured energy consumption
  * Developed channel rules UI: picking blocks, hours, etc and default rule / channel
+ * Standalone mode (no WiFi connection) with limited set of variables, requires HAN P1 Serial connection
 
 ### Bug Fixes
 * http 1.1 response handling/cleanup rewritten. Should fix Entso-E price query zero price errors.
