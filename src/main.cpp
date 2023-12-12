@@ -111,6 +111,7 @@ String version_fs_base; //= "";
 #endif
 
 #include <Update.h>
+#include "esp_idf_version.h"
 
 #define EEPROM_CHECK_VALUE 10103 //!< increment this is data structure changes
 #define eepromaddr 0
@@ -193,12 +194,18 @@ const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *fmi_ca_filename PROGMEM = "/data/GEANTOVRSACA4.cer";
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
-#define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
+//#define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
 #define RELEASES_HOST "iot.netgalleria.fi"
-#define RELEASES_URL_BASE "/arska-install/releases.php?pre_releases=true&bl="
+#define RELEASES_URL_BASE "/arska-install/releases.php?pre_releases=true"
 #define VERSION_SEPARATOR "&version="
 
-#define RELEASES_URL RELEASES_URL_BASE OTA_BOOTLOADER VERSION_SEPARATOR VERSION_BASE
+
+#define STR2(a) #a
+#define STR(a) STR2(a)
+// #define RELEASES_URL RELEASES_URL_BASE OTA_BOOTLOADER VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM
+#define RELEASES_URL RELEASES_URL_BASE VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM
+
+
 
 // Channel state info, Work in Progress...
 
@@ -5656,6 +5663,7 @@ time_t release_cache_expires_ts = 0;
  * @return true
  * @return false
  */
+
 bool get_releases()
 {
   if (release_cache_expires_ts > time(nullptr))
@@ -5663,6 +5671,12 @@ bool get_releases()
     Serial.println(F("Release cache still valid. No query."));
     return true;
   }
+
+
+  //EXPERIMENTAL
+  
+
+
 
   WiFiClientSecure client_https;
   client_https.setCACert(letsencrypt_ca_certificate);
