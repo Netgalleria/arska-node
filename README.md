@@ -8,7 +8,7 @@ Arska is a ESP32 microcontroller based application for managing energy consumpti
  
 ## Intro Videos 
 
-[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)](https://www.youtube.com/watch?v=MvDFJclwr6A)
+[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)]
 
 [![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
 
