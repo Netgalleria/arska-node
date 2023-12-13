@@ -7204,7 +7204,7 @@ bool connect_wifi()
     wifi_sta_connected = true;
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
-    // Now wifi is up, set wifi relays to init state (down)
+    // Now wifi is up, set wifi relays to default state  
     if (wifi_connect_count == 1)
     {
       for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -7345,8 +7345,8 @@ void setup()
     if (s.ch[channel_idx].type == CH_TYPE_GPIO_FIXED) // deprecate CH_TYPE_GPIO_FIXED type
       s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
 
-    //  reset values from eeprom
-    s.ch[channel_idx].wanna_be_up = false;
+    //  set channels to default states before calculated values
+    s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state; 
     s.ch[channel_idx].is_up = false;
 
     apply_relay_state(channel_idx, true);
