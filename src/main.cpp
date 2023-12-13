@@ -7346,8 +7346,9 @@ void setup()
       s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
 
     //  set channels to default states before calculated values
-    s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state; 
-    s.ch[channel_idx].is_up = false;
+    //Serial.printf("DEBUG ch %d default state %s\n",channel_idx,s.ch[channel_idx].default_state ?"up":"down" );
+    s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state;
+    s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
 
     apply_relay_state(channel_idx, true);
     relay_state_reapply_required[channel_idx] = false;
