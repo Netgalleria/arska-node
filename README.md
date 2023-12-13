@@ -1,4 +1,5 @@
-***Install ready firmware you can directly install from [the installation page](https://iot.netgalleria.fi/arska-install/).*** 
+
+***More detailed documentation and tutorials in [Arska wiki](/wiki).*** 
 ***Lue Arskasta suomeksi [Arska.info 🇫🇮](https://arska.info)***
 
 # Arska
