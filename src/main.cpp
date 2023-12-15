@@ -59,7 +59,6 @@ DEVEL BRANCH
 
 #include "WebAuthentication.h"
 
-
 #include "version.h"
 
 const char compile_date[] = __DATE__ " " __TIME__;
@@ -194,18 +193,15 @@ const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *fmi_ca_filename PROGMEM = "/data/GEANTOVRSACA4.cer";
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
-//#define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
+// #define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
 #define RELEASES_HOST "iot.netgalleria.fi"
 #define RELEASES_URL_BASE "/arska-install/releases.php?pre_releases=true"
 #define VERSION_SEPARATOR "&version="
-
 
 #define STR2(a) #a
 #define STR(a) STR2(a)
 // #define RELEASES_URL RELEASES_URL_BASE OTA_BOOTLOADER VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM
 #define RELEASES_URL RELEASES_URL_BASE VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM
-
-
 
 // Channel state info, Work in Progress...
 
@@ -1291,7 +1287,7 @@ bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the ene
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 
 // hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
-/* 
+/*
 {
   int id;
   const char *name;
@@ -1323,14 +1319,14 @@ Attributes:
 - extended: SN74hc595 shift register and leds supported,  current some Shelly pro models
 
 Additional reserved gpios:
--  ONEWIRE_DATA_GPIO 27 
+-  ONEWIRE_DATA_GPIO 27
 
   uint8_t reset_button_gpio;
   bool output_register; // false
   uint8_t rclk_gpio;    // if shifted
   uint8_t ser_gpio;
   uint8_t srclk_gpio;
-  
+
 */
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
@@ -2052,7 +2048,7 @@ int timeSeries::get_idx(time_t ts)
     { // something wrong
       Serial.printf("***Invalid timeSeries (%d) index %d, ts %lu, start_ %lu\n", (int)id_, index_candidate, ts, store.start);
     }
-    Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
+    // Serial.printf("DEBUG -1 --- get_idx (%d),ts %ld, store.start %ld, index_candidate %d \n", (int)id_, ts, store.start, index_candidate);
 
     return -1;
   }
@@ -3297,7 +3293,7 @@ bool get_han_ts(String *strp, time_t *returned)
   if (s.energy_meter_type == ENERGYM_HAN_DIRECT && time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
   {
     Serial.println("get_han_ts: set internal clock:");
-     Serial.println(*returned);
+    Serial.println(*returned);
     setInternalTime(*returned);
   }
 
@@ -3381,6 +3377,7 @@ bool receive_energy_meter_han_direct() // direct
 
   size_t available = HAN_P1_SERIAL.available();
 
+  // Serial.printf("DEBUG: next process in %d \n", int(next_process_ts - time(nullptr)));
   Serial.printf("\n%d bytes available, ts:  ", (int)available);
 
   yield();
@@ -4495,8 +4492,6 @@ bool get_price_data_entsoe()
   bool save_on = false;
   bool read_ok = false;
 
-
-
   unsigned long task_started = millis();
 
   while (client_https.connected())
@@ -4526,7 +4521,7 @@ bool get_price_data_entsoe()
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
-   // Serial.printf("[%s]\n", line.c_str());
+    // Serial.printf("[%s]\n", line.c_str());
     // Serial.print("[");
     // Serial.print(line);
     // Serial.println("]");
@@ -5672,12 +5667,6 @@ bool get_releases()
     return true;
   }
 
-
-  //EXPERIMENTAL
-  
-
-
-
   WiFiClientSecure client_https;
   client_https.setCACert(letsencrypt_ca_certificate);
   if (!client_https.connect(RELEASES_HOST, 443))
@@ -6523,8 +6512,16 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
       {
         s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
         s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
-        s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2]; // TODO: redundant?, remove?
-        s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val = vars.float_to_internal_l(ch_rule_stmt[0], ch_rule_stmt[3]);
+        s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2]; // TODO: redundant?, remove if stms[3] is always upddated?
+
+        // no float conversion & rounding for multiselect bitmask
+        if (s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].oper_id == 10)
+        {
+          s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[3];
+        }
+        else
+          s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val = vars.float_to_internal_l(ch_rule_stmt[0], ch_rule_stmt[3]);
+
         Serial.printf("rules/stmts: [%d, %d, %ld]", s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].variable_id, (int)s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].oper_id, s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val);
         stmt_idx++;
       }
@@ -7204,7 +7201,7 @@ bool connect_wifi()
     wifi_sta_connected = true;
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
-    // Now wifi is up, set wifi relays to default state  
+    // Now wifi is up, set wifi relays to default state
     if (wifi_connect_count == 1)
     {
       for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -7346,7 +7343,7 @@ void setup()
       s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
 
     //  set channels to default states before calculated values
-    //Serial.printf("DEBUG ch %d default state %s\n",channel_idx,s.ch[channel_idx].default_state ?"up":"down" );
+    // Serial.printf("DEBUG ch %d default state %s\n",channel_idx,s.ch[channel_idx].default_state ?"up":"down" );
     s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state;
     s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
 
@@ -7673,7 +7670,7 @@ void loop()
     return;
     //  <<--******* no other operations allowed before the clock is set
   }
-  else if (processing_started_ts == 0) // we have clock set
+  else if (processing_started_ts == 0) // we have clock set, run once
   {
     // There was a extra waiting here (for ntp time settle ?), removed because most probably not needed
 
