@@ -3099,8 +3099,11 @@ function start_fw_update() {
 
     console.log("new_version, g_application.VERSION_SHORT", new_version, g_application.VERSION_SHORT);
     if (g_application.VERSION_SHORT.startsWith(new_version)) {
-        if (!confirm("Firmware version is already " + g_application.VERSION_SHORT + ". Do you want to reinstall?"))
-            return;
+        // Arska OTA update does not currently support reinstall same main version (different build)
+      //  if (!confirm("Firmware version is already " + g_application.VERSION_SHORT + ". Do you want to reinstall?"))
+      //      return;
+        alert("Firmware version is already " + g_application.VERSION_SHORT + ". Cable connection required for reinstall.");
+        return;
     }
     if (confirm("Backup your configuration before update!\r\r Update firmware to " + new_version + " now?")) {
         $('#releases\\:update').prop('disabled', true);
