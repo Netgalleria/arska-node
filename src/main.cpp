@@ -5517,6 +5517,8 @@ bool get_price_data_elering()
     return false;
   }
   yield();
+
+
   start_ts = time(nullptr) - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 3;
 
@@ -5524,7 +5526,8 @@ bool get_price_data_elering()
   Serial.println(start_ts);
   snprintf(date_str_start, sizeof(date_str_start), "%04d-%02d-%02dT21%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
   localtime_r(&end_ts, &tm_struct);
-  snprintf(date_str_end, sizeof(date_str_end), "%04d-%02d-%02dT21%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
+  // hour 21-> 22 to get all wintertime 
+  snprintf(date_str_end, sizeof(date_str_end), "%04d-%02d-%02dT22%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
 
