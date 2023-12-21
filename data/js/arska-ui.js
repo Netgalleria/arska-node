@@ -669,7 +669,7 @@ function update_status(repeat) {
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
-            
+
 
             var lm_status = 'success';
             var lm_info = '';
@@ -687,11 +687,11 @@ function update_status(repeat) {
                 lm_status_el.classList.remove("alert-warning");
             }
             else {
-               
+
                 lm_status_el.classList.add("alert-warning");
                 lm_status_el.classList.remove("alert-success");
             }
-        
+
 
             get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
 
@@ -1009,11 +1009,14 @@ function ts_duration_str(ts_dur, include_seconds = false) {
 let price_chart_dataset = [];
 
 function create_dashboard_chart() {
-    let date;
-    let time_labels = [];
+
+    if (!(typeof Chart === 'function')) { //wait for chartJs script loading
+        setTimeout(function () { create_dashboard_chart(); }, 1000); //object now loaded, rettry soon
+        console.log("create_dashboard_chart delayed");
+        return;
+    }
+
     let prices_out = [];
-    let now_idx = 0;
-    let now_idx_chh = MAX_HISTORY_PERIODS - 1;
     now_ts = (Date.now() / 1000);
     now_period_ts = period_start_ts(now_ts);
 
@@ -1028,10 +1031,7 @@ function create_dashboard_chart() {
         // 48 hours, now in the middle
         chart_start_ts = parseInt(now_ts / 86400) * 86400 + (SECONDS_IN_HOUR);
         chart_end_excl_ts = chart_start_ts + (48 * SECONDS_IN_HOUR);
-        //chart_resolution_sec = SECONDS_IN_HOUR;
         chart_resolution_sec = g_settings.netting_period_sec;
-        now_idx = 0;
-        now_idx_chh = MAX_HISTORY_PERIODS - 1;
     }
     else {
         price_data_exists = true;
@@ -1041,10 +1041,8 @@ function create_dashboard_chart() {
         chart_resolution_sec = Math.min(price_data.resolution_sec, g_settings.netting_period_sec);
     }
 
-
     const ctx = document.getElementById('day_ahead_chart').getContext('2d');
 
-    var tz_offset = new Date().getTimezoneOffset();
     start_date_str = ts_date_time(chart_start_ts, false) + ' - ' + ts_date_time(chart_end_excl_ts - g_settings.netting_period_sec, false);
 
     // now history, if values exists
@@ -1052,26 +1050,12 @@ function create_dashboard_chart() {
     if (chartExist != undefined)
         chartExist.destroy();
 
-    let idx = 0;
-    for (ts = chart_start_ts; ts < chart_end_excl_ts; ts += (chart_resolution_sec)) {
-        if (ts > now_ts && now_idx == 0)
-            now_idx = idx - 1;
-        time_label = get_time_label(ts);
-        time_labels.push(time_label);
-
-        /* if (price_data_exists) {
-             prices_out.push({ x: time_label, y: Math.round(price_data.prices[idx] / 100) / 10 });
-         }*/
-        idx++;
-    }
-
-    //console.log("time_labels", time_labels);
-    // new way
     if (price_data_exists) {
         idx = 0;
         for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_resolution_sec) {
             if (price_data.prices[idx] != VARIABLE_LONG_UNKNOWN) {
-                prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
+                if (chart_start_ts <= ts && ts < chart_end_excl_ts)
+                    prices_out.push({ x: ts * 1000, y: Math.round(price_data.prices[idx] / 100) / 10 });
             }
             idx++;
         }
@@ -1113,34 +1097,20 @@ function create_dashboard_chart() {
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
         dataset_started = false;
-        /*  for (h_idx = variable_history[VARIABLE_SELLING_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
-              if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 1)
-                  dataset_started = true;
-              // should be x/y like???:      prices_out.push({ x: time_label, y: Math.round(price_data.prices[idx] / 100) / 10 });
-              console.log("import",h_idx,variable_history[VARIABLE_SELLING_ENERGY][h_idx]);
-             // import_ds.push(dataset_started ? -variable_history[VARIABLE_SELLING_ENERGY][h_idx] : null);
-          }
-          */
-
         ts = now_period_ts - (g_settings.netting_period_sec * (variable_history[VARIABLE_SELLING_ENERGY].length - 1));
         for (h_idx = 0; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 0) {
                 dataset_started = true;
                 if (dataset_started) {
-                    import_ds.push({ x: get_time_label(ts), y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
+                    if (chart_start_ts <= ts && ts < chart_end_excl_ts)
+                        import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
+
                 }
             }
             ts += g_settings.netting_period_sec;
         }
 
-        /*   idx = 0;
-           for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_resolution_sec) {
-               prices_out.push({ x: get_time_label(ts), y: Math.round(price_data.prices[idx] / 100) / 10 });
-               idx++;
-           }*/
-
         console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
-        console.log("now_idx", now_idx);
 
         if (dataset_started)
             datasets.push(
@@ -1161,7 +1131,7 @@ function create_dashboard_chart() {
                 });
     }
 
-    //experimental solar forecast, could be combinet with get_price_data
+    // solar forecast, could be combined with get_price_data
     var start = new Date().getTime();
     $.ajax({
         url: '/series?solar_fcst=true',
@@ -1177,19 +1147,14 @@ function create_dashboard_chart() {
                 return false;
 
             solar_fcst = data.solar_forecast.s;
-            start = data.solar_forecast.start;
             resolution_sec = data.solar_forecast.resolution_sec;
             series_started = false;
             for (idx = 0; idx < solar_fcst.length; idx++) {
-                ts = (start + idx * resolution_sec);
-
+                ts = (data.solar_forecast.start + idx * resolution_sec);
                 if (solar_fcst[idx] > 0)
                     series_started = true;
-                if (series_started & ts < chart_end_excl_ts && data.solar_forecast.first_set_period_ts <= ts && ts <= data.solar_forecast.last_set_period_ts) {
-                    time_label = get_time_label(ts);
-                    if (time_labels.includes(time_label))
-                        fcst_ds.push({ x: time_label, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
-                }
+                if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
+                    fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
             }
 
             datasets.push(
@@ -1220,12 +1185,16 @@ function create_dashboard_chart() {
         console.log("VARIABLE_PRODUCTION_ENERGY");
         dataset_started = false;
         let production_ds = [];
-        for (h_idx = variable_history[VARIABLE_PRODUCTION_ENERGY].length - 1 - now_idx; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
+
+        for (h_idx = 0; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
+            ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx) * chart_resolution_sec;
             if (Math.abs(variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]) > 1)
                 dataset_started = true;
-            production_ds.push(dataset_started ? variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx] : null);
-        }
-        //   console.log("production_ds ", VARIABLE_PRODUCTION_ENERGY, production_ds);
+
+            if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
+                production_ds.push({ x: ts * 1000, y: variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx] });
+        }// chart_resolution_sec
+
         if (dataset_started)
             datasets.push(
                 {
@@ -1248,7 +1217,6 @@ function create_dashboard_chart() {
     var channel_dataset;
     now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
     first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_settings.netting_period_sec;
-    // console.log("now_period_start", now_period_start, "now_idx", now_idx, "now_idx_chh", now_idx_chh);
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
         if (g_settings.ch[channel_idx]["type"] == 0) // undefined
             continue;
@@ -1260,15 +1228,11 @@ function create_dashboard_chart() {
             if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
                 dataset_started = true;
             if (dataset_started) {
-                // check that exists in time labels
-                time_label = get_time_label(ts);
-                if (time_labels.includes(time_label))
-                    channel_dataset.push({ x: time_label, y: channel_history[channel_idx][chh_idx] });
+                if (chart_start_ts <= ts)
+                    channel_dataset.push({ x: ts * 1000, y: channel_history[channel_idx][chh_idx] });
             }
         }
 
-        // console.log("channel_history", channel_idx, channel_history[channel_idx]);
-        // console.log("channel_dataset", channel_dataset);
         datasets.push({
             label: g_settings.ch[channel_idx]["id_str"],
             hidden: true,
@@ -1284,10 +1248,11 @@ function create_dashboard_chart() {
         });
     }
 
+   // console.log("line_next_day", parseInt(Date.now() / 86400000+1)*86400000 );
+    //TODO: day separator
     day_ahead_chart_obj = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: time_labels,
             datasets: datasets
         },
         options: {
@@ -1298,12 +1263,23 @@ function create_dashboard_chart() {
                     ticks: {
                         display: false
                     },
-                    position: { x: now_idx + 0.5 },
+                    position: { x: Date.now() },
                     grid: {
                         display: false,
                         lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
                 },
+           /*    line_nextd: {
+                    beginAtZero: true,
+                    ticks: {
+                        display: false
+                    },
+                    position: { x: (parseInt(Date.now() / 86400000+1)*86400000+600000) }, 
+                    grid: {
+                        display: false,
+                        lineWidth: 6, color: "black", borderWidth: 2, borderColor: 'black'
+                    }
+                },*/
                 y_prices: {
                     beginAtZero: true,
                     ticks: {
@@ -1343,7 +1319,35 @@ function create_dashboard_chart() {
                         }
                     }
                 },
-                x: { grid: { lineWidth: 0.5, display: true, color: "#47470e" } }
+                //##  x: { grid: { lineWidth: 0.5, display: true, color: "#47470e" } }
+                x: {
+                    type: 'time',
+                    ticks: {
+                        maxTicksLimit: 48,
+                    },
+                    time: {
+                        unit: 'hour',
+                        locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
+                        tooltipFormat: 'dd.MM.yyyy HH:mm',
+                        displayFormats: {
+                            millisecond: 'HH:mm:ss.SSS',
+                            second: 'HH:mm:ss',
+                            minute: 'HH:mm',
+                            hour: 'HH'
+                        }
+                    }
+                },
+            /*    x_day: {
+                    beginAtZero:true,
+                    grid: { display: true, lineWidth: 10, ticks:false ,z:5},
+                
+                    type: 'time',
+                    time: {
+                        minUnit:'day',stepSize:1,
+                        unit: 'day',
+                        locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
+                    }
+                },*/
             },
             interaction: {
                 intersect: false,
@@ -1485,6 +1489,7 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
     return tmpStr;
 }
 
+/*
 function get_time_label(ts) {
     tmpDate = new Date(ts * 1000);
     tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
@@ -1504,7 +1509,7 @@ function get_time_label(ts) {
 
     return (tmpStr + " " + day_indicator).trim();
 }
-
+*/
 function populate_wifi_ssid_list_2() {
     console.log("populate_wifi_ssid_list_2");
     $.ajax({
@@ -1783,9 +1788,22 @@ function load_application_config() {
     load_and_update_settings();
 
     // prevent caching when version changed
-    $.getJSON('/data/variable-info.json', { _: g_application.VERSION_SHORT },function (data) {
-        variable_list = data;
+    //$.getJSON('/data/variable-info.json', { _: g_application.VERSION_SHORT }, function (data) {
+    //     variable_list = data;
+    // });
+
+    $.ajax({
+        url: '/data/variable-info.json',
+        dataType: 'json',
+        async: false,
+        data: {
+            _: g_application.VERSION_SHORT
+        },
+        success: function (data) {
+            variable_list = data;
+        }
     });
+
 };
 
 
@@ -2920,49 +2938,27 @@ function init_ui() {
     }
 
     // delay loading
+    /*##
     var script = document.createElement('script');
     script.src = "/js/chart.min.3.9.1.js";
     document.getElementsByTagName('body')[0].appendChild(script);
+*/
+
+
 
     setTimeout(function () { populate_channels(); update_status(true); }, 2 * 1000);
-    setTimeout(function () { create_dashboard_chart(); }, 10000); //one time, hopefully with all data
+    //TUPLATTU 0li 10000 ennen testi //##
+
+    // setTimeout(function () { create_dashboard_chart(); }, 1000); //one time, hopefully with all data
+    create_dashboard_chart();
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-    const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+    // const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
 
 
     get_price_data(true); //TODO: also update at 2pm
 
     set_field_editability_ev();
-
-
-    /*
-    var const_fld = document.getElementById(stmt_id + ":const");
-    var popover = bootstrap.Popover.getOrCreateInstance((const_fld), {
-        html: true,
-        sanitize: false,
-        content: function () {
-            const_bm = 324; //CONSTANT_BITMASK_HOUR 
-            mask = document.getElementById(stmt_id + ":const").value;
-
-            form = "<form><input id='" + stmt_id + ":cbm' type='hidden' value='" + const_bm + "'>";
-            var elem_count = const_bm % 100;
-            var bm_type = parseInt(const_bm / 100) - 1;
-            for (i = 0; i < elem_count; i++) {
-                id = stmt_id + ":sel_" + i;
-                //  console.log(id, bitmaskdef[bm_type][i]);
-                checked = ((mask & (1 << (i))) != 0) ? "checked" : "";
-                form += '<input class="form-check-input" type="checkbox" id="' + id + '" ' + checked + '>';
-                form += '<label class="form-check-label" for="' + id + '">' + bitmaskdef[bm_type][i] + '</label></form>';
-            }
-
-            return form + "<button class='btn save' id='jjj' onClick='save_hide_multiselect_popover(\"" + stmt_id + "\");'>Close</button>";
-        },
-        title: function () {
-            return '###';
-        }
-    });
-*/
 
     $('[data-bs-toggle="popover"]span[id$=":info"] ').popover({
         html: true,
@@ -3100,8 +3096,8 @@ function start_fw_update() {
     console.log("new_version, g_application.VERSION_SHORT", new_version, g_application.VERSION_SHORT);
     if (g_application.VERSION_SHORT.startsWith(new_version)) {
         // Arska OTA update does not currently support reinstall same main version (different build)
-      //  if (!confirm("Firmware version is already " + g_application.VERSION_SHORT + ". Do you want to reinstall?"))
-      //      return;
+        //  if (!confirm("Firmware version is already " + g_application.VERSION_SHORT + ". Do you want to reinstall?"))
+        //      return;
         alert("Firmware version is already " + g_application.VERSION_SHORT + ". Cable connection required for reinstall.");
         return;
     }
