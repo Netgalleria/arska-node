@@ -622,8 +622,8 @@ var prices_expires = 0;
 // update variables and channels statuses to channels form
 function update_status(repeat) {
     console.log("update_status starting");
-    if (!(typeof Chart === 'function')) { //wait for chartJs script loading
-        setTimeout(function () { update_status(repeat); }, 2000);
+    if (!(typeof Chart === 'function')) { //wait for chartJs script loading, but should we?
+        setTimeout(function () { update_status(repeat); }, 1000);
         return;
     }
 
@@ -649,12 +649,12 @@ function update_status(repeat) {
         async: false,
         success: function (data, textStatus, jqXHR) {
             console.log("/status took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
-
             console.log("got status data", textStatus, jqXHR.status);
             // moved from chart creation create_dashboard_chart
             channel_history = data.channel_history;
             variable_values = data.variables;
             variable_history = data.variable_history;
+          //  console.log("data.variable_history",data.variable_history);
             for (const variable_code in data.variable_history) {
                 for (i = 0; i < data.variable_history[variable_code].length; i++) {
                     if (Math.abs(data.variable_history[variable_code][i]) > 1) {
@@ -662,14 +662,12 @@ function update_status(repeat) {
                         break;
                     }
                 }
-                //         console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+            //             console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
             }
             //** 
 
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
-
-
 
             var lm_status = 'success';
             var lm_info = '';
@@ -1010,9 +1008,9 @@ let price_chart_dataset = [];
 
 function create_dashboard_chart() {
 
-    if (!(typeof Chart === 'function')) { //wait for chartJs script loading
+    if (!(typeof Chart === 'function') || Object.keys(variable_values).length ==0 ) { //wait for chartJs script loading and first status request
         setTimeout(function () { create_dashboard_chart(); }, 1000); //object now loaded, rettry soon
-        console.log("create_dashboard_chart delayed");
+      //  console.log("create_dashboard_chart delayed");
         return;
     }
 
@@ -1060,7 +1058,6 @@ function create_dashboard_chart() {
             idx++;
         }
     }
-
 
     if (price_data_exists) {
         datasets = [{
@@ -1141,7 +1138,7 @@ function create_dashboard_chart() {
         success: function (data, textStatus, jqXHR) {
             console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
 
-            console.log('got solar forecast', textStatus, jqXHR.status);
+         //   console.log('got solar forecast', textStatus, jqXHR.status);
             let fcst_ds = [];
             if (!data.hasOwnProperty("solar_forecast"))
                 return false;
@@ -1156,33 +1153,33 @@ function create_dashboard_chart() {
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
                     fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
             }
-
-            datasets.push(
-                {
-                    label: 'solar fcst Wh/' + period_label,
-                    data: fcst_ds,
-                    yAxisID: 'y_energy',
-                    cubicInterpolationMode: 'monotone',
-                    borderColor: ['#ffff00'
-                    ],
-                    backgroundColor: '#ffff00',
-                    pointStyle: 'circle',
-                    pointRadius: 1,
-                    pointHoverRadius: 5,
-                    fill: false,
-                    stepped: false,
-                    borderWidth: 2
-                });
+            if (fcst_ds.length) {
+                datasets.push(
+                    {
+                        label: 'solar fcst Wh/' + period_label,
+                        data: fcst_ds,
+                        yAxisID: 'y_energy',
+                        cubicInterpolationMode: 'monotone',
+                        borderColor: ['#ffff00'
+                        ],
+                        backgroundColor: '#ffff00',
+                        pointStyle: 'circle',
+                        pointRadius: 1,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        stepped: false,
+                        borderWidth: 2
+                    });
+            }
 
         },
         error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get v", textStatus, jqXHR.status);
+            console.log("Cannot get solar forecast", textStatus, jqXHR.status);
         }
     });
 
 
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
-        console.log("VARIABLE_PRODUCTION_ENERGY");
         dataset_started = false;
         let production_ds = [];
 
@@ -1411,7 +1408,6 @@ function get_price_data(repeat = true) {
         setTimeout(function () { get_price_data(true); }, (1800 * 1000));
         return;
     }
-    console.log("get_price_data starting");
     var start = new Date().getTime();
     $.ajax({
         url: '/prices',
@@ -1422,7 +1418,7 @@ function get_price_data(repeat = true) {
             console.log("/prices took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
 
             if (data.record_end_excl > now_ts) {
-                console.log('got /prices', textStatus, jqXHR.status);
+              //  console.log('got /prices', textStatus, jqXHR.status);
                 price_data = data; //TODO: remove redundancy in variables
                 prices_first_ts = data.record_start;
                 price_resolution_sec = data.resolution_sec;
@@ -2949,8 +2945,7 @@ function init_ui() {
     setTimeout(function () { populate_channels(); update_status(true); }, 2 * 1000);
     //TUPLATTU 0li 10000 ennen testi //##
 
-    // setTimeout(function () { create_dashboard_chart(); }, 1000); //one time, hopefully with all data
-    create_dashboard_chart();
+    setTimeout(function () { create_dashboard_chart(); }, 4000); //one time, hopefully with all data
 
     const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
     // const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
