@@ -23,7 +23,12 @@ import os
 
 print("Compressing UI script(s)")
   # gzip script(s) automatically and keep unzipped for editing, Olli 24.5.2023
-print (os.system("gzip -kf data/js/arska-ui.js" ))
+#print (os.system("gzip -kf data/js/arska-ui.js" ))
+print (os.system("gzip -k src/data/js/arska-ui.js" ))
+print (os.system("mv -f src/data/js/arska-ui.js.gz data/js/" ))
+
+#print (os.system("gzip -cf src/data/js/arska-ui.js >data/js/arska-ui.js.gz" ))
+
 print("Compressed\n\n")
 print()
 

@@ -5518,7 +5518,6 @@ bool get_price_data_elering()
   }
   yield();
 
-
   start_ts = time(nullptr) - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
   end_ts = start_ts + SECONDS_IN_DAY * 3;
 
@@ -5526,7 +5525,7 @@ bool get_price_data_elering()
   Serial.println(start_ts);
   snprintf(date_str_start, sizeof(date_str_start), "%04d-%02d-%02dT21%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
   localtime_r(&end_ts, &tm_struct);
-  // hour 21-> 22 to get all wintertime 
+  // hour 21-> 22 to get all wintertime
   snprintf(date_str_end, sizeof(date_str_end), "%04d-%02d-%02dT22%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
@@ -6953,12 +6952,10 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 #ifdef LOOP_WATCHDOG_ENABLED
 //  check_loop_is_called(); // call watchdog also here, if task not working
 #endif
-
   if (!request->authenticate(s.http_username, s.http_password))
   {
     return request->requestAuthentication();
   }
-
   DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
   String output;
 
@@ -7061,6 +7058,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["production_meter_read_last_ts"] = production_meter_read_last_ts;
   doc["next_process_in"] = max((long)0, (long)next_process_ts - time(nullptr));
 
+
 #ifdef LOAD_MGMT_ENABLED
   for (int l = 0; l < s.load_manager_phase_count; l++)
   {
@@ -7070,6 +7068,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 #endif
 
   doc["free_heap"] = ESP.getFreeHeap();
+
 
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -7125,16 +7124,16 @@ void wifi_event_handler(WiFiEvent_t event)
   switch (event)
   {
   case SYSTEM_EVENT_STA_CONNECTED:
-    Serial.println(F("Connected to WiFi Network"));
+  //  Serial.println(F("Connected to WiFi Network"));
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
     wifi_sta_connected = true;
-    Serial.println(F("Got IP"));
+  //  Serial.println(F("Got IP"));
     set_timezone_ntp_settings(true, true);
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     wifi_sta_connected = false;
-    wifi_sta_disconnected_ms = 0;
+    wifi_sta_disconnected_ms = millis();
     Serial.println(F("Disconnected from WiFi Network"));
     break;
   case SYSTEM_EVENT_AP_START:
@@ -7195,7 +7194,7 @@ bool connect_wifi()
   }
   else
   {
-    Serial.println(F("WiFi SSID undefined!"));
+    Serial.println(F("WiFi SSID undefined."));
   }
 
   if (WiFi.status() == WL_CONNECTED)
@@ -7216,12 +7215,11 @@ bool connect_wifi()
         }
       }
     }
-    Serial.println(PSTR("DEBUG: connected"));
     return true;
   }
+
   wifi_sta_connected = false;
   wifi_sta_disconnected_ms = millis();
-
   create_wifi_ap = true;
 
   // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
@@ -7458,12 +7456,15 @@ void setup()
 
   // server_web.on("/", HTTP_GET, onWebUIGet);
   server_web.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-                { if (!request->authenticate(s.http_username, s.http_password))
+                { 
+                  if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication(); 
-    if (!first_loop_ended && WiFi.getMode() == WIFI_STA )  
+    if (!first_loop_ended && WiFi.getMode() == WIFI_STA )  {
       request->send(200, "text/html", PSTR("<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"10\"></head><body><p>Arska is waking up, wait a while...</p></body></html>"));
-    else
-  request->send(FILESYSTEM, "/ui3.html", "text/html"); });
+    }
+    else {
+      request->send(FILESYSTEM, "/ui3.html", "text/html");
+    } });
 
   server_web.on(
       "/update.schedule", HTTP_POST,
@@ -7498,7 +7499,15 @@ void setup()
   // generate_ui_constants(true); // generate ui constant json if needed
   server_web.begin();
 
-  Serial.printf("\nArska dashboard url: http://%s/\n", wifi_sta_connected ? WiFi.localIP().toString().c_str() : WiFi.softAPIP().toString().c_str());
+  if (wifi_sta_connected)
+  {
+    Serial.printf("\nArska dashboard url: http://%s/ in WiFi: %s\n", WiFi.localIP().toString().c_str(), WiFi.SSID().c_str());
+  }
+  else
+  {
+    Serial.printf("\nArska dashboard url: http://%s/ in Arska private WiFi: %s\n", WiFi.softAPIP().toString().c_str(), WiFi.softAPSSID().c_str());
+    Serial.println("Select wifi from the list above, if you want to connect existing wifi.");
+  }
 
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
 
@@ -7528,8 +7537,8 @@ void loop()
 
   io_tasks();
 
-  //  handle initial wifi setting from the serial console command line
-  if (!wifi_sta_connected && Serial.available())
+  //  handle initial wifi setting from the serial console command line, first 2 minutes only
+  if (!wifi_sta_connected && Serial.available() && millis()<1000*120)
   {
     serial_command = Serial.readStringUntil('\n');
     if (serial_command_state == 0)
@@ -7545,7 +7554,8 @@ void loop()
         // Serial.print("Debug serial:");
 
         int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
-        if (wifi_idx < network_count + WIFI_OPTION_NOWIFI_SERIAL && wifi_idx >= WIFI_OPTION_NOWIFI_SERIAL)
+      //  if (wifi_idx < network_count + WIFI_OPTION_NOWIFI_SERIAL && wifi_idx >= WIFI_OPTION_NOWIFI_SERIAL)
+        if (wifi_idx < network_count  && wifi_idx >= 0)
         {
           strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
           Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
@@ -7553,13 +7563,15 @@ void loop()
           Serial.flush();
           serial_command_state = 1;
         }
-        else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL muust be 1
+        else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
         {
           s.wifi_ssid[0] = 0;
           writeToEEPROM();
-          log_msg(MSG_TYPE_FATAL, PSTR("Restarting with disabled WiFI."), true);
-          delay(2000);
-          ESP.restart();
+          //log_msg(MSG_TYPE_FATAL, PSTR("Restarting with disabled WiFI."), true);
+          //delay(2000);
+          //ESP.restart();
+          log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
+          serial_command_state = 99;
         }
         else
         {
@@ -7659,7 +7671,7 @@ void loop()
     connect_wifi();
   }
 
-  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_sta_disconnected_ms > WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC * 1000)
+  if (!wifi_sta_connected && wifi_sta_connection_required && ((millis() - wifi_sta_disconnected_ms) > (WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC * 1000)))
   {
     WiFi.disconnect();
     log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to missing wifi connection."), true);

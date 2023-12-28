@@ -899,15 +899,11 @@ function populate_channel_status(channel_idx, ch) {
         //same duration as scheduled
         document.getElementById(`sch_${channel_idx}:duration`).value = parseInt((ch.force_up_until - ch.force_up_from) / 60); //same default duration for input/update
         update_fup_schedule_element(channel_idx);
-
         duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
         // duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
         duration_c_str = ts_duration_str(ch.force_up_until - ch.force_up_from, false);
         sch_duration_c_span.innerHTML = duration_c_str;
-
         sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_up_until, false, true);
-
-
         //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
     }
     else {
@@ -1322,6 +1318,8 @@ function create_dashboard_chart() {
                     ticks: {
                         maxTicksLimit: 48,
                     },
+                    suggestedMin: chart_start_ts*1000,
+                    suggestedMax: chart_end_excl_ts*1000,
                     time: {
                         unit: 'hour',
                         locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
@@ -1679,12 +1677,12 @@ function remove_select_options(select_element) {
 //End of scheduling functions
 
 function load_and_update_settings() {
-    //current config
+    //current config to global variable g_settings
     var start = new Date().getTime();
     $.ajax({
         type: "GET",
         cache: false,
-        url: '/settings',
+        url: "/settings",
         dataType: 'json',
         async: false,
         success: function (data) {
@@ -1697,8 +1695,7 @@ function load_and_update_settings() {
                 isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
             }
             console.log("/settings took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
-
-            console.log("got g_settings"); return true;
+            return true;
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get g_settings", textStatus, jqXHR.status, errorThrown);
@@ -1706,7 +1703,8 @@ function load_and_update_settings() {
         }
     });
 
-    //TODO:  save_card_ev could call thsis with card parameters - if we want to update values back from the back-end
+
+
     //iterate g_settings array and updates UI elements
     for (const property in g_settings) {
         ctrl = document.getElementById(property);
@@ -2678,9 +2676,6 @@ function create_channels() {
                     addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
                 }
             }
-
-            // populate data, delayed
-            //populate_channel(channel_idx);
         }
 
         //Schedulings listeners
@@ -3177,6 +3172,12 @@ function save_channel_ev(ev) {
             live_alert(card, "Updated", 'success');
             console.log("success, card", card, data);
             document.getElementById(card + ":save").disabled = true;
+
+            //experimental 27.12.2023, this will update new names etc everywhere
+            load_and_update_settings();
+            populate_channel(channel_idx);
+            
+            
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);
@@ -3266,7 +3267,8 @@ function save_card_ev(ev) {
             live_alert(card, "Settings updated", 'success');
             console.log("success, card ", card, data);
 
-            //TODO: could call load_and_update_settings() with card name parameter (only fields from the cards are updated to the fields)
+            // experimental 27.12.2023
+            load_and_update_settings();
 
         },
         error: function (requestObject, error, errorThrown) {
