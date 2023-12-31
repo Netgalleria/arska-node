@@ -3367,6 +3367,8 @@ bool parse_han_row(String *row_in_p)
   return false;
 }
 
+uint16_t han_direct_error_count = 0;
+
 bool receive_energy_meter_han_direct() // direct
 {
   String row_in;
@@ -3376,6 +3378,21 @@ bool receive_energy_meter_han_direct() // direct
   delay(100); // there should be some delay to fill the buffer...
 
   size_t available = HAN_P1_SERIAL.available();
+
+  // experimental, prevent loops if port not connected
+  if (han_direct_error_count > 2)
+  {
+    Serial.println("Disabling HAN P1 Serial onReceive");
+    HAN_P1_SERIAL.onReceive(NULL, false); // too many errors, probably serial not connected, disconnect to prevent watchdog timeouts
+    log_msg(MSG_TYPE_ERROR, PSTR("Errors in reading HAN P1 Serial, disabled."),true);
+
+  }
+  if (available < 50)
+  {
+    han_direct_error_count++;
+    HAN_P1_SERIAL.flush();
+    return false;
+  }
 
   // Serial.printf("DEBUG: next process in %d \n", int(next_process_ts - time(nullptr)));
   Serial.printf("\n%d bytes available, ts:  ", (int)available);
@@ -3387,7 +3404,10 @@ bool receive_energy_meter_han_direct() // direct
     row_in = HAN_P1_SERIAL.readStringUntil('\n');
     row_in.replace('\r', '\0');
     if (parse_han_row(&row_in))
+    {
       value_count++;
+      han_direct_error_count = 0; // we got something..
+    }
   }
   if (value_count < 5)
   {
@@ -7058,7 +7078,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["production_meter_read_last_ts"] = production_meter_read_last_ts;
   doc["next_process_in"] = max((long)0, (long)next_process_ts - time(nullptr));
 
-
 #ifdef LOAD_MGMT_ENABLED
   for (int l = 0; l < s.load_manager_phase_count; l++)
   {
@@ -7068,7 +7087,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 #endif
 
   doc["free_heap"] = ESP.getFreeHeap();
-
 
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -7124,11 +7142,11 @@ void wifi_event_handler(WiFiEvent_t event)
   switch (event)
   {
   case SYSTEM_EVENT_STA_CONNECTED:
-  //  Serial.println(F("Connected to WiFi Network"));
+    //  Serial.println(F("Connected to WiFi Network"));
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
     wifi_sta_connected = true;
-  //  Serial.println(F("Got IP"));
+    //  Serial.println(F("Got IP"));
     set_timezone_ntp_settings(true, true);
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -7276,6 +7294,7 @@ void setup()
   grid_protection_delay_interval = random(0, grid_protection_delay_max / PROCESS_INTERVAL_SECS) * PROCESS_INTERVAL_SECS;
   Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
 
+  //mount filesystem
   if (!FILESYSTEM.begin(false))
   {
     delay(5000);
@@ -7317,10 +7336,12 @@ void setup()
 #define HAN_P1_SERIAL_SIZE_RX 1024 // Big enough for HAN P1 message
   if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
   {
-    Serial.println("Initializing HAN P1 Serial for HAN P1 read.");
+    Serial.printf("Initializing HAN P1 Serial for HAN P1 read. GPIO: %d\n", (int)s.energy_meter_gpio);
+
     HAN_P1_SERIAL.setRxBufferSize(HAN_P1_SERIAL_SIZE_RX);
     HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, -1); // Hardware Serial of ESP32
-    HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false);  // sets a RX callback function for Serial 2
+    HAN_P1_SERIAL.flush();
+    HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
   }
 #endif
 
@@ -7347,7 +7368,8 @@ void setup()
     // Serial.printf("DEBUG ch %d default state %s\n",channel_idx,s.ch[channel_idx].default_state ?"up":"down" );
     s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state;
     s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
-
+    chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
+    
     apply_relay_state(channel_idx, true);
     relay_state_reapply_required[channel_idx] = false;
   }
@@ -7538,7 +7560,7 @@ void loop()
   io_tasks();
 
   //  handle initial wifi setting from the serial console command line, first 2 minutes only
-  if (!wifi_sta_connected && Serial.available() && millis()<1000*120)
+  if (!wifi_sta_connected && Serial.available() && millis() < 1000 * 120)
   {
     serial_command = Serial.readStringUntil('\n');
     if (serial_command_state == 0)
@@ -7554,8 +7576,8 @@ void loop()
         // Serial.print("Debug serial:");
 
         int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
-      //  if (wifi_idx < network_count + WIFI_OPTION_NOWIFI_SERIAL && wifi_idx >= WIFI_OPTION_NOWIFI_SERIAL)
-        if (wifi_idx < network_count  && wifi_idx >= 0)
+        //  if (wifi_idx < network_count + WIFI_OPTION_NOWIFI_SERIAL && wifi_idx >= WIFI_OPTION_NOWIFI_SERIAL)
+        if (wifi_idx < network_count && wifi_idx >= 0)
         {
           strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
           Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
@@ -7567,9 +7589,9 @@ void loop()
         {
           s.wifi_ssid[0] = 0;
           writeToEEPROM();
-          //log_msg(MSG_TYPE_FATAL, PSTR("Restarting with disabled WiFI."), true);
-          //delay(2000);
-          //ESP.restart();
+          // log_msg(MSG_TYPE_FATAL, PSTR("Restarting with disabled WiFI."), true);
+          // delay(2000);
+          // ESP.restart();
           log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
           serial_command_state = 99;
         }
