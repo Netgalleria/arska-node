@@ -62,7 +62,7 @@ let variable_list = {}; // populate later from json
 
 function goodbye(e) {
     if (!e) e = window.event;
-    e.cancelBubble = true;
+    // e.cancelBubble = true; //deprecated
     e.returnValue = 'You sure you want to leave?';
     if (e.stopPropagation) {
         e.stopPropagation();
@@ -77,15 +77,13 @@ window.onload = function () {
     //ch_0:save
 
     // warn if leaving without saving
-    window.onbeforeunload = goodbye;
+    //window.onbeforeunload = goodbye;
     $('button[data-bs-toggle="pill"]').on('show.bs.tab', function (e) {
-
         /* var activeTab = e.target; // newly activated tab
          var previousTab = e.relatedTarget; // previous active tab
          console.log('Active tab:', activeTab.id);
          console.log('Previous tab:', previousTab.id);
  */
-
         if (e.relatedTarget.id == 'channels-tab')
             buttons_to_check = document.querySelectorAll("[id$=':save'][id^='ch_']");
         else if (e.relatedTarget.id == 'admin-tab')
@@ -654,7 +652,7 @@ function update_status(repeat) {
             channel_history = data.channel_history;
             variable_values = data.variables;
             variable_history = data.variable_history;
-          //  console.log("data.variable_history",data.variable_history);
+            //  console.log("data.variable_history",data.variable_history);
             for (const variable_code in data.variable_history) {
                 for (i = 0; i < data.variable_history[variable_code].length; i++) {
                     if (Math.abs(data.variable_history[variable_code][i]) > 1) {
@@ -662,7 +660,7 @@ function update_status(repeat) {
                         break;
                     }
                 }
-            //             console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+                //             console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
             }
             //** 
 
@@ -1004,9 +1002,9 @@ let price_chart_dataset = [];
 
 function create_dashboard_chart() {
 
-    if (!(typeof Chart === 'function') || Object.keys(variable_values).length ==0 ) { //wait for chartJs script loading and first status request
+    if (!(typeof Chart === 'function') || Object.keys(variable_values).length == 0) { //wait for chartJs script loading and first status request
         setTimeout(function () { create_dashboard_chart(); }, 1000); //object now loaded, rettry soon
-      //  console.log("create_dashboard_chart delayed");
+        //  console.log("create_dashboard_chart delayed");
         return;
     }
 
@@ -1134,7 +1132,7 @@ function create_dashboard_chart() {
         success: function (data, textStatus, jqXHR) {
             console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
 
-         //   console.log('got solar forecast', textStatus, jqXHR.status);
+            //   console.log('got solar forecast', textStatus, jqXHR.status);
             let fcst_ds = [];
             if (!data.hasOwnProperty("solar_forecast"))
                 return false;
@@ -1241,7 +1239,7 @@ function create_dashboard_chart() {
         });
     }
 
-   // console.log("line_next_day", parseInt(Date.now() / 86400000+1)*86400000 );
+    // console.log("line_next_day", parseInt(Date.now() / 86400000+1)*86400000 );
     //TODO: day separator
     day_ahead_chart_obj = new Chart(ctx, {
         type: 'line',
@@ -1262,17 +1260,17 @@ function create_dashboard_chart() {
                         lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
                 },
-           /*    line_nextd: {
-                    beginAtZero: true,
-                    ticks: {
-                        display: false
-                    },
-                    position: { x: (parseInt(Date.now() / 86400000+1)*86400000+600000) }, 
-                    grid: {
-                        display: false,
-                        lineWidth: 6, color: "black", borderWidth: 2, borderColor: 'black'
-                    }
-                },*/
+                /*    line_nextd: {
+                         beginAtZero: true,
+                         ticks: {
+                             display: false
+                         },
+                         position: { x: (parseInt(Date.now() / 86400000+1)*86400000+600000) }, 
+                         grid: {
+                             display: false,
+                             lineWidth: 6, color: "black", borderWidth: 2, borderColor: 'black'
+                         }
+                     },*/
                 y_prices: {
                     beginAtZero: true,
                     ticks: {
@@ -1318,8 +1316,8 @@ function create_dashboard_chart() {
                     ticks: {
                         maxTicksLimit: 48,
                     },
-                    suggestedMin: chart_start_ts*1000,
-                    suggestedMax: chart_end_excl_ts*1000,
+                    suggestedMin: chart_start_ts * 1000,
+                    suggestedMax: chart_end_excl_ts * 1000,
                     time: {
                         unit: 'hour',
                         locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
@@ -1332,17 +1330,17 @@ function create_dashboard_chart() {
                         }
                     }
                 },
-            /*    x_day: {
-                    beginAtZero:true,
-                    grid: { display: true, lineWidth: 10, ticks:false ,z:5},
-                
-                    type: 'time',
-                    time: {
-                        minUnit:'day',stepSize:1,
-                        unit: 'day',
-                        locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
-                    }
-                },*/
+                /*    x_day: {
+                        beginAtZero:true,
+                        grid: { display: true, lineWidth: 10, ticks:false ,z:5},
+                    
+                        type: 'time',
+                        time: {
+                            minUnit:'day',stepSize:1,
+                            unit: 'day',
+                            locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
+                        }
+                    },*/
             },
             interaction: {
                 intersect: false,
@@ -1416,7 +1414,7 @@ function get_price_data(repeat = true) {
             console.log("/prices took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
 
             if (data.record_end_excl > now_ts) {
-              //  console.log('got /prices', textStatus, jqXHR.status);
+                //  console.log('got /prices', textStatus, jqXHR.status);
                 price_data = data; //TODO: remove redundancy in variables
                 prices_first_ts = data.record_start;
                 price_resolution_sec = data.resolution_sec;
@@ -2515,6 +2513,7 @@ function template_form_closed_ev(ev) {
     template_modal.hide();
 }
 function do_backup() {
+    window.onbeforeunload = null; //temporarely disable warning, experimental
     console.log("do_backup");
     $.fileDownload('/setting?format=file')
         .done(function () {
@@ -2522,7 +2521,8 @@ function do_backup() {
             // alert('File download a success!');
         })
         .fail(function () { alert('File download failed!'); });
-}
+    window.onbeforeunload = goodbye; //warning back
+} 
 
 /* WiP
 function reload_when_site_up_again(require_version_base) {
@@ -3176,8 +3176,8 @@ function save_channel_ev(ev) {
             //experimental 27.12.2023, this will update new names etc everywhere
             load_and_update_settings();
             populate_channel(channel_idx);
-            
-            
+
+
         },
         error: function (requestObject, error, errorThrown) {
             console.log(error, errorThrown);
