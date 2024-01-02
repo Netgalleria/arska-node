@@ -138,7 +138,7 @@ String version_fs_base; //= "";
 #define MAX_HISTORY_PERIODS 24
 #define HISTORY_VARIABLE_COUNT 2
 
-#define HW_TEMPLATE_COUNT 7
+#define HW_TEMPLATE_COUNT 8
 #define HW_TEMPLATE_GPIO_COUNT 4 //!< template  max number of hardcoded gpio relays
 
 #define CH_TYPE_UNDEFINED 0
@@ -336,11 +336,17 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define STATE_UPLOADING 90
 #define STATE_COOLING 99
 
+#define STATUS_LED_TYPE_NONE 0
+#define STATUS_LED_TYPE_RGB3 30
+#define STATUS_LED_TYPE_RGB3_REVERSED 31 // output down do activate led
+
+#define RGB_IDX_RED 0
+#define RGB_IDX_GREEN 1
+#define RGB_IDX_BLUE 2
+
 #ifdef HW_EXTENSIONS_ENABLED
 #pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
 // Hardware extension / Shelly
-#define STATUS_LED_TYPE_NONE 0
-#define STATUS_LED_TYPE_RGB3 30
 
 #define RGB_NONE 0
 #define RGB_BLUE 1
@@ -1116,7 +1122,7 @@ void getRTC()
 }
 #endif // rtc
 
-// temperature, updated only if hw extensions
+// internal temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
 
 #ifdef HW_EXTENSIONS_ENABLED
@@ -1307,6 +1313,7 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
 | 4  | shelly-pro-1        |             1 |          ids: 0 |                NA | 35, 4, 13, 14, 30 |
 | 5  | olimex-esp32-evb    |             2 |          32, 33 |      36 (uext rx) |                NA |
 | 6  | shelly-pro-2        |             2 |       ids: 0, 1 |                NA | 35, 4, 13, 14, 30 |
+| 7  | hw-p1-meter         |             0 |       ids: 0, 1 |                16 | 35, 4, 13, 14, 31 |
 |--------------------------|---------------|-----------------|-------------------|-------------------|
 
 Extra notes about the boards:
@@ -1335,10 +1342,8 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
     {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}}};
-
-// Type texts for config ui - now hardcoded in html
-// const char *energy_meter_strings[] PROGMEM = {"none", "Shelly 3EM", "Fronius Solar API", "SMA Modbus TCP"};
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
+    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_REVERSED, {33, 25, 26}}}};
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -3374,6 +3379,12 @@ bool receive_energy_meter_han_direct() // direct
   String row_in;
   int value_count = 0;
 
+  // experimental, blink led on HomeWizard P1 Meter when receiving data
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  {
+    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
+  }
+
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
 
@@ -3384,8 +3395,7 @@ bool receive_energy_meter_han_direct() // direct
   {
     Serial.println("Disabling HAN P1 Serial onReceive");
     HAN_P1_SERIAL.onReceive(NULL, false); // too many errors, probably serial not connected, disconnect to prevent watchdog timeouts
-    log_msg(MSG_TYPE_ERROR, PSTR("Errors in reading HAN P1 Serial, disabled."),true);
-
+    log_msg(MSG_TYPE_ERROR, PSTR("Errors in reading HAN P1 Serial, disabled."), true);
   }
   if (available < 50)
   {
@@ -3420,6 +3430,12 @@ bool receive_energy_meter_han_direct() // direct
 
   todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
   yield();
+
+  // led down
+   if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  {
+    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
+  }
   return true;
 }
 
@@ -6459,6 +6475,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
     Serial.printf("hw_template_idx %d, s.hw_template_id %d\n", hw_template_idx, s.hw_template_id);
     if (hw_template_idx != -1)
     {
+      s.energy_meter_gpio = hw_templates[hw_template_idx].energy_meter_gpio;
       // copy template id:s (gpio)
       for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
       {
@@ -7294,7 +7311,7 @@ void setup()
   grid_protection_delay_interval = random(0, grid_protection_delay_max / PROCESS_INTERVAL_SECS) * PROCESS_INTERVAL_SECS;
   Serial.printf(PSTR("Grid protection delay after interval change %d seconds.\n"), grid_protection_delay_interval);
 
-  //mount filesystem
+  // mount filesystem
   if (!FILESYSTEM.begin(false))
   {
     delay(5000);
@@ -7369,7 +7386,7 @@ void setup()
     s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state;
     s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
     chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
-    
+
     apply_relay_state(channel_idx, true);
     relay_state_reapply_required[channel_idx] = false;
   }
@@ -7396,6 +7413,15 @@ void setup()
 
       //   Serial.printf("register_out %d\n", (int)register_out);
       updateShiftRegister();
+    }
+  }
+#else // no extensions (Shelly/SN74HC595) but led for(HomeWizard), todo: other device leds
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT); 
+      digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], HIGH);
     }
   }
 #endif
