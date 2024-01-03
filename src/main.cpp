@@ -34,7 +34,8 @@ DEVEL BRANCH
 #define DEBUG_FILE_ENABLED
 // #define HW_EXTENSIONS_ENABLED //!<uncomment  line to enable SN74HC595, LED and reset button functionality (Shelly),The device must be defined in  hw_templates array
 #define DEBUG_MODE_ENABLED
-#define NVS_CACHE_ENABLED // experimental
+#define NVS_CACHE_ENABLED    // experimental
+#define RESET_BUTTON_ENABLED // HomeWizard & Shelly hardware
 
 #ifdef NVS_CACHE_ENABLED
 #include "nvs_flash.h"
@@ -176,6 +177,7 @@ String version_fs_base; //= "";
 #define PRODUCTIONM_SMA_MODBUS_TCP 2
 
 #define ID_NA 255
+#define GPIO_STATE_NA -1
 #define CHANNEL_TYPE_COUNT 6
 
 #define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
@@ -344,10 +346,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define RGB_IDX_GREEN 1
 #define RGB_IDX_BLUE 2
 
-#ifdef HW_EXTENSIONS_ENABLED
-#pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
-// Hardware extension / Shelly
-
 #define RGB_NONE 0
 #define RGB_BLUE 1
 #define RGB_GREEN 2
@@ -356,6 +354,10 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define RGB_PURPLE 5
 #define RGB_YELLOW 6
 #define RGB_WHITE 7
+
+#ifdef HW_EXTENSIONS_ENABLED
+#pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
+// Hardware extension / Shelly
 
 #define BIT_RELAY 0     // Qa
 #define BIT_LED_OUT2 1  // Qb
@@ -432,6 +434,7 @@ struct msg_st
 struct hw_io_struct
 {
   uint8_t reset_button_gpio;
+  int reset_button_normal_state;
   bool output_register; // false
   uint8_t rclk_gpio;    // if shifted
   uint8_t ser_gpio;
@@ -1138,11 +1141,6 @@ extern "C"
 #endif
 uint8_t temprature_sens_read();
 
-// reset button
-uint32_t state_started = millis();
-int reset_button_triggering_state = HIGH;
-int reset_button_previous_state = reset_button_triggering_state;
-
 uint32_t last_temp_read = millis();
 
 #endif // hw_extensions
@@ -1303,18 +1301,19 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
   hw_io_struct hw_io;
 };
 
-|----------------------------------------------------------------------------------------------------|
-| id | board code          |  fixed relays | relay gpios/ids | energy_meter_gpio |    extented gpios |
-|--------------------------|---------------|-----------------|-------------------|-------------------|
-| 0  | manual              |             0 |               ? |                 ? |                NA |
-| 1  | esp32lilygo-4ch     |             4 |   21, 19, 18, 5 |                36 |                NA |
-| 2  | esp32wroom-4ch-a    |             4 |  32, 33, 25, 26 |                35 |                NA |
-| 3  | devantech-esp32lr42 |             4 |  33, 25, 26, 27 |                NA |                NA |
-| 4  | shelly-pro-1        |             1 |          ids: 0 |                NA | 35, 4, 13, 14, 30 |
-| 5  | olimex-esp32-evb    |             2 |          32, 33 |      36 (uext rx) |                NA |
-| 6  | shelly-pro-2        |             2 |       ids: 0, 1 |                NA | 35, 4, 13, 14, 30 |
-| 7  | hw-p1-meter         |             0 |       ids: 0, 1 |                16 | 35, 4, 13, 14, 31 |
-|--------------------------|---------------|-----------------|-------------------|-------------------|
+|------------------------------------------------------------------------------------------------------------------|
+|    |                     |  fixed  | relay gpios/ids |  energy meter |           led  | rst  | rst    | shift    |
+| id | board code          |  relays | relay gpios/ids |         gpios |        id/gpio | gpio | normal | reg gpio |
+|--------------------------|---------|-----------------|---------------|----------------|------|--------|----------|
+| 0  | manual              |       0 |               ? |             ? |              - |    - |      - |        - |
+| 1  | esp32lilygo-4ch     |       4 |   21, 19, 18, 5 |            36 |              - |    - |      - |        - |
+| 2  | esp32wroom-4ch-a    |       4 |  32, 33, 25, 26 |            35 |              - |    - |      - |        - |
+| 3  | devantech-esp32lr42 |       4 |  33, 25, 26, 27 |            NA |              - |    - |      - |        - |
+| 4  | shelly-pro-1        |       1 |          ids: 0 |            NA |        4, 3, 2 |   35 |    LOW |  4,13,14 |
+| 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |    - |      - |        - |
+| 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |   35 |    LOW |  4,13,14 |
+| 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |    2 |   HIGH |        - |
+|--------------------------|---------|-----------------|---------------|----------------|------|--------|----------|
 
 Extra notes about the boards:
 - manual: all pins configured from the UI
@@ -1336,14 +1335,14 @@ Additional reserved gpios:
 
 */
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
-    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
-    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, true, 4, 13, 14, 30, {4, 3, 2}}},
-    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_REVERSED, {33, 25, 26}}}};
+    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3, {4, 3, 2}}},
+    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3, {4, 3, 2}}},
+    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_REVERSED, {26, 25, 33}}}};
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -1438,6 +1437,115 @@ bool is_local_relay(uint8_t type)
 {
   return (type == CH_TYPE_GPIO_FIXED || type == CH_TYPE_GPIO_USER_DEF || type == CH_TYPE_GPIO_USR_INVERSED);
 }
+
+// experimental for response led on/off
+
+byte led_rgb[3];
+
+// LED blinking
+// https://circuitdigest.com/microcontroller-projects/esp32-timers-and-timer-interrupts
+hw_timer_t *led_timer = NULL;
+int led_noshow_ticks = 9;
+int led_show_ticks = 1;
+int led_tick_count_cyclic = 0;
+#define LED_TIMER_INTERVAL_US 100000 // 100ms
+
+void led_write_color(bool show = true)
+{
+  // experimental, blink led on HomeWizard P1 Meter when receiving data
+  byte element_val;
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      element_val = show ? led_rgb[i]:0;
+      digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], element_val > 0 ? LOW : HIGH);
+    }
+  }
+}
+void led_set_color_rgb(byte r, byte g, byte b)
+{
+  led_rgb[0] = r;
+  led_rgb[1] = g;
+  led_rgb[2] = b;
+  led_write_color();
+}
+
+void IRAM_ATTR on_led_timer()
+{
+ // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
+  bool led_on = (led_tick_count_cyclic < led_show_ticks); // led is on during first ticks
+  if (led_on && led_tick_count_cyclic == 0)
+  {
+    led_write_color(true);
+//    Serial.print("1");
+  }
+  else if (!led_on && led_tick_count_cyclic == led_show_ticks)
+  {
+    led_write_color(false);
+ //    Serial.print("0");
+  }
+  led_tick_count_cyclic++;
+  led_tick_count_cyclic = led_tick_count_cyclic % (led_show_ticks + led_noshow_ticks);
+}
+
+// run after led_set_color_rgb
+void blink_led(byte r, byte g, byte b, int show_ticks, int noshow_ticks)
+{
+  led_set_color_rgb(r, g, b);
+  led_noshow_ticks = noshow_ticks;
+  led_show_ticks = show_ticks;
+  led_tick_count_cyclic = 0;
+}
+
+// check if reset button has pressed and for how long, act if needed
+#ifdef RESET_BUTTON_ENABLED
+uint32_t reset_button_push_started_ms;
+
+void IRAM_ATTR check_reset_button()
+{
+  // reset buutton gpio defined in hardware template, skip if undefined, ski
+  if (hw_templates[hw_template_idx].hw_io.reset_button_gpio == ID_NA)
+  {
+    return; // should not end up here if called from irq
+  }
+
+  int reset_button_current_state = digitalRead(hw_templates[hw_template_idx].hw_io.reset_button_gpio);
+
+  // push, record start time
+  if (reset_button_push_started_ms == 0 && reset_button_current_state != hw_templates[hw_template_idx].hw_io.reset_button_normal_state)
+  {
+    reset_button_push_started_ms = millis();
+    Serial.println("DEBUG  check_reset_button pushed");
+    return;
+  }
+  // release
+  if (reset_button_push_started_ms > 0 && reset_button_current_state == hw_templates[hw_template_idx].hw_io.reset_button_normal_state)
+  {
+    // check how long was up
+    if (millis() - reset_button_push_started_ms > 10000)
+    {
+      // reset and restart, we cannot do in the loop() - maybe not started yet
+
+      led_set_color_rgb(255, 0, 0);
+      reset_config();
+      log_msg(MSG_TYPE_FATAL, PSTR("Resetting config due to user activity (settings/cmd/button)."), true);
+      writeToEEPROM();
+      led_set_color_rgb(0, 0, 0);
+      ESP.restart();
+    }
+    else if (millis() - reset_button_push_started_ms > 500) // was 5000
+    {
+      // restart
+      led_set_color_rgb(0, 0, 255);
+      todo_in_loop_restart = true;
+    } // else do nothing, was up not long enough
+
+    reset_button_push_started_ms = 0;
+    Serial.println("DEBUG exiting check_reset_button");
+  }
+}
+#endif
 
 #ifdef HW_EXTENSIONS_ENABLED
 
@@ -1539,36 +1647,9 @@ void io_tasks(uint8_t state = STATE_NA)
     }
   }
 
-  // reset button
-  if (hw_templates[hw_template_idx].hw_io.reset_button_gpio != ID_NA)
-  {
-    int reset_current_state = digitalRead(hw_templates[hw_template_idx].hw_io.reset_button_gpio);
-    if (reset_current_state != reset_button_previous_state)
-    {
-      if (reset_current_state == reset_button_triggering_state)
-      {
-        // check how long was up
-        if (millis() - state_started > 10000)
-        {
-          // TODO: add reset
-          WiFi.disconnect();
-          log_msg(MSG_TYPE_FATAL, PSTR("Resetting, user pressed reset button a loong time."), true);
-          reset_config();
-          delay(2000);
-          ESP.restart();
-        }
-        else if (millis() - state_started > 5000)
-        {
-          WiFi.disconnect();
-          log_msg(MSG_TYPE_FATAL, PSTR("Resetting, user pressed reset button."), true);
-          delay(2000);
-          ESP.restart();
-        } // else do nothing, was up not long enough
-      }
-      state_started = millis();
-      reset_button_previous_state = reset_current_state;
-    }
-  }
+  // #ifdef RESET_BUTTON_ENABLED
+  //   check_reset_button();
+  // #endif
 }
 /**
  * @brief Handles cool down to given temperature
@@ -1638,9 +1719,32 @@ void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
   todo_in_loop_reapply_relay_states = true;
 };
 #else
+uint8_t state_prev = STATE_NA;
 void io_tasks(uint8_t state = STATE_NA)
 {
-  return;
+  // #ifdef RESET_BUTTON_ENABLED
+  //   check_reset_button();
+  // #endif
+  // experimental state color with homewizard, todo: other led types
+  if (state==STATE_NA || state_prev == state) {
+    return;
+  }
+   if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  {
+    Serial.println(state);
+    if (state == STATE_NONE)
+       blink_led(255, 255, 255, 1, 49);
+    else if (state == STATE_CONNECTING)
+      blink_led(255, 255, 0, 1, 9);
+    else if (state == STATE_PROCESSING)
+       blink_led(255, 255, 255, 1, 9);
+    else if (state == STATE_UPLOADING)
+       blink_led(0, 255, 255, 1, 5);
+    else if (!wifi_sta_connected) // Blue -AP mode.
+      blink_led(0, 0, 255, 5, 15);
+    }
+    state_prev = state;
+    return;
 }; // do nothing if extensions are not enabled
 #endif // HW_EXTENSIONS_ENABLED
 
@@ -3432,7 +3536,7 @@ bool receive_energy_meter_han_direct() // direct
   yield();
 
   // led down
-   if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
   }
@@ -7362,6 +7466,17 @@ void setup()
   }
 #endif
 
+#ifdef RESET_BUTTON_ENABLED
+  if (hw_templates[hw_template_idx].hw_io.reset_button_gpio != ID_NA)
+  {
+    pinMode(hw_templates[hw_template_idx].hw_io.reset_button_gpio, hw_templates[hw_template_idx].hw_io.reset_button_normal_state == HIGH ? INPUT_PULLUP : INPUT_PULLDOWN);
+    reset_button_push_started_ms = 0;
+    // check when change in gpio state - could be polling in the loop/iotasks instead
+    attachInterrupt(hw_templates[hw_template_idx].hw_io.reset_button_gpio, check_reset_button, CHANGE);
+    Serial.printf("DEBUG: Activating reset button interrupt for gpio %d\n", hw_templates[hw_template_idx].hw_io.reset_button_gpio);
+  }
+#endif
+
   io_tasks();
 
   if (s.check_value != EEPROM_CHECK_VALUE) // setup not initiated
@@ -7397,12 +7512,7 @@ void setup()
   if (hw_template_idx != -1)
   {
     io_tasks();
-    // reset button
-    if (hw_templates[hw_template_idx].hw_io.reset_button_gpio != ID_NA)
-    {
-      pinMode(hw_templates[hw_template_idx].hw_io.reset_button_gpio, INPUT_PULLDOWN);
-      reset_button_previous_state = digitalRead(hw_templates[hw_template_idx].hw_io.reset_button_gpio);
-    }
+
     // Set all the pins of 74HC595 as OUTPUT
     if (hw_templates[hw_template_idx].hw_io.output_register)
     {
@@ -7420,10 +7530,19 @@ void setup()
   {
     for (int i = 0; i < 3; i++)
     {
-      pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT); 
-      digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], HIGH);
+      pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
     }
+   
+  // setup()
+  led_timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(led_timer, &on_led_timer, true);
+  timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
+  timerAlarmEnable(led_timer);
+  // testing blinking
+  blink_led(255, 255, 0, 1, 19);
+
   }
+
 #endif
 
   Serial.println("Starting wifi");
@@ -7654,9 +7773,10 @@ void loop()
 
   if (todo_in_loop_restart)
   {
-    delay(1000);
+    led_set_color_rgb(0, 0, 0);
     WiFi.disconnect();
     log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to user activity (settings/cmd)."), true);
+    writeToEEPROM();
     delay(2000);
     ESP.restart();
   }
@@ -7834,7 +7954,6 @@ void loop()
     }
     else
     {
-
 #ifdef PRICE_ELERING_ENABLED
       if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
         got_price_ok = get_price_data_elering();
@@ -7917,23 +8036,23 @@ void loop()
 
   // Scheduled tasks -->
   // Meter polling could be shorter than normal processing frequency
+#define ESTIMATED_METER_READ_TIME_MAX_SEC (CONNECT_TIMEOUT_INTERNAL + 1)
   if (next_energy_meter_read_ts <= time(nullptr) && wifi_sta_connected)
   {
-    io_tasks(STATE_PROCESSING);
-    if (s.energy_meter_type != ENERGYM_NONE)
+    if (s.energy_meter_type == ENERGYM_SHELLY3EM || s.energy_meter_type == ENERGYM_SHELLY_GEN2)
     {
+      io_tasks(STATE_PROCESSING);
       read_energy_meter();
-    }
-#define ESTIMATED_METER_READ_TIME_MAX_SEC (CONNECT_TIMEOUT_INTERNAL + 1)
     next_energy_meter_read_ts = max((time_t)(next_energy_meter_read_ts + s.energy_meter_pollingfreq), time(nullptr) + (s.energy_meter_pollingfreq - ESTIMATED_METER_READ_TIME_MAX_SEC)); // max is just in case to allow skipping reading, if reading takes too long
+    }
   }
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
   if (next_process_ts <= time(nullptr)) // time to process
-  {
-    io_tasks(STATE_PROCESSING);
+  { 
     if (s.production_meter_type != PRODUCTIONM_NONE && wifi_sta_connected)
     {
+      io_tasks(STATE_PROCESSING);
       read_production_meter();
     }
 
@@ -7970,10 +8089,10 @@ void loop()
 
   // Tasks that should be run
 #ifdef INVERTER_SMA_MODBUS_ENABLED
-  mb.task(); // process modbuss event queue
+  mb.task(); // process modbus event queue
 #endif
   yield();
   delay(50); // short break
-  io_tasks();
+  io_tasks(STATE_NONE);
   first_loop_ended = true;
 }
