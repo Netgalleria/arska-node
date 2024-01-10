@@ -2416,7 +2416,7 @@ function populate_oper(el_oper, var_this, stmt = [-1, -1, 0]) {
                 void (0); // do nothing, do not skip
             else if (is_var_logical(var_this[VAR_IDX_TYPE]) && !g_application.opers[i][OPER_IDX_BOOLEANONLY]) //boolean variable, not boolean oper
                 continue;
-            else if (!is_var_multiselect(var_this[VAR_IDX_BITMASK]) && g_application.opers[i][OPER_IDX_HASVALUE]) {// not multiselect variable, multiselect  oper
+            else if (!is_var_multiselect(var_this[VAR_IDX_BITMASK]) && g_application.opers[i][OPER_IDX_MULTISELECT]) {// not multiselect variable, multiselect  oper
                 continue;
             }
             else if (!is_var_logical(var_this[VAR_IDX_TYPE]) && g_application.opers[i][OPER_IDX_BOOLEANONLY]) // numeric variable, boolean oper
@@ -2522,7 +2522,7 @@ function do_backup() {
         })
         .fail(function () { alert('File download failed!'); });
     window.onbeforeunload = goodbye; //warning back
-} 
+}
 
 /* WiP
 function reload_when_site_up_again(require_version_base) {
