@@ -6,21 +6,21 @@
         "unit": "¢/kWh"
     },
     "1": {
-        "code": "price rank 9h",
+        "code": "price rank sliding 9h",
         "desc": "Price rank in 9 hours, sliding windows, 1 if now lowest price, 9 highest",
         "desc_fi": "Hintasijoitus 9 tunnin liukuvassa aikaikkunassa, 1-9, jossa 1 edullisin ja 9 kallein tunti",
         "min": 1,
         "max": 9
     },
     "2": {
-        "code": "price rank 24h",
+        "code": "price rank sliding 24h",
         "desc": "Price rank in 24 hours, sliding window, 1 if now lowest price, 24 highest",
         "desc_fi": "Hintasijoitus 24 tunnin liukuvassa aikaikkunassa, 1-24, jossa 1 edullisin ja 24 kallein tunti",
         "min": 1,
         "max": 24
     },
     "3": {
-        "code": "price rank 24h",
+        "code": "price rank fixed 24h",
         "desc": "Price rank in 24 hours, fixed nychthemeron 00:00-23:59, 1 if now lowest price, 24 if highest",
         "desc_fi": "Hintasijoitus tämän vuorokauden (00-23:59) aikaikkunassa, jossa 1 edullisin ja 24 kallein tunti",
         "min": 1,
