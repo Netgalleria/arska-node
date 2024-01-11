@@ -339,6 +339,8 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define STATE_COOLING 99
 
 #define STATUS_LED_TYPE_NONE 0
+#define STATUS_LED_TYPE_SINGLE_HIGHACTIVE 10
+#define STATUS_LED_TYPE_SINGLE_LOWACTIVE 11
 #define STATUS_LED_TYPE_RGB3 30
 #define STATUS_LED_TYPE_RGB3_REVERSED 31 // output down do activate led
 
@@ -1306,7 +1308,7 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
 | id | board code          |  relays | relay gpios/ids |         gpios |        id/gpio | gpio | normal | reg gpio |
 |--------------------------|---------|-----------------|---------------|----------------|------|--------|----------|
 | 0  | manual              |       0 |               ? |             ? |              - |    - |      - |        - |
-| 1  | esp32lilygo-4ch     |       4 |   21, 19, 18, 5 |            36 |              - |    - |      - |        - |
+| 1  | esp32lilygo-4ch     |       4 |   21, 19, 18, 5 |            36 | single 25,-, - |    - |      - |        - |
 | 2  | esp32wroom-4ch-a    |       4 |  32, 33, 25, 26 |            35 |              - |    - |      - |        - |
 | 3  | devantech-esp32lr42 |       4 |  33, 25, 26, 27 |            NA |              - |    - |      - |        - |
 | 4  | shelly-pro-1        |       1 |          ids: 0 |            NA |        4, 3, 2 |   35 |    LOW |  4,13,14 |
@@ -1335,12 +1337,12 @@ Additional reserved gpios:
 
 */
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
-    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
-    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
     {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3, {4, 3, 2}}},
-    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, ID_NA, {ID_NA, ID_NA, ID_NA}}},
+    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
     {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3, {4, 3, 2}}},
     {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_REVERSED, {26, 25, 33}}}};
 
@@ -1454,14 +1456,22 @@ void led_write_color(bool show = true)
 {
   // experimental, blink led on HomeWizard P1 Meter when receiving data
   byte element_val;
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_HIGHACTIVE) {
+     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? HIGH : LOW);
+  }
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE) {
+     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? LOW : HIGH );
+  }
+  else if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
   {
     for (int i = 0; i < 3; i++)
     {
-      element_val = show ? led_rgb[i]:0;
+      element_val = show ? led_rgb[i] : 0;
       digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], element_val > 0 ? LOW : HIGH);
     }
   }
+
 }
 void led_set_color_rgb(byte r, byte g, byte b)
 {
@@ -1473,17 +1483,17 @@ void led_set_color_rgb(byte r, byte g, byte b)
 
 void IRAM_ATTR on_led_timer()
 {
- // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
+  // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
   bool led_on = (led_tick_count_cyclic < led_show_ticks); // led is on during first ticks
   if (led_on && led_tick_count_cyclic == 0)
   {
     led_write_color(true);
-//    Serial.print("1");
+    //    Serial.print("1");
   }
   else if (!led_on && led_tick_count_cyclic == led_show_ticks)
   {
     led_write_color(false);
- //    Serial.print("0");
+    //    Serial.print("0");
   }
   led_tick_count_cyclic++;
   led_tick_count_cyclic = led_tick_count_cyclic % (led_show_ticks + led_noshow_ticks);
@@ -1492,10 +1502,10 @@ void IRAM_ATTR on_led_timer()
 // run after led_set_color_rgb
 void blink_led(byte r, byte g, byte b, int show_ticks, int noshow_ticks)
 {
-  led_set_color_rgb(r, g, b);
-  led_noshow_ticks = noshow_ticks;
-  led_show_ticks = show_ticks;
-  led_tick_count_cyclic = 0;
+    led_set_color_rgb(r, g, b);
+    led_noshow_ticks = noshow_ticks;
+    led_show_ticks = show_ticks;
+    led_tick_count_cyclic = 0; 
 }
 
 // check if reset button has pressed and for how long, act if needed
@@ -1726,25 +1736,25 @@ void io_tasks(uint8_t state = STATE_NA)
   //   check_reset_button();
   // #endif
   // experimental state color with homewizard, todo: other led types
-  if (state==STATE_NA || state_prev == state) {
+  if (state == STATE_NA || state_prev == state)
+  {
     return;
   }
-   if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
   {
-    Serial.println(state);
     if (state == STATE_NONE)
-       blink_led(255, 255, 255, 1, 49);
+      blink_led(255, 255, 255, 2, 50);
     else if (state == STATE_CONNECTING)
       blink_led(255, 255, 0, 1, 9);
     else if (state == STATE_PROCESSING)
-       blink_led(255, 255, 255, 1, 9);
+      blink_led(255, 255, 255, 1, 9);
     else if (state == STATE_UPLOADING)
-       blink_led(0, 255, 255, 1, 5);
+      blink_led(0, 255, 255, 1, 5);
     else if (!wifi_sta_connected) // Blue -AP mode.
       blink_led(0, 0, 255, 5, 15);
-    }
-    state_prev = state;
-    return;
+  }
+  state_prev = state;
+  return;
 }; // do nothing if extensions are not enabled
 #endif // HW_EXTENSIONS_ENABLED
 
@@ -7526,21 +7536,21 @@ void setup()
     }
   }
 #else // no extensions (Shelly/SN74HC595) but led for(HomeWizard), todo: other device leds
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE )
   {
     for (int i = 0; i < 3; i++)
     {
-      pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
+      if(hw_templates[hw_template_idx].hw_io.status_led_ids[i]!= ID_NA)
+        pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
     }
-   
-  // setup()
-  led_timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(led_timer, &on_led_timer, true);
-  timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
-  timerAlarmEnable(led_timer);
-  // testing blinking
-  blink_led(255, 255, 0, 1, 19);
 
+    // setup()
+    led_timer = timerBegin(0, 80, true);
+    timerAttachInterrupt(led_timer, &on_led_timer, true);
+    timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
+    timerAlarmEnable(led_timer);
+    // testing blinking
+    // blink_led(255, 255, 0, 1, 19);
   }
 
 #endif
@@ -8043,13 +8053,13 @@ void loop()
     {
       io_tasks(STATE_PROCESSING);
       read_energy_meter();
-    next_energy_meter_read_ts = max((time_t)(next_energy_meter_read_ts + s.energy_meter_pollingfreq), time(nullptr) + (s.energy_meter_pollingfreq - ESTIMATED_METER_READ_TIME_MAX_SEC)); // max is just in case to allow skipping reading, if reading takes too long
+      next_energy_meter_read_ts = max((time_t)(next_energy_meter_read_ts + s.energy_meter_pollingfreq), time(nullptr) + (s.energy_meter_pollingfreq - ESTIMATED_METER_READ_TIME_MAX_SEC)); // max is just in case to allow skipping reading, if reading takes too long
     }
   }
 
   // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
   if (next_process_ts <= time(nullptr)) // time to process
-  { 
+  {
     if (s.production_meter_type != PRODUCTIONM_NONE && wifi_sta_connected)
     {
       io_tasks(STATE_PROCESSING);
