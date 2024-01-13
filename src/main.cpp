@@ -338,11 +338,23 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define STATE_UPLOADING 90
 #define STATE_COOLING 99
 
+// Led pulse patterns, read from right!
+#define LED_PATTERN_SOS 0b10101011101110111010101UL; //testing
+#define LED_PATTERN_DARK 0b0UL
+#define LED_PATTERN_SHORT 0b1UL
+#define LED_PATTERN_2SHORT 0b101L
+#define LED_PATTERN_3SHORT 0b10101UL
+#define LED_PATTERN_SHORT_LONG 0b11101UL
+#define LED_PATTERN_SHORT_2LONG 0b111011101UL
+#define LED_PATTERN_SHORT_LONG_SHORT 0b1011101UL
+
+
+
 #define STATUS_LED_TYPE_NONE 0
 #define STATUS_LED_TYPE_SINGLE_HIGHACTIVE 10
 #define STATUS_LED_TYPE_SINGLE_LOWACTIVE 11
-#define STATUS_LED_TYPE_RGB3 30
-#define STATUS_LED_TYPE_RGB3_REVERSED 31 // output down do activate led
+#define STATUS_LED_TYPE_RGB3_HIGHACTIVE 30
+#define STATUS_LED_TYPE_RGB3_LOWACTIVE 31 // output down do activate led
 
 #define RGB_IDX_RED 0
 #define RGB_IDX_GREEN 1
@@ -1341,10 +1353,10 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
     {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
     {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3, {4, 3, 2}}},
+    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {4, 3, 2}}},
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3, {4, 3, 2}}},
-    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_REVERSED, {26, 25, 33}}}};
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {4, 3, 2}}},
+    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}}};
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -1447,8 +1459,9 @@ byte led_rgb[3];
 // LED blinking
 // https://circuitdigest.com/microcontroller-projects/esp32-timers-and-timer-interrupts
 hw_timer_t *led_timer = NULL;
+u32_t led_pattern = LED_PATTERN_DARK;
 int led_noshow_ticks = 9;
-int led_show_ticks = 1;
+//int led_show_ticks = 1;
 int led_tick_count_cyclic = 0;
 #define LED_TIMER_INTERVAL_US 100000 // 100ms
 
@@ -1457,13 +1470,15 @@ void led_write_color(bool show = true)
   // experimental, blink led on HomeWizard P1 Meter when receiving data
   byte element_val;
 
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_HIGHACTIVE) {
-     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? HIGH : LOW);
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_HIGHACTIVE)
+  {
+    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? HIGH : LOW);
   }
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE) {
-     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? LOW : HIGH );
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
+  {
+    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? LOW : HIGH);
   }
-  else if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  else if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
     for (int i = 0; i < 3; i++)
     {
@@ -1471,7 +1486,6 @@ void led_write_color(bool show = true)
       digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], element_val > 0 ? LOW : HIGH);
     }
   }
-
 }
 void led_set_color_rgb(byte r, byte g, byte b)
 {
@@ -1480,7 +1494,7 @@ void led_set_color_rgb(byte r, byte g, byte b)
   led_rgb[2] = b;
   led_write_color();
 }
-
+/* old version, no pattern, remove when new tested
 void IRAM_ATTR on_led_timer()
 {
   // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
@@ -1498,15 +1512,56 @@ void IRAM_ATTR on_led_timer()
   led_tick_count_cyclic++;
   led_tick_count_cyclic = led_tick_count_cyclic % (led_show_ticks + led_noshow_ticks);
 }
+*/
+void IRAM_ATTR on_led_timer()
+{
+  // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
+  int pattern_length = (int)log2(led_pattern)+1;
+  bool pattern_on = (led_tick_count_cyclic < pattern_length); // led pattern blinking during first ticks
+  bool led_on= (1 == ((led_pattern >> led_tick_count_cyclic) & 1));
 
-// run after led_set_color_rgb
+  if (pattern_on)
+  {
+    led_write_color(led_on);
+  }
+  else if (!pattern_on && led_tick_count_cyclic == pattern_length)
+  {
+    led_write_color(false);
+  }
+  led_tick_count_cyclic++;
+  led_tick_count_cyclic = led_tick_count_cyclic % (pattern_length + led_noshow_ticks);
+}
+
+
+/**
+ * @brief Set led blink pattern, pause and color
+ * 
+ * @param r 
+ * @param g 
+ * @param b 
+ * @param show_ticks 
+ * @param noshow_ticks 
+ * @param pattern 
+ */
+/* Old version, remove
 void blink_led(byte r, byte g, byte b, int show_ticks, int noshow_ticks)
 {
-    led_set_color_rgb(r, g, b);
-    led_noshow_ticks = noshow_ticks;
-    led_show_ticks = show_ticks;
-    led_tick_count_cyclic = 0; 
+  led_set_color_rgb(r, g, b);
+  led_noshow_ticks = noshow_ticks;
+  led_show_ticks = show_ticks;
+  led_tick_count_cyclic = 0;
+} */
+
+void set_led(byte r, byte g, byte b, int noshow_ticks,u32_t pattern )
+{
+  led_set_color_rgb(r, g, b);
+  led_pattern = pattern;
+  led_noshow_ticks = noshow_ticks;
+ // led_show_ticks = show_ticks;
+  led_tick_count_cyclic = 0;
 }
+
+
 
 // check if reset button has pressed and for how long, act if needed
 #ifdef RESET_BUTTON_ENABLED
@@ -1619,7 +1674,7 @@ void io_tasks(uint8_t state = STATE_NA)
 
   // led
   led_swing = !led_swing;
-  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE)
   {
     uint8_t rgb_value = 0;
     if (state == STATE_NONE)
@@ -1740,18 +1795,23 @@ void io_tasks(uint8_t state = STATE_NA)
   {
     return;
   }
-  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
   {
     if (state == STATE_NONE)
-      blink_led(255, 255, 255, 2, 50);
+     // blink_led(255, 255, 255, 2, 50);
+      set_led(255, 255, 255,50,LED_PATTERN_SHORT);
     else if (state == STATE_CONNECTING)
-      blink_led(255, 255, 0, 1, 9);
+    //  blink_led(255, 255, 0, 1, 9);
+      set_led(255, 255, 0,9,LED_PATTERN_3SHORT);
     else if (state == STATE_PROCESSING)
-      blink_led(255, 255, 255, 1, 9);
+     // blink_led(255, 255, 255, 1, 29);
+       set_led(255, 255, 255,9,LED_PATTERN_SHORT_LONG);
     else if (state == STATE_UPLOADING)
-      blink_led(0, 255, 255, 1, 5);
+  //    blink_led(0, 255, 255, 1, 4);
+      set_led(0, 255, 255,4,LED_PATTERN_SHORT_2LONG);
     else if (!wifi_sta_connected) // Blue -AP mode.
-      blink_led(0, 0, 255, 5, 15);
+    //  blink_led(0, 0, 255, 5, 15);
+     set_led(0, 0, 255,15,LED_PATTERN_2SHORT);
   }
   state_prev = state;
   return;
@@ -3456,6 +3516,13 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 #define HAN_P1_SERIAL Serial1
 // #pragma message("Testing with Serial 1 should be 2")
 
+/**
+ * @brief Parses given string to a memory variable if OBIS code in the string matches
+ *
+ * @param row_in_p
+ * @return true
+ * @return false
+ */
 bool parse_han_row(String *row_in_p)
 {
 
@@ -3487,14 +3554,19 @@ bool parse_han_row(String *row_in_p)
 }
 
 uint16_t han_direct_error_count = 0;
-
+/**
+ * @brief UART callback function called when there is new data from HAN P1 Serial porrt
+ *
+ * @return true , successful if there were enough values in the buffer
+ * @return false , unsuccessful, not enough data or too few values
+ */
 bool receive_energy_meter_han_direct() // direct
 {
   String row_in;
   int value_count = 0;
 
-  // experimental, blink led on HomeWizard P1 Meter when receiving data
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
   }
@@ -3505,13 +3577,15 @@ bool receive_energy_meter_han_direct() // direct
   size_t available = HAN_P1_SERIAL.available();
 
   // experimental, prevent loops if port not connected
+  // junk if RXD is floating, ie not connected to an adapter
   if (han_direct_error_count > 2)
   {
     Serial.println("Disabling HAN P1 Serial onReceive");
-    HAN_P1_SERIAL.onReceive(NULL, false); // too many errors, probably serial not connected, disconnect to prevent watchdog timeouts
-    log_msg(MSG_TYPE_ERROR, PSTR("Errors in reading HAN P1 Serial, disabled."), true);
+    HAN_P1_SERIAL.onReceive(NULL, false); // too many errors, probably serial not connected to an adapter ie rxd is floating, disconnect to prevent watchdog timeouts
+    // log_msg(MSG_TYPE_ERROR, PSTR("Errors in reading HAN P1 Serial, disabled."), true); //too long operation for irq,TODO: add to loop...
   }
-  if (available < 50)
+
+  if (available < 200)
   {
     han_direct_error_count++;
     HAN_P1_SERIAL.flush();
@@ -3546,7 +3620,7 @@ bool receive_energy_meter_han_direct() // direct
   yield();
 
   // led down
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_REVERSED)
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
   }
@@ -4177,7 +4251,7 @@ void calculate_price_rank_variables()
   Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  Serial.printf("New way 9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
@@ -7535,22 +7609,23 @@ void setup()
       updateShiftRegister();
     }
   }
-#else // no extensions (Shelly/SN74HC595) but led for(HomeWizard), todo: other device leds
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE )
+#else // no extensions (Shelly/SN74HC595) but led for HomeWizard, Olimex. todo: other devices, move SN74HC595-based devices under the same logic
+  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE)
   {
     for (int i = 0; i < 3; i++)
     {
-      if(hw_templates[hw_template_idx].hw_io.status_led_ids[i]!= ID_NA)
+      if (hw_templates[hw_template_idx].hw_io.status_led_ids[i] != ID_NA)
         pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
     }
 
-    // setup()
+    // setup() led
+    set_led(255, 0, 0,30,LED_PATTERN_SHORT_LONG_SHORT);
+
     led_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(led_timer, &on_led_timer, true);
     timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
     timerAlarmEnable(led_timer);
-    // testing blinking
-    // blink_led(255, 255, 0, 1, 19);
+
   }
 
 #endif
