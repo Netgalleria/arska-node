@@ -670,13 +670,24 @@ function update_status(repeat) {
             var lm_status = 'success';
             var lm_info = '';
             var lm_status_el = document.getElementById("load_manager_status");
-            if (data.hasOwnProperty("energy_meter_current_latest")) {
-                lm_info += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+         
+            if (data.energy_meter_read_last_ts > (new Date().getTime() / 1000) - 180) {
+                if (data.hasOwnProperty("energy_meter_current_latest")) {
+                    lm_info += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+                }
+                if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
+                    lm_info += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
+                    lm_status = 'warning';
+                }
             }
-            if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
-                lm_info += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
+            else {
+                lm_info = "<br>No up-to-date metering data.</br>";
+                if (data.energy_meter_read_last_ts > 0) {
+                    lm_info += "Last recorded " + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
+                }
                 lm_status = 'warning';
             }
+
             lm_status_el.innerHTML = lm_info;
             if (lm_status == 'success') {
                 lm_status_el.classList.add("alert-success");
