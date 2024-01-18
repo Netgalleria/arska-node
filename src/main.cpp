@@ -339,7 +339,7 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define STATE_COOLING 99
 
 // Led pulse patterns, read from right!
-#define LED_PATTERN_SOS 0b10101011101110111010101UL; //testing
+#define LED_PATTERN_SOS 0b10101011101110111010101UL; // testing
 #define LED_PATTERN_DARK 0b0UL
 #define LED_PATTERN_SHORT 0b1UL
 #define LED_PATTERN_2SHORT 0b101L
@@ -347,8 +347,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define LED_PATTERN_SHORT_LONG 0b11101UL
 #define LED_PATTERN_SHORT_2LONG 0b111011101UL
 #define LED_PATTERN_SHORT_LONG_SHORT 0b1011101UL
-
-
 
 #define STATUS_LED_TYPE_NONE 0
 #define STATUS_LED_TYPE_SINGLE_HIGHACTIVE 10
@@ -874,7 +872,8 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
 t_httpUpdate_return update_program();
 
 // * System time
-void set_timezone_ntp_settings(bool set_tz, bool set_ntp);
+// void set_timezone_ntp_settings(bool set_tz, bool set_ntp);
+void set_timezone_ntp_settings(bool set_ntp);
 
 // * Real-time-clock, currently deprecated
 void getRTC();
@@ -1461,7 +1460,7 @@ byte led_rgb[3];
 hw_timer_t *led_timer = NULL;
 u32_t led_pattern = LED_PATTERN_DARK;
 int led_noshow_ticks = 9;
-//int led_show_ticks = 1;
+// int led_show_ticks = 1;
 int led_tick_count_cyclic = 0;
 #define LED_TIMER_INTERVAL_US 100000 // 100ms
 
@@ -1516,9 +1515,9 @@ void IRAM_ATTR on_led_timer()
 void IRAM_ATTR on_led_timer()
 {
   // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
-  int pattern_length = (int)log2(led_pattern)+1;
+  int pattern_length = (int)log2(led_pattern) + 1;
   bool pattern_on = (led_tick_count_cyclic < pattern_length); // led pattern blinking during first ticks
-  bool led_on= (1 == ((led_pattern >> led_tick_count_cyclic) & 1));
+  bool led_on = (1 == ((led_pattern >> led_tick_count_cyclic) & 1));
 
   if (pattern_on)
   {
@@ -1532,16 +1531,15 @@ void IRAM_ATTR on_led_timer()
   led_tick_count_cyclic = led_tick_count_cyclic % (pattern_length + led_noshow_ticks);
 }
 
-
 /**
  * @brief Set led blink pattern, pause and color
- * 
- * @param r 
- * @param g 
- * @param b 
- * @param show_ticks 
- * @param noshow_ticks 
- * @param pattern 
+ *
+ * @param r
+ * @param g
+ * @param b
+ * @param show_ticks
+ * @param noshow_ticks
+ * @param pattern
  */
 /* Old version, remove
 void blink_led(byte r, byte g, byte b, int show_ticks, int noshow_ticks)
@@ -1552,16 +1550,14 @@ void blink_led(byte r, byte g, byte b, int show_ticks, int noshow_ticks)
   led_tick_count_cyclic = 0;
 } */
 
-void set_led(byte r, byte g, byte b, int noshow_ticks,u32_t pattern )
+void set_led(byte r, byte g, byte b, int noshow_ticks, u32_t pattern)
 {
   led_set_color_rgb(r, g, b);
   led_pattern = pattern;
   led_noshow_ticks = noshow_ticks;
- // led_show_ticks = show_ticks;
+  // led_show_ticks = show_ticks;
   led_tick_count_cyclic = 0;
 }
-
-
 
 // check if reset button has pressed and for how long, act if needed
 #ifdef RESET_BUTTON_ENABLED
@@ -1798,20 +1794,20 @@ void io_tasks(uint8_t state = STATE_NA)
   if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
   {
     if (state == STATE_NONE)
-     // blink_led(255, 255, 255, 2, 50);
-      set_led(255, 255, 255,50,LED_PATTERN_SHORT);
+      // blink_led(255, 255, 255, 2, 50);
+      set_led(255, 255, 255, 50, LED_PATTERN_SHORT);
     else if (state == STATE_CONNECTING)
-    //  blink_led(255, 255, 0, 1, 9);
-      set_led(255, 255, 0,9,LED_PATTERN_3SHORT);
+      //  blink_led(255, 255, 0, 1, 9);
+      set_led(255, 255, 0, 9, LED_PATTERN_3SHORT);
     else if (state == STATE_PROCESSING)
-     // blink_led(255, 255, 255, 1, 29);
-       set_led(255, 255, 255,9,LED_PATTERN_SHORT_LONG);
+      // blink_led(255, 255, 255, 1, 29);
+      set_led(255, 255, 255, 9, LED_PATTERN_SHORT_LONG);
     else if (state == STATE_UPLOADING)
-  //    blink_led(0, 255, 255, 1, 4);
-      set_led(0, 255, 255,4,LED_PATTERN_SHORT_2LONG);
+      //    blink_led(0, 255, 255, 1, 4);
+      set_led(0, 255, 255, 4, LED_PATTERN_SHORT_2LONG);
     else if (!wifi_sta_connected) // Blue -AP mode.
-    //  blink_led(0, 0, 255, 5, 15);
-     set_led(0, 0, 255,15,LED_PATTERN_2SHORT);
+                                  //  blink_led(0, 0, 255, 5, 15);
+      set_led(0, 0, 255, 15, LED_PATTERN_2SHORT);
   }
   state_prev = state;
   return;
@@ -7302,28 +7298,30 @@ void onWebStatusGet(AsyncWebServerRequest *request)
  * @brief Set the timezone info etc after wifi connected
  *
  */
-void set_timezone_ntp_settings(bool set_tz, bool set_ntp)
+// void set_timezone_ntp_settings(bool set_tz, bool set_ntp)
+void set_timezone_ntp_settings(bool set_ntp)
+
 {
-  //  Set timezone info
-  if (set_tz)
-  {
-    char timezone_info[35];
-    if (strcmp("EET", s.timezone) == 0)
-      strcpy(timezone_info, "EET-2EEST,M3.5.0/3,M10.5.0/4");
-    else // CET default
-      strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
+  // new version, always set tz from a env variable
+  //   Set timezone info
+  char timezone_info[35];
+  if (strcmp("EET", s.timezone) == 0)
+    strcpy(timezone_info, "EET-2EEST,M3.5.0/3,M10.5.0/4");
+  else // CET default
+    strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
 
-    setenv("TZ", timezone_info, 1);
-    Serial.printf(PSTR("timezone_info: %s, %s\n"), timezone_info, s.timezone);
-    tzset();
+  setenv("TZ", timezone_info, 1);
+  Serial.printf(PSTR("timezone_info: %s, %s\n"), timezone_info, s.timezone);
+ 
+  if (!set_ntp) {
+     tzset();
+  }
+  else
+  {
+    // configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3); // removed to save tz info
+    configTzTime(timezone_info, ntp_server_1, ntp_server_2, ntp_server_3);
   }
 
-  if (set_ntp)
-  {
-    // assume working wifi
-    configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3);
-    // configTime(0, 0, ntp_server_1);
-  }
 
   struct tm timeinfo;
   //
@@ -7352,7 +7350,7 @@ void wifi_event_handler(WiFiEvent_t event)
   case SYSTEM_EVENT_STA_GOT_IP:
     wifi_sta_connected = true;
     //  Serial.println(F("Got IP"));
-    set_timezone_ntp_settings(true, true);
+    set_timezone_ntp_settings(true);
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     wifi_sta_connected = false;
@@ -7619,13 +7617,12 @@ void setup()
     }
 
     // setup() led
-    set_led(255, 0, 0,30,LED_PATTERN_SHORT_LONG_SHORT);
+    set_led(255, 0, 0, 30, LED_PATTERN_SHORT_LONG_SHORT);
 
     led_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(led_timer, &on_led_timer, true);
     timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
     timerAlarmEnable(led_timer);
-
   }
 
 #endif
@@ -7963,7 +7960,7 @@ void loop()
     if (give_wifi_relay_warning)
       log_msg(MSG_TYPE_WARN, PSTR("Wifi relays cannot be switched in standalone mode."), true);
 
-    set_timezone_ntp_settings(true, false); // need to set tz
+    set_timezone_ntp_settings(false); // need to set tz
 
     ch_counters.init();
     next_query_price_data_ts = time(nullptr);
