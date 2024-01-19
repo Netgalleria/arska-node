@@ -4948,6 +4948,7 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
     */
   /*********************/
 
+ // ADD_JSON_NUMBER(doc, "GPIO_PIN_COUNT", GPIO_PIN_COUNT);
   ADD_JSON_TEXT(doc, "compile_date", compile_date);
   ADD_JSON_TEXT(doc, "HWID", HWID);
   ADD_JSON_TEXT(doc, "VERSION", VERSION);
@@ -7481,8 +7482,8 @@ void setup()
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
   Serial.begin(115200);
-  delay(2000);               // wait for console to settle - only needed when debugging
-  randomSeed(analogRead(0)); // initiate random generator
+  delay(2000); // wait for console to settle - only needed when debugging
+  randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
   // String
@@ -7629,7 +7630,6 @@ void setup()
 
   Serial.println("Starting wifi");
   scan_and_store_wifis(true, false); // testing this in the beginning
-
   connect_wifi();
 
 #ifdef RTC_DS3231_ENABLED
