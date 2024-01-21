@@ -681,7 +681,7 @@ function update_status(repeat) {
                 }
             }
             else {
-                lm_info = "<br>No up-to-date metering data.</br>";
+                lm_info = "<b>No up-to-date metering data.</b>";
                 if (data.energy_meter_read_last_ts > 0) {
                     lm_info += "Last recorded " + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true);
                 }
