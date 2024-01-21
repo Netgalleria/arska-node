@@ -88,6 +88,7 @@ String version_fs_base; //= "";
 #ifdef RTC_DS3231_ENABLED
 #include <RTClib.h>
 #include <coredecls.h>
+// #include <ESP32Time.h>
 #endif
 
 #ifdef COOLINGEXPR_ENABLED
@@ -1042,7 +1043,7 @@ const int httpsPort = 443;
 
 #ifdef RTC_DS3231_ENABLED
 
-RTC_DS3231 rtc; //!< Real time clock object
+// RTC_DS3231 rtc; //!< Real time clock object
 /*
 
    Take a broken-down time and convert it to calendar time (seconds since the Epoch 1970)
@@ -7228,6 +7229,13 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   request->send(200, "application/json", output);
 }
 
+/*
+void on_ntp_time_sync(timeval *tv)
+{
+  Serial.printf("Got NTP update %ld\n",tv->tv_sec);
+}
+*/
+
 // TODO: check how it works with RTC
 /**
  * @brief Set the timezone info etc after wifi connected
@@ -7235,7 +7243,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
  */
 // void set_timezone_ntp_settings(bool set_tz, bool set_ntp)
 void set_timezone_ntp_settings(bool set_ntp)
-
 {
   // new version, always set tz from a env variable
   //   Set timezone info
@@ -7248,15 +7255,15 @@ void set_timezone_ntp_settings(bool set_ntp)
   setenv("TZ", timezone_info, 1);
   Serial.printf(PSTR("timezone_info: %s, %s\n"), timezone_info, s.timezone);
  
-  if (!set_ntp) {
+  if (!set_ntp)
+  {
      tzset();
   }
   else
   {
-    // configTime(0, 0, ntp_server_1, ntp_server_2, ntp_server_3); // removed to save tz info
     configTzTime(timezone_info, ntp_server_1, ntp_server_2, ntp_server_3);
+    // sntp_set_time_sync_notification_cb(on_ntp_time_sync); //callback for ntp update, requires esp_sntp.h
   }
-
 
   struct tm timeinfo;
   //
