@@ -84,6 +84,7 @@ String version_fs_base; //= "";
 #include <ESP32Ping.h>
 #endif
 
+// #include "esp_sntp.h" //required by on_ntp_time_sync
 #ifdef RTC_DS3231_ENABLED
 #include <RTClib.h>
 #include <coredecls.h>
