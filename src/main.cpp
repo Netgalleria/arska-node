@@ -840,11 +840,13 @@ IPAddress ajson_ip_get(JsonVariant parent_node, char *doc_key, IPAddress default
 time_t ElementToUTCts(String elem);
 String getElementValue(String outerXML);
 
+#ifdef INFLUX_REPORT_ENABLED
 // * Write to external destinations, Influx
 bool update_prices_to_influx();
 void add_period_variables_to_influx_buffer(time_t ts_report);
 bool write_buffer_to_influx();
 bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer);
+#endif
 
 // * Config store/read, Backup, restore
 void readFromEEPROM();
@@ -2599,16 +2601,20 @@ uint16_t ChannelCounters::get_period_uptime(int channel_idx)
  */
 void ChannelCounters::new_log_period(time_t ts_report)
 {
+#ifdef INFLUX_REPORT_ENABLED
   // influx buffer
   if (!point_period_avg.hasTime())
     point_period_avg.setTime(ts_report);
   char field_name[10];
+#endif
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     update_times(channel_idx);
 
+#ifdef INFLUX_REPORT_ENABLED
     snprintf(field_name, sizeof(field_name), "chup%d", channel_idx + 1);      // 1-indexed channel numbers in UI
     point_period_avg.addField(field_name, channel_logs[channel_idx].on_time); // now minutes
+#endif
 
     // rotate to channel history
     // channel_history[channel_idx][MAX_HISTORY_PERIODS - 1] = (uint8_t)(utilization * 100 + 0.001);
@@ -4758,8 +4764,11 @@ bool get_price_data_entsoe()
     Serial.println(F("Finished succesfully get_price_data_entsoe."));
     prices2.debug_print();
 
+#ifdef INFLUX_REPORT_ENABLED
     // update to Influx if defined
     update_prices_to_influx();
+#endif
+
     Serial.printf("get_price_data_entsoe end.\n");
     return true;
   }
@@ -5782,8 +5791,11 @@ bool get_price_data_elering()
     prices2.save_to_cache(prices_expires_ts);
 #endif
 
+#ifdef INFLUX_REPORT_ENABLED
     // update to Influx if defined
     update_prices_to_influx();
+#endif
+
     Serial.printf("get_price_data_elering end ok.\n");
     return true;
   }
