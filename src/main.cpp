@@ -3485,6 +3485,7 @@ uint16_t han_direct_error_count = 0;
  * @return true , successful if there were enough values in the buffer
  * @return false , unsuccessful, not enough data or too few values
  */
+/* OLD VERSION with problematic readStringUntil
 bool receive_energy_meter_han_direct() // direct
 {
   String row_in;
@@ -3545,7 +3546,73 @@ bool receive_energy_meter_han_direct() // direct
   yield();
 
   // led down
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  {
+    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
+  }
+  return true;
+}
+*/
+bool receive_energy_meter_han_direct() // direct
+{
+  String row_in;
+  int value_count = 0;
+#define ROW_BUFFER_LENGTH 50
+  char row_buffer[ROW_BUFFER_LENGTH]; // Aidon  max about 30 chars/row
+  size_t received_chars;
+
+  // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
+  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  {
+    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
+  }
+
+  // This is a callback function that will be activated on UART RX events
+  delay(100); // there should be some delay to fill the buffer...
+
+  size_t available = HAN_P1_SERIAL.available();
+
+  Serial.printf("HAN P1 %d bytes\n", (int)available);
+
+  if (available < 200)
+  {
+
+    HAN_P1_SERIAL.flush();
+    return false;
+  }
+
+  // Serial.printf("DEBUG: next process in %d \n", int(next_process_ts - time(nullptr)));
+
+  yield();
+
+  while (HAN_P1_SERIAL.available()) // SerialPort
+  {
+    received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
+    if (received_chars < 5 || strchr(row_buffer, ':') == NULL) // cannot be valid
+      continue;
+
+    row_in = String(row_buffer);
+    row_in.replace('\r', '\0');
+    if (parse_han_row(&row_in))
+    {
+      value_count++;
+      //   han_direct_error_count = 0; // we got something..
+    }
+  }
+  if (value_count < 5)
+  {
+    Serial.println("Cannot read all HAN P1 port values \n");
+    return false;
+  }
+
+  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
+  // read done
+
+  todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
+  yield();
+
+  // led down
+  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
   }
