@@ -140,8 +140,8 @@ String version_fs_base; //= "";
 #define MAX_HISTORY_PERIODS 24
 #define HISTORY_VARIABLE_COUNT 2
 
-#define HW_TEMPLATE_COUNT 8
-#define HW_TEMPLATE_GPIO_COUNT 4 //!< template  max number of hardcoded gpio relays
+#define HW_TEMPLATE_COUNT 9
+#define HW_TEMPLATE_GPIO_COUNT 6 //!< template  max number of hardcoded gpio relays
 
 #define CH_TYPE_UNDEFINED 0
 #define CH_TYPE_GPIO_FIXED 1
@@ -384,7 +384,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 
 #define CHANNEL_CONFIG_MODE_RULE 0
 #define CHANNEL_CONFIG_MODE_TEMPLATE 1
-
 #define TIMESERIES_ELEMENT_MAX 72
 
 #define OPER_COUNT 11
@@ -1305,19 +1304,20 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
   hw_io_struct hw_io;
 };
 
-|------------------------------------------------------------------------------------------------------------------|
-|    |                     |  fixed  | relay gpios/ids |  energy meter |           led  | rst  | rst    | shift    |
-| id | board code          |  relays | relay gpios/ids |         gpios |        id/gpio | gpio | normal | reg gpio |
-|--------------------------|---------|-----------------|---------------|----------------|------|--------|----------|
-| 0  | manual              |       0 |               ? |             ? |              - |    - |      - |        - |
-| 1  | esp32lilygo-4ch     |       4 |   21, 19, 18, 5 |            36 | single 25,-, - |    - |      - |        - |
-| 2  | esp32wroom-4ch-a    |       4 |  32, 33, 25, 26 |            35 |              - |    - |      - |        - |
-| 3  | devantech-esp32lr42 |       4 |  33, 25, 26, 27 |            NA |              - |    - |      - |        - |
-| 4  | shelly-pro-1        |       1 |          ids: 0 |            NA |        4, 3, 2 |   35 |    LOW |  4,13,14 |
-| 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |    - |      - |        - |
-| 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |   35 |    LOW |  4,13,14 |
-| 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |    2 |   HIGH |        - |
-|--------------------------|---------|-----------------|---------------|----------------|------|--------|----------|
+|----------------------------------------------------------------------------------------------------------------------|
+|    |                     |  fixed  | relay gpios/ids |  energy meter |           led  | rst btn | rst btn | shift    |
+| id | board code          |  relays | relay gpios/ids |         gpios |        id/gpio |    gpio |  normal | reg gpio |
+|--------------------------|---------|-----------------|---------------|----------------|---------|---------|----------|
+| 0  | manual              |       0 |               ? |             ? |              - |       - |       - |        - |
+| 1  | esp32lilygo-4ch     |       4 |   21, 19, 18, 5 |            36 | single 25,-, - |       - |       - |        - |
+| 2  | esp32wroom-4ch-a    |       4 |  32, 33, 25, 26 |            35 |              - |       - |       - |        - |
+| 3  | devantech-esp32lr42 |       4 |  33, 25, 26, 27 |            NA |              - |       - |       - |        - |
+| 4  | shelly-pro-1        |       1 |          ids: 0 |            NA |        4, 3, 2 |      35 |     LOW |  4,13,14 |
+| 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |       - |       - |        - |
+| 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |      35 |     LOW |  4,13,14 |
+| 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |       2 |    HIGH |        - |
+| 8  | esp32-s3-proto      |       6 |    ids: 0,1,2,3 |            16 |         1,2,17 |       - |      -  |    6,7,5 |
+|--------------------------|---------|-----------------|---------------|----------------|---------|---------|----------|
 
 Extra notes about the boards:
 - manual: all pins configured from the UI
@@ -1339,14 +1339,15 @@ Additional reserved gpios:
 
 */
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
-    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
-    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {4, 3, 2}}},
-    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {4, 3, 2}}},
-    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}}};
+    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26, ID_NA, ID_NA}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
+    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
+    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
+    {8, "esp32-s3-proto", 6, {0, 1, 2, 3, 4, 5}, 16, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 17}}}};
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
