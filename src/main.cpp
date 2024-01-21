@@ -32,7 +32,7 @@ DEVEL BRANCH
 #define PRICE_ELERING_ENABLED // Experimental price query from Elering
 #define OTA_UPDATE_ENABLED    // OTA general
 #define DEBUG_FILE_ENABLED
-// #define HW_EXTENSIONS_ENABLED //!<uncomment  line to enable SN74HC595, LED and reset button functionality (Shelly),The device must be defined in  hw_templates array
+// #define COOLINGEXPR_ENABLED // Experimental device cooling
 #define DEBUG_MODE_ENABLED
 #define NVS_CACHE_ENABLED    // experimental
 #define RESET_BUTTON_ENABLED // HomeWizard & Shelly hardware
@@ -90,7 +90,7 @@ String version_fs_base; //= "";
 #include <coredecls.h>
 #endif
 
-#ifdef HW_EXTENSIONS_ENABLED
+#ifdef COOLINGEXPR_ENABLED
 #include "driver/adc.h"
 #endif
 
@@ -368,27 +368,18 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define RGB_YELLOW 6
 #define RGB_WHITE 7
 
-#ifdef HW_EXTENSIONS_ENABLED
-#pragma message("HW_EXTENSIONS_ENABLED with SN74hc595 support")
-// Hardware extension / Shelly
-
-#define BIT_RELAY 0     // Qa
-#define BIT_LED_OUT2 1  // Qb
-#define BIT_LED_BLUE 2  // Qc
-#define BIT_LED_GREEN 3 // Qd
-#define BIT_LED_RED 4   // Qe
-
+#ifdef HW_SHIFTREG_ENABLED
+#pragma message("HW_SHIFTREG_ENABLED with shift register (SN)74hc595 support")
 #define MAX_REGISTER_BITS 8
-// HW extensions shift register, led etc...
+#endif
 
+#ifdef COOLINGEXPR_ENABLED
+#pragma message("COOLINGEXPR_ENABLED for device  cooling - experimental")
+// Hardware extension / Shelly
+// HW extensions shift register, led etc...
 #define COOLING_PANIC_SHUTDOWN_F 203 // 95C
 #define COOLING_START_F 194          // 90C
 #define COOLING_RECOVER_TO_F 185     // 85 C
-/*  Testing
-#define COOLING_PANIC_SHUTDOWN_F 167 // 75 C
-#define COOLING_START_F 149          // 65C
-#define COOLING_RECOVER_TO_F 131     // 55
-*/
 #endif
 
 #define CHANNEL_CONFIG_MODE_RULE 0
@@ -1142,9 +1133,8 @@ void getRTC()
 // internal temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
 
-#ifdef HW_EXTENSIONS_ENABLED
-uint8_t register_out = 0;
 
+#ifdef COOLINGEXPR_ENABLED
 #ifdef __cplusplus
 extern "C"
 {
@@ -1156,8 +1146,8 @@ extern "C"
 uint8_t temprature_sens_read();
 
 uint32_t last_temp_read = millis();
+#endif // COOLINGEXPR_ENABLED
 
-#endif // hw_extensions
 
 /**
  * @brief Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
@@ -1609,110 +1599,32 @@ void IRAM_ATTR check_reset_button()
 }
 #endif
 
-#ifdef HW_EXTENSIONS_ENABLED
-
+#ifdef HW_SHIFTREG_ENABLED
+uint8_t register_out = 0;
 /*
  * updateShiftRegister()
  */
 void updateShiftRegister()
 {
-  if (hw_template_idx == -1)
-    return; // no valid template idx in cached
+  if (!(hw_templates[hw_template_idx].hw_io.shiftreg_relay_output))
+    return;
+
   // Sets the hw_io.rclk_gpio to low, hides register write results so far
   digitalWrite(hw_templates[hw_template_idx].hw_io.rclk_gpio, LOW);
 
-  // Arduino 'shiftOut' to shifts out contents of variable 'register_out' in the shift register
+  // Arduino 'shiftOut' to shift out contents of variable 'register_out' in the shift register
   shiftOut(hw_templates[hw_template_idx].hw_io.ser_gpio, hw_templates[hw_template_idx].hw_io.srclk_gpio, MSBFIRST, register_out);
 
   // hw_io.rclk_gpio high shows latest register content in the output pins
   digitalWrite(hw_templates[hw_template_idx].hw_io.rclk_gpio, HIGH); // makes changes visible to output
-                                                                     // Serial.printf("register_out %d\n", (int)register_out);
+
+  Serial.printf("register_out %d\n", (int)register_out);
 }
+#endif // HW_SHIFTREG_ENABLED
 
-uint32_t io_tasks_last = 0;
-bool led_swing = false;
-uint8_t rgb_value_prev = 0;
-
-bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode);
-void reset_config();
+#ifdef COOLINGEXPR_ENABLED
 void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms);
 
-void io_tasks(uint8_t state = STATE_NA)
-{
-  if (!(millis() - io_tasks_last > 500)) // this should handle overflow https://www.norwegiancreations.com/2018/10/arduino-tutorial-avoiding-the-overflow-issue-when-using-millis-and-micros/
-    return;
-  io_tasks_last = millis();
-
-  // Serial.print(".");
-  uint8_t cpu_temp_read;
-  if (!cooling_down_state && (millis() - last_temp_read) > 30000)
-  {
-    adc_power_acquire();
-    cpu_temp_read = temprature_sens_read();
-    adc_power_release();
-    if (cpu_temp_read != 128)
-    {
-      cpu_temp_f = cpu_temp_read;
-      // DEBUG
-      Serial.printf("io_tasks(), temp %dF / %dC\n", (int)cpu_temp_f, (int)((cpu_temp_f - 32) * 5 / 9));
-
-      if (cpu_temp_f > COOLING_START_F && state != STATE_COOLING)
-      { // avoid recursion
-        cooling(COOLING_RECOVER_TO_F, 900000LU);
-      }
-    }
-    else
-      Serial.print(".");
-    last_temp_read = millis();
-  }
-
-  if (hw_template_idx < 1)
-    return; // no hw_template defined (0-manual is currently undefined too)
-
-  // led
-  led_swing = !led_swing;
-  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE)
-  {
-    uint8_t rgb_value = 0;
-    if (state == STATE_NONE)
-      rgb_value = RGB_NONE;
-    else if (state == STATE_CONNECTING)
-      rgb_value = led_swing ? RGB_YELLOW : RGB_NONE;
-    else if (state == STATE_PROCESSING)
-      rgb_value = RGB_WHITE;
-    else if (state == STATE_UPLOADING)
-      rgb_value = led_swing ? RGB_PURPLE : RGB_NONE;
-    else if (state == STATE_COOLING)
-      rgb_value = led_swing ? RGB_RED : RGB_YELLOW;
-    else if (!wifi_sta_connected) // Blue -AP mode.
-      rgb_value = RGB_BLUE;
-    else if (processing_started_ts > 0) // global timestamp
-      rgb_value = RGB_GREEN;
-    else if (wifi_sta_connected)
-    { // Yellow Wifi succeeded
-      rgb_value = RGB_YELLOW;
-    }
-    // More to come, could indicate with green if internet connections are ok (last query eg..)
-    //  also ota update
-    //  to be defined
-    if (rgb_value_prev != rgb_value)
-    {
-      bitWrite(register_out, hw_templates[hw_template_idx].hw_io.status_led_ids[0], !bitRead(rgb_value, 2)); // Red
-      bitWrite(register_out, hw_templates[hw_template_idx].hw_io.status_led_ids[1], !bitRead(rgb_value, 1)); // Green
-      bitWrite(register_out, hw_templates[hw_template_idx].hw_io.status_led_ids[2], !bitRead(rgb_value, 0)); // Blue
-
-      // Serial.printf("register_out %d, rgb_value: %d\n", (int)register_out, (int)rgb_value);
-      // Serial.printf("R: %d, G: %d, B: %d\n", (int)bitRead(rgb_value, 2), (int)bitRead(rgb_value, 1), (int)bitRead(rgb_value, 0));
-
-      updateShiftRegister();
-      rgb_value_prev = rgb_value;
-    }
-  }
-
-  // #ifdef RESET_BUTTON_ENABLED
-  //   check_reset_button();
-  // #endif
-}
 /**
  * @brief Handles cool down to given temperature
  *
@@ -1780,7 +1692,31 @@ void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
   cooling_down_state = false;
   todo_in_loop_reapply_relay_states = true;
 };
-#else
+
+// Experimental device temperature measurent
+uint8_t cpu_temp_read;
+void measure_temperature_and_cool(uint8_t state)
+{
+  adc_power_acquire();
+  cpu_temp_read = temprature_sens_read();
+  adc_power_release();
+  if (cpu_temp_read != 128) // 128 means no measured value
+  {
+    cpu_temp_f = cpu_temp_read;
+    // DEBUG
+    Serial.printf("io_tasks(), temp %dF / %dC\n", (int)cpu_temp_f, (int)((cpu_temp_f - 32) * 5 / 9));
+    if (cpu_temp_f > COOLING_START_F && state != STATE_COOLING)
+    { // avoid recursion
+      cooling(COOLING_RECOVER_TO_F, 900000LU);
+    }
+  }
+  else
+    Serial.print(".");
+  last_temp_read = millis();
+}
+#endif //COOLINGEXPR_ENABLED
+
+
 uint8_t state_prev = STATE_NA;
 void io_tasks(uint8_t state = STATE_NA)
 {
@@ -1788,42 +1724,44 @@ void io_tasks(uint8_t state = STATE_NA)
   //   check_reset_button();
   // #endif
   // experimental state color with homewizard, todo: other led types
+
+#ifdef COOLINGEXPR_ENABLED
+  // Temperature measurement (experimental) 
+  if (!cooling_down_state && (millis() - last_temp_read) > 30000) // 30 secs since last  measurement, which is quite long...
+  {
+    measure_temperature_and_cool(state);
+  }
+#endif // COOLINGEXPR_ENABLED
+
   if (state == STATE_NA || state_prev == state)
   {
     return;
   }
-  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
   {
     if (state == STATE_NONE)
-      // blink_led(255, 255, 255, 2, 50);
       set_led(255, 255, 255, 50, LED_PATTERN_SHORT);
     else if (state == STATE_CONNECTING)
-      //  blink_led(255, 255, 0, 1, 9);
       set_led(255, 255, 0, 9, LED_PATTERN_3SHORT);
     else if (state == STATE_PROCESSING)
-      // blink_led(255, 255, 255, 1, 29);
       set_led(255, 255, 255, 9, LED_PATTERN_SHORT_LONG);
     else if (state == STATE_UPLOADING)
-      //    blink_led(0, 255, 255, 1, 4);
       set_led(0, 255, 255, 4, LED_PATTERN_SHORT_2LONG);
     else if (!wifi_sta_connected) // Blue -AP mode.
-                                  //  blink_led(0, 0, 255, 5, 15);
       set_led(0, 0, 255, 15, LED_PATTERN_2SHORT);
   }
   state_prev = state;
   return;
-}; // do nothing if extensions are not enabled
-#endif // HW_EXTENSIONS_ENABLED
+};
+// #endif // COOLINGEXPR_ENABLED
 
 #ifdef INFLUX_REPORT_ENABLED
 const char *influx_device_id_prefix PROGMEM = "arska-";
-String wifi_mac_short;
-
 Point point_sensor_values("sensors");
 Point point_period_avg("period_avg"); //!< Influx buffer
 #endif
-ChannelCounters ch_counters;
 
+ChannelCounters ch_counters;
 Variables::Variables()
 {
   for (int variable_idx = 0; variable_idx < VARIABLE_COUNT; variable_idx++)
@@ -6377,8 +6315,8 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
 #endif
   }
 
-#ifdef HW_EXTENSIONS_ENABLED
-  doc["output_register"] = (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register);
+#ifdef HW_SHIFTREG_ENABLED
+  doc["shiftreg_relay_output"] = (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.shiftreg_relay_output);
 #endif
 
   doc["production_meter_type"] = s.production_meter_type;
@@ -7573,6 +7511,25 @@ void setup()
   else
     Serial.printf(PSTR("Current check value %d match with firmware check value.\n "), s.check_value);
 
+#ifdef HW_SHIFTREG_ENABLED
+  // shift register setup
+  if (hw_template_idx != -1)
+  {
+    io_tasks();
+    // Set all the pins of 74HC595 as OUTPUT
+    if (hw_templates[hw_template_idx].hw_io.shiftreg_relay_output)
+    {
+      Serial.printf("Setting shift register rclk: %d, ser: %d, srclk: %d\n", hw_templates[hw_template_idx].hw_io.rclk_gpio, hw_templates[hw_template_idx].hw_io.ser_gpio, hw_templates[hw_template_idx].hw_io.srclk_gpio);
+      pinMode(hw_templates[hw_template_idx].hw_io.rclk_gpio, OUTPUT);
+      pinMode(hw_templates[hw_template_idx].hw_io.ser_gpio, OUTPUT);
+      pinMode(hw_templates[hw_template_idx].hw_io.srclk_gpio, OUTPUT);
+      register_out = 0; // all down
+      //   Serial.printf("register_out %d\n", (int)register_out);
+      updateShiftRegister();
+    }
+  }
+#endif
+
   // Channel init with state DOWN/failsafe
   Serial.println(F("Setting relays default/failsafe."));
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
@@ -7590,44 +7547,27 @@ void setup()
     relay_state_reapply_required[channel_idx] = false;
   }
 
-// HW EXTENSIONS setup()
-#ifdef HW_EXTENSIONS_ENABLED
-
-  if (hw_template_idx != -1)
-  {
-    io_tasks();
-
-    // Set all the pins of 74HC595 as OUTPUT
-    if (hw_templates[hw_template_idx].hw_io.output_register)
-    {
-      pinMode(hw_templates[hw_template_idx].hw_io.rclk_gpio, OUTPUT);
-      pinMode(hw_templates[hw_template_idx].hw_io.ser_gpio, OUTPUT);
-      pinMode(hw_templates[hw_template_idx].hw_io.srclk_gpio, OUTPUT);
-      register_out = 0; // all down
-
-      //   Serial.printf("register_out %d\n", (int)register_out);
-      updateShiftRegister();
-    }
-  }
-#else // no extensions (Shelly/SN74HC595) but led for HomeWizard, Olimex. todo: other devices, move SN74HC595-based devices under the same logic
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE)
+  Serial.printf("hw_template_idx %d\n", hw_template_idx);
+  // TODO: handle shiftreg leds, refactor  bitWrite/digitalWrite to one function call for changing relay state (and leds)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE && hw_templates[hw_template_idx].hw_io.status_led_type < STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG)
   {
     for (int i = 0; i < 3; i++)
     {
       if (hw_templates[hw_template_idx].hw_io.status_led_ids[i] != ID_NA)
+      {
+        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
         pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
+        else
+          Serial.printf("Invalid led gpio %d. \n", hw_templates[hw_template_idx].hw_io.status_led_ids[i]);
     }
-
+    }
     // setup() led
     set_led(255, 0, 0, 30, LED_PATTERN_SHORT_LONG_SHORT);
-
     led_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(led_timer, &on_led_timer, true);
     timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
     timerAlarmEnable(led_timer);
   }
-
-#endif
 
   Serial.println("Starting wifi");
   scan_and_store_wifis(true, false); // testing this in the beginning
