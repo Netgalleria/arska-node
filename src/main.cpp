@@ -1384,6 +1384,7 @@ int get_hw_template_idx(int id)
       return i;
     }
   }
+  Serial.printf("DEBUG get_hw_template_idx for %d returned -1\n", id); // TODO: maybe should return 0/manual in this case
   return -1;
 }
 
@@ -1451,6 +1452,7 @@ bool is_local_relay(uint8_t type)
 // experimental for response led on/off
 
 byte led_rgb[3];
+String wifi_mac_short;
 
 // LED blinking
 // https://circuitdigest.com/microcontroller-projects/esp32-timers-and-timer-interrupts
@@ -1659,7 +1661,6 @@ void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
       Serial.flush();
       esp_deep_sleep_start();
     }
-
     adc_power_acquire();
     delay(2000);
     cpu_temp_read = temprature_sens_read();
@@ -2513,11 +2514,11 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
       // 2) variable value is i
       if ((bitRead(statement->const_val, i) == 1) && (cur_idx_value == i))
       {
-        Serial.printf("DEBUG variable %d multiselect match const_val %ld, cur_idx_value %ud, i %d\n", statement->variable_id, statement->const_val, cur_idx_value, i);
+        //   Serial.printf("DEBUG variable %d multiselect match const_val %ld, cur_idx_value %ud, i %d\n", statement->variable_id, statement->const_val, cur_idx_value, i);
         return true;
       }
     }
-    Serial.printf("DEBUG variable %d NO multiselect match const_val %ld\n", statement->variable_id, statement->const_val);
+    // Serial.printf("DEBUG variable %d NO multiselect match const_val %ld\n", statement->variable_id, statement->const_val);
     return false; // if oper is multiselect no other rule apply
   }
 
@@ -4947,7 +4948,7 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
     */
   /*********************/
 
- // ADD_JSON_NUMBER(doc, "GPIO_PIN_COUNT", GPIO_PIN_COUNT);
+  // ADD_JSON_NUMBER(doc, "GPIO_PIN_COUNT", GPIO_PIN_COUNT);
   ADD_JSON_TEXT(doc, "compile_date", compile_date);
   ADD_JSON_TEXT(doc, "HWID", HWID);
   ADD_JSON_TEXT(doc, "VERSION", VERSION);
@@ -5268,7 +5269,8 @@ bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode = true)
   if (is_local_relay(s.ch[channel_idx].type))
   {
     uint8_t gpio = s.ch[channel_idx].relay_id;
-    if ((gpio == 20) || (gpio == 24) || (gpio >= 28 && gpio <= 31) || (gpio > 39))
+    // if ((gpio == 20) || (gpio == 24) || (gpio >= 28 && gpio <= 31) || (gpio > 39))
+    if (!GPIO_IS_VALID_OUTPUT_GPIO(gpio))
     {
       Serial.printf("Channel %d, invalid output gpio %d\n", channel_idx, (int)gpio);
       return false;
@@ -5411,21 +5413,20 @@ bool apply_relay_state(int channel_idx, bool init_relay)
       {
         Serial.printf("Channel %d shiftreg relay id %d invalid.\n", channel_idx, s.ch[channel_idx].relay_id);
         return false; // invalid id
-    }
+      }
     }
 #endif
-    else
+    // local relays connected to gpio
+    if (test_set_gpio_pinmode(channel_idx, init_relay))
     {
-      if (test_set_gpio_pinmode(channel_idx, init_relay))
-      {
-        Serial.printf("Setting gpio  %d %s\n", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW");
-        digitalWrite(s.ch[channel_idx].relay_id, pin_val);
-        return true;
-      }
-      else
-        return false; // invalid gpio
+      Serial.printf("Setting gpio  %d %s\n", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW");
+      digitalWrite(s.ch[channel_idx].relay_id, pin_val);
+      return true;
     }
+    else
+      return false; // invalid gpio
   }
+
   // do not try to connect if there is no wifi client initiated - or we should to get an error
   else if (wifi_sta_connected && is_wifi_relay(s.ch[channel_idx].type))
   {
@@ -7320,10 +7321,10 @@ void set_timezone_ntp_settings(bool set_ntp)
 
   setenv("TZ", timezone_info, 1);
   Serial.printf(PSTR("timezone_info: %s, %s\n"), timezone_info, s.timezone);
- 
+
   if (!set_ntp)
   {
-     tzset();
+    tzset();
   }
   else
   {
@@ -7485,11 +7486,10 @@ bool connect_wifi()
 
 void setup()
 {
-
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
   Serial.begin(115200);
-  delay(2000); // wait for console to settle - only needed when debugging
+  delay(2000);               // wait for console to settle - only needed when debugging
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
@@ -7557,7 +7557,7 @@ void setup()
 #endif
 
 #ifdef RESET_BUTTON_ENABLED
-  if (hw_templates[hw_template_idx].hw_io.reset_button_gpio != ID_NA)
+  if (GPIO_IS_VALID_GPIO(hw_templates[hw_template_idx].hw_io.reset_button_gpio))
   {
     pinMode(hw_templates[hw_template_idx].hw_io.reset_button_gpio, hw_templates[hw_template_idx].hw_io.reset_button_normal_state == HIGH ? INPUT_PULLUP : INPUT_PULLDOWN);
     reset_button_push_started_ms = 0;
@@ -7606,7 +7606,7 @@ void setup()
       s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
 
     //  set channels to default states before calculated values
-    // Serial.printf("DEBUG ch %d default state %s\n",channel_idx,s.ch[channel_idx].default_state ?"up":"down" );
+    Serial.printf("DEBUG ch %d default state %s\n", channel_idx, s.ch[channel_idx].default_state ? "up" : "down");
     s.ch[channel_idx].wanna_be_up = s.ch[channel_idx].default_state;
     s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
     chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
@@ -7624,10 +7624,10 @@ void setup()
       if (hw_templates[hw_template_idx].hw_io.status_led_ids[i] != ID_NA)
       {
         if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
-        pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
+          pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
         else
           Serial.printf("Invalid led gpio %d. \n", hw_templates[hw_template_idx].hw_io.status_led_ids[i]);
-    }
+      }
     }
     // setup() led
     set_led(255, 0, 0, 30, LED_PATTERN_SHORT_LONG_SHORT);
@@ -8078,8 +8078,8 @@ void loop()
   }
 
 // new period coming, record last minute, launch only once in period end, EXPERIMENTAL
-#define ESTIMATED_LOOP_PROCESSING_TIME_A_SEC 10 // estimated time for (optional) meter polling + variable processing
-  if (get_netting_period_start_time(time(nullptr)) < get_netting_period_start_time(time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) && (millis() - energy_meter_last_read_started_ms > (ESTIMATED_LOOP_PROCESSING_TIME_A_SEC * 1000)))
+#define ESTIMATED_LOOP_PROCESSING_TIME_A_SEC 10                                                                                                                                                                                                                                                                       // estimated time for (optional) meter polling + variable processing
+  if (get_netting_period_start_time(time(nullptr)) < get_netting_period_start_time(time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) && (millis() - energy_meter_last_read_started_ms > (ESTIMATED_LOOP_PROCESSING_TIME_A_SEC * 1000)) && next_process_ts < time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) // second last cond could be removed?
   {
     Serial.printf("\nForcing processing before period change %ld\n", time(nullptr));
     next_energy_meter_read_ts = time(nullptr);
