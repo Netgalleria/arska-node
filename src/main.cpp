@@ -441,8 +441,8 @@ struct hw_io_struct
 {
   uint8_t reset_button_gpio;
   int reset_button_normal_state;
-  bool output_register; // false
-  uint8_t rclk_gpio;    // if shifted
+  bool shiftreg_relay_output; // default false
+  uint8_t rclk_gpio;          // if shifted
   uint8_t ser_gpio;
   uint8_t srclk_gpio;
   uint8_t status_led_type; // STATUS_LED_TYPE_...
@@ -1337,7 +1337,7 @@ Additional reserved gpios:
 -  ONEWIRE_DATA_GPIO 27
 
   uint8_t reset_button_gpio;
-  bool output_register; // false
+  bool shiftreg_relay_output; // false
   uint8_t rclk_gpio;    // if shifted
   uint8_t ser_gpio;
   uint8_t srclk_gpio;
@@ -1629,7 +1629,7 @@ void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
     {
       relay_state_reapply_required[channel_idx] = true; // try to recover after cool down
       Serial.printf(PSTR("Taking local channel %d down for cooling.\n"), channel_idx);
-      if (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register)
+      if (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.shiftreg_relay_output)
       {
         if (s.ch[channel_idx].relay_id < MAX_REGISTER_BITS)
         {
@@ -3491,7 +3491,7 @@ bool receive_energy_meter_han_direct() // direct
   int value_count = 0;
 
   // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
   }
@@ -4973,8 +4973,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   JSON_ARRAY_NODE json_hs_templates = ADD_JSON_ARRAY(doc, "hw_templates", json_hs_templates);
   for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
   {
-#ifndef HW_EXTENSIONS_ENABLED // skip register templates
-    if (hw_templates[hw_template_idx].hw_io.output_register)
+#ifndef HW_SHIFTREG_ENABLED // skip register templates
+    if (hw_templates[hw_template_idx].hw_io.shiftreg_relay_output)
       continue;
 #endif
     //  JsonObject json_hs_template = json_hs_templates.createNestedObject();
@@ -5326,26 +5326,25 @@ bool apply_relay_state(int channel_idx, bool init_relay)
       pin_val = (up ? LOW : HIGH);
     else
       pin_val = (up ? HIGH : LOW);
-#ifdef HW_EXTENSIONS_ENABLED
-    if (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.output_register)
+
+#ifdef HW_SHIFTREG_ENABLED
+    // local relays connected through shift register
+    if (hw_templates[hw_template_idx].hw_io.shiftreg_relay_output)
     {
       if (s.ch[channel_idx].relay_id < MAX_REGISTER_BITS)
       {
-        Serial.printf("Setting register bit %d %s\n", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW");
+        Serial.printf("Setting register bit %d %s, %d ->", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW", register_out);
         bitWrite(register_out, s.ch[channel_idx].relay_id, pin_val); // TODO: add mapping from relay_id to bit, it is not necessarily same bits, or lock the ui
-
+        Serial.println(register_out);
         // Serial.printf("register_out %d\n", (int)register_out);
         updateShiftRegister();
-
         return true;
       }
       else
-        return false;
+      {
+        Serial.printf("Channel %d shiftreg relay id %d invalid.\n", channel_idx, s.ch[channel_idx].relay_id);
+        return false; // invalid id
     }
-#else
-    if (false)
-    {
-      ; // extensions not yet enabled
     }
 #endif
     else
