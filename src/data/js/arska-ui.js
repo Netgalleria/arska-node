@@ -2645,8 +2645,8 @@ function create_channels() {
         for (var i = 0; i < g_application.channel_types.length; i++) {
             var type_name = g_application.channel_types[i].name;
             var type_id = g_application.channel_types[i].id;
-            var output_register = g_settings.hasOwnProperty("output_register") ? g_settings.output_register : false;
-            if (output_register) {
+            var shiftreg_relay_output = g_settings.hasOwnProperty("shiftreg_relay_output") ? g_settings.shiftreg_relay_output : false;
+            if (shiftreg_relay_output) {
                 type_name = type_name.replaceAll("GPIO", "internal"); // use different term with shift register relays
                 document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Bit:";
             }
