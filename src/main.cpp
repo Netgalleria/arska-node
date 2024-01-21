@@ -352,8 +352,10 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define STATUS_LED_TYPE_NONE 0
 #define STATUS_LED_TYPE_SINGLE_HIGHACTIVE 10
 #define STATUS_LED_TYPE_SINGLE_LOWACTIVE 11
-#define STATUS_LED_TYPE_RGB3_HIGHACTIVE 30
-#define STATUS_LED_TYPE_RGB3_LOWACTIVE 31 // output down do activate led
+#define STATUS_LED_TYPE_RGB3_HIGHACTIVE 30 // output high to activate led, common cathode
+#define STATUS_LED_TYPE_RGB3_LOWACTIVE 31  // output low to activate led, common anode
+#define STATUS_LED_TYPE_SHIFTREG 100       // above 100 handled via shiftreg
+#define STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG 130
 
 #define RGB_IDX_RED 0
 #define RGB_IDX_GREEN 1
@@ -1458,23 +1460,30 @@ int led_tick_count_cyclic = 0;
 
 void led_write_color(bool show = true)
 {
-  // experimental, blink led on HomeWizard P1 Meter when receiving data
-  byte element_val;
+  // TODO: handle Shelly STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, i.e. leds controlled by shiftreg (not gpio directly)
+  //  experimental, blink led on HomeWizard P1 Meter when receiving data
+  uint8_t element_val;
+  uint8_t up_val;
 
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_HIGHACTIVE)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_HIGHACTIVE && GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[0]))
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? HIGH : LOW);
   }
-  if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE && GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[0]))
   {
     digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[0], show ? LOW : HIGH);
   }
-  else if (!hw_templates[hw_template_idx].hw_io.output_register && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  else if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
     for (int i = 0; i < 3; i++)
     {
       element_val = show ? led_rgb[i] : 0;
-      digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], element_val > 0 ? LOW : HIGH);
+      if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
+      {
+        up_val = (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE) ? HIGH : LOW;
+        digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], element_val > 0 ? up_val : (1 - up_val));
+        //   Serial.printf("DEBUG led_write_color %d %d\n",hw_templates[hw_template_idx].hw_io.status_led_ids[i],(int)(element_val > 0 ? up_val : (1-up_val)));
+      }
     }
   }
 }
@@ -1485,25 +1494,7 @@ void led_set_color_rgb(byte r, byte g, byte b)
   led_rgb[2] = b;
   led_write_color();
 }
-/* old version, no pattern, remove when new tested
-void IRAM_ATTR on_led_timer()
-{
-  // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
-  bool led_on = (led_tick_count_cyclic < led_show_ticks); // led is on during first ticks
-  if (led_on && led_tick_count_cyclic == 0)
-  {
-    led_write_color(true);
-    //    Serial.print("1");
-  }
-  else if (!led_on && led_tick_count_cyclic == led_show_ticks)
-  {
-    led_write_color(false);
-    //    Serial.print("0");
-  }
-  led_tick_count_cyclic++;
-  led_tick_count_cyclic = led_tick_count_cyclic % (led_show_ticks + led_noshow_ticks);
-}
-*/
+
 void IRAM_ATTR on_led_timer()
 {
   // Serial.printf("on_led_timer  %d, %lu\n",led_tick_count_cyclic,millis());
@@ -1530,20 +1521,12 @@ void IRAM_ATTR on_led_timer()
  * @param g
  * @param b
  * @param show_ticks
- * @param noshow_ticks
  * @param pattern
  */
-/* Old version, remove
-void blink_led(byte r, byte g, byte b, int show_ticks, int noshow_ticks)
-{
-  led_set_color_rgb(r, g, b);
-  led_noshow_ticks = noshow_ticks;
-  led_show_ticks = show_ticks;
-  led_tick_count_cyclic = 0;
-} */
 
 void set_led(byte r, byte g, byte b, int noshow_ticks, u32_t pattern)
 {
+  // Serial.printf("DEBUG set_led R %d, G %d, B %d\n",(int)r,(int)g,(int)b);
   led_set_color_rgb(r, g, b);
   led_pattern = pattern;
   led_noshow_ticks = noshow_ticks;
@@ -1688,7 +1671,6 @@ void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
 
     delay(30000);
   }
-
   log_msg(MSG_TYPE_FATAL, PSTR("Recovering after cooling."), true);
   cooling_down_state = false;
   todo_in_loop_reapply_relay_states = true;
