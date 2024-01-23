@@ -3414,6 +3414,42 @@ bool get_han_ts(String *strp, time_t *returned)
   return true;
 }
 
+bool get_han_ts(const char *strp, time_t *returned)
+{
+ // if (!strp->startsWith("0-0:1.0.0("))
+ if (strncmp(strp,"0-0:1.0.0(",10) != 0)
+    return false;
+
+  int32_t tz_secs = 3600; // CET, EET supported
+  if (strcmp("EET", s.timezone) == 0)
+    tz_secs = 7200;
+
+  // Serial.print("ts:");
+  int splitted[6];
+  for (int i = 0; i < 6; i++)
+  {
+    splitted[i] = (*(strp + 10 + i * 2) - '0') * 10 + (*(strp + 11 + i * 2) - '0'); // strp->substring(10 + i * 2, 12 + i * 2).toInt();
+  }
+  *returned = getTimestamp(2000 + splitted[0], splitted[1], splitted[2], splitted[3], splitted[4], splitted[5]) - tz_secs;
+
+  // assume that we get clock from direct connection
+  if (s.energy_meter_type == ENERGYM_HAN_DIRECT && time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
+  {
+    Serial.println("get_han_ts: set internal clock:");
+    Serial.println(*returned);
+    setInternalTime(*returned);
+  }
+  time_t ts_age_s = time(nullptr) - (*returned);
+  Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
+  // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
+  if ((energy_meter_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
+  {
+    next_energy_meter_read_ts -= 1;
+    Serial.println("Tuning polling time ***.");
+  }
+  return true;
+}
+
 bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 {
   int factor_w = 1;
@@ -3433,7 +3469,28 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 
   *returned = strp->substring(vs_idx + 1, va_idx).toDouble() * factor_w;
   // Serial.println(*returned);
+  return true;
+}
 
+// Work in Process , char array based
+bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
+{
+  int factor_w = 1;
+  if (strstr(rowp, obis_code) == NULL)
+    return false;
+  char * vs = strchr(rowp, '(');
+  char * va = strchr(rowp, '*');
+
+  // check OBIS basic format
+  if (vs == NULL || va == NULL || strchr(rowp, ')')== NULL)
+    return false;
+  if (strstr(rowp,"*kW") != NULL)
+    factor_w = 1000;
+
+  *va = 0; //null terminate where number ends
+  *returned = (float)(atof((vs + 1)) * factor_w);
+ // Serial.printf("Read han %s -> %s: ",rowp, obis_code);
+ // Serial.println(*returned);
   return true;
 }
 
@@ -3450,6 +3507,36 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
  * @return false
  */
 bool parse_han_row(String *row_in_p)
+{
+
+  if (get_han_ts(row_in_p, &energy_meter_ts_latest))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:1.7.0", &energy_meter_power_latest_in))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:51.7.0", &energy_meter_current_latest[1]))
+    return true;
+
+  if (get_han_dbl(row_in_p, "1-0:71.7.0", &energy_meter_current_latest[2]))
+    return true;
+
+  return false;
+}
+//Work in Progress...
+bool parse_han_row(char *row_in_p)
 {
 
   if (get_han_ts(row_in_p, &energy_meter_ts_latest))
@@ -3592,9 +3679,9 @@ bool receive_energy_meter_han_direct() // direct
     if (received_chars < 5 || strchr(row_buffer, ':') == NULL) // cannot be valid
       continue;
 
-    row_in = String(row_buffer);
-    row_in.replace('\r', '\0');
-    if (parse_han_row(&row_in))
+   // row_in = String(row_buffer);
+   // row_in.replace('\r', '\0');
+    if (parse_han_row(row_buffer))
     {
       value_count++;
       //   han_direct_error_count = 0; // we got something..
