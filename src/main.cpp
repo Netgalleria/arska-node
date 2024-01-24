@@ -829,9 +829,12 @@ String read_http11_line(WiFiClientSecure *client_https);
 long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num, uint8_t modbusip_unit);
 
 // * HAN P1 message parsing
-bool get_han_dbl(String *strp, const char *obis_code, double *returned);
-bool get_han_ts(String *strp, time_t *returned);
-bool parse_han_row(String *row_in_p);
+// bool get_han_dbl(String *strp, const char *obis_code, double *returned);
+bool get_han_dbl(const char *rowp, const char *obis_code, double *returned);
+// bool get_han_ts(String *strp, time_t *returned);
+bool get_han_ts(const char *strp, time_t *returned);
+// bool parse_han_row(String *row_in_p);
+bool parse_han_row(const char *row_in_p);
 
 // * Json node values to memory
 bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length);
@@ -1137,7 +1140,6 @@ void getRTC()
 // internal temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
 
-
 #ifdef COOLINGEXPR_ENABLED
 #ifdef __cplusplus
 extern "C"
@@ -1151,7 +1153,6 @@ uint8_t temprature_sens_read();
 
 uint32_t last_temp_read = millis();
 #endif // COOLINGEXPR_ENABLED
-
 
 /**
  * @brief Check whether file system is up-to-date. Compares version info in the code and a filesystem file.
@@ -1701,8 +1702,7 @@ void measure_temperature_and_cool(uint8_t state)
     Serial.print(".");
   last_temp_read = millis();
 }
-#endif //COOLINGEXPR_ENABLED
-
+#endif // COOLINGEXPR_ENABLED
 
 uint8_t state_prev = STATE_NA;
 void io_tasks(uint8_t state = STATE_NA)
@@ -1713,7 +1713,7 @@ void io_tasks(uint8_t state = STATE_NA)
   // experimental state color with homewizard, todo: other led types
 
 #ifdef COOLINGEXPR_ENABLED
-  // Temperature measurement (experimental) 
+  // Temperature measurement (experimental)
   if (!cooling_down_state && (millis() - last_temp_read) > 30000) // 30 secs since last  measurement, which is quite long...
   {
     measure_temperature_and_cool(state);
@@ -3377,6 +3377,7 @@ void process_energy_meter_readings()
 }
 
 #ifdef METER_HAN_ENABLED
+/*
 bool get_han_ts(String *strp, time_t *returned)
 {
   if (!strp->startsWith("0-0:1.0.0("))
@@ -3413,11 +3414,11 @@ bool get_han_ts(String *strp, time_t *returned)
 
   return true;
 }
-
+*/
+//  Char array based replacing String input version
 bool get_han_ts(const char *strp, time_t *returned)
 {
- // if (!strp->startsWith("0-0:1.0.0("))
- if (strncmp(strp,"0-0:1.0.0(",10) != 0)
+  if (strncmp(strp, "0-0:1.0.0(", 10) != 0)
     return false;
 
   int32_t tz_secs = 3600; // CET, EET supported
@@ -3426,7 +3427,7 @@ bool get_han_ts(const char *strp, time_t *returned)
 
   // Serial.print("ts:");
   int splitted[6];
-  for (int i = 0; i < 6; i++)
+  for (int i = 0; i < 6; i++) // date & time elements year, month, day, hour, minute,second
   {
     splitted[i] = (*(strp + 10 + i * 2) - '0') * 10 + (*(strp + 11 + i * 2) - '0'); // strp->substring(10 + i * 2, 12 + i * 2).toInt();
   }
@@ -3449,7 +3450,7 @@ bool get_han_ts(const char *strp, time_t *returned)
   }
   return true;
 }
-
+/*
 bool get_han_dbl(String *strp, const char *obis_code, double *returned)
 {
   int factor_w = 1;
@@ -3471,26 +3472,26 @@ bool get_han_dbl(String *strp, const char *obis_code, double *returned)
   // Serial.println(*returned);
   return true;
 }
-
-// Work in Process , char array based
+*/
+//  Char array based replacing String input version
 bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 {
   int factor_w = 1;
   if (strstr(rowp, obis_code) == NULL)
     return false;
-  char * vs = strchr(rowp, '(');
-  char * va = strchr(rowp, '*');
+  char *vs = strchr(rowp, '(');
+  char *va = strchr(rowp, '*');
 
   // check OBIS basic format
-  if (vs == NULL || va == NULL || strchr(rowp, ')')== NULL)
+  if (vs == NULL || va == NULL || strchr(rowp, ')') == NULL)
     return false;
-  if (strstr(rowp,"*kW") != NULL)
+  if (strstr(rowp, "*kW") != NULL)
     factor_w = 1000;
 
-  *va = 0; //null terminate where number ends
+  *va = 0; // null terminate where number ends
   *returned = (float)(atof((vs + 1)) * factor_w);
- // Serial.printf("Read han %s -> %s: ",rowp, obis_code);
- // Serial.println(*returned);
+  // Serial.printf("Read han %s -> %s: ",rowp, obis_code);
+  // Serial.println(*returned);
   return true;
 }
 
@@ -3506,6 +3507,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
  * @return true
  * @return false
  */
+/*
 bool parse_han_row(String *row_in_p)
 {
 
@@ -3535,10 +3537,11 @@ bool parse_han_row(String *row_in_p)
 
   return false;
 }
-//Work in Progress...
-bool parse_han_row(char *row_in_p)
+*/
+//  Char array based replacing String input version
+bool parse_han_row(const char *row_in_p)
 {
-
+  // return is obis code found in the row
   if (get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
 
@@ -3679,8 +3682,8 @@ bool receive_energy_meter_han_direct() // direct
     if (received_chars < 5 || strchr(row_buffer, ':') == NULL) // cannot be valid
       continue;
 
-   // row_in = String(row_buffer);
-   // row_in.replace('\r', '\0');
+    // row_in = String(row_buffer);
+    // row_in.replace('\r', '\0');
     if (parse_han_row(row_buffer))
     {
       value_count++;
@@ -3744,7 +3747,8 @@ bool read_energy_meter_han_wifi()
     row_in = telegram.substring(s_idx, e_idx);
     //  Serial.println(row_in);
 
-    if (parse_han_row(&row_in))
+    // if (parse_han_row(&row_in))
+    if (parse_han_row(row_in.c_str()))
       value_count++;
     s_idx = e_idx + 1;
   }
@@ -8217,7 +8221,7 @@ void loop()
 #define ESTIMATED_METER_READ_TIME_MAX_SEC (CONNECT_TIMEOUT_INTERNAL + 1)
   if (next_energy_meter_read_ts <= time(nullptr) && wifi_sta_connected)
   {
-    if (s.energy_meter_type == ENERGYM_SHELLY3EM || s.energy_meter_type == ENERGYM_SHELLY_GEN2)
+    if (s.energy_meter_type == ENERGYM_SHELLY3EM || s.energy_meter_type == ENERGYM_SHELLY_GEN2 || s.energy_meter_type == ENERGYM_HAN_WIFI)
     {
       io_tasks(STATE_PROCESSING);
       read_energy_meter();
@@ -8225,7 +8229,7 @@ void loop()
     }
   }
 
-  // TODO: all sensor /meter reads could be here?, do we need diffrent frequencies?
+  // TODO: all sensor /meter reads could be here?, do we need different frequencies?
   if (next_process_ts <= time(nullptr)) // time to process
   {
     if (s.production_meter_type != PRODUCTIONM_NONE && wifi_sta_connected)
