@@ -18,7 +18,8 @@ DEVEL BRANCH
 #define ONEWIRE_DATA_GPIO 13
 #define INFLUX_REPORT_ENABLED
 #define SENSOR_DS18B20_ENABLED // DS18B20 funtionality
-#define RTC_DS3231_ENABLED //real time clock functionality
+#define RTC_DS3231_ENABLED //debrecated, real time clock functionality
+#define RTC_PCF8563_ENABLED
 */
 
 // Features enabled
@@ -91,11 +92,14 @@ String version_fs_base; //= "";
 PCF8563_Class rtc_PCF8563;
 #endif
 
+/*
 #ifdef RTC_DS3231_ENABLED
 #include <RTClib.h>
 #include <coredecls.h>
 // #include <ESP32Time.h>
 #endif
+*/
+
 
 #ifdef COOLINGEXPR_ENABLED
 #include "driver/adc.h"
@@ -1050,7 +1054,8 @@ time_t next_query_fcst_data_ts = 0;
 // https://transparency.entsoe.eu/api?securityToken=XXX&documentType=A44&In_Domain=10YFI-1--------U&Out_Domain=10YFI-1--------U&processType=A16&outBiddingZone_Domain=10YCZ-CEPS-----N&periodStart=202104200000&periodEnd=202104200100
 const int httpsPort = 443;
 
-#ifdef RTC_DS3231_ENABLED
+
+//#ifdef RTC_DS3231_ENABLED
 
 // RTC_DS3231 rtc; //!< Real time clock object
 /*
@@ -1069,10 +1074,7 @@ const int httpsPort = 443;
 */
 // Utility function to convert datetime elements to epoch time
 
-/**
- * @brief print time of RTC to Serial, debugging function
- *
- */
+/*
 void printRTC()
 {
   DateTime dtrtc = rtc.now(); // get date time from RTC i
@@ -1090,10 +1092,6 @@ void printRTC()
   }
 }
 
-/**
- * @brief set date/time of external RTC. Used only if RTC is enabled.
- *
- */
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
@@ -1103,11 +1101,7 @@ void setRTC()
   rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
 }
 
-/**
- * @brief Callback function (registered with settimeofday_cb ) called when ntp time update received, sets RTC
- *
- * @param from_sntp true if update is from sntp service
- */
+
 void ntp_time_is_set(bool from_sntp)
 {
   if (from_sntp) // needs Core 3.0.0 or higher!
@@ -1122,10 +1116,6 @@ void ntp_time_is_set(bool from_sntp)
   }
 }
 
-/**
- * @brief Reads time from external RTC and set value to internal time
- *
- */
 void getRTC()
 {
   Serial.println(F("getRTC --> update internal clock"));
@@ -1142,6 +1132,7 @@ void getRTC()
   }
 }
 #endif // rtc
+*/
 
 // internal temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
@@ -7773,7 +7764,7 @@ void setup()
   Serial.println("Starting wifi");
   scan_and_store_wifis(true, false); // testing this in the beginning
   connect_wifi();
-
+/*
 #ifdef RTC_DS3231_ENABLED
   Serial.println(F("Starting RTC!"));
   Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
@@ -7792,6 +7783,7 @@ void setup()
       getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
   }
 #endif
+*/
 
   io_tasks(); // starting leds
 
