@@ -3415,10 +3415,12 @@ bool get_han_ts(const char *strp, time_t *returned)
     Serial.println(*returned);
     setInternalTime(*returned);
     time_corrected_last_ms = millis();
+#ifdef RTC_PCF8563_ENABLED
     if (rtc_found)
     {
       setRTC();
     }
+#endif
   }
   time_t ts_age_s = time(nullptr) - (*returned);
   Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
