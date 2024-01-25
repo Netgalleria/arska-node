@@ -84,7 +84,13 @@ String version_fs_base; //= "";
 #include <ESP32Ping.h>
 #endif
 
-// #include "esp_sntp.h" //required by on_ntp_time_sync
+#ifdef RTC_PCF8563_ENABLED
+#include "Wire.h" 
+#include "pcf8563.h"
+#include "esp_sntp.h" //required by on_ntp_time_sync
+PCF8563_Class rtc_PCF8563;
+#endif
+
 #ifdef RTC_DS3231_ENABLED
 #include <RTClib.h>
 #include <coredecls.h>
@@ -874,7 +880,7 @@ t_httpUpdate_return update_program();
 // void set_timezone_ntp_settings(bool set_tz, bool set_ntp);
 void set_timezone_ntp_settings(bool set_ntp);
 
-// * Real-time-clock, currently deprecated
+// * Real-time-clock, currently deprecated, 
 void getRTC();
 void printRTC();
 void setRTC();
@@ -3415,6 +3421,12 @@ bool get_han_ts(String *strp, time_t *returned)
   return true;
 }
 */
+
+uint32_t time_corrected_last_ms = 0; 
+// timestamp of last received time correction from HAN P1 direct
+#define CORRECTION_DURATION_MINIMUM_HAN_MS (3600*1000*8) //once on 8 hours (if no correction from sntp)
+
+
 //  Char array based replacing String input version
 bool get_han_ts(const char *strp, time_t *returned)
 {
@@ -3434,11 +3446,12 @@ bool get_han_ts(const char *strp, time_t *returned)
   *returned = getTimestamp(2000 + splitted[0], splitted[1], splitted[2], splitted[3], splitted[4], splitted[5]) - tz_secs;
 
   // assume that we get clock from direct connection
-  if (s.energy_meter_type == ENERGYM_HAN_DIRECT && time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
+  if (s.energy_meter_type == ENERGYM_HAN_DIRECT && *returned > ACCEPTED_TIMESTAMP_MINIMUM && (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM || (millis()-time_corrected_last_ms>CORRECTION_DURATION_MINIMUM_HAN_MS) )) 
   {
     Serial.println("get_han_ts: set internal clock:");
     Serial.println(*returned);
     setInternalTime(*returned);
+    time_corrected_last_ms = millis(); 
   }
   time_t ts_age_s = time(nullptr) - (*returned);
   Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
@@ -3496,6 +3509,8 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 }
 
 #ifdef METER_HAN_DIRECT_ENABLED
+
+
 // #define HAN_P1_SERIAL Serial2
 #define HAN_P1_SERIAL Serial1
 // #pragma message("Testing with Serial 1 should be 2")
@@ -7376,23 +7391,28 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 #ifdef LOAD_MGMT_ENABLED
   for (int l = 0; l < s.load_manager_phase_count; l++)
   {
-    doc["energy_meter_current_latest"][l] = energy_meter_current_latest[l];
+    doc["energy_meter_current_latest"][l] = round(energy_meter_current_latest[l] * 10) / 10; // energy_meter_current_latest[l];
   }
   doc["load_manager_overload_last_ts"] = load_manager_overload_last_ts;
 #endif
 
   doc["free_heap"] = ESP.getFreeHeap();
-
   serializeJson(doc, output);
   request->send(200, "application/json", output);
 }
 
-/*
+#ifdef RTC_PCF8563_ENABLED
 void on_ntp_time_sync(timeval *tv)
 {
   Serial.printf("Got NTP update %ld\n",tv->tv_sec);
+  //TODO: set RTC if exists
+  if (rtc_found) {
+    rtc_PCF8563.syncToRtc();
+  }
+  time_corrected_last_ms = millis();
 }
-*/
+#endif
+
 
 // TODO: check how it works with RTC
 /**
@@ -7420,7 +7440,7 @@ void set_timezone_ntp_settings(bool set_ntp)
   else
   {
     configTzTime(timezone_info, ntp_server_1, ntp_server_2, ntp_server_3);
-    // sntp_set_time_sync_notification_cb(on_ntp_time_sync); //callback for ntp update, requires esp_sntp.h
+
   }
 
   struct tm timeinfo;
@@ -7578,9 +7598,31 @@ bool connect_wifi()
 void setup()
 {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-
   Serial.begin(115200);
   delay(2000);               // wait for console to settle - only needed when debugging
+
+#ifdef RTC_PCF8563_ENABLED
+  Serial.println(F("Starting RTC!"));
+  Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
+
+  rtc_PCF8563.begin();
+  if (!rtc_PCF8563.begin())
+  {
+    Serial.println(F("Couldn't find rtc_PCF8563!"));
+    Serial.flush();
+  }
+  else
+  {
+    rtc_found = true;
+    Serial.println(F("rtc_PCF8563 found"));
+    Serial.flush();
+    rtc_PCF8563.syncToSystem();
+   // if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
+   //   getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
+  }
+    sntp_set_time_sync_notification_cb(on_ntp_time_sync); //callback for ntp update, requires esp_sntp.h
+#endif
+
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
 
