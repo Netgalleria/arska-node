@@ -2396,7 +2396,7 @@ void scan_and_store_wifis(bool print_out, bool store)
    }*/
 }
 
-#define CONFIG_JSON_SIZE_MAX 6144
+#define CONFIG_JSON_SIZE_MAX 8192 //has been 6144, 20.1.2024 tried for bigger allocation
 /**
  * @brief Utility for reading a json config file to memory structures- to be tuned
  *
