@@ -256,7 +256,8 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define PROCESS_INTERVAL_SECS 60              //!< process interval, eg. energy meter polling and variable calculation
 #define ACCEPTED_TIMESTAMP_MINIMUM 1700000000 // if timestamp is greater, we assume it is from a real-time clock
 
-#define CONFIG_JSON_SIZE_MAX 6144
+#define CONFIG_JSON_SIZE_MAX 8192 //was 6144, 20.1.2024  bigger allocation to get all channel data
+
 
 /* Application variable constants */
 #define VARIABLE_COUNT 48
@@ -7488,7 +7489,7 @@ bool connect_wifi()
   bool create_wifi_ap = false;
   uint32_t connect_started;
   wifi_connect_count++;
-  wifi_sta_connection_required = strlen(s.wifi_ssid) > 0;
+  wifi_sta_connection_required = strlen(s.wifi_ssid) > 0; // empty SSID -> stay standalone
 
   if (wifi_sta_disconnected_ms == 0)
   {
