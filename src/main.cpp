@@ -66,6 +66,8 @@ DEVEL BRANCH
 const char compile_date[] = __DATE__ " " __TIME__;
 char version_fs[45];
 String version_fs_base; //= "";
+uint8_t now_updating = 255; // could be included in /application query and outputted to /update page
+
 
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -5024,6 +5026,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   /*********************/
 
   // ADD_JSON_NUMBER(doc, "GPIO_PIN_COUNT", GPIO_PIN_COUNT);
+
+  ADD_JSON_NUMBER(doc, "now_updating", now_updating); // eventual firmware update status
   ADD_JSON_TEXT(doc, "compile_date", compile_date);
   ADD_JSON_TEXT(doc, "HWID", HWID);
   ADD_JSON_TEXT(doc, "VERSION", VERSION);
@@ -6106,12 +6110,14 @@ void update_firmware_partition(uint8_t partition_type = U_FLASH)
   t_httpUpdate_return update_result;
   if (partition_type == U_FLASH)
   {
+    now_updating = partition_type;
     update_result = update_program();
   }
   else
   {
     if (s.ota_update_phase == OTA_PHASE_FWUPDATED_CHECKFS || true) // phase check disabled, maybe not always updated
     {
+      now_updating = partition_type;
       update_result = update_fs();
     }
     else
@@ -6135,16 +6141,17 @@ void update_firmware_partition(uint8_t partition_type = U_FLASH)
     Serial.println("HTTP_UPDATE_OK");
     break;
   }
+  now_updating = 255; // update finished
 }
 
 // The other html pages come from littlefs filesystem, but on update we do not want to be dependant on that
 
-// minimized from/data/update.html with https://www.textfixer.com/html/compress-html-compression.php
-//  no double quotes, no onload etc with strinbg params, no double slash // comments
+// minified from/data/update.html with https://www.textfixer.com/html/compress-html-compression.php
+//  no double quotes, no onload etc with strinb params, no double slash // comments
 
 // only manual update, automatic is integrated
-const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => { init_document(); }); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { /* document.getElementById('frm2').addEventListener('submit', (event) => { return confirm('Update software, this can take several minutes.'); });*/ $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get /application', textStatus, jqXHR.status); } }); } else { console.log('Cannot load jQuery library'); } } function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/update'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Arska firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h3>Upload firmware files</h3> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div> </div> Current versions:<br> <table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table> <br><a href='/'>Return to Arska</a></body></html>";
-
+//const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => { init_document(); }); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { /* document.getElementById('frm2').addEventListener('submit', (event) => { return confirm('Update software, this can take several minutes.'); });*/ $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get /application', textStatus, jqXHR.status); } }); } else { console.log('Cannot load jQuery library'); } } function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/update'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Arska firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h3>Upload firmware files</h3> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div> </div> Current versions:<br> <table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table> <br><a href='/'>Return to Arska</a></body></html>";
+const char update_page_html[] PROGMEM = "<html><head><!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --><title>Arska update</title><script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script><style>body {background-color: #fff;margin: 1.8em;font-size: 20px;font-family: lato, sans-serif;color: #485156;}.indent {margin-left: 2em;clear: left;}a {cursor: pointer;border-bottom: 3px dotted #485156;color: black;text-decoration: none;}</style></head><body><script>window.addEventListener('load', (event) => {update_status();});function update_status() {if (window.jQuery) {$.ajax({url: '/application',dataType: 'json',async: false,success: function (data, textStatus, jqXHR) {var now_updating = 255;   $('#ver_sw').text(data.VERSION); if (data.now_updating == 0) {$('#ver_sw').append(', <b>now updating!</b>');} $('#ver_fs').text(data.version_fs); console.log('now_updating',data.now_updating); if (data.now_updating == 100) {$('#ver_fs').append(', <b>now updating!</b>');} if (data.now_updating==255) { $('#frm1').show(1000); } else { $('#frm1').hide(1000); setTimeout(function () { update_status(); }, 5000); }},error: function (jqXHR, textStatus, errorThrown) {console.log('Cannot get /application', textStatus, jqXHR.status);},});} else {console.log('Cannot load jQuery library');}} function _(el) {return document.getElementById(el);}function upload() {var file = _('firmware').files[0];var formdata = new FormData();formdata.append('firmware', file);var ajax = new XMLHttpRequest();ajax.upload.addEventListener('progress', progressHandler, false);ajax.addEventListener('load', completeHandler, false);ajax.addEventListener('error', errorHandler, false);ajax.addEventListener('abort', abortHandler, false);ajax.open('POST', 'doUpdate');ajax.send(formdata);}function progressHandler(event) {_('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total;var percent = (event.loaded / event.total) * 100;_('progressBar').value = Math.round(percent);_('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait';}function reloadAdmin() {window.location.href = '/update';}function completeHandler(event) {_('status').innerHTML = event.target.responseText;_('progressBar').value = 0;setTimeout(reloadAdmin, 20000);}function errorHandler(event) {_('status').innerHTML = 'Upload Failed';}function abortHandler(event) {_('status').innerHTML = 'Upload Aborted';}</script><h1>Arska firmware and filesystem update</h1><div class='indent'><p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br /></div><div id='div_upd1'><h3>Upload firmware files</h3><div class='indent'><p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that if not automatically updated. After update check version data from the bottom of the page - update could be succeeded even if you get an error message.</p><form id='frm1' method='post' enctype='multipart/form-data'><input type='file' name='firmware' id='firmware' onchange='upload()' /><br /><progress id='progressBar' value='0' max='100' style='width: 250px;'></progress><h2 id='status'></h2><p id='loadedtotal'></p></form></div></div>Current versions:<br /><table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table><br /><a href='/'>Return to Arska</a></body></html>";
 #define U_PART U_SPIFFS
 /**
  * @brief Sends update form (url: /update)
@@ -7286,6 +7293,9 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   char var_id_str[5];
   sprintf(var_id_str, "%d", (int)VARIABLE_CHANNEL_UTIL_PERIOD);
 
+
+
+
   JsonArray v_channel_array = var_obj.createNestedArray(var_id_str); //(;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -7843,6 +7853,10 @@ void setup()
     else {
       request->send(FILESYSTEM, "/ui3.html", "text/html");
     } });
+
+  //Testing update form from filesystem
+  //server_web.serveStatic("/update.html", FILESYSTEM, "/update.html").setCacheControl("max-age=84600, public");
+
 
   server_web.on(
       "/update.schedule", HTTP_POST,
