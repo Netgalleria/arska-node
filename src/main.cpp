@@ -65,9 +65,8 @@ DEVEL BRANCH
 
 const char compile_date[] = __DATE__ " " __TIME__;
 char version_fs[45];
-String version_fs_base; //= "";
+String version_fs_base;     //= "";
 uint8_t now_updating = 255; // could be included in /application query and outputted to /update page
-
 
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -90,6 +89,7 @@ uint8_t now_updating = 255; // could be included in /application query and outpu
 #ifdef RTC_PCF8563_ENABLED
 #include "RTClib.h"
 #include "esp_sntp.h" //required by on_ntp_time_sync
+#define PCF8563_SLAVE_ADDRESS (0x51)
 RTC_PCF8563 rtc;
 #endif
 
@@ -383,7 +383,7 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define RGB_WHITE 7
 
 #ifdef HW_SHIFTREG_ENABLED
-#pragma message("HW_SHIFTREG_ENABLED with shift register (SN)74hc595 support")
+// #pragma message("HW_SHIFTREG_ENABLED with shift register (SN)74hc595 support")
 #define MAX_REGISTER_BITS 8
 #endif
 
@@ -504,6 +504,7 @@ struct hw_template_st
   uint8_t locked_channels;
   uint8_t relay_id[HW_TEMPLATE_GPIO_COUNT];
   uint8_t energy_meter_gpio;
+  uint8_t uart_tx_gpio_unused;
   hw_io_struct hw_io;
 };
 
@@ -1269,6 +1270,7 @@ bool todo_in_loop_reapply_relay_states = false;
 bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters have been changed and r
 
 bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
+bool todo_in_loop_save_time_to_rtc = false;
 
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 
@@ -1295,7 +1297,7 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
 | 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |       - |       - |        - |
 | 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |      35 |     LOW |  4,13,14 |
 | 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |       2 |    HIGH |        - |
-| 8  | esp32-s3-proto      |       6 |    ids: 0,1,2,3 |            16 |         1,2,17 |       - |      -  |    6,7,5 |
+| 8  | esp32-s3-proto      |       6 |ids: 0,1,2,3,4,5 |            44 |         1,2,43 |       - |      -  |    6,7,5 |
 |--------------------------|---------|-----------------|---------------|----------------|---------|---------|----------|
 
 Extra notes about the boards:
@@ -1318,15 +1320,15 @@ Additional reserved gpios:
 
 */
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
-    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
-    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26, ID_NA, ID_NA}, 35, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27, ID_NA, ID_NA}, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
-    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
-    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
-    {8, "esp32-s3-proto", 6, {0, 1, 2, 3, 4, 5}, 16, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 17}}}};
+    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5, ID_NA, ID_NA}, 36,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26, ID_NA, ID_NA}, 35,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27, ID_NA, ID_NA}, ID_NA,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA,ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
+    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA,ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
+    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16,ID_NA, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
+    {8, "esp32-s3-proto", 6, {0, 1, 2, 3, 4, 5}, 44, 34,{ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 43}}}}; //
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -1466,6 +1468,7 @@ void led_write_color(bool show = true)
     }
   }
 }
+
 void led_set_color_rgb(byte r, byte g, byte b)
 {
   led_rgb[0] = r;
@@ -1483,11 +1486,11 @@ void IRAM_ATTR on_led_timer()
 
   if (pattern_on)
   {
-    led_write_color(led_on);
+    led_write_color(led_on); //led on
   }
   else if (!pattern_on && led_tick_count_cyclic == pattern_length)
   {
-    led_write_color(false);
+    led_write_color(false); //led off
   }
   led_tick_count_cyclic++;
   led_tick_count_cyclic = led_tick_count_cyclic % (pattern_length + led_noshow_ticks);
@@ -3299,6 +3302,8 @@ void process_energy_meter_readings()
   }
 #endif
 
+  //TODO: minify printout , maybe dtostrf(energy_meter_power_latest_in, 4, 2, str_temp);
+  /*
   Serial.print(energy_meter_power_latest_in);
   Serial.print("W (in), ");
   Serial.print(energy_meter_power_latest_out);
@@ -3313,7 +3318,7 @@ void process_energy_meter_readings()
   Serial.print("A, ");
   Serial.print(energy_meter_current_latest[2]);
   Serial.println("A");
-
+  */
   //  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in %f Wh, energy_meter_cumulative_latest_out %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in, energy_meter_cumulative_latest_out, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
 
   // first succesfull measurement since boot, record only initial values
@@ -3421,12 +3426,16 @@ bool get_han_ts(const char *strp, time_t *returned)
 #ifdef RTC_PCF8563_ENABLED
     if (rtc_found)
     {
-      setRTC();
+      //setRTC();
+      todo_in_loop_save_time_to_rtc = true;
     }
 #endif
   }
   time_t ts_age_s = time(nullptr) - (*returned);
-  Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
+ // Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
+  if (*returned % 60 ==0) {
+    Serial.printf("Free stack %d\n", uxTaskGetStackHighWaterMark(NULL));
+  }
   // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
   if ((energy_meter_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
   {
@@ -3481,10 +3490,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 }
 
 #ifdef METER_HAN_DIRECT_ENABLED
-
-// #define HAN_P1_SERIAL Serial2
 #define HAN_P1_SERIAL Serial1
-// #pragma message("Testing with Serial 1 should be 2")
 
 /**
  * @brief Parses given string to a memory variable if OBIS code in the string matches
@@ -3493,37 +3499,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
  * @return true
  * @return false
  */
-/*
-bool parse_han_row(String *row_in_p)
-{
 
-  if (get_han_ts(row_in_p, &energy_meter_ts_latest))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:1.7.0", &energy_meter_power_latest_in))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:51.7.0", &energy_meter_current_latest[1]))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:71.7.0", &energy_meter_current_latest[2]))
-    return true;
-
-  return false;
-}
-*/
 //  Char array based replacing String input version
 bool parse_han_row(const char *row_in_p)
 {
@@ -3555,128 +3531,55 @@ bool parse_han_row(const char *row_in_p)
   return false;
 }
 
-uint16_t han_direct_error_count = 0;
+// global variable to save stack space, Aidon  max about 30 chars/row
+#define ROW_BUFFER_LENGTH 50
+char row_buffer[ROW_BUFFER_LENGTH]; 
+static uint16_t han_direct_error_count = 0;
+static int han_value_count = 0;
+size_t han_received_chars;
+
 /**
- * @brief UART callback function called when there is new data from HAN P1 Serial porrt
+ * @brief UART callback function called when there is new data from HAN P1 Serial port. Keep lean to save stack space and processing time.
  *
  * @return true , successful if there were enough values in the buffer
  * @return false , unsuccessful, not enough data or too few values
  */
-/* OLD VERSION with problematic readStringUntil
 bool receive_energy_meter_han_direct() // direct
 {
-  String row_in;
-  int value_count = 0;
+  han_value_count = 0;
 
   // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
-  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-  {
-    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
-  }
+  //if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  //{
+  //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
+  //}
 
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
 
   size_t available = HAN_P1_SERIAL.available();
-
-  // experimental, prevent loops if port not connected
-  // junk if RXD is floating, ie not connected to an adapter
-  if (han_direct_error_count > 2)
-  {
-    Serial.println("Disabling HAN P1 Serial onReceive");
-    HAN_P1_SERIAL.onReceive(NULL, false); // too many errors, probably serial not connected to an adapter ie rxd is floating, disconnect to prevent watchdog timeouts
-    // log_msg(MSG_TYPE_ERROR, PSTR("Errors in reading HAN P1 Serial, disabled."), true); //too long operation for irq,TODO: add to loop...
-  }
+  //Serial.printf("HAN P1 %d bytes\n", (int)available);
 
   if (available < 200)
   {
-    han_direct_error_count++;
     HAN_P1_SERIAL.flush();
     return false;
   }
-
   // Serial.printf("DEBUG: next process in %d \n", int(next_process_ts - time(nullptr)));
-  Serial.printf("\n%d bytes available, ts:  ", (int)available);
-
   yield();
 
   while (HAN_P1_SERIAL.available()) // SerialPort
   {
-    row_in = HAN_P1_SERIAL.readStringUntil('\n');
-    row_in.replace('\r', '\0');
-    if (parse_han_row(&row_in))
-    {
-      value_count++;
-      han_direct_error_count = 0; // we got something..
-    }
-  }
-  if (value_count < 5)
-  {
-    Serial.println("Cannot read all HAN P1 port values \n");
-    return false;
-  }
-
-  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-  // read done
-
-  todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
-  yield();
-
-  // led down
-  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-  {
-    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
-  }
-  return true;
-}
-*/
-bool receive_energy_meter_han_direct() // direct
-{
-  String row_in;
-  int value_count = 0;
-#define ROW_BUFFER_LENGTH 50
-  char row_buffer[ROW_BUFFER_LENGTH]; // Aidon  max about 30 chars/row
-  size_t received_chars;
-
-  // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
-  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-  {
-    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
-  }
-
-  // This is a callback function that will be activated on UART RX events
-  delay(100); // there should be some delay to fill the buffer...
-
-  size_t available = HAN_P1_SERIAL.available();
-
-  Serial.printf("HAN P1 %d bytes\n", (int)available);
-
-  if (available < 200)
-  {
-
-    HAN_P1_SERIAL.flush();
-    return false;
-  }
-
-  // Serial.printf("DEBUG: next process in %d \n", int(next_process_ts - time(nullptr)));
-
-  yield();
-
-  while (HAN_P1_SERIAL.available()) // SerialPort
-  {
-    received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
-    if (received_chars < 5 || strchr(row_buffer, ':') == NULL) // cannot be valid
+    han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
+    if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
       continue;
 
-    // row_in = String(row_buffer);
-    // row_in.replace('\r', '\0');
     if (parse_han_row(row_buffer))
     {
-      value_count++;
-      //   han_direct_error_count = 0; // we got something..
+      han_value_count++;
     }
   }
-  if (value_count < 5)
+  if (han_value_count < 5)
   {
     Serial.println("Cannot read all HAN P1 port values \n");
     return false;
@@ -3684,15 +3587,14 @@ bool receive_energy_meter_han_direct() // direct
 
   energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
   // read done
-
   todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
   yield();
 
   // led down
-  if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-  {
-    digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
-  }
+  //if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  //{
+  //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
+  //}
   return true;
 }
 
@@ -4313,15 +4215,15 @@ void calculate_price_rank_variables()
   localtime_r(&current_period_start_ts, &tm_struct_l);
 
   vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc) + 50) / 100));
-  Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
+  //Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
   yield();
 
   // 9 h sliding
   time_t last_ts_in_window = min(current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
-  Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
+  //Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  //Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
@@ -4333,7 +4235,7 @@ void calculate_price_rank_variables()
   last_ts_in_window = min(current_period_start_ts + 23 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  //Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERANK_24, (long)rank);
   vars.set(VARIABLE_PRICEAVG_24, (long)round_divide(window_price_avg, 100));
@@ -4348,7 +4250,7 @@ void calculate_price_rank_variables()
   last_ts_in_window = first_ts_in_window + prices2.resolution_sec() * 23;
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  //Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
   vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
   yield();
@@ -4359,7 +4261,7 @@ void calculate_price_rank_variables()
   first_ts_in_window = current_period_start_ts - PRICE_RESOLUTION_SEC * block_start_before_this_idx;
   last_ts_in_window = first_ts_in_window + 7 * PRICE_RESOLUTION_SEC;
   rank = prices2.get_period_rank(current_period_start_ts, first_ts_in_window, last_ts_in_window);
-  Serial.printf("New way 8 h block rank %ld\n", (long)rank);
+  //Serial.printf("New way 8 h block rank %ld\n", (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
   yield();
@@ -5354,8 +5256,9 @@ bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode = true)
       Serial.printf("Channel %d, invalid output gpio %d\n", channel_idx, (int)gpio);
       return false;
     }
-    if (set_pinmode)
+    if (set_pinmode) {
       pinMode(gpio, OUTPUT);
+    }
     return true;
   }
   return false;
@@ -6150,7 +6053,7 @@ void update_firmware_partition(uint8_t partition_type = U_FLASH)
 //  no double quotes, no onload etc with strinb params, no double slash // comments
 
 // only manual update, automatic is integrated
-//const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => { init_document(); }); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { /* document.getElementById('frm2').addEventListener('submit', (event) => { return confirm('Update software, this can take several minutes.'); });*/ $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get /application', textStatus, jqXHR.status); } }); } else { console.log('Cannot load jQuery library'); } } function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/update'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Arska firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h3>Upload firmware files</h3> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div> </div> Current versions:<br> <table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table> <br><a href='/'>Return to Arska</a></body></html>";
+// const char update_page_html[] PROGMEM = "<html><head> <!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --> <title>Arska update</title> <script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script> <style> body { background-color: #fff; margin: 1.8em; font-size: 20px; font-family: lato, sans-serif; color: #485156; } .indent { margin-left: 2em; clear: left; } a { cursor: pointer; border-bottom: 3px dotted #485156; color: black; text-decoration: none; } </style></head><body> <script> window.addEventListener('load', (event) => { init_document(); }); let hw = ''; let load_count = 0; let VERSION_SHORT = ''; function init_document() { if (window.jQuery) { /* document.getElementById('frm2').addEventListener('submit', (event) => { return confirm('Update software, this can take several minutes.'); });*/ $.ajax({ url: '/application', dataType: 'json', async: false, success: function (data, textStatus, jqXHR) { VERSION_SHORT = data.VERSION_SHORT; $('#ver_sw').text(data.VERSION); $('#ver_fs').text(data.version_fs); }, error: function (jqXHR, textStatus, errorThrown) { console.log('Cannot get /application', textStatus, jqXHR.status); } }); } else { console.log('Cannot load jQuery library'); } } function _(el) { return document.getElementById(el); } function upload() { var file = _('firmware').files[0]; var formdata = new FormData(); formdata.append('firmware', file); var ajax = new XMLHttpRequest(); ajax.upload.addEventListener('progress', progressHandler, false); ajax.addEventListener('load', completeHandler, false); ajax.addEventListener('error', errorHandler, false); ajax.addEventListener('abort', abortHandler, false); ajax.open('POST', 'doUpdate'); ajax.send(formdata); } function progressHandler(event) { _('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total; var percent = (event.loaded / event.total) * 100; _('progressBar').value = Math.round(percent); _('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait'; } function reloadAdmin() { window.location.href = '/update'; } function completeHandler(event) { _('status').innerHTML = event.target.responseText; _('progressBar').value = 0; setTimeout(reloadAdmin, 20000); } function errorHandler(event) { _('status').innerHTML = 'Upload Failed'; } function abortHandler(event) { _('status').innerHTML = 'Upload Aborted'; } </script> <h1>Arska firmware and filesystem update</h1> <div class='indent'> <p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br> </div> <div id='div_upd1'> <h3>Upload firmware files</h3> <div class='indent'> <p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that. After update check version data from the bottom of the page - update could be succeeded even if you get an error message. </p> <form id='frm1' method='post' enctype='multipart/form-data'> <input type='file' name='firmware' id='firmware' onchange='upload()'><br> <progress id='progressBar' value='0' max='100' style='width:250px;'></progress> <h2 id='status'></h2> <p id='loadedtotal'></p> </form> </div> </div> Current versions:<br> <table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table> <br><a href='/'>Return to Arska</a></body></html>";
 const char update_page_html[] PROGMEM = "<html><head><!-- Copyright Netgalleria Oy 2023, Olli Rinne, Unminimized version: /data/update.html --><title>Arska update</title><script src='https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script><style>body {background-color: #fff;margin: 1.8em;font-size: 20px;font-family: lato, sans-serif;color: #485156;}.indent {margin-left: 2em;clear: left;}a {cursor: pointer;border-bottom: 3px dotted #485156;color: black;text-decoration: none;}</style></head><body><script>window.addEventListener('load', (event) => {update_status();});function update_status() {if (window.jQuery) {$.ajax({url: '/application',dataType: 'json',async: false,success: function (data, textStatus, jqXHR) {var now_updating = 255;   $('#ver_sw').text(data.VERSION); if (data.now_updating == 0) {$('#ver_sw').append(', <b>now updating!</b>');} $('#ver_fs').text(data.version_fs); console.log('now_updating',data.now_updating); if (data.now_updating == 100) {$('#ver_fs').append(', <b>now updating!</b>');} if (data.now_updating==255) { $('#frm1').show(1000); } else { $('#frm1').hide(1000); setTimeout(function () { update_status(); }, 5000); }},error: function (jqXHR, textStatus, errorThrown) {console.log('Cannot get /application', textStatus, jqXHR.status);},});} else {console.log('Cannot load jQuery library');}} function _(el) {return document.getElementById(el);}function upload() {var file = _('firmware').files[0];var formdata = new FormData();formdata.append('firmware', file);var ajax = new XMLHttpRequest();ajax.upload.addEventListener('progress', progressHandler, false);ajax.addEventListener('load', completeHandler, false);ajax.addEventListener('error', errorHandler, false);ajax.addEventListener('abort', abortHandler, false);ajax.open('POST', 'doUpdate');ajax.send(formdata);}function progressHandler(event) {_('loadedtotal').innerHTML = 'Uploaded ' + event.loaded + ' bytes of ' + event.total;var percent = (event.loaded / event.total) * 100;_('progressBar').value = Math.round(percent);_('status').innerHTML = Math.round(percent) + '&percnt; uploaded... please wait';}function reloadAdmin() {window.location.href = '/update';}function completeHandler(event) {_('status').innerHTML = event.target.responseText;_('progressBar').value = 0;setTimeout(reloadAdmin, 20000);}function errorHandler(event) {_('status').innerHTML = 'Upload Failed';}function abortHandler(event) {_('status').innerHTML = 'Upload Aborted';}</script><h1>Arska firmware and filesystem update</h1><div class='indent'><p><a href='/settings?format=file'>Backup configuration</a> before starting upgrade.</p><br /></div><div id='div_upd1'><h3>Upload firmware files</h3><div class='indent'><p>Download files from <a href='https://iot.netgalleria.fi/arska-install/'>the installation page</a> or build from <a href='https://github.com/Netgalleria/arska-node'>the source code</a>. Update software (firmware.bin) first and filesystem (littlefs.bin) after that if not automatically updated. After update check version data from the bottom of the page - update could be succeeded even if you get an error message.</p><form id='frm1' method='post' enctype='multipart/form-data'><input type='file' name='firmware' id='firmware' onchange='upload()' /><br /><progress id='progressBar' value='0' max='100' style='width: 250px;'></progress><h2 id='status'></h2><p id='loadedtotal'></p></form></div></div>Current versions:<br /><table><tr><td>Firmware:</td><td><span id='ver_sw'>*</span></td></tr><tr><td>Filesystem:</td><td><span id='ver_fs'>*</span></td></tr></table><br /><a href='/'>Return to Arska</a></body></html>";
 #define U_PART U_SPIFFS
 /**
@@ -7293,9 +7196,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   char var_id_str[5];
   sprintf(var_id_str, "%d", (int)VARIABLE_CHANNEL_UTIL_PERIOD);
 
-
-
-
   JsonArray v_channel_array = var_obj.createNestedArray(var_id_str); //(;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -7381,18 +7281,60 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 }
 
 #ifdef RTC_PCF8563_ENABLED
+//RTC functionality - work in progress
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
   time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
   tm tm;                         // the structure tm holds time information in a more convient way
   gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
-  rtc.adjust(DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec));
+  Serial.println("setRTC tm->");
+  Serial.println(tm.tm_year +1900);
+  Serial.println(tm.tm_mon + 1);
+  Serial.println(tm.tm_mday);
+  Serial.println(tm.tm_hour);
+  Serial.println(tm.tm_min);
+  Serial.println(tm.tm_sec);
+  rtc.stop(); // should we stop it first?
+  delay(2000);
+  Serial.printf("setRTC, isrunning:%d\n", (int)rtc.isrunning());
+  Serial.println(rtc.isrunning());
+  Serial.print("lostPower:");
+   Serial.println(rtc.lostPower());
+
+  DateTime setti = DateTime(now_ts);
+  // DateTime setti = DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  // DateTime setti = DateTime("Jan 15 2024", "13:14:25");
+  Serial.println("setti");
+  Serial.println(setti.year());
+  Serial.println(setti.hour());
+  Serial.println(setti.minute());
+  
+  rtc.adjust(setti);  
+  if (rtc.isrunning() ==0)
+    rtc.start();
+
+    Serial.printf("rtc isrunning partII:%d\n",(int)rtc.isrunning());
+
 }
 void getRTC()
 {
   Serial.println(F("getRTC --> update internal clock"));
-  DateTime dtrtc = rtc.now(); // get date time from RTC i
+  DateTime dtrtc = rtc.now(); // get date time from RTC
+  Serial.print("getRTC:");
+  Serial.println(dtrtc.unixtime());
+  Serial.println(dtrtc.year());
+  Serial.println(dtrtc.hour());
+  Serial.println(dtrtc.minute());
+  Serial.printf("Internal time now %lu\n", time(nullptr));
+  /*Serial.println(dtrtc.year());
+  Serial.println(dtrtc.month());
+  Serial.println(dtrtc.day());
+  Serial.println(dtrtc.hour());
+  Serial.println(dtrtc.minute());
+  Serial.println(dtrtc.second());*/
+  Serial.println("<- getRTC");
+
   if (!dtrtc.isValid())
   {
     Serial.print(F("E127: RTC not valid"));
@@ -7401,16 +7343,20 @@ void getRTC()
   {
     time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
     setInternalTime(newTime);
-  //  printRTC();
+    Serial.printf("Internal time now %lu\n", time(nullptr));
+    //  printRTC();
   }
 }
 void on_ntp_time_sync(timeval *tv)
 {
-  Serial.printf("Got NTP update %ld\n", tv->tv_sec);
+  //Serial.printf("Got NTP update %ld\n", tv->tv_sec);
   // TODO: set RTC if exists
   if (rtc_found)
   {
-    setRTC();
+    todo_in_loop_save_time_to_rtc = true;
+   
+    // Serial.println("Now checking time from RTC");
+    // getRTC();
   }
   time_corrected_last_ms = millis();
 }
@@ -7595,6 +7541,8 @@ bool connect_wifi()
  * @brief Arduino framework function.  Everything starts from here while starting the controller.
  *
  */
+// SET_LOOP_TASK_STACK_SIZE(12*1024); // affect loop initiated tasks, not onreceive (etc interrupt)
+//#define ARDUINO_SERIAL_EVENT_TASK_STACK_SIZE (3*1024) // no effect
 
 void setup()
 {
@@ -7602,22 +7550,44 @@ void setup()
   Serial.begin(115200);
   delay(2000); // wait for console to settle - only needed when debugging
 
+
+// RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
-    if (!rtc.begin())
+
+  Wire.begin(I2CSDA_GPIO, I2CSCL_GPIO);
+  if (!rtc.begin())
+  {
+    Serial.println(F("Couldn't find RTC!"));
+    Serial.flush();
+  }
+  else
+  {
+    rtc_found = true;
+    Serial.println(F("RTC found"));
+      Serial.print("isrunning:");
+  Serial.println(rtc.isrunning());
+  Serial.print("lostPower:");
+   Serial.println(rtc.lostPower());
+    if (rtc.lostPower())
     {
-      Serial.println(F("Couldn't find RTC!"));
-      Serial.flush();
+      Serial.println("RTC is NOT initialized, let's set the time!");
+      // When time needs to be set on a new device, or after a power loss, the
+      // following line sets the RTC to the date & time this sketch was compiled
+    //  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+         rtc.adjust(DateTime(ACCEPTED_TIMESTAMP_MINIMUM-1));
+               Serial.print("isrunning after lostPower:");
+  Serial.println(rtc.isrunning());
     }
-    else
-    {
-      rtc_found = true;
-      Serial.println(F("RTC found"));
-      Serial.flush();
-      if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
-        getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
-    }
+    rtc.start();
+
+    Serial.flush();
+    // if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
+    getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
+       Serial.print("isrunning3:");
+  Serial.println(rtc.isrunning());
+  }
   sntp_set_time_sync_notification_cb(on_ntp_time_sync); // callback for ntp update, requires esp_sntp.h
-#endif
+#endif //RTC - Work in Progress
 
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
@@ -7665,6 +7635,8 @@ void setup()
   Serial.printf(PSTR("sensor_count:%d\n"), sensor_count);
 #endif
 
+ // Serial0.println(PSTR("Serial0"));
+
   // Check if filesystem update is needed
   Serial.println(F("Checking filesystem version"));
 
@@ -7674,16 +7646,25 @@ void setup()
 
 #ifdef METER_HAN_DIRECT_ENABLED
 #define HAN_P1_SERIAL_SIZE_RX 1024 // Big enough for HAN P1 message
+  int8_t uart_tx_gpio_unused = hw_templates[hw_template_idx].uart_tx_gpio_unused;
+  if (!GPIO_IS_VALID_OUTPUT_GPIO(uart_tx_gpio_unused))
+    uart_tx_gpio_unused = -1;
+
   if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
   {
     Serial.printf("Initializing HAN P1 Serial for HAN P1 read. GPIO: %d\n", (int)s.energy_meter_gpio);
 
     HAN_P1_SERIAL.setRxBufferSize(HAN_P1_SERIAL_SIZE_RX);
-    HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, -1); // Hardware Serial of ESP32
+    
+     
+    HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, uart_tx_gpio_unused); // Hardware Serial of ESP32, was -1 now 34
     HAN_P1_SERIAL.flush();
     HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
   }
 #endif
+   Serial.printf("Arduino Stack was set to %d bytes", getArduinoLoopTaskStackSize());
+
+
 
 #ifdef RESET_BUTTON_ENABLED
   if (GPIO_IS_VALID_GPIO(hw_templates[hw_template_idx].hw_io.reset_button_gpio))
@@ -7744,6 +7725,7 @@ void setup()
     relay_state_reapply_required[channel_idx] = false;
   }
 
+
   Serial.printf("hw_template_idx %d\n", hw_template_idx);
   // TODO: handle shiftreg leds, refactor  bitWrite/digitalWrite to one function call for changing relay state (and leds)
   if (hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE && hw_templates[hw_template_idx].hw_io.status_led_type < STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG)
@@ -7752,8 +7734,10 @@ void setup()
     {
       if (hw_templates[hw_template_idx].hw_io.status_led_ids[i] != ID_NA)
       {
-        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
+        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i])) {
           pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
+          digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], LOW);
+        }
         else
           Serial.printf("Invalid led gpio %d. \n", hw_templates[hw_template_idx].hw_io.status_led_ids[i]);
       }
@@ -7765,6 +7749,9 @@ void setup()
     timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
     timerAlarmEnable(led_timer);
   }
+
+ 
+
 
   Serial.println("Starting wifi");
   scan_and_store_wifis(true, false); // testing this in the beginning
@@ -7854,9 +7841,8 @@ void setup()
       request->send(FILESYSTEM, "/ui3.html", "text/html");
     } });
 
-  //Testing update form from filesystem
-  //server_web.serveStatic("/update.html", FILESYSTEM, "/update.html").setCacheControl("max-age=84600, public");
-
+  // Testing update form from filesystem
+  // server_web.serveStatic("/update.html", FILESYSTEM, "/update.html").setCacheControl("max-age=84600, public");
 
   server_web.on(
       "/update.schedule", HTTP_POST,
@@ -7959,9 +7945,6 @@ void loop()
         {
           s.wifi_ssid[0] = 0;
           writeToEEPROM();
-          // log_msg(MSG_TYPE_FATAL, PSTR("Restarting with disabled WiFI."), true);
-          // delay(2000);
-          // ESP.restart();
           log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
           serial_command_state = 99;
         }
@@ -8121,6 +8104,16 @@ void loop()
   {
     todo_in_loop_process_energy_meter_readings = false;
     process_energy_meter_readings();
+  }
+
+  // experimental , save internal time to rtc
+
+  if (todo_in_loop_save_time_to_rtc) {
+#ifdef RTC_PCF8563_ENABLED
+    Serial.println("todo_in_loop_save_time_to_rtc starting setRTC");
+    setRTC();
+#endif
+    todo_in_loop_save_time_to_rtc = false;
   }
 
   // reapply current relay states (if relay parameters are changed)
