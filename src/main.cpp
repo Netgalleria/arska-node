@@ -258,8 +258,7 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define PROCESS_INTERVAL_SECS 60              //!< process interval, eg. energy meter polling and variable calculation
 #define ACCEPTED_TIMESTAMP_MINIMUM 1700000000 // if timestamp is greater, we assume it is from a real-time clock
 
-#define CONFIG_JSON_SIZE_MAX 8192 //was 6144, 20.1.2024  bigger allocation to get all channel data
-
+#define CONFIG_JSON_SIZE_MAX 8192 // was 6144, 20.1.2024  bigger allocation to get all channel data
 
 /* Application variable constants */
 #define VARIABLE_COUNT 48
@@ -1320,15 +1319,15 @@ Additional reserved gpios:
 
 */
 hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
-    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5, ID_NA, ID_NA}, 36,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
-    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26, ID_NA, ID_NA}, 35,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27, ID_NA, ID_NA}, ID_NA,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA,ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
-    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36,ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
-    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA,ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
-    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16,ID_NA, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
-    {8, "esp32-s3-proto", 6, {0, 1, 2, 3, 4, 5}, 44, 34,{ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 43}}}}; //
+    {0, "manual", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {1, "esp32lilygo-4ch", 4, {21, 19, 18, 5, ID_NA, ID_NA}, 36, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_SINGLE_LOWACTIVE, {25, ID_NA, ID_NA}}},
+    {2, "esp32wroom-4ch-a", 4, {32, 33, 25, 26, ID_NA, ID_NA}, 35, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {3, "devantech-esp32lr42", 4, {33, 25, 26, 27, ID_NA, ID_NA}, ID_NA, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {4, "shelly-pro-1", 1, {0, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
+    {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
+    {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
+    {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16, ID_NA, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
+    {8, "esp32-s3-proto", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 43}}}}; //
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -1486,11 +1485,11 @@ void IRAM_ATTR on_led_timer()
 
   if (pattern_on)
   {
-    led_write_color(led_on); //led on
+    led_write_color(led_on); // led on
   }
   else if (!pattern_on && led_tick_count_cyclic == pattern_length)
   {
-    led_write_color(false); //led off
+    led_write_color(false); // led off
   }
   led_tick_count_cyclic++;
   led_tick_count_cyclic = led_tick_count_cyclic % (pattern_length + led_noshow_ticks);
@@ -3302,7 +3301,7 @@ void process_energy_meter_readings()
   }
 #endif
 
-  //TODO: minify printout , maybe dtostrf(energy_meter_power_latest_in, 4, 2, str_temp);
+  // TODO: minify printout , maybe dtostrf(energy_meter_power_latest_in, 4, 2, str_temp);
   /*
   Serial.print(energy_meter_power_latest_in);
   Serial.print("W (in), ");
@@ -3355,44 +3354,6 @@ void process_energy_meter_readings()
 }
 
 #ifdef METER_HAN_ENABLED
-/*
-bool get_han_ts(String *strp, time_t *returned)
-{
-  if (!strp->startsWith("0-0:1.0.0("))
-    return false;
-
-  int32_t tz_secs = 3600; // CET, EET supported
-  if (strcmp("EET", s.timezone) == 0)
-    tz_secs = 7200;
-
-  // Serial.print("ts:");
-  int splitted[6];
-  for (int i = 0; i < 6; i++)
-  {
-    splitted[i] = strp->substring(10 + i * 2, 12 + i * 2).toInt();
-  }
-  *returned = getTimestamp(2000 + splitted[0], splitted[1], splitted[2], splitted[3], splitted[4], splitted[5]) - tz_secs;
-
-  // assume that we get clock from direct connection
-  if (s.energy_meter_type == ENERGYM_HAN_DIRECT && time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM && *returned > ACCEPTED_TIMESTAMP_MINIMUM)
-  {
-    Serial.println("get_han_ts: set internal clock:");
-    Serial.println(*returned);
-    setInternalTime(*returned);
-  }
-
-  time_t ts_age_s = time(nullptr) - (*returned);
-  Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
-  // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
-  if ((energy_meter_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
-  {
-    next_energy_meter_read_ts -= 1;
-    Serial.println("Tuning polling time ***.");
-  }
-
-  return true;
-}
-*/
 
 uint32_t time_corrected_last_ms = 0;
 // timestamp of last received time correction from HAN P1 direct
@@ -3426,14 +3387,14 @@ bool get_han_ts(const char *strp, time_t *returned)
 #ifdef RTC_PCF8563_ENABLED
     if (rtc_found)
     {
-      //setRTC();
       todo_in_loop_save_time_to_rtc = true;
     }
 #endif
   }
   time_t ts_age_s = time(nullptr) - (*returned);
- // Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
-  if (*returned % 60 ==0) {
+  // Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
+  if (*returned % 60 == 0)
+  {
     Serial.printf("Free stack %d\n", uxTaskGetStackHighWaterMark(NULL));
   }
   // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
@@ -3444,29 +3405,7 @@ bool get_han_ts(const char *strp, time_t *returned)
   }
   return true;
 }
-/*
-bool get_han_dbl(String *strp, const char *obis_code, double *returned)
-{
-  int factor_w = 1;
 
-  if (!strp->startsWith(obis_code))
-    return false;
-
-  int vs_idx = strp->indexOf('(');
-  int va_idx = strp->indexOf('*', vs_idx);
-
-  // check OBIS basic format
-  if (vs_idx == -1 || va_idx == -1 || strp->indexOf(')') == -1)
-    return false;
-
-  if (strp->indexOf("*kW") > -1)
-    factor_w = 1000;
-
-  *returned = strp->substring(vs_idx + 1, va_idx).toDouble() * factor_w;
-  // Serial.println(*returned);
-  return true;
-}
-*/
 //  Char array based replacing String input version
 bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 {
@@ -3503,9 +3442,11 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 //  Char array based replacing String input version
 bool parse_han_row(const char *row_in_p)
 {
-  // return is obis code found in the row
-  if (get_han_ts(row_in_p, &energy_meter_ts_latest))
+  // return is obis code found in the row  
+  if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
+  if (strncmp(row_in_p, "1-0:", 4) != 0)
+    return false;
 
   if (get_han_dbl(row_in_p, "1-0:1.7.0", &energy_meter_power_latest_in))
     return true;
@@ -3531,12 +3472,14 @@ bool parse_han_row(const char *row_in_p)
   return false;
 }
 
+SemaphoreHandle_t xHAN_P1_Semaphore = NULL;
 // global variable to save stack space, Aidon  max about 30 chars/row
 #define ROW_BUFFER_LENGTH 50
-char row_buffer[ROW_BUFFER_LENGTH]; 
-static uint16_t han_direct_error_count = 0;
+char row_buffer[ROW_BUFFER_LENGTH];
+// static uint16_t han_direct_error_count = 0;
 static int han_value_count = 0;
 size_t han_received_chars;
+size_t han_available_bytes;
 
 /**
  * @brief UART callback function called when there is new data from HAN P1 Serial port. Keep lean to save stack space and processing time.
@@ -3547,9 +3490,8 @@ size_t han_received_chars;
 bool receive_energy_meter_han_direct() // direct
 {
   han_value_count = 0;
-
   // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
-  //if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+  // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   //{
   //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
   //}
@@ -3557,45 +3499,54 @@ bool receive_energy_meter_han_direct() // direct
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
 
-  size_t available = HAN_P1_SERIAL.available();
-  //Serial.printf("HAN P1 %d bytes\n", (int)available);
-
-  if (available < 200)
+  if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
   {
-    HAN_P1_SERIAL.flush();
-    return false;
-  }
-  // Serial.printf("DEBUG: next process in %d \n", int(next_process_ts - time(nullptr)));
-  yield();
-
-  while (HAN_P1_SERIAL.available()) // SerialPort
-  {
-    han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
-    if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
-      continue;
-
-    if (parse_han_row(row_buffer))
+    han_available_bytes = HAN_P1_SERIAL.available();
+    // Serial.printf("HAN P1 %d bytes\n", (int)han_available_bytes);
+    if (han_available_bytes < 200)
     {
-      han_value_count++;
+      HAN_P1_SERIAL.flush();
+      xSemaphoreGive(xHAN_P1_Semaphore);
+      return false;
     }
+    yield();
+
+    while (HAN_P1_SERIAL.available()) // SerialPort
+    {
+      han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
+      if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
+        continue;
+
+      if (parse_han_row(row_buffer))
+      {
+        han_value_count++;
+      }
+    }
+    if (han_value_count < 5)
+    {
+      Serial.println("Cannot read all HAN P1 port values");
+      xSemaphoreGive(xHAN_P1_Semaphore);
+      return false;
+    }
+
+    energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
+    //yield();
+
+    // led down
+    // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
+    //{
+    //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
+    //}
+    xSemaphoreGive(xHAN_P1_Semaphore);
+     // read done
+    todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
+    return true;
   }
-  if (han_value_count < 5)
+  else
   {
-    Serial.println("Cannot read all HAN P1 port values \n");
+    Serial.println("Cannot reserve HAN P1 port for reading (xHAN_P1_Semaphore) ");
     return false;
   }
-
-  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-  // read done
-  todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
-  yield();
-
-  // led down
-  //if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-  //{
-  //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
-  //}
-  return true;
 }
 
 #endif
@@ -4215,15 +4166,15 @@ void calculate_price_rank_variables()
   localtime_r(&current_period_start_ts, &tm_struct_l);
 
   vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc) + 50) / 100));
-  //Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
+  // Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
   yield();
 
   // 9 h sliding
   time_t last_ts_in_window = min(current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
-  //Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
+  // Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  //Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  // Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
@@ -4235,7 +4186,7 @@ void calculate_price_rank_variables()
   last_ts_in_window = min(current_period_start_ts + 23 * prices2.resolution_sec(), prices2.last_set_period_ts());
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  //Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  // Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERANK_24, (long)rank);
   vars.set(VARIABLE_PRICEAVG_24, (long)round_divide(window_price_avg, 100));
@@ -4250,7 +4201,7 @@ void calculate_price_rank_variables()
   last_ts_in_window = first_ts_in_window + prices2.resolution_sec() * 23;
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
   prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  //Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  // Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
   vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
   yield();
@@ -4261,7 +4212,7 @@ void calculate_price_rank_variables()
   first_ts_in_window = current_period_start_ts - PRICE_RESOLUTION_SEC * block_start_before_this_idx;
   last_ts_in_window = first_ts_in_window + 7 * PRICE_RESOLUTION_SEC;
   rank = prices2.get_period_rank(current_period_start_ts, first_ts_in_window, last_ts_in_window);
-  //Serial.printf("New way 8 h block rank %ld\n", (long)rank);
+  // Serial.printf("New way 8 h block rank %ld\n", (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
   yield();
@@ -5256,7 +5207,8 @@ bool test_set_gpio_pinmode(int channel_idx, bool set_pinmode = true)
       Serial.printf("Channel %d, invalid output gpio %d\n", channel_idx, (int)gpio);
       return false;
     }
-    if (set_pinmode) {
+    if (set_pinmode)
+    {
       pinMode(gpio, OUTPUT);
     }
     return true;
@@ -7281,7 +7233,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 }
 
 #ifdef RTC_PCF8563_ENABLED
-//RTC functionality - work in progress
+// RTC functionality - work in progress
 void setRTC()
 {
   Serial.println(F("setRTC --> from internal time"));
@@ -7289,7 +7241,7 @@ void setRTC()
   tm tm;                         // the structure tm holds time information in a more convient way
   gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
   Serial.println("setRTC tm->");
-  Serial.println(tm.tm_year +1900);
+  Serial.println(tm.tm_year + 1900);
   Serial.println(tm.tm_mon + 1);
   Serial.println(tm.tm_mday);
   Serial.println(tm.tm_hour);
@@ -7300,7 +7252,7 @@ void setRTC()
   Serial.printf("setRTC, isrunning:%d\n", (int)rtc.isrunning());
   Serial.println(rtc.isrunning());
   Serial.print("lostPower:");
-   Serial.println(rtc.lostPower());
+  Serial.println(rtc.lostPower());
 
   DateTime setti = DateTime(now_ts);
   // DateTime setti = DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
@@ -7309,13 +7261,12 @@ void setRTC()
   Serial.println(setti.year());
   Serial.println(setti.hour());
   Serial.println(setti.minute());
-  
-  rtc.adjust(setti);  
-  if (rtc.isrunning() ==0)
+
+  rtc.adjust(setti);
+  if (rtc.isrunning() == 0)
     rtc.start();
 
-    Serial.printf("rtc isrunning partII:%d\n",(int)rtc.isrunning());
-
+  Serial.printf("rtc isrunning partII:%d\n", (int)rtc.isrunning());
 }
 void getRTC()
 {
@@ -7349,12 +7300,12 @@ void getRTC()
 }
 void on_ntp_time_sync(timeval *tv)
 {
-  //Serial.printf("Got NTP update %ld\n", tv->tv_sec);
-  // TODO: set RTC if exists
+  // Serial.printf("Got NTP update %ld\n", tv->tv_sec);
+  //  TODO: set RTC if exists
   if (rtc_found)
   {
     todo_in_loop_save_time_to_rtc = true;
-   
+
     // Serial.println("Now checking time from RTC");
     // getRTC();
   }
@@ -7542,14 +7493,13 @@ bool connect_wifi()
  *
  */
 // SET_LOOP_TASK_STACK_SIZE(12*1024); // affect loop initiated tasks, not onreceive (etc interrupt)
-//#define ARDUINO_SERIAL_EVENT_TASK_STACK_SIZE (3*1024) // no effect
+// #define ARDUINO_SERIAL_EVENT_TASK_STACK_SIZE (3*1024) // no effect
 
 void setup()
 {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
   Serial.begin(115200);
   delay(2000); // wait for console to settle - only needed when debugging
-
 
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
@@ -7564,30 +7514,30 @@ void setup()
   {
     rtc_found = true;
     Serial.println(F("RTC found"));
-      Serial.print("isrunning:");
-  Serial.println(rtc.isrunning());
-  Serial.print("lostPower:");
-   Serial.println(rtc.lostPower());
+    Serial.print("isrunning:");
+    Serial.println(rtc.isrunning());
+    Serial.print("lostPower:");
+    Serial.println(rtc.lostPower());
     if (rtc.lostPower())
     {
       Serial.println("RTC is NOT initialized, let's set the time!");
       // When time needs to be set on a new device, or after a power loss, the
       // following line sets the RTC to the date & time this sketch was compiled
-    //  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-         rtc.adjust(DateTime(ACCEPTED_TIMESTAMP_MINIMUM-1));
-               Serial.print("isrunning after lostPower:");
-  Serial.println(rtc.isrunning());
+      //  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      rtc.adjust(DateTime(ACCEPTED_TIMESTAMP_MINIMUM - 1));
+      Serial.print("isrunning after lostPower:");
+      Serial.println(rtc.isrunning());
     }
     rtc.start();
 
     Serial.flush();
     // if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
     getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
-       Serial.print("isrunning3:");
-  Serial.println(rtc.isrunning());
+    Serial.print("isrunning3:");
+    Serial.println(rtc.isrunning());
   }
   sntp_set_time_sync_notification_cb(on_ntp_time_sync); // callback for ntp update, requires esp_sntp.h
-#endif //RTC - Work in Progress
+#endif                                                  // RTC - Work in Progress
 
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
@@ -7635,7 +7585,7 @@ void setup()
   Serial.printf(PSTR("sensor_count:%d\n"), sensor_count);
 #endif
 
- // Serial0.println(PSTR("Serial0"));
+  // Serial0.println(PSTR("Serial0"));
 
   // Check if filesystem update is needed
   Serial.println(F("Checking filesystem version"));
@@ -7654,17 +7604,14 @@ void setup()
   {
     Serial.printf("Initializing HAN P1 Serial for HAN P1 read. GPIO: %d\n", (int)s.energy_meter_gpio);
 
+    xHAN_P1_Semaphore = xSemaphoreCreateMutex();
     HAN_P1_SERIAL.setRxBufferSize(HAN_P1_SERIAL_SIZE_RX);
-    
-     
     HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, uart_tx_gpio_unused); // Hardware Serial of ESP32, was -1 now 34
     HAN_P1_SERIAL.flush();
     HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
   }
 #endif
-   Serial.printf("Arduino Stack was set to %d bytes", getArduinoLoopTaskStackSize());
-
-
+  Serial.printf("Arduino Stack was set to %d bytes", getArduinoLoopTaskStackSize());
 
 #ifdef RESET_BUTTON_ENABLED
   if (GPIO_IS_VALID_GPIO(hw_templates[hw_template_idx].hw_io.reset_button_gpio))
@@ -7725,7 +7672,6 @@ void setup()
     relay_state_reapply_required[channel_idx] = false;
   }
 
-
   Serial.printf("hw_template_idx %d\n", hw_template_idx);
   // TODO: handle shiftreg leds, refactor  bitWrite/digitalWrite to one function call for changing relay state (and leds)
   if (hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE && hw_templates[hw_template_idx].hw_io.status_led_type < STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG)
@@ -7734,7 +7680,8 @@ void setup()
     {
       if (hw_templates[hw_template_idx].hw_io.status_led_ids[i] != ID_NA)
       {
-        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i])) {
+        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
+        {
           pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
           digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], LOW);
         }
@@ -7749,9 +7696,6 @@ void setup()
     timerAlarmWrite(led_timer, LED_TIMER_INTERVAL_US, true);
     timerAlarmEnable(led_timer);
   }
-
- 
-
 
   Serial.println("Starting wifi");
   scan_and_store_wifis(true, false); // testing this in the beginning
@@ -8108,7 +8052,8 @@ void loop()
 
   // experimental , save internal time to rtc
 
-  if (todo_in_loop_save_time_to_rtc) {
+  if (todo_in_loop_save_time_to_rtc)
+  {
 #ifdef RTC_PCF8563_ENABLED
     Serial.println("todo_in_loop_save_time_to_rtc starting setRTC");
     setRTC();
