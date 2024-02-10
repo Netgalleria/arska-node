@@ -3,7 +3,8 @@ FILENAME_VERSION_H = 'include/version.h'
 
 # if this storage folder exists we copy results to it for later publish
 file_directory = '/tmp/arskafiles/'
-envs = ['esp32-generic-6ch']
+envs = {'esp32-generic-6ch':{'chip_family':'ESP32','bootloader_offset':"4096"},'esp32s3':{'chip_family':'ESP32-S3','bootloader_offset':"0"}}
+
 
 import shutil
 import os.path
@@ -70,15 +71,17 @@ def before_upload(source, target, env):
 
     print ("version_base: [" + version_base + "]")
 
-    
-    
     # copy binary files for release, version based destination 
     if path.exists(file_directory) and path.isdir(file_directory):
         for env_id in envs:   
+            
             # remove old stuff
             delete_files_in_directory(file_directory+env_id)
             
             compile_folder = '.pio/build/'+ env_id + '/'
+            if not path.exists(compile_folder+"firmware.bin"):
+                continue 
+
             dest_dir = file_directory+env_id+"/"+version_base+"/"
 
             if not path.exists(dest_dir):
@@ -96,23 +99,26 @@ def before_upload(source, target, env):
             #if path.exists(manifest_from_path) and not path.exists(manifest_to_path):
             #    shutil.copyfile(manifest_from_path, manifest_to_path)
 
-
+            #ESP32,  ESP32S3
+            chip_family = envs[env_id]["chip_family"]
+            bootloader_offset = envs[env_id]["bootloader_offset"]
+            name = "Arska for "+chip_family
             manifest_txt = """{
-            "name": "Arska",
+            "name": "{name}",
             "new_install_prompt_erase": true,
             "builds": [
             {
-                "chipFamily": "ESP32",
+                "chipFamily": "{chip_family}",
                 "parts": [
-                {"path": "bootloader.bin", "offset" :4096},
+                {"path": "bootloader.bin", "offset" :{bootloader_offset}},
                 {"path": "partitions.bin", "offset" :32768},
                 {"path": "../boot_app0.bin", "offset" :57344},
                 { "path": "firmware.bin", "offset": 65536 },
-                { "path": "FILESYSTEM_FILE_NAME", "offset": 2686976 }
+                { "path": "{fs_filename}", "offset": 2686976 }
                 ]
             }
             ]
-            }""".replace("FILESYSTEM_FILE_NAME",fs_filename)
+            }""".replace("{fs_filename}",fs_filename).replace("{chip_family}",chip_family).replace("{bootloader_offset}",bootloader_offset).replace("{name}",name)
             with open(manifest_to_path, 'w+') as f:
                 f.write(manifest_txt)
             
