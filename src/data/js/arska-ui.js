@@ -123,7 +123,7 @@ function populate_releases() {
 
             load_count++;
             console.log('got releases');
-            hw = data.hw;
+            //hw = data.hw;
             if (!(data.hasOwnProperty('releases'))) { /* retry to get releases*/
                 if (load_count < 5)
                     setTimeout(function () { populate_releases(); }, 5000);

@@ -6,8 +6,8 @@ FILENAME_VERSION_H = 'include/version.h'
 # phases alpha, beta, rc, stable,  
 # e.g. 0.93.0-alpha1,  0.93.0-beta1,  0.93.0-rc1,  0.93.0-stable, 0.93.1-stable  
 
-version = '1.1.0-alfa5'
-#version = '1.1.0-beta3'
+#version = '1.1.0-alfa5'
+version = '1.1.0-beta3'
 esp_idf_version_custom = "4.4.5" #use to approximate bootloader version 
 #version = '1.1.0-rc1'
 #version = '0.92.0-stable'
@@ -30,7 +30,6 @@ print (os.system("mv -f src/data/js/arska-ui.js.gz data/js/" ))
 
 print("Compressed\n\n")
 print()
-
 
 if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in BUILD_TARGETS:
   print("Building filesystem. No new version. BUILD_TARGETS:")
@@ -91,4 +90,5 @@ else:
 
   print("Rebuilding filesystem file n"+fs_filename)
   returned_value = os.system("platformio run --target buildfs --environment esp32-generic-6ch")
+  returned_value = os.system("platformio run --target buildfs --environment esp32s3")
     
