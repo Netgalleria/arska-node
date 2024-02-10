@@ -215,7 +215,7 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 #define STR2(a) #a
 #define STR(a) STR2(a)
 // #define RELEASES_URL RELEASES_URL_BASE OTA_BOOTLOADER VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM
-#define RELEASES_URL RELEASES_URL_BASE VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM
+#define RELEASES_URL RELEASES_URL_BASE VERSION_SEPARATOR VERSION_BASE "&esp_idf_version=" ESP_IDF_VERSION_CUSTOM "&chip_family=" CHIP_FAMILY
 
 // Channel state info, Work in Progress...
 
@@ -887,7 +887,6 @@ void set_timezone_ntp_settings(bool set_ntp);
 
 // * Real-time-clock, currently deprecated,
 void getRTC();
-void printRTC();
 void setRTC();
 void ntp_time_is_set(bool from_sntp);
 
@@ -1074,41 +1073,6 @@ const int httpsPort = 443;
 */
 // Utility function to convert datetime elements to epoch time
 
-/*
-void printRTC()
-{
-  DateTime dtrtc = rtc.now(); // get date time from RTC i
-  if (!dtrtc.isValid())
-  {
-    Serial.println(F("E103: RTC not valid"));
-  }
-  else
-  {
-    time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
-    Serial.print(F("RTC:"));
-    Serial.print(newTime);
-    Serial.print(F(", Temperature:"));
-    Serial.println(rtc.getTemperature());
-  }
-}
-
-void ntp_time_is_set(bool from_sntp)
-{
-  if (from_sntp) // needs Core 3.0.0 or higher!
-  {
-    Serial.println(F("The internal time is set from NTP."));
-    setRTC();
-    printRTC();
-  }
-  else
-  {
-    Serial.println(F("The internal time is set."));
-  }
-}
-
-
-#endif // rtc
-*/
 
 // internal temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
@@ -1296,7 +1260,7 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
 | 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |       - |       - |        - |
 | 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |      35 |     LOW |  4,13,14 |
 | 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |       2 |    HIGH |        - |
-| 8  | esp32-s3-proto      |       6 |ids: 0,1,2,3,4,5 |            44 |         1,2,43 |       - |      -  |    6,7,5 |
+| 8  | esp32s3lilygo-6ch   |       6 |ids: 0,1,2,3,4,5 |            44 |         1,2,43 |       - |      -  |    6,7,5 |
 |--------------------------|---------|-----------------|---------------|----------------|---------|---------|----------|
 
 Extra notes about the boards:
@@ -1327,7 +1291,7 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
     {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
     {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16, ID_NA, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
-    {8, "esp32-s3-proto", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 43}}}}; //
+    {8, "esp32s3lilygo-6ch", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 43}}}}; //
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -7236,8 +7200,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 // RTC functionality - work in progress
 void setRTC()
 {
-  Serial.println(F("setRTC --> from internal time"));
-  time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
+ 
+  /*time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
   tm tm;                         // the structure tm holds time information in a more convient way
   gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
   Serial.println("setRTC tm->");
@@ -7247,45 +7211,26 @@ void setRTC()
   Serial.println(tm.tm_hour);
   Serial.println(tm.tm_min);
   Serial.println(tm.tm_sec);
-  rtc.stop(); // should we stop it first?
+  //rtc.stop(); // should we stop it first?
   delay(2000);
-  Serial.printf("setRTC, isrunning:%d\n", (int)rtc.isrunning());
-  Serial.println(rtc.isrunning());
-  Serial.print("lostPower:");
-  Serial.println(rtc.lostPower());
+  Serial.printf("setRTC, isrunning:%d\n", (int)rtc.isrunning());*/
+//  Serial.println(rtc.isrunning());
+//  Serial.print("lostPower:");
+ // Serial.println(rtc.lostPower());
 
-  DateTime setti = DateTime(now_ts);
-  // DateTime setti = DateTime(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-  // DateTime setti = DateTime("Jan 15 2024", "13:14:25");
-  Serial.println("setti");
-  Serial.println(setti.year());
-  Serial.println(setti.hour());
-  Serial.println(setti.minute());
-
-  rtc.adjust(setti);
+  DateTime new_time = DateTime(time(nullptr));
+  Serial.print(F("Setting RTC from internal time "));
+  Serial.println(time(nullptr));
+  rtc.adjust(new_time);
   if (rtc.isrunning() == 0)
     rtc.start();
 
-  Serial.printf("rtc isrunning partII:%d\n", (int)rtc.isrunning());
+//  Serial.printf("rtc isrunning partII:%d\n", (int)rtc.isrunning());
 }
 void getRTC()
 {
-  Serial.println(F("getRTC --> update internal clock"));
+ // Serial.println(F("getRTC --> update internal clock"));
   DateTime dtrtc = rtc.now(); // get date time from RTC
-  Serial.print("getRTC:");
-  Serial.println(dtrtc.unixtime());
-  Serial.println(dtrtc.year());
-  Serial.println(dtrtc.hour());
-  Serial.println(dtrtc.minute());
-  Serial.printf("Internal time now %lu\n", time(nullptr));
-  /*Serial.println(dtrtc.year());
-  Serial.println(dtrtc.month());
-  Serial.println(dtrtc.day());
-  Serial.println(dtrtc.hour());
-  Serial.println(dtrtc.minute());
-  Serial.println(dtrtc.second());*/
-  Serial.println("<- getRTC");
-
   if (!dtrtc.isValid())
   {
     Serial.print(F("E127: RTC not valid"));
@@ -7294,8 +7239,7 @@ void getRTC()
   {
     time_t newTime = getTimestamp(dtrtc.year(), dtrtc.month(), dtrtc.day(), dtrtc.hour(), dtrtc.minute(), dtrtc.second());
     setInternalTime(newTime);
-    Serial.printf("Internal time now %lu\n", time(nullptr));
-    //  printRTC();
+    Serial.printf("Internal time set from RTC, now: %lu\n", time(nullptr));
   }
 }
 void on_ntp_time_sync(timeval *tv)
@@ -7305,9 +7249,6 @@ void on_ntp_time_sync(timeval *tv)
   if (rtc_found)
   {
     todo_in_loop_save_time_to_rtc = true;
-
-    // Serial.println("Now checking time from RTC");
-    // getRTC();
   }
   time_corrected_last_ms = millis();
 }
@@ -7524,23 +7465,23 @@ void setup()
       // When time needs to be set on a new device, or after a power loss, the
       // following line sets the RTC to the date & time this sketch was compiled
       //  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-      rtc.adjust(DateTime(ACCEPTED_TIMESTAMP_MINIMUM - 1));
-      Serial.print("isrunning after lostPower:");
-      Serial.println(rtc.isrunning());
+      rtc.adjust(DateTime(ACCEPTED_TIMESTAMP_MINIMUM - 360000));
+    //  Serial.print("isrunning after lostPower:");
+    //  Serial.println(rtc.isrunning());
     }
     rtc.start();
 
     Serial.flush();
-    // if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
     getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
-    Serial.print("isrunning3:");
-    Serial.println(rtc.isrunning());
+
   }
   sntp_set_time_sync_notification_cb(on_ntp_time_sync); // callback for ntp update, requires esp_sntp.h
 #endif                                                  // RTC - Work in Progress
 
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
+  Serial.println(CHIP_FAMILY);
+
 
   // String
   wifi_mac_short = WiFi.macAddress();
