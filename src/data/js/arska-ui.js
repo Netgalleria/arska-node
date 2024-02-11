@@ -3048,9 +3048,13 @@ function ctrl_changed_ev(ev) {
 function launch_action(action, card_id, params) {
     //  var post_data = { "action": action };
     let post_data = Object.assign({ "action": action }, params);
+    if (action == 'ts') {
+        post_data["ts"] = Date.now() / 1000;
+    }
     console.log("post_data", post_data);
-    if (card_id)
+    if (card_id) {
         live_alert(card_id, "Sending:\n" + JSON.stringify(post_data), 'success');
+    }
 
     $.ajax({
         type: "POST",
@@ -3062,8 +3066,9 @@ function launch_action(action, card_id, params) {
         dataType: "json",
         success: function (data) {
             console.log("action response", data);
-            if (card_id)
+            if (card_id) {
                 live_alert(card_id, "Action launched", 'success');
+            }
             // could poll status / version and reboot 
             //if (action == "update")
             //    setTimeout(function () { reload_when_site_up_again(params.version); }, 5000);

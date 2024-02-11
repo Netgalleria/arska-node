@@ -1073,7 +1073,6 @@ const int httpsPort = 443;
 */
 // Utility function to convert datetime elements to epoch time
 
-
 // internal temperature, updated only if hw extensions
 uint8_t cpu_temp_f = 128;
 
@@ -3406,7 +3405,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 //  Char array based replacing String input version
 bool parse_han_row(const char *row_in_p)
 {
-  // return is obis code found in the row  
+  // return is obis code found in the row
   if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
   if (strncmp(row_in_p, "1-0:", 4) != 0)
@@ -3494,7 +3493,7 @@ bool receive_energy_meter_han_direct() // direct
     }
 
     energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-    //yield();
+    // yield();
 
     // led down
     // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
@@ -3502,7 +3501,7 @@ bool receive_energy_meter_han_direct() // direct
     //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
     //}
     xSemaphoreGive(xHAN_P1_Semaphore);
-     // read done
+    // read done
     todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
     return true;
   }
@@ -6874,6 +6873,22 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 240}");
   }
 
+ if (action == "ts") // set time from workstation
+  {
+    time_t ts = (time_t)doc["ts"];
+    Serial.print("DEBUG set internal clock:");
+    Serial.println(ts);
+    setInternalTime(ts);
+#ifdef RTC_PCF8563_ENABLED
+ if (rtc_found) {
+      setRTC();
+ }
+#endif
+    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}");
+    return;
+  }
+
+
   if (doc["action"] == "restart")
   {
     todo_in_loop_restart_local = true;
@@ -7200,24 +7215,6 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 // RTC functionality - work in progress
 void setRTC()
 {
- 
-  /*time_t now_ts = time(nullptr); // this are the seconds since Epoch (1970) - seconds GMT
-  tm tm;                         // the structure tm holds time information in a more convient way
-  gmtime_r(&now_ts, &tm);        // update the structure tm with the current GMT
-  Serial.println("setRTC tm->");
-  Serial.println(tm.tm_year + 1900);
-  Serial.println(tm.tm_mon + 1);
-  Serial.println(tm.tm_mday);
-  Serial.println(tm.tm_hour);
-  Serial.println(tm.tm_min);
-  Serial.println(tm.tm_sec);
-  //rtc.stop(); // should we stop it first?
-  delay(2000);
-  Serial.printf("setRTC, isrunning:%d\n", (int)rtc.isrunning());*/
-//  Serial.println(rtc.isrunning());
-//  Serial.print("lostPower:");
- // Serial.println(rtc.lostPower());
-
   DateTime new_time = DateTime(time(nullptr));
   Serial.print(F("Setting RTC from internal time "));
   Serial.println(time(nullptr));
@@ -7225,11 +7222,11 @@ void setRTC()
   if (rtc.isrunning() == 0)
     rtc.start();
 
-//  Serial.printf("rtc isrunning partII:%d\n", (int)rtc.isrunning());
+  //  Serial.printf("rtc isrunning partII:%d\n", (int)rtc.isrunning());
 }
 void getRTC()
 {
- // Serial.println(F("getRTC --> update internal clock"));
+  // Serial.println(F("getRTC --> update internal clock"));
   DateTime dtrtc = rtc.now(); // get date time from RTC
   if (!dtrtc.isValid())
   {
@@ -7466,14 +7463,13 @@ void setup()
       // following line sets the RTC to the date & time this sketch was compiled
       //  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
       rtc.adjust(DateTime(ACCEPTED_TIMESTAMP_MINIMUM - 360000));
-    //  Serial.print("isrunning after lostPower:");
-    //  Serial.println(rtc.isrunning());
+      //  Serial.print("isrunning after lostPower:");
+      //  Serial.println(rtc.isrunning());
     }
     rtc.start();
 
     Serial.flush();
     getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
-
   }
   sntp_set_time_sync_notification_cb(on_ntp_time_sync); // callback for ntp update, requires esp_sntp.h
 #endif                                                  // RTC - Work in Progress
@@ -7481,7 +7477,6 @@ void setup()
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
   Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
   Serial.println(CHIP_FAMILY);
-
 
   // String
   wifi_mac_short = WiFi.macAddress();
