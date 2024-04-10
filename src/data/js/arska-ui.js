@@ -198,7 +198,7 @@ const template_fld_html = `<label for="ch_(ch#)_templ_field_(fld#)" class="form-
 <input id="ch_(ch#)_ch_0:templ_field_(fld#)" type="number" class="form-control"  placeholder="15">
 <br>`;
 */
-
+// <label id="sch_(ch#):status" ->  span
 const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch#):card">
                   <div class="card-header d-flex align-items-center justify-content-between">
                     <h5 class="card-title m-lg-0 p-1 ">
@@ -206,10 +206,10 @@ const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch
                         <span id="sch_(ch#):title"></span>
                     </h5>
                         
-                    <label id="sch_(ch#):status" class="btn btn-secondary btn-sm text-bg-success">
+                    <span id="sch_(ch#):status" class="btn btn-secondary btn-sm text-bg-success">
                       <span id="sch_(ch#):status_icon" data-feather="zap" class="align-text-bottom"></span>
                       <span id="sch_(ch#):status_txt"></span>
-                    </label>
+                    </span>
                   </div>
                   <!--card-header-->
                   <div class="card-body">
@@ -1189,7 +1189,8 @@ function create_dashboard_chart() {
         let production_ds = [];
 
         for (h_idx = 0; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
-            ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx) * chart_resolution_sec;
+            //probably 1 resolutions unit too small, fixed 10.4.2024
+            ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx-1) * chart_resolution_sec;
             if (Math.abs(variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]) > 1)
                 dataset_started = true;
 
@@ -3060,7 +3061,7 @@ function launch_action(action, card_id, params) {
         type: "POST",
         url: "/actions",
         cache: false,
-        async: "false",
+        async: false,
         data: JSON.stringify(post_data),
         contentType: "application/json;",
         dataType: "json",
