@@ -1259,7 +1259,7 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
 | 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |       - |       - |        - |
 | 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |      35 |     LOW |  4,13,14 |
 | 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |       2 |    HIGH |        - |
-| 8  | esp32s3lilygo-6ch   |       6 |ids: 0,1,2,3,4,5 |            44 |         1,2,43 |       - |      -  |    6,7,5 |
+| 8  | esp32s3lilygo-6ch   |       6 |ids: 0,1,2,3,4,5 |            44 |         1,43,2 |       - |      -  |    6,7,5 |
 |--------------------------|---------|-----------------|---------------|----------------|---------|---------|----------|
 
 Extra notes about the boards:
@@ -1290,7 +1290,7 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
     {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
     {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16, ID_NA, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
-    {8, "esp32s3lilygo-6ch", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 2, 43}}}}; //
+    {8, "esp32s3lilygo-6ch", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 43, 2}}}}; //
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -1597,7 +1597,8 @@ void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms)
       esp_sleep_enable_timer_wakeup(900 * 1000000ULL);
       log_msg(MSG_TYPE_FATAL, PSTR("HOT SHUTDOWN! Panic deep-sleep for 15 minutes cooling down period."), true);
       delay(1000);
-      Serial.flush();
+      if (Serial)
+        Serial.flush();
       esp_deep_sleep_start();
     }
     adc_power_acquire();
@@ -2894,7 +2895,8 @@ void scan_and_store_wifis(bool print_out, bool store)
   if (print_out)
   {
     Serial.println("-");
-    Serial.flush();
+    if (Serial)
+      Serial.flush();
   }
 }
 
@@ -3372,7 +3374,7 @@ bool get_han_ts(const char *strp, time_t *returned)
 //  Char array based replacing String input version
 bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 {
-  int factor_w = 1;
+  int factor_w;
   if (strstr(rowp, obis_code) == NULL)
     return false;
   char *vs = strchr(rowp, '(');
@@ -3381,9 +3383,14 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
   // check OBIS basic format
   if (vs == NULL || va == NULL || strchr(rowp, ')') == NULL)
     return false;
-  if (strstr(rowp, "*kW") != NULL)
+  if (strstr(rowp, "*kW") != NULL) {
     factor_w = 1000;
-
+ //   Serial.print("*kW");
+ //   Serial.println(strstr(rowp, "*kW"));
+  }
+  else {
+    factor_w = 1;
+  }
   *va = 0; // null terminate where number ends
   *returned = (float)(atof((vs + 1)) * factor_w);
   // Serial.printf("Read han %s -> %s: ",rowp, obis_code);
@@ -3405,7 +3412,8 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 //  Char array based replacing String input version
 bool parse_han_row(const char *row_in_p)
 {
-  // return is obis code found in the row
+//  Serial.println(row_in_p);
+  // return if time obis code found in the row
   if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
   if (strncmp(row_in_p, "1-0:", 4) != 0)
@@ -6057,7 +6065,8 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
     else
     {
       Serial.println("Update complete");
-      Serial.flush();
+      if (Serial)
+        Serial.flush();
       WiFi.disconnect();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."), true);
       create_shadow_settings();
@@ -6203,6 +6212,9 @@ void reset_config()
       }
     }
   }
+#ifdef SENSOR_DS18B20_ENABLED
+  scan_sensors();
+#endif
   Serial.println(F("Finishing reset_config"));
 }
 
@@ -7411,7 +7423,9 @@ bool connect_wifi()
     {
       Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Give WiFi number (see the list above) <enter> and give WiFi password <enter>.\n 2) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n"), APSSID.c_str(), WiFi.softAPIP().toString());
       Serial.println();
-      Serial.flush();
+      if (Serial)
+        Serial.flush();
+    
     }
   }
   else
@@ -7436,9 +7450,65 @@ bool connect_wifi()
 void setup()
 {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-  Serial.begin(115200);
-  delay(2000); // wait for console to settle - only needed when debugging
 
+  //if(Serial) //experimental for LilyGo ESP32s, 
+    Serial.begin(115200);
+
+  delay(2000); // wait for console to settle - only needed when debugging
+/*
+//TEMP TEST LED  1,2,43
+
+  pinMode(1, OUTPUT);
+  pinMode(2, OUTPUT);
+  pinMode(43, OUTPUT);
+  for (int k=0;k<10;k++) {
+    //ei, koska 60kΩ ja väärin,
+    Serial.println(1);
+  digitalWrite(1, HIGH);
+  delay(5000);
+  digitalWrite(1, LOW);
+  delay(2000);
+  //kunnon vihreä
+    Serial.println(43);
+  digitalWrite(43, HIGH);
+  delay(5000);
+  digitalWrite(43, LOW);
+  delay(2000);
+  //testaa miten jos laittaa R high samalla, meneekä G pimeäksi
+    Serial.println("G+R");
+  digitalWrite(43, HIGH);
+  digitalWrite(1, HIGH);
+  delay(5000);
+  digitalWrite(43, LOW);
+  digitalWrite(1, LOW);
+  delay(2000);
+//hailea sininen
+    Serial.println(2);
+  digitalWrite(2, HIGH);
+  delay(5000);
+  digitalWrite(2, LOW);
+  delay(2000);
+
+   Serial.println("43+2");
+  digitalWrite(43, HIGH);
+   digitalWrite(2, HIGH);
+  delay(5000);
+  digitalWrite(2, LOW);
+  digitalWrite(43, LOW);
+  delay(2000);
+
+   Serial.println("1+2+43");
+  digitalWrite(1, HIGH);
+   digitalWrite(2, HIGH);
+     digitalWrite(43, HIGH);
+  delay(5000);
+  digitalWrite(1, LOW);
+   digitalWrite(2, LOW);
+  digitalWrite(43, LOW);
+  delay(2000);
+  }
+  
+*/
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
 
@@ -7446,7 +7516,8 @@ void setup()
   if (!rtc.begin())
   {
     Serial.println(F("Couldn't find RTC!"));
-    Serial.flush();
+    if (Serial)
+        Serial.flush();
   }
   else
   {
@@ -7468,8 +7539,9 @@ void setup()
     }
     rtc.start();
 
-    Serial.flush();
-    getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
+      if (Serial)
+        Serial.flush();
+        getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
   }
   sntp_set_time_sync_notification_cb(on_ntp_time_sync); // callback for ntp update, requires esp_sntp.h
 #endif                                                  // RTC - Work in Progress
@@ -7818,7 +7890,9 @@ void loop()
           strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
           Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
           Serial.println();
-          Serial.flush();
+          if (Serial)
+            Serial.flush();
+       
           serial_command_state = 1;
         }
         else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
@@ -7844,7 +7918,8 @@ void loop()
 
       Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
       Serial.println();
-      Serial.flush();
+      if (Serial)
+        Serial.flush();
       writeToEEPROM();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
 
