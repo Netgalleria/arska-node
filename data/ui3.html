@@ -1055,7 +1055,7 @@
                   <!--./card-header-->
                   <div class="card-body">
                     <div class="mb-2">
-                      <label class="form-label">Backup configuration</label>
+                      <label for="do_backup" class="form-label">Backup configuration</label>
                       <br>
                       <a href="/settings?format=file"><button class="btn btn-primary"
                           style="line-height:1.1;width:140px;" type="submit" id="do_backup">
@@ -1064,7 +1064,7 @@
                     </div>
 
                     <div class="mb-2">
-                      <label class="form-label">Restore configuration</label>
+                      <label for="restore_form" class="form-label">Restore configuration</label>
                       <form id="restore_form" method="post" enctype="multipart/form-data" style="display: inline;">
 
                         <div class="input-group">
@@ -1138,10 +1138,11 @@
                               <span id="cpu_temp" class="text-muted"></span>
                             </div>
                             <div class="d-grid gap-2 d-md-block text-end">
-                              <label class="form-label">Special actions</label><br>
+                              <label for="admin:restart" class="form-label">Special actions</label><br>
 
                               <button type="button" id="admin:restart" class="btn btn-secondary">Restart and clear
                                 cache</button>
+                              <button type="button" id="admin:ts" class="btn btn-secondary">Set time from workstation</button>
                               <button type="button" id="admin:reset" class="btn btn-secondary">Reset Settings</button>
                               <button type="button" id="admin:scan_sensors" class="btn btn-secondary">Scan
                                 Sensors</button>
@@ -1197,12 +1198,12 @@
 
                   </div>
                   <div class="card-body">
-                    <label class="form-label">Data sources:</label>
+                    <span class="form-label">Data sources:</span>
                     <p>Day-ahead prices <a
                         href="https://transparency.entsoe.eu/"">ENTSO-E Transparency Platform</a> and  <a href="https://dashboard.elering.ee/et">Elering</a>, FMI Energy weather (Finland only) <a href="
                         https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste">FMI</a></p>
 
-                    <label class="form-label">Open source licenses:</label>
+                    <span class="form-label">Open source licenses:</span>
                     <p>
                       <a href="https://github.com/jquery/jquery">JQuery</a>, <a
                         href="https://github.com/me-no-dev/ESPAsyncWebServer">ESPAsyncWebServer</a>, <a
