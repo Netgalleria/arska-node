@@ -6,9 +6,12 @@
  * Load management based on measured energy consumption
  * Developed channel rules UI: picking blocks, hours, etc and default rule / channel
  * Standalone mode (no WiFi connection) with limited set of variables, requires HAN P1 Serial connection
+ * Supports LilyGO T-Relay S3 (esp32s3lilygo-6ch) with connected HAN P1 adapter + RGB signal led connected to the external cascade port (from beta4)
 
 ### Bug Fixes
 * http 1.1 response handling/cleanup rewritten. Should fix Entso-E price query zero price errors.
+* Extended memory allocation for long channel rulesets, see. issue 41
+* "Serial.flush();" made conditional to prevent stall in LilyGo ESP32-S with usb power.
 
 ### Other Changes
 * Price time series are cached in the NVR. New price query not needed after restart of MCU if price data is valid.
