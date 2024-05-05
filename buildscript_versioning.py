@@ -8,8 +8,9 @@ FILENAME_VERSION_H = 'include/version.h'
 
 #version = '0.99.0-alfa14'
 #version = '0.99.0-beta4'
-version = '1.00.0-rc1'
-#version = '0.92.0-stable'
+#version = '1.00.0-alfa15'
+#version = '1.00.0-rc1'
+version = '1.00.0-stable'
 
 if version[-1]==".":
   version_base = version[:len(version)-1]

@@ -6159,8 +6159,12 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
   {
     memset(in_buffer, 0, sizeof(in_buffer));
   }
-  if (len && index + len < sizeof(in_buffer)) // contains data, add it to the buffer
+  if (len && index + len < sizeof(in_buffer)) {// contains data, add it to the buffer
     strncat(in_buffer, (const char *)data, len);
+        Serial.println("*********");
+    Serial.println((const char *)data);
+    Serial.println("*********");
+  }
 
   if (final) // last chunk, process
   {
@@ -6171,6 +6175,7 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
     DynamicJsonDocument doc(CONFIG_JSON_SIZE_MAX);
 
     DeserializationError error = deserializeJson(doc, in_buffer);
+
     if (error)
     {
       Serial.print(F("onWebSettingsPost deserializeJson() failed: "));
@@ -6183,6 +6188,7 @@ void onWebSettingsPost(AsyncWebServerRequest *request, uint8_t *data, size_t len
       request->send(200, "application/json", output);
       return;
     }
+
 
     store_settings_from_json_doc_dyn(doc);
 
