@@ -345,9 +345,9 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define STATE_NA 0
 #define STATE_NONE 1
 #define STATE_INIT 2
-#define STATE_CONNECTING 10
+#define STATE_CONNECTING_WIFI 10
 #define STATE_PROCESSING 50
-#define STATE_UPLOADING 90
+#define STATE_UPDATING 90
 #define STATE_COOLING 99
 
 // Led pulse patterns, read from right!
@@ -1259,7 +1259,7 @@ channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefi
 | 5  | olimex-esp32-evb    |       2 |          32, 33 |  36 (uext rx) |                |       - |       - |        - |
 | 6  | shelly-pro-2        |       2 |       ids: 0, 1 |            NA |        4, 3, 2 |      35 |     LOW |  4,13,14 |
 | 7  | hw-p1-meter         |       0 |       ids: 0, 1 |            16 |rev 33R,25G,B26 |       2 |    HIGH |        - |
-| 8  | esp32s3lilygo-6ch   |       6 |ids: 0,1,2,3,4,5 |            44 |         1,43,2 |       - |      -  |    6,7,5 |
+| 8  | esp32s3lilygo-6ch   |       6 |ids: 0,1,2,3,4,5 |            44 |        43,1,2  |       - |      -  |    6,7,5 |
 |--------------------------|---------|-----------------|---------------|----------------|---------|---------|----------|
 
 Extra notes about the boards:
@@ -1290,7 +1290,7 @@ hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {
     {5, "olimex-esp32-evb", 2, {32, 33, ID_NA, ID_NA, ID_NA, ID_NA}, 36, ID_NA, {ID_NA, GPIO_STATE_NA, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_NONE, {ID_NA, ID_NA, ID_NA}}},
     {6, "shelly-pro-2", 2, {0, 1, ID_NA, ID_NA, ID_NA, ID_NA}, ID_NA, ID_NA, {35, LOW, true, 4, 13, 14, STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG, {4, 3, 2}}},
     {7, "hw-p1-meter", 0, {ID_NA, ID_NA, ID_NA, ID_NA, ID_NA, ID_NA}, 16, ID_NA, {2, HIGH, false, ID_NA, ID_NA, ID_NA, STATUS_LED_TYPE_RGB3_LOWACTIVE, {26, 25, 33}}},
-    {8, "esp32s3lilygo-6ch", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {1, 43, 2}}}}; //
+    {8, "esp32s3lilygo-6ch", 6, {0, 1, 2, 3, 4, 5}, 44, 34, {ID_NA, HIGH, true, 6, 7, 5, STATUS_LED_TYPE_RGB3_HIGHACTIVE, {43, 1, 2}}}}; //
 
 #if defined(INVERTER_FRONIUS_SOLARAPI_ENABLED) || defined(INVERTER_SMA_MODBUS_ENABLED)
 // inverter productuction info fields
@@ -1436,6 +1436,7 @@ void led_set_color_rgb(byte r, byte g, byte b)
   led_rgb[0] = r;
   led_rgb[1] = g;
   led_rgb[2] = b;
+  Serial.printf("led_set_color_rgb %d, %d, %d\n",(int)r,(int)g,(int)b);
   led_write_color();
 }
 
@@ -1476,6 +1477,12 @@ void set_led(byte r, byte g, byte b, int noshow_ticks, u32_t pattern)
   led_noshow_ticks = noshow_ticks;
   // led_show_ticks = show_ticks;
   led_tick_count_cyclic = 0;
+}
+
+void set_led(byte color, int noshow_ticks, u32_t pattern)
+{
+  // Serial.printf("DEBUG set_led R %d, G %d, B %d\n",(int)r,(int)g,(int)b);
+  set_led((color & RGB_RED)?255:0 , (color & RGB_GREEN)?255:0, (color & RGB_BLUE)?255:0,noshow_ticks, pattern);
 }
 
 // check if reset button has pressed and for how long, act if needed
@@ -1659,19 +1666,25 @@ void io_tasks(uint8_t state = STATE_NA)
   }
 #endif // COOLINGEXPR_ENABLED
 
-  if (state == STATE_NA || state_prev == state)
+  if (state == STATE_NA || state_prev == state) // no change
   {
     return;
   }
+ // else
+ // Serial.printf("n%d",(int)state);
+
   if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
   {
-    if (state == STATE_NONE)
-      set_led(255, 255, 255, 50, LED_PATTERN_SHORT);
-    else if (state == STATE_CONNECTING)
-      set_led(255, 255, 0, 9, LED_PATTERN_3SHORT);
+    if (state == STATE_NONE) 
+    //  set_led(255, 255, 255, 50, LED_PATTERN_SHORT);
+       set_led(RGB_GREEN, 50, LED_PATTERN_SHORT);
+    else if (state == STATE_CONNECTING_WIFI)
+    //  set_led(255, 255, 0, 9, LED_PATTERN_3SHORT);
+       set_led(RGB_YELLOW, 9, LED_PATTERN_3SHORT);
     else if (state == STATE_PROCESSING)
-      set_led(255, 255, 255, 9, LED_PATTERN_SHORT_LONG);
-    else if (state == STATE_UPLOADING)
+      //  set_led(0, 255, 0, 9, LED_PATTERN_SHORT_LONG);
+      set_led(RGB_WHITE, 9, LED_PATTERN_SHORT_LONG);
+    else if (state == STATE_UPDATING)
       set_led(0, 255, 255, 4, LED_PATTERN_SHORT_2LONG);
     else if (!wifi_sta_connected) // Blue -AP mode.
       set_led(0, 0, 255, 15, LED_PATTERN_2SHORT);
@@ -3383,12 +3396,14 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
   // check OBIS basic format
   if (vs == NULL || va == NULL || strchr(rowp, ')') == NULL)
     return false;
-  if (strstr(rowp, "*kW") != NULL) {
+  if (strstr(rowp, "*kW") != NULL)
+  {
     factor_w = 1000;
- //   Serial.print("*kW");
- //   Serial.println(strstr(rowp, "*kW"));
+    //   Serial.print("*kW");
+    //   Serial.println(strstr(rowp, "*kW"));
   }
-  else {
+  else
+  {
     factor_w = 1;
   }
   *va = 0; // null terminate where number ends
@@ -3412,7 +3427,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 //  Char array based replacing String input version
 bool parse_han_row(const char *row_in_p)
 {
-//  Serial.println(row_in_p);
+  //  Serial.println(row_in_p);
   // return if time obis code found in the row
   if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
@@ -6031,7 +6046,7 @@ void onWebUpdateGet(AsyncWebServerRequest *request)
  */
 void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len, bool final)
 {
-  io_tasks(STATE_UPLOADING);
+  io_tasks(STATE_UPDATING);
   size_t content_len;
   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication();
@@ -7377,7 +7392,7 @@ bool connect_wifi()
 
         break;
       }
-      io_tasks(STATE_CONNECTING); // leds, reset
+      io_tasks(STATE_CONNECTING_WIFI); // leds, reset
       delay(500);
     }
   }
@@ -7425,7 +7440,6 @@ bool connect_wifi()
       Serial.println();
       if (Serial)
         Serial.flush();
-    
     }
   }
   else
@@ -7451,64 +7465,11 @@ void setup()
 {
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
-  //if(Serial) //experimental for LilyGo ESP32s, 
-    Serial.begin(115200);
+  // if(Serial) //experimental for LilyGo ESP32s,
+  Serial.begin(115200);
 
   delay(2000); // wait for console to settle - only needed when debugging
-/*
-//TEMP TEST LED  1,2,43
 
-  pinMode(1, OUTPUT);
-  pinMode(2, OUTPUT);
-  pinMode(43, OUTPUT);
-  for (int k=0;k<10;k++) {
-    //ei, koska 60kΩ ja väärin,
-    Serial.println(1);
-  digitalWrite(1, HIGH);
-  delay(5000);
-  digitalWrite(1, LOW);
-  delay(2000);
-  //kunnon vihreä
-    Serial.println(43);
-  digitalWrite(43, HIGH);
-  delay(5000);
-  digitalWrite(43, LOW);
-  delay(2000);
-  //testaa miten jos laittaa R high samalla, meneekä G pimeäksi
-    Serial.println("G+R");
-  digitalWrite(43, HIGH);
-  digitalWrite(1, HIGH);
-  delay(5000);
-  digitalWrite(43, LOW);
-  digitalWrite(1, LOW);
-  delay(2000);
-//hailea sininen
-    Serial.println(2);
-  digitalWrite(2, HIGH);
-  delay(5000);
-  digitalWrite(2, LOW);
-  delay(2000);
-
-   Serial.println("43+2");
-  digitalWrite(43, HIGH);
-   digitalWrite(2, HIGH);
-  delay(5000);
-  digitalWrite(2, LOW);
-  digitalWrite(43, LOW);
-  delay(2000);
-
-   Serial.println("1+2+43");
-  digitalWrite(1, HIGH);
-   digitalWrite(2, HIGH);
-     digitalWrite(43, HIGH);
-  delay(5000);
-  digitalWrite(1, LOW);
-   digitalWrite(2, LOW);
-  digitalWrite(43, LOW);
-  delay(2000);
-  }
-  
-*/
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
 
@@ -7517,7 +7478,7 @@ void setup()
   {
     Serial.println(F("Couldn't find RTC!"));
     if (Serial)
-        Serial.flush();
+      Serial.flush();
   }
   else
   {
@@ -7539,9 +7500,9 @@ void setup()
     }
     rtc.start();
 
-      if (Serial)
-        Serial.flush();
-        getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
+    if (Serial)
+      Serial.flush();
+    getRTC(); // Fallback to RTC on startup if we are before 2020-09-13
   }
   sntp_set_time_sync_notification_cb(on_ntp_time_sync); // callback for ntp update, requires esp_sntp.h
 #endif                                                  // RTC - Work in Progress
@@ -7601,6 +7562,24 @@ void setup()
   todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
+
+// test led functinality, currently only LilyGo T6
+#ifdef TEST_LEDS_RGB_INIT
+  int ledgpio;
+  if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      ledgpio = hw_templates[hw_template_idx].hw_io.status_led_ids[i];
+      Serial.printf("Led %d, gpio %d\n", i, ledgpio);
+      pinMode(ledgpio, OUTPUT);
+      digitalWrite(ledgpio, HIGH);
+      delay(2000);
+      digitalWrite(ledgpio, LOW);
+      delay(1000);
+    }
+  }
+#endif
 
 #ifdef METER_HAN_DIRECT_ENABLED
 #define HAN_P1_SERIAL_SIZE_RX 1024 // Big enough for HAN P1 message
@@ -7892,7 +7871,7 @@ void loop()
           Serial.println();
           if (Serial)
             Serial.flush();
-       
+
           serial_command_state = 1;
         }
         else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
