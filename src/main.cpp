@@ -3499,6 +3499,9 @@ bool receive_energy_meter_han_direct() // direct
 
     while (HAN_P1_SERIAL.available()) // SerialPort
     {
+      //empty buffer before reading new data row
+      memset(row_buffer, 0, sizeof(row_buffer));
+
       han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
       if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
         continue;
