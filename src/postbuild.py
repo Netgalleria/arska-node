@@ -3,8 +3,16 @@ FILENAME_VERSION_H = 'include/version.h'
 
 # if this storage folder exists we copy results to it for later publish
 file_directory = '/tmp/arskafiles/'
-envs = {'esp32-generic-6ch':{'chip_family':'ESP32','bootloader_offset':"4096"},'esp32s3':{'chip_family':'ESP32-S3','bootloader_offset':"0"}}
-
+envs = {
+    'esp32-generic-6ch': {
+        'chip_family': 'ESP32',
+        'bootloader_offset': "4096"
+    },
+    'esp32s3': {
+        'chip_family': 'ESP32-S3',
+        'bootloader_offset': "0"
+    }
+}
 
 import shutil
 import os.path
@@ -18,80 +26,91 @@ env = DefaultEnvironment()
 #PROJECT_BUILD_DIR=config.get("platformio", "build_dir")
 #print(PROJECT_BUILD_DIR)
 
-def delete_files_in_directory(directory_path):
-   try:
-     files = os.listdir(directory_path)
-     for file in files:
-       file_path = os.path.join(directory_path, file)
-       if os.path.isfile(file_path):
-         os.remove(file_path)
-     print("All files deleted successfully.")
-   except OSError:
-     print("Error occurred while deleting files.")
 
-# we will wait the firmware.bin to be created 
+def delete_files_in_directory(directory_path):
+    try:
+        files = os.listdir(directory_path)
+        for file in files:
+            file_path = os.path.join(directory_path, file)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        print("All files deleted successfully.")
+    except OSError:
+        print("Error occurred while deleting files.")
+
+
+# we will wait the firmware.bin to be created
 def before_upload(source, target, env):
-    print("before_upload:",source, target,env)
+    print("***before_upload:", env['PIOENV'])
+    print()
+
     if env['PIOENV'] not in envs:
-        print ("Not in environments to build:" ,env['PIOENV'])
+        print("Not in environments to build:", env['PIOENV'])
         return
 
     #print (env.Dump())
     filesystem = env.GetProjectOption("board_build.filesystem")
-    
-    fs_filename = filesystem + ".bin"
-    print (fs_filename)
+
+    fs_filename = filesystem + ".bin"  #littlefs.bin
+    #print (fs_filename)
 
     # do some actions
-       # print("Post build. Building firmware.  DEFAULT_TARGETS:")
+    # print("Post build. Building firmware.  DEFAULT_TARGETS:")
     build_no = 0
-    version_base =""
+    version_base = ""
     try:
         with open(FILENAME_BUILDNO) as f:
-            build_no = int(f.readline()) 
+            build_no = int(f.readline())
     except:
         print('Starting build number from 1..')
         build_no = 1
 
     ESP_IDF_VERSION_CUSTOM = "0.0.0"
     try:
-        with open(FILENAME_VERSION_H) as f: #first line contains version commented
-            version_base = f.readline().replace("//","").strip()
+        with open(FILENAME_VERSION_H
+                  ) as f:  #first line contains version commented
+            version_base = f.readline().replace("//", "").strip()
             while True:
                 line = f.readline()
                 if not line:
                     break
                 if "#define ESP_IDF_VERSION_CUSTOM" in line:
-                    ESP_IDF_VERSION_CUSTOM = line.replace("#define ESP_IDF_VERSION_CUSTOM","").replace('"','').strip()
-                    print("ESP_IDF_VERSION_CUSTOM: {}".format( ESP_IDF_VERSION_CUSTOM))
+                    ESP_IDF_VERSION_CUSTOM = line.replace(
+                        "#define ESP_IDF_VERSION_CUSTOM",
+                        "").replace('"', '').strip()
+                    print("ESP_IDF_VERSION_CUSTOM: {}".format(
+                        ESP_IDF_VERSION_CUSTOM))
 
     except:
         print('Unknown version_base')
         exit(0)
 
-    print ("version_base: [" + version_base + "]")
+    print("version_base: [" + version_base + "]")
 
-    # copy binary files for release, version based destination 
+    # copy binary files for release, version based destination
     if path.exists(file_directory) and path.isdir(file_directory):
-        for env_id in envs:   
-            
-            # remove old stuff
-            delete_files_in_directory(file_directory+env_id)
-            
-            compile_folder = '.pio/build/'+ env_id + '/'
-            if not path.exists(compile_folder+"firmware.bin"):
-                continue 
+        #for env_id in envs:
+        env_id = env['PIOENV']
 
-            dest_dir = file_directory+env_id+"/"+version_base+"/"
+        # remove old stuff
+        delete_files_in_directory(file_directory + env_id)
 
+        compile_folder = '.pio/build/' + env_id + '/'
+        if path.exists(compile_folder + "firmware.bin"):
+
+            # copy build files to a temp folder (/tmp/arskafiles/) to be copied to the install web site
+            dest_dir = file_directory + env_id + "/" + version_base + "/"
             if not path.exists(dest_dir):
-                os.makedirs(dest_dir,0o777,True)
-
-            print (compile_folder+"firmware.bin"," -> ", dest_dir )
-            shutil.copyfile(compile_folder+"firmware.bin", dest_dir+"firmware.bin")
-            shutil.copyfile(compile_folder+fs_filename, dest_dir+fs_filename)
-            shutil.copyfile(compile_folder+"partitions.bin", dest_dir+"partitions.bin")
-            shutil.copyfile(compile_folder+"bootloader.bin", dest_dir+"bootloader.bin")
+                os.makedirs(dest_dir, 0o777, True)
+            print(compile_folder + "firmware.bin", " -> ", dest_dir)
+            shutil.copyfile(compile_folder + "firmware.bin",
+                            dest_dir + "firmware.bin")
+            shutil.copyfile(compile_folder + fs_filename,
+                            dest_dir + fs_filename)
+            shutil.copyfile(compile_folder + "partitions.bin",
+                            dest_dir + "partitions.bin")
+            shutil.copyfile(compile_folder + "bootloader.bin",
+                            dest_dir + "bootloader.bin")
 
             #manifest_from_path =  "install/" + env_id + "/manifest.json"
             manifest_to_path = dest_dir + "manifest.json"
@@ -102,7 +121,8 @@ def before_upload(source, target, env):
             #ESP32,  ESP32S3
             chip_family = envs[env_id]["chip_family"]
             bootloader_offset = envs[env_id]["bootloader_offset"]
-            name = "Arska for "+chip_family
+            name = "Arska for " + chip_family
+            # create manifest file from a template and variables
             manifest_txt = """{
             "name": "{name}",
             "new_install_prompt_erase": true,
@@ -118,17 +138,24 @@ def before_upload(source, target, env):
                 ]
             }
             ]
-            }""".replace("{fs_filename}",fs_filename).replace("{chip_family}",chip_family).replace("{bootloader_offset}",bootloader_offset).replace("{name}",name)
+            }""".replace("{fs_filename}", fs_filename).replace(
+                "{chip_family}",
+                chip_family).replace("{bootloader_offset}",
+                                     bootloader_offset).replace(
+                                         "{name}", name)
             with open(manifest_to_path, 'w+') as f:
                 f.write(manifest_txt)
-            
-            print("md5 -q "+ dest_dir+"bootloader.bin >" + dest_dir + "bootloader.md5")
-            os.system("md5 -q "+ dest_dir+"bootloader.bin >" + dest_dir + "bootloader.md5" ) 
+
+            print("md5 -q " + dest_dir + "bootloader.bin >" + dest_dir +
+                  "bootloader.md5")
+            os.system("md5 -q " + dest_dir + "bootloader.bin >" + dest_dir +
+                      "bootloader.md5")
 
             if (ESP_IDF_VERSION_CUSTOM != "0.0.0"):
-                with open(dest_dir+"esp_idf_version", 'w+') as f:
+                with open(dest_dir + "esp_idf_version", 'w+') as f:
                     ver_a = ESP_IDF_VERSION_CUSTOM.split(".")
-                    ver_num = int(ver_a[0])*256*256+int(ver_a[1])*256+int(ver_a[2])
+                    ver_num = int(ver_a[0]) * 256 * 256 + int(
+                        ver_a[1]) * 256 + int(ver_a[2])
                     f.write(str(ver_num))
 
             #with open("include/version.h.txt", "a") as f:
@@ -141,11 +168,4 @@ if "buildfs" in BUILD_TARGETS or "uploadfs" in BUILD_TARGETS or "uploadfsota" in
     print(BUILD_TARGETS)
 else:
 
-
     env.AddPreAction("upload", before_upload)
-
-
-
-
-            
-
