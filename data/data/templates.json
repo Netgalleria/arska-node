@@ -559,6 +559,104 @@
             ]
         },
         {
+            "id": 501,
+            "name": "Overproduction, cheap nightly prices",
+            "name_fi": "Ylituotanto hintarajoin, halpa yöhinta",
+            "desc": "On when overproduction of solar energy but the most expensive hours can be directed to sales. In addition on, at night in the cheapest hours if there is not enough solar production in the coming day. This can be suitable, for example, for the daily heating of a water boiler in the  property with solar panels and an energy meter connected to Arska. In an exceptional situation, you can schedule manually. Data: energy metering, prices, solar forecast (Finland only)",
+            "desc_fi": "Päällä kun aurinkoenergian ylituotantoa mutta kalleimmat tunnit voidaan ohjata myyntiin. Lisäksi yöllä halvimpina tunteina jos ei tulossa tarpeeksi aurinkotuotanto tulevana päivänä. Tämä voi sopia esim. vesivaraajan päivittäiseen lämmitykseen kiinteistössä, jossa aurinkopaneeleita ja energiamittari Arskassa. Poikkeustilanteessa voit ajastaa manuaalisesti. Data: energiamittari, hinnat, energiasääennuste",
+            "default_state" : false,
+            "rules": [
+                {
+                    "on": true,
+                    "desc": "Up when own overproduction. You can also limit by price ranking",
+                    "desc_fi": "Päällä kun omaa ylituotantoa. Voit rajata myös korkeimmat hinnat pois omasta käytöstä.",
+                    "stmts": [
+                        [
+                            100,
+                            6,
+                            0
+                        ],
+                        [
+                            4,
+                            4,
+                            8,
+                            null,
+                            {
+                                "prompt": "If overproduction: How many cheapest hours of the current 8 hour block day can be up. For example 5 means that 3 most expensive hours of the block are down even there is overproduction. 8 - no limit ",
+                                "prompt_fi": "Kun ylituotantoa: Montako kuluvan 8 tunnin jakson halvinta tuntia päällä kun ylituotantoa. Esim. 5 tarkoittaa että jakson kolmena kalleimpana tuntina ei päällä vaikka ylituotanto. 8 jos ei hintarankingrajausta.",
+                                "min": 0,
+                                "max": 8,
+                                "step": 1
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "on": true,
+                    "desc": "Up when own overproduction and price below limit",
+                    "desc_fi": "Päällä kun omaa ylituotantoa ja hinta alle rajan",
+                    "stmts": [
+                        [
+                            100,
+                            6,
+                            0
+                        ],
+                        [
+                            0,
+                            2,
+                            4,
+                            null,
+                            {
+                                "prompt": "If overproduction: On always if price is below, e.g. 4 (¢/kWh).",
+                                "prompt_fi": "Jos ylituotantoa: Päällä aina kun hinta alle, esim. 4 (¢/kWh).",
+                                "min": 0,
+                                "max": 30,
+                                "step": 1
+                            }
+                        ]
+                    ]
+                },
+                {
+                    "on": true,
+                    "desc": "On at night in the cheapest hours, if no sunny day is expected.",
+                    "desc_fi": "Päällä yöllä halvimpina tunteina, jos ei odotettavissa aurinkoista päivää.",
+                    "stmts": [
+                        [
+                            7,
+                            0,
+                            1
+                        ],
+                        [
+                            20,
+                            2,
+                            15,
+                            null,
+                            {
+                                "prompt": "On at night only if the day's forecasted solar production is less than X kWh ",
+                                "prompt_fi": "Yöllä päällä vain jos päivän ennustettu aurinkotuotanto alle X kWh.",
+                                "min": 0,
+                                "max": 1000,
+                                "step": 1
+                            }
+                        ],
+                        [
+                            4,
+                            4,
+                            5,
+                            null,
+                            {
+                                "prompt": "On at night for cheapest X hours. (0-8) ",
+                                "prompt_fi": "Yöllä päällä X halvinta tuntia. (0-8)",
+                                "min": 0,
+                                "max": 8,
+                                "step": 1
+                            }
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
             "id": 510,
             "name": "Overproduction, cheap nightly price and waiting for the strong winds",
             "name_fi": "Ylituotanto, halpa yöhinta ja tuulen odotus",
