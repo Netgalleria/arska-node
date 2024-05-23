@@ -1857,9 +1857,9 @@ function is_relay_uid_used(channel_type) { //unit_id required
 
 function set_relay_field_visibility(channel_idx, ch_type) {
     var locked = g_settings.ch[channel_idx].hasOwnProperty("locked") ? g_settings.ch[channel_idx].locked : false;
-    document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type) || locked);
+    document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type));//|| locked);
     document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type) || locked);
-    document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type) || locked);
+    document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type));// || locked);
 
 }
 
@@ -2653,7 +2653,8 @@ function create_channels() {
             }
 
             var internal_relay = [CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(type_id));
-            if ((locked && internal_relay) || (!locked && !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
+          //  if ((locked && internal_relay) || (!locked && !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
+            if ((locked && internal_relay) || ( !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
                 addOption(channel_type_ctrl, type_id, type_name, (g_settings.ch[channel_idx]["type"] == type_id));
         }
 
