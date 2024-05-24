@@ -6301,12 +6301,11 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["energy_meter_ip"] = s.energy_meter_ip.toString();
     doc["energy_meter_password"] = s.energy_meter_password;
     doc["energy_meter_port"] = s.energy_meter_port;
-
     doc["energy_meter_pollingfreq"] = s.energy_meter_pollingfreq;
+  }
 #ifdef METER_HAN_DIRECT_ENABLED
     doc["energy_meter_gpio"] = s.energy_meter_gpio;
 #endif
-  }
 
 #ifdef HW_SHIFTREG_ENABLED
   doc["shiftreg_relay_output"] = (hw_template_idx > 0 && hw_templates[hw_template_idx].hw_io.shiftreg_relay_output);
