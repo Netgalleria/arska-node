@@ -569,7 +569,7 @@
                 {
                     "on": true,
                     "desc": "Up when own overproduction. You can also limit by price ranking",
-                    "desc_fi": "Päällä kun omaa ylituotantoa. Voit rajata myös korkeimmat hinnat pois omasta käytöstä.",
+                    "desc_fi": "Päällä kun omaa ylituotantoa. Voit rajata myös korkeimmat hinnat pois.",
                     "stmts": [
                         [
                             100,
@@ -593,8 +593,8 @@
                 },
                 {
                     "on": true,
-                    "desc": "Up when own overproduction and price below limit",
-                    "desc_fi": "Päällä kun omaa ylituotantoa ja hinta alle rajan",
+                    "desc": "Up always when own overproduction and price below limit",
+                    "desc_fi": "Päällä aina kun omaa ylituotantoa ja hinta alle rajan",
                     "stmts": [
                         [
                             100,
@@ -607,8 +607,8 @@
                             4,
                             null,
                             {
-                                "prompt": "If overproduction: On always if price is below, e.g. 4 (¢/kWh).",
-                                "prompt_fi": "Jos ylituotantoa: Päällä aina kun hinta alle, esim. 4 (¢/kWh).",
+                                "prompt": "On always overproduction and if price is below, e.g. 4 (¢/kWh).",
+                                "prompt_fi": "Päällä aina jos ylituotantoa ja kun hinta alle, esim. 4 (¢/kWh).",
                                 "min": 0,
                                 "max": 30,
                                 "step": 1
