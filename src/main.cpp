@@ -3319,6 +3319,17 @@ void process_energy_meter_readings()
   // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_netin %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_netin);
 
   energy_meter_period_netin = (energy_meter_cumulative_latest_in - energy_meter_cumulative_latest_out - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
+  // debug anomalies
+  if (abs(energy_meter_period_netin)> 100000) {
+    Serial.printf("DEBUG  %lu: Anomaly in energy_meter_period_netin: latest in, latest out, period start in,  period start out: ", time(nullptr));
+    Serial.print(energy_meter_cumulative_latest_in);
+    Serial.print(", ");
+    Serial.print(energy_meter_cumulative_latest_out);
+    Serial.print(", ");
+    Serial.print(energy_meter_cumulative_periodstart_in);
+    Serial.print(", ");
+    Serial.println(energy_meter_cumulative_periodstart_out);
+  }
   energy_meter_period_power_netin = round(energy_meter_period_netin * 3600.0 / ((energy_meter_read_succesfully_ts - energy_meter_period_first_read_ts)));
 
   vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_netin < 0) ? 1L : 0L);
@@ -3440,8 +3451,16 @@ bool parse_han_row(const char *row_in_p)
   if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
-    return true;
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in)) {
+    if (energy_meter_cumulative_latest_in<0.01) {
+      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in %s ->",time(nullptr),row_in_p);
+      Serial.println(energy_meter_cumulative_latest_in);
+      return false;
+    }
+    else 
+      return true;
+  }
+    
 
   if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
     return true;
@@ -3484,6 +3503,11 @@ bool receive_energy_meter_han_direct() // direct
 
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
+
+  // OR 31.5.24, added variable init
+  energy_meter_cumulative_latest_in = 0;
+  energy_meter_cumulative_latest_out = 0;
+
 
   if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
   {
