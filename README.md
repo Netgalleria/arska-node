@@ -1,4 +1,4 @@
-***More detailed documentation and tutorials in [Arska wiki]([/wiki](https://github.com/Netgalleria/arska-node/wiki)).*** 
+***More detailed documentation and tutorials in [Arska wiki](https://github.com/Netgalleria/arska-node/wiki).*** 
 ***Lue Arskasta taustatietoja suomeksi [Arska.info 🇫🇮](https://arska.info)***
 
 
