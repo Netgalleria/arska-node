@@ -4752,6 +4752,13 @@ bool get_price_data_entsoe()
       read_ok = false;
       break;
     }
+
+    // If read buffer is empty, wait for a while if new data is coming
+    if (!client_https.available()) {
+      Serial.println("Waiting new stuff to the buffer");
+      delay(1000);
+    }
+
   }
 
   client_https.stop();
