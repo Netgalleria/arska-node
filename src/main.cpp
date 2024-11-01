@@ -4550,6 +4550,197 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   Serial.printf("get_renewable_forecast end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
+// We keep the CA certificate in program code to avoid potential littlefs-hack
+// Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
+const char *letsencrypt_ca_certificate =
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw\n"
+    "TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
+    "cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n"
+    "WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n"
+    "ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n"
+    "MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n"
+    "h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+\n"
+    "0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U\n"
+    "A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW\n"
+    "T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH\n"
+    "B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC\n"
+    "B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv\n"
+    "KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn\n"
+    "OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn\n"
+    "jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw\n"
+    "qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI\n"
+    "rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV\n"
+    "HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq\n"
+    "hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL\n"
+    "ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ\n"
+    "3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK\n"
+    "NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5\n"
+    "ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur\n"
+    "TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC\n"
+    "jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc\n"
+    "oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq\n"
+    "4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA\n"
+    "mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d\n"
+    "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n"
+    "-----END CERTIFICATE-----\n";
+
+/**
+ * @brief Get the solar forecast from forecast.solar - experimental
+ *
+ * @return true
+ * @return false
+ */
+const char *host_forecast_solar PROGMEM = "api.forecast.solar";
+
+bool get_solar_forecast_experimental(timeSeries *time_series)
+{
+  Serial.printf("get_solar_forecast_experimental start getFreeHeap: %d\n", (int)ESP.getFreeHeap());
+  //  if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR && strlen(s.forecast_loc) < 2)
+  if (strlen(s.forecast_loc) < 2)
+  {
+    Serial.println(F("FMI forecast location undefined. Quitting"));
+    return false;
+  }
+
+  WiFiClientSecure client_https;
+  char fcst_url[120];
+ 
+   DynamicJsonDocument doc(4096);
+   // doc.garbageCollect();
+
+   // reset variables
+
+   // adjust store window to start of the day,
+   time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
+
+   client_https.setCACert(letsencrypt_ca_certificate);
+
+   client_https.setTimeout(5); // was 15 Seconds
+   client_https.setHandshakeTimeout(5);
+   yield();
+   Serial.println(F("Connecting forecast.solar with CA check."));
+   Serial.println(host_forecast_solar);
+   delay(1000);
+
+   if (!client_https.connect(host_forecast_solar, httpsPort))
+   {
+     int err;
+     char error_buf[70];
+     err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
+     if (err != 0)
+     {
+       strncat(error_buf, "(connecting forecast.solar)", sizeof(error_buf) - strlen(error_buf));
+       log_msg(MSG_TYPE_ERROR, error_buf);
+     }
+     else
+       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to forecast.solar server. Quitting forecast query."));
+     client_https.stop();
+     return false;
+  }
+  yield();
+
+  // TODO: parameters: https://api.forecast.solar/estimate/60.3/24.5/37/0/1
+  snprintf(fcst_url, sizeof(fcst_url), "/estimate/60.3/24.5/37/0/1?time=utc");
+
+  Serial.printf("Requesting URL: %s\n", fcst_url);
+
+  client_https.print(String("GET ") + fcst_url + " HTTP/1.0\r\n" +
+                     "Host: " + host_forecast_solar + "\r\n" +
+                     "User-Agent: ArskaNodeESP\r\n" +
+                     "Connection: close\r\n\r\n");
+
+  // Serial.println("request sent");
+  if (client_https.connected())
+    Serial.println("client_https connected");
+  else
+    Serial.println("client_https not connected");
+  // yield();
+  unsigned long task_started = millis();
+  while (client_https.connected())
+  {
+    String lineh = client_https.readStringUntil('\n');
+    // Serial.println(lineh);
+    if (lineh == "\r")
+    {
+      Serial.println("headers received");
+      break;
+    }
+    if (millis() - task_started > 10000)
+    {
+      Serial.println(PSTR("Timeout in receiving headers"));
+      client_https.stop();
+      return false;
+    }
+    yield();
+  }
+  Serial.println(F("Waiting the document"));
+  String line;
+  String ts_string, val_string;
+
+
+  yield();
+  bool actual_data;
+  time_t period;
+  float energy;
+  int sep1,sep2;
+  memset(in_buffer, 0, sizeof(in_buffer));
+  strcat(in_buffer, "{");
+
+
+  while (client_https.available() > 1) // last byte in the end causes an error message
+  {
+    line = read_http11_line(&client_https);
+    // Serial.println(line);
+    line.trim();
+          //  period = ElementToUTCts(line.substring(1)); // meneekö ihan tällä?, ohitetaan eka lainausmerkki
+    sep1 = line.indexOf("\"watt_hours_period\"");
+    if (sep1 > -1) 
+      actual_data = true;
+   else
+     sep1 = 0;
+
+   if (actual_data)
+   {
+      sep2 = line.indexOf("}",sep1);
+      if (sep2> sep1)
+        actual_data = false;
+      else 
+        sep2 = line.length() - 1;
+      strncat(in_buffer, (const char *)line.substring(sep1, sep2+1).c_str(), sizeof(in_buffer) - strlen(in_buffer)-2 );
+
+   }
+ 
+  }
+  strcat(in_buffer, "}");
+    // Free resources
+  client_https.stop();
+  Serial.println("in_buffer:");
+  Serial.println(in_buffer);
+
+  DeserializationError error = deserializeJson(doc, in_buffer);
+  if (error)
+  {
+    Serial.print("deserializeJson() failed: ");
+    Serial.println(error.c_str());
+    return false;
+  }
+  for(JsonPair period_tuple :  doc["watt_hours_period"].as<JsonObject>()) {
+    period = ElementToUTCts( period_tuple.key().c_str()); // meneekö ihan tällä
+    energy = period_tuple.value();
+    Serial.print(period);
+    Serial.print(", ");
+    Serial.println(energy);
+       if (energy > 0.001)
+    {
+      time_series->set(period, energy);
+    }
+  }
+
+   yield();
+  Serial.printf("get_solar_forecast_experimental end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
+  return true;
+}
 
 /**
  * @brief Gets SPOT-prices from EntroE to a json file  (price_data_file_name)
