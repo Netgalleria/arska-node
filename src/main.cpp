@@ -1436,7 +1436,7 @@ void led_set_color_rgb(byte r, byte g, byte b)
   led_rgb[0] = r;
   led_rgb[1] = g;
   led_rgb[2] = b;
-  Serial.printf("led_set_color_rgb %d, %d, %d\n",(int)r,(int)g,(int)b);
+  Serial.printf("led_set_color_rgb %d, %d, %d\n", (int)r, (int)g, (int)b);
   led_write_color();
 }
 
@@ -1482,7 +1482,7 @@ void set_led(byte r, byte g, byte b, int noshow_ticks, u32_t pattern)
 void set_led(byte color, int noshow_ticks, u32_t pattern)
 {
   // Serial.printf("DEBUG set_led R %d, G %d, B %d\n",(int)r,(int)g,(int)b);
-  set_led((color & RGB_RED)?255:0 , (color & RGB_GREEN)?255:0, (color & RGB_BLUE)?255:0,noshow_ticks, pattern);
+  set_led((color & RGB_RED) ? 255 : 0, (color & RGB_GREEN) ? 255 : 0, (color & RGB_BLUE) ? 255 : 0, noshow_ticks, pattern);
 }
 
 // check if reset button has pressed and for how long, act if needed
@@ -1670,17 +1670,17 @@ void io_tasks(uint8_t state = STATE_NA)
   {
     return;
   }
- // else
- // Serial.printf("n%d",(int)state);
+  // else
+  // Serial.printf("n%d",(int)state);
 
   if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_SINGLE_LOWACTIVE)
   {
-    if (state == STATE_NONE) 
-    //  set_led(255, 255, 255, 50, LED_PATTERN_SHORT);
-       set_led(RGB_GREEN, 50, LED_PATTERN_SHORT);
+    if (state == STATE_NONE)
+      //  set_led(255, 255, 255, 50, LED_PATTERN_SHORT);
+      set_led(RGB_GREEN, 50, LED_PATTERN_SHORT);
     else if (state == STATE_CONNECTING_WIFI)
-    //  set_led(255, 255, 0, 9, LED_PATTERN_3SHORT);
-       set_led(RGB_YELLOW, 9, LED_PATTERN_3SHORT);
+      //  set_led(255, 255, 0, 9, LED_PATTERN_3SHORT);
+      set_led(RGB_YELLOW, 9, LED_PATTERN_3SHORT);
     else if (state == STATE_PROCESSING)
       //  set_led(0, 255, 0, 9, LED_PATTERN_SHORT_LONG);
       set_led(RGB_WHITE, 9, LED_PATTERN_SHORT_LONG);
@@ -3320,7 +3320,8 @@ void process_energy_meter_readings()
 
   energy_meter_period_netin = (energy_meter_cumulative_latest_in - energy_meter_cumulative_latest_out - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
   // debug anomalies
-  if (abs(energy_meter_period_netin)> 100000) {
+  if (abs(energy_meter_period_netin) > 100000)
+  {
     Serial.printf("DEBUG  %lu: Anomaly in energy_meter_period_netin: latest in, latest out, period start in,  period start out: ", time(nullptr));
     Serial.print(energy_meter_cumulative_latest_in);
     Serial.print(", ");
@@ -3451,16 +3452,17 @@ bool parse_han_row(const char *row_in_p)
   if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in)) {
-    if (energy_meter_cumulative_latest_in<0.01) {
-      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in %s ->",time(nullptr),row_in_p);
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
+  {
+    if (energy_meter_cumulative_latest_in < 0.01)
+    {
+      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in %s ->", time(nullptr), row_in_p);
       Serial.println(energy_meter_cumulative_latest_in);
       return false;
     }
-    else 
+    else
       return true;
   }
-    
 
   if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
     return true;
@@ -3508,7 +3510,6 @@ bool receive_energy_meter_han_direct() // direct
   energy_meter_cumulative_latest_in = 0;
   energy_meter_cumulative_latest_out = 0;
 
-
   if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
   {
     han_available_bytes = HAN_P1_SERIAL.available();
@@ -3523,7 +3524,7 @@ bool receive_energy_meter_han_direct() // direct
 
     while (HAN_P1_SERIAL.available()) // SerialPort
     {
-      //empty buffer before reading new data row
+      // empty buffer before reading new data row
       memset(row_buffer, 0, sizeof(row_buffer));
 
       han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
@@ -4281,67 +4282,6 @@ time_t ElementToUTCts(String elem)
   return getTimestamp(str_val.substring(0, 4).toInt(), str_val.substring(5, 7).toInt(), str_val.substring(8, 10).toInt(), str_val.substring(11, 13).toInt(), str_val.substring(14, 16).toInt(), 0);
 }
 
-String read_http11_line_old(WiFiClientSecure *client_https)
-{
-  String line;
-  String line2;
-  bool line_incomplete = false;
-  while (client_https->available())
-  {
-    if (!line_incomplete)
-    {
-      line = client_https->readStringUntil('\n'); //  \r tulee vain dokkarin lopussa (tai bufferin saumassa?)
-                                                  // Serial.print("line:");Serial.println(line);
-      if (line.charAt(line.length() - 1) == 13)
-      {
-        if (is_chunksize_line(line))
-        { // skip error status "garbage" line, probably chuck size to read
-          Serial.printf("chunksize line detected %s\n", line.c_str());
-          continue;
-        }
-        line.trim(); // remove cr and mark line incomplete
-
-        // line is complete if ends with >,6.8.2023 /OR
-        if (line.charAt(line.length() - 1) == 62)
-        {
-          line_incomplete = false;
-          return line;
-        }
-
-        line_incomplete = true; // we do not have whole line yet
-        Serial.printf("[%s] %d\n", line.c_str(), (int)line.charAt(line.length() - 1));
-      }
-      else
-      {
-        line.trim();
-        return line;
-      }
-    }
-    else // line is incomplete, we will get more to add
-    {
-      line2 = client_https->readStringUntil('\n');
-      // Serial.print("line2:");
-      // Serial.println(line2);
-      if (line2.charAt(line2.length() - 1) == 13)
-      {
-        if (is_chunksize_line(line2)) // skip error status "garbage" line
-          continue;
-      }
-      else
-        line_incomplete = false; // ended normally
-
-      line2.trim(); // remove cr
-      line = line + line2;
-      Serial.print("Combined line:");
-      Serial.println(line);
-      return line;
-    }
-  }
-  return line;
-}
-
-// Initial testing 16.8.23 ok, but needs more testing. Headers should be handled before (possibly)
-
 String read_http11_line(WiFiClientSecure *client_https)
 {
   String line;
@@ -4423,12 +4363,6 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
 
   String ca_cert = FILESYSTEM.open(fmi_ca_filename, "r").readString();
 
-  // explicit close, better?
-  // File ca_cert_file = FILESYSTEM.open(fmi_ca_filename, "r");
-  // String ca_cert = ca_cert_file.readString();
-  // ca_cert_file.close();
-
-  // Serial.println(ca_cert);
   client_https.setCACert(ca_cert.c_str());
 
   client_https.setTimeout(5); // was 15 Seconds
@@ -4790,6 +4724,7 @@ bool get_price_data_entsoe()
   // initiate prices
   localtime_r(&start_ts, &tm_struct);
   Serial.println(start_ts);
+ 
   snprintf(date_str_start, sizeof(date_str_start), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
   localtime_r(&end_ts, &tm_struct);
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
@@ -5790,73 +5725,6 @@ void set_relays(bool grid_protection_delay_used)
   }
 }
 
-// We keep the CA certificate in program code to avoid potential littlefs-hack
-// Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
-const char *letsencrypt_ca_certificate =
-        "-----BEGIN CERTIFICATE-----\n"
-    "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\n"
-    "-----END CERTIFICATE-----\n";
-    /*
-    "-----BEGIN CERTIFICATE-----\n"
-    "MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw\n"
-    "TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n"
-    "cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw\n"
-    "WhcNMjUwOTE1MTYwMDAwWjAyMQswCQYDVQQGEwJVUzEWMBQGA1UEChMNTGV0J3Mg\n"
-    "RW5jcnlwdDELMAkGA1UEAxMCUjMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK\n"
-    "AoIBAQC7AhUozPaglNMPEuyNVZLD+ILxmaZ6QoinXSaqtSu5xUyxr45r+XXIo9cP\n"
-    "R5QUVTVXjJ6oojkZ9YI8QqlObvU7wy7bjcCwXPNZOOftz2nwWgsbvsCUJCWH+jdx\n"
-    "sxPnHKzhm+/b5DtFUkWWqcFTzjTIUu61ru2P3mBw4qVUq7ZtDpelQDRrK9O8Zutm\n"
-    "NHz6a4uPVymZ+DAXXbpyb/uBxa3Shlg9F8fnCbvxK/eG3MHacV3URuPMrSXBiLxg\n"
-    "Z3Vms/EY96Jc5lP/Ooi2R6X/ExjqmAl3P51T+c8B5fWmcBcUr2Ok/5mzk53cU6cG\n"
-    "/kiFHaFpriV1uxPMUgP17VGhi9sVAgMBAAGjggEIMIIBBDAOBgNVHQ8BAf8EBAMC\n"
-    "AYYwHQYDVR0lBBYwFAYIKwYBBQUHAwIGCCsGAQUFBwMBMBIGA1UdEwEB/wQIMAYB\n"
-    "Af8CAQAwHQYDVR0OBBYEFBQusxe3WFbLrlAJQOYfr52LFMLGMB8GA1UdIwQYMBaA\n"
-    "FHm0WeZ7tuXkAXOACIjIGlj26ZtuMDIGCCsGAQUFBwEBBCYwJDAiBggrBgEFBQcw\n"
-    "AoYWaHR0cDovL3gxLmkubGVuY3Iub3JnLzAnBgNVHR8EIDAeMBygGqAYhhZodHRw\n"
-    "Oi8veDEuYy5sZW5jci5vcmcvMCIGA1UdIAQbMBkwCAYGZ4EMAQIBMA0GCysGAQQB\n"
-    "gt8TAQEBMA0GCSqGSIb3DQEBCwUAA4ICAQCFyk5HPqP3hUSFvNVneLKYY611TR6W\n"
-    "PTNlclQtgaDqw+34IL9fzLdwALduO/ZelN7kIJ+m74uyA+eitRY8kc607TkC53wl\n"
-    "ikfmZW4/RvTZ8M6UK+5UzhK8jCdLuMGYL6KvzXGRSgi3yLgjewQtCPkIVz6D2QQz\n"
-    "CkcheAmCJ8MqyJu5zlzyZMjAvnnAT45tRAxekrsu94sQ4egdRCnbWSDtY7kh+BIm\n"
-    "lJNXoB1lBMEKIq4QDUOXoRgffuDghje1WrG9ML+Hbisq/yFOGwXD9RiX8F6sw6W4\n"
-    "avAuvDszue5L3sz85K+EC4Y/wFVDNvZo4TYXao6Z0f+lQKc0t8DQYzk1OXVu8rp2\n"
-    "yJMC6alLbBfODALZvYH7n7do1AZls4I9d1P4jnkDrQoxB3UqQ9hVl3LEKQ73xF1O\n"
-    "yK5GhDDX8oVfGKF5u+decIsH4YaTw7mP3GFxJSqv3+0lUFJoi5Lc5da149p90Ids\n"
-    "hCExroL1+7mryIkXPeFM5TgO9r0rvZaBFOvV2z0gp35Z0+L4WPlbuEjN/lxPFin+\n"
-    "HlUjr8gRsI3qfJOQFy/9rKIJR0Y/8Omwt/8oTWgy1mdeHmmjk7j1nYsvC9JSQ6Zv\n"
-    "MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX\n"
-    "nLRbwHOoq7hHwg==\n"
-    "-----END CERTIFICATE-----\n";
-    */
-
 #ifdef PRICE_ELERING_ENABLED
 bool get_price_data_elering()
 {
@@ -6559,7 +6427,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["energy_meter_pollingfreq"] = s.energy_meter_pollingfreq;
   }
 #ifdef METER_HAN_DIRECT_ENABLED
-    doc["energy_meter_gpio"] = s.energy_meter_gpio;
+  doc["energy_meter_gpio"] = s.energy_meter_gpio;
 #endif
 
 #ifdef HW_SHIFTREG_ENABLED
@@ -8388,6 +8256,7 @@ void loop()
   {
     io_tasks(STATE_PROCESSING);
     got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
+   // got_forecast_ok = get_solar_forecast_experimental(&solar_forecast);
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
