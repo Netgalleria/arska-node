@@ -5033,6 +5033,9 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   ADD_JSON_TEXT(doc, "VERSION_SHORT", VERSION_SHORT);
   ADD_JSON_TEXT(doc, "version_fs", version_fs);
 
+  ADD_JSON_TEXT(doc, "wifi_ip", WiFi.localIP());
+  ADD_JSON_TEXT(doc, "wifi_mac", WiFi.macAddress());
+
   ADD_JSON_NUMBER(doc, "RULE_STATEMENTS_MAX", RULE_STATEMENTS_MAX);
   ADD_JSON_NUMBER(doc, "CHANNEL_COUNT", CHANNEL_COUNT);
   ADD_JSON_NUMBER(doc, "CHANNEL_RULES_MAX", CHANNEL_RULES_MAX);
