@@ -7161,7 +7161,13 @@ void onWebUploadConfigPost(AsyncWebServerRequest *request, uint8_t *data, size_t
     }
     else
     {
+      if (ajson_bool_get(doc, (char *)"reset_config", true))
+      {
       reset_config();
+      }
+      else
+        Serial.println("Partial setup, no reset.");
+
       store_settings_from_json_doc_dyn(doc);
       todo_in_loop_restart = true; // restart
       request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 30}");
