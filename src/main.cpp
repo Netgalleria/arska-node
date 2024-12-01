@@ -583,7 +583,6 @@ typedef struct
   sensor_struct sensors[MAX_DS18B20_SENSORS]; //!< 1-wire temperature sensors
 #endif
   int hw_template_id; //!< hardware template defining channel gpios, see hw_templates
-  // bool mdns_activated; //!< is mDSN device discovery active, currently deactivatated due to stability concerns
 #ifdef INFLUX_REPORT_ENABLED
   char influx_url[70];
   char influx_token[100];
@@ -2761,7 +2760,7 @@ bool update_prices_to_influx()
   // Missing or invalid parameters
   if (((strstr(s.influx_url, "http") - s.influx_url) != 0) || strlen(s.influx_org) < 5 || strlen(s.influx_token) < 5 || strlen(s.influx_bucket) < 1)
   {
-    Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
+    //  Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
     return false;
   }
 
@@ -4535,6 +4534,7 @@ const char *letsencrypt_ca_certificate =
  * @return true
  * @return false
  */
+/*
 const char *host_forecast_solar PROGMEM = "api.forecast.solar";
 
 bool get_solar_forecast_experimental(timeSeries *time_series)
@@ -4627,10 +4627,9 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
   bool actual_data;
   time_t period;
   float energy;
-  int sep1,sep2;
+  int sep1, sep2;
   memset(in_buffer, 0, sizeof(in_buffer));
   strcat(in_buffer, "{");
-
 
   while (client_https.available() > 1) // last byte in the end causes an error message
   {
@@ -4646,15 +4645,13 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
 
    if (actual_data)
    {
-      sep2 = line.indexOf("}",sep1);
-      if (sep2> sep1)
+      sep2 = line.indexOf("}", sep1);
+      if (sep2 > sep1)
         actual_data = false;
       else 
         sep2 = line.length() - 1;
-      strncat(in_buffer, (const char *)line.substring(sep1, sep2+1).c_str(), sizeof(in_buffer) - strlen(in_buffer)-2 );
-
+      strncat(in_buffer, (const char *)line.substring(sep1, sep2 + 1).c_str(), sizeof(in_buffer) - strlen(in_buffer) - 2);
    }
- 
   }
   strcat(in_buffer, "}");
     // Free resources
@@ -4669,8 +4666,9 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
     Serial.println(error.c_str());
     return false;
   }
-  for(JsonPair period_tuple :  doc["watt_hours_period"].as<JsonObject>()) {
-    period = ElementToUTCts( period_tuple.key().c_str()); // meneekö ihan tällä
+  for (JsonPair period_tuple : doc["watt_hours_period"].as<JsonObject>())
+  {
+    period = ElementToUTCts(period_tuple.key().c_str()); // meneekö ihan tällä
     energy = period_tuple.value();
     Serial.print(period);
     Serial.print(", ");
@@ -4685,9 +4683,10 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
   Serial.printf("get_solar_forecast_experimental end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
+*/
 
 /**
- * @brief Gets SPOT-prices from EntroE to a json file  (price_data_file_name)
+ * @brief Gets SPOT-prices from Entso-E to a json file  (price_data_file_name)
  * @details If existing price data file is not expired use it and return immediately
  *
  * @return true
@@ -4722,9 +4721,11 @@ bool get_price_data_entsoe()
 
   time(&now_infunc);
   start_ts = now_infunc - (SECONDS_IN_HOUR * 22); // no previous day after 22h, assume we have data ready for next day
-  //  #pragma message("Testing with special date setting, REMOVE")
+
+  // #pragma message("Testing with special date setting, REMOVE")
+  // start_ts = 1732695512;
+
   //    start_ts = start_ts - 14 * 3600;
-  //    start_ts = 1691107200;
 
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
@@ -4915,11 +4916,11 @@ bool get_price_data_entsoe()
     }
 
     // If read buffer is empty, wait for a while if new data is coming
-    if (!client_https.available()) {
+    if (!client_https.available())
+    {
       Serial.println("Waiting new stuff to the buffer");
       delay(1000);
     }
-
   }
 
   client_https.stop();
@@ -5175,6 +5176,8 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   JSON_SEND(request, output);
   JSON_FREE_RESOURCES(output_string);
 }
+
+#define HTTP_CHUNKSIZE 1000
 
 void onWebWifisGet(AsyncWebServerRequest *request)
 {
@@ -7070,7 +7073,8 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     Serial.println(ts);
     setInternalTime(ts);
 #ifdef RTC_PCF8563_ENABLED
- if (rtc_found) {
+      if (rtc_found)
+      {
       setRTC();
  }
 #endif
@@ -7078,16 +7082,14 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     return;
   }
 
-
   if (doc["action"] == "restart")
   {
     todo_in_loop_restart_local = true;
     // expire caches
     prices2.clear_store();
-    //prices2.save_to_cache(0); 
+      // prices2.save_to_cache(0);
    // solar_forecast.save_to_cache(0);
    // wind_forecast.save_to_cache(0);
-    
   }
   if (doc["action"] == "scan_sensors")
   {
@@ -7271,7 +7273,24 @@ void loop_watchdog(void *pvParameters)
   }
 }
 #endif
-
+/*
+void write_string_chunked_experimental(const char *content_type, AsyncWebServerRequest *request, String output)
+{
+  std::shared_ptr<uint16_t> sind = std::make_shared<uint16_t>(0);
+  AsyncWebServerResponse *response = request->beginChunkedResponse(content_type, [sind, output](uint8_t *buffer, size_t maxLen, size_t index)
+                                                                   {
+      if (*sind< output.length()) {
+        size_t chunksize = min(maxLen, (size_t)HTTP_CHUNKSIZE)-1;
+      //  memcpy((char *)buffer, output.c_str() + (*sind), chunksize);
+        output.toCharArray((char *)buffer, chunksize, *sind);
+        buffer[chunksize] = 0;
+        (*sind)+=chunksize;
+        return strlen((char *)buffer);
+      }
+      return (size_t)0; });
+  request->send(response);
+}
+*/
 /**
  * @brief "/status" url handler, returns status in json
  *
@@ -7399,7 +7418,8 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["free_heap"] = ESP.getFreeHeap();
   serializeJson(doc, output);
   request->send(200, "application/json", output);
-}
+  // write_string_chunked_experimental("application/json", request, output);
+};
 
 #ifdef RTC_PCF8563_ENABLED
 // RTC functionality - work in progress
@@ -7761,7 +7781,7 @@ void setup()
     HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
   }
 #endif
-  Serial.printf("Arduino Stack was set to %d bytes", getArduinoLoopTaskStackSize());
+  Serial.printf("Arduino Stack was set to %d bytes.\n", getArduinoLoopTaskStackSize());
 
 #ifdef RESET_BUTTON_ENABLED
   if (GPIO_IS_VALID_GPIO(hw_templates[hw_template_idx].hw_io.reset_button_gpio))
@@ -7933,6 +7953,20 @@ void setup()
     }
     else {
       request->send(FILESYSTEM, "/ui3.html", "text/html");
+/*
+      File info_file = FILESYSTEM.open("/ui3.html", "r");
+        std::shared_ptr<File> sfile = std::make_shared<File>(info_file);;
+
+
+       // std::shared_ptr<uint16_t> sind = std::make_shared<uint16_t>(0);
+        AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", [sfile](uint8_t *buffer, size_t maxLen, size_t index)                                                                 {
+			return sfile->read( buffer,(int)HTTP_CHUNKSIZE);
+      
+		 });
+        request->send(response);
+        */
+
+       
     } });
 
   // Testing update form from filesystem
