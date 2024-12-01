@@ -150,7 +150,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10103 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10105 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
