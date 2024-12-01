@@ -3,6 +3,9 @@ var g_application;
 var g_templates;
 
 var g_price_elering_enabled;
+var g_remote_enabled
+var g_mdns_enabled 
+
 var isp_label; //imbalance setting period
 
 var day_ahead_chart_obj;
@@ -57,6 +60,8 @@ const OPER_IDX_REVERSE = 4
 const OPER_IDX_BOOLEANONLY = 5
 const OPER_IDX_HASVALUE = 6
 const OPER_IDX_MULTISELECT = 7
+
+const remote_status_texts = ['OK',"Undefined","Invalid parameters", "Expired","Not initiated", "Test failed","No internet connection"];
 
 let variable_list = {}; // populate later from json
 
@@ -667,6 +672,9 @@ function update_status(repeat) {
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
+            if (data.hasOwnProperty("wg_status"))
+                document.getElementById("wg_status_text").innerHTML = `Connection status: ${remote_status_texts[data.wg_status]}`;
+            
             var lm_status = 'success';
             var lm_info = '';
             var lm_status_el = document.getElementById("load_manager_status");
@@ -1713,6 +1721,18 @@ function load_and_update_settings() {
         }
     });
 
+    if (g_settings.hasOwnProperty("wg_expires")) {
+        var expire_text = '';
+        if (g_settings.wg_expires == 0)
+            expire_text = "Expired";
+        else if (g_settings.wg_expires == 2147483647)
+            expire_text = "No expiration";
+        else
+            expire_text = 'Expires: ' + get_time_string_from_ts(g_settings.wg_expires, false, true);
+   //     document.getElementById("wg_expires_text").innerHTML = expire_text;
+        document.getElementById("wg_connection_expires_rel").options[0].innerHTML = "Current: " +expire_text;
+        
+    }
 
 
     //iterate g_settings array and updates UI elements
@@ -1749,6 +1769,15 @@ function load_application_config() {
             }
             document.getElementById("version").innerHTML = version_str;
             g_price_elering_enabled = g_application.hasOwnProperty("PRICE_ELERING_ENABLED") ? g_application.PRICE_ELERING_ENABLED : false;
+            g_remote_enabled = g_application.hasOwnProperty("REMOTE_ENABLED") ? g_application.REMOTE_ENABLED : false;
+            if (g_remote_enabled)
+                document.getElementById(`remote_accordion`).classList.remove("collapse");
+            
+            g_mdns_enabled = g_application.hasOwnProperty("MDNS_ENABLED") ? g_application.MDNS_ENABLED : false;
+            if (g_mdns_enabled)
+                document.getElementById(`mdns_div`).classList.remove("collapse");
+            
+            document.getElementById(`wifi_info`).innerHTML = `Current IP: ${g_application.wifi_ip} , MAC: ${g_application.wifi_mac.toLowerCase()}`;
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get g_application", textStatus, jqXHR.status);
@@ -2907,6 +2936,13 @@ function init_ui() {
     for (var i = 0; i < g_application.hw_templates.length; i++) {
         addOption(hw_template_ctrl, g_application.hw_templates[i].id, g_application.hw_templates[i].name, (g_settings.hw_template_id == g_application.hw_templates[i].id));
     }
+    // wg_peers
+    if (g_remote_enabled) {
+        hw_template_ctrl = document.getElementById(`wg_peer_id`);
+        for (var i = 0; i < g_application.wg_peers.length; i++) {
+            addOption(hw_template_ctrl, g_application.wg_peers[i].id, g_application.wg_peers[i].name, (g_settings.wg_peer_id == g_application.wg_peers[i].id));
+        }
+    }
 
     create_channels();
 
@@ -3024,13 +3060,13 @@ function find_pid(el, id) {
             return p;
     return null;
 }
-function find_parent_card(el) {
+function find_parent_card(el) { //finds first parend card or accordion
     var p = el;
     while (p = p.parentNode) {
         var colon_count = (p.id.match(/:/g) || []).length; //filter out rule sub cards 
-        if (p.id && p.id.endsWith(":card") && colon_count == 1) {
+        if (p.id && ((p.id.endsWith(":card") && colon_count == 1) ||  p.id.endsWith("_accordion")) ) {
             //   console.log("returns:",p.id.replace(":card", ""));
-            return p.id.replace(":card", "");
+            return p.id.replace(":card", "").replace("_accordion", "");
         }
     }
     console.log("no parent found");
@@ -3242,6 +3278,9 @@ function save_card_ev(ev) {
     var post_data = {};
 
     card_div = document.getElementById(card + ":card");
+
+    if (card_div == null) //accordion fix
+        card_div = document.getElementById(card + "_accordion");
 
     let elems = card_div.querySelectorAll('input, select');
     for (let i = 0; i < elems.length; i++) {

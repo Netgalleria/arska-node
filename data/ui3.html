@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -91,10 +92,10 @@
     }
 
     .multiselector input {
-  display: none!important;
+      display: none !important;
 }
 
-.multiselector input[type=checkbox] + label {
+    .multiselector input[type=checkbox]+label {
   display: inline-block;
   border-radius: 4px;
   background: #dddddd;
@@ -109,11 +110,10 @@
     border-radius: 0.25rem;
 }
 
-.multiselector input[type=checkbox]:checked + label {
+    .multiselector input[type=checkbox]:checked+label {
   background: #00b595;
   color: #ffffff;
 }
-
   </style>
   <!-- Custom styles for this template -->
   <link href="/css/dashboard.css" rel="stylesheet">
@@ -562,7 +562,8 @@
                   <div class="card-header">
                     <h5 class="card-title">Energy Forecast</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted"> FMI solar and wind energy forecast is currently only available in Finland. Define location to activate.</span>
+                      <span class="text-muted"> FMI solar and wind energy forecast is currently only available in
+                        Finland. Define location to activate.</span>
                     </div>
                     <!--./chart-info-->
                   </div>
@@ -739,8 +740,8 @@
 
                     <div class="mb-2">
                       <label for="energy_meter_gpio" class="form-label">GPIO (RXD)</label>
-                        <input type="number" class="form-control" id="energy_meter_gpio" placeholder="16" min="1"
-                          step="1" max="48">
+                      <input type="number" class="form-control" id="energy_meter_gpio" placeholder="16" min="1" step="1"
+                        max="48">
                     </div>
                     <div class="mb-2">
                       <label for="energy_meter_ip" class="form-label">IP Address</label>
@@ -833,7 +834,8 @@
                     <h5 id="loadm:title" class="card-title">Load Management</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
                       <span class="text-muted">The load management will automatically switch off devices if measured
-                        current is over a limit. Applies to channels with a defined maximum load (load>0 W). Shelly Gen 2 meters are not supported.</span>
+                        current is over a limit. Applies to channels with a defined maximum load (load>0 W). Shelly Gen
+                        2 meters are not supported.</span>
                     </div>
                   </div>
                   <div class="card-body">
@@ -855,9 +857,10 @@
                         step="1" max="255">
                     </div>
                     <div class="mb-2">
-                      <label for="load_manager_reswitch_moratorium_m" class="form-label">Re-switching wait time  (minutes)</label>
-                      <input id="load_manager_reswitch_moratorium_m" type="number" class="form-control" placeholder="25" min="0"
-                        step="1" max="864">
+                      <label for="load_manager_reswitch_moratorium_m" class="form-label">Re-switching wait time
+                        (minutes)</label>
+                      <input id="load_manager_reswitch_moratorium_m" type="number" class="form-control" placeholder="25"
+                        min="0" step="1" max="864">
                     </div>
                     <div class="mb-2">
                       <div id="load_manager_status" class="alert alert-success fw-light"></div>
@@ -979,6 +982,9 @@
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
                       <span class="text-muted">Wifi and administration password settings.</span>
                     </div>
+                    <div class="mb-2">
+                      <span id="wifi_info" class="text-muted"></span>
+                    </div>
                   </div>
                   <div class="card-body">
                     <div class="mb-2">
@@ -1007,6 +1013,7 @@
                             class="align-text-bottom"></span>
                         </button>
                       </div>
+
                     </div>
                     <div id="password_note"></div>
                     <!--
@@ -1017,11 +1024,13 @@
                     -->
                     <div class="mb-2">
                       <label for="http_password" class="form-label">New password for 'admin'</label>
-                      <input type="password" class="form-control" id="http_password" placeholder=""  autocomplete="new-password">
+                      <input type="password" class="form-control" id="http_password" placeholder=""
+                        autocomplete="new-password">
                     </div>
                     <div class="mb-2">
                       <label for="http_password2" class="form-label">Rewrite 'admin' password to change</label>
-                      <input type="password" class="form-control" id="http_password2" placeholder="" autocomplete="new-password">
+                      <input type="password" class="form-control" id="http_password2" placeholder=""
+                        autocomplete="new-password">
                     </div>
 
                     <div id="network:alert"></div>
@@ -1118,12 +1127,10 @@
                           data-bs-title="Start upgrade">
                           <span data-feather="download-cloud" style="pointer-events: none;"
                             class="align-text-bottom"></span> Upgrade</button>
-
-
                       </div>
                     </div>
 
-                    <div class="accordion" id="adminadv_accordion">
+                    <div class="accordion" id="admin_accordion">
                       <div class="accordion-item">
                         <h2 class="accordion-header" id="adminadv_accordionh3">
                           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -1132,7 +1139,7 @@
                           </button>
                         </h2>
                         <div id="adminadv_acc" class="accordion-collapse collapsed collapse collapsed"
-                          aria-labelledby="adminadv_accordionh3" data-bs-parent="#adminadv_accordion">
+                          aria-labelledby="adminadv_accordionh3" data-bs-parent="#admin_accordion">
                           <div class="accordion-body">
                             <div class="mb-2">
                               <span id="cpu_temp" class="text-muted"></span>
@@ -1142,7 +1149,8 @@
 
                               <button type="button" id="admin:restart" class="btn btn-secondary">Restart and clear
                                 cache</button>
-                              <button type="button" id="admin:ts" class="btn btn-secondary">Set time from workstation</button>
+                              <button type="button" id="admin:ts" class="btn btn-secondary">Set time from
+                                workstation</button>
                               <button type="button" id="admin:reset" class="btn btn-secondary">Reset Settings</button>
                               <button type="button" id="admin:scan_sensors" class="btn btn-secondary">Scan
                                 Sensors</button>
@@ -1161,7 +1169,8 @@
                             </div>
 
                             <div class="mb-2">
-                              <label for="netting_period_sec" class="form-label">Imbalance settlement period (ISP)</label>
+                              <label for="netting_period_sec" class="form-label">Imbalance settlement period
+                                (ISP)</label>
                                 <select id="netting_period_sec" class="form-select" aria-label="variable">
                                   <option value="3600">1 hour</option>
                                   <option value="900">15 minutes (experimental)</option>
@@ -1169,9 +1178,22 @@
                                 <span class="text-muted"></span>
                             </div>
 
+                            <div id="mdns_div" class="collapse in">
+                              <label  class="form-label">Network discovery (mDNS)</label>
+
+                              <div class="mb-2 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="mdns_active">
+                                <label class="form-check-label" for="mdns_active">mDNS activated</label>
+                              </div>
+                              <div class="mb-2">
+                                <label for="mdns_id" class="form-label">mDNS device name</label>
+                                <input type="text" class="form-control" id="mdns_id" placeholder="arska" size="10" maxlength="10">
+                              </div>
+                              <span class="text-muted">Add .local to the id when browsing, eg. http://arska.local </span>
+                            </div>
+
+
                             <div id="admin:alert"></div>
-
-
                             <button class="btn btn-primary" type="submit" id="admin:save" disabled="">
                               <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
                               Save</button>
@@ -1179,7 +1201,64 @@
                           </div>
                         </div>
                       </div>
+                    </div><!-- admin adv-->
+
+                    <div class="accordion collapse" id="remote_accordion">
+                      <div class="accordion-item">
+                        <h2 class="accordion-header" id="remote_accordionh3">
+                          <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#remote_acc" aria-expanded="true" aria-controls="remote_acc">
+                            Remote connection
+                          </button>
+                        </h2>
+                        <div id="remote_acc" class="accordion-collapse collapsed collapse collapsed"
+                          aria-labelledby="remote_accordionh3" data-bs-parent="#remote_accordion">
+                          <div class="accordion-body">
+                            <div class="mb-2">
+                              <span id="wg_status_text" class="text-muted"></span>
+                            </div>
+                            <div class="mb-2">
+                              <label for="wg_peer_id" class="form-label">Support provider</label>
+                              <select id="wg_peer_id" class="form-select" aria-label="variable">
+                              </select>
+                            </div>
+                            <div class="mb-2">
+                              <label for="wg_local_ip" class="form-label">Local WG IP</label>
+                              <input id="wg_local_ip" type="text" class="form-control" data-inputmask="'alias': 'ip'" />
+                            </div>
+                            <div class="mb-2">
+                              <label for="wg_private_key" class="form-label">Private key</label>
+                              <div class="input-group mb-0">
+                                <input type="text" class="form-control input-sm" id="wg_private_key" placeholder="">
+                              </div>
+                            </div>
+
+                            <div class="mb-2">
+                              <label for="wg_connection_expires_rel" class="form-label">Connection expiration</label>
+
+                              <select id="wg_connection_expires_rel" class="form-select" aria-label="variable">
+                                <option value="0">no change</option>
+                                <option value="1">expire now</option>
+                                <option value="3600">in 1 hour</option>
+                                <option value="86400">in 24 hours</option>
+                                <option value="2592000">in 30 days</option>
+                                <option value="2147483647">no expiration</option>
+                              </select>
+
+                            </div>
+
+                            <div id="remote:alert"></div>
+                            <button class="btn btn-primary" type="submit" id="remote:save" disabled="">
+                              <span data-feather="save" style="pointer-events: none;" class="align-text-bottom"></span>
+                              Save</button>
+
+                        </div>
+                      </div>
                     </div>
+                    </div><!-- admin remote-->
+
+
+
                   </div>
 
                   <div class="card-footer text-end d-none">
@@ -1200,7 +1279,8 @@
                   <div class="card-body">
                     <span class="form-label">Data sources:</span>
                     <p>Day-ahead prices <a
-                        href="https://transparency.entsoe.eu/"">ENTSO-E Transparency Platform</a> and  <a href="https://dashboard.elering.ee/et">Elering</a>, FMI Energy weather (Finland only) <a href="
+                        href="https://transparency.entsoe.eu/"">ENTSO-E Transparency Platform</a> and  <a href="
+                        https://dashboard.elering.ee/et">Elering</a>, FMI Energy weather (Finland only) <a href="
                         https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste">FMI</a></p>
 
                     <span class="form-label">Open source licenses:</span>
