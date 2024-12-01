@@ -4719,38 +4719,38 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
 
   WiFiClientSecure client_https;
   char fcst_url[120];
- 
-   DynamicJsonDocument doc(4096);
-   // doc.garbageCollect();
 
-   // reset variables
+  DynamicJsonDocument doc(4096);
+  // doc.garbageCollect();
 
-   // adjust store window to start of the day,
-   time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
+  // reset variables
 
-   client_https.setCACert(letsencrypt_ca_certificate);
+  // adjust store window to start of the day,
+  time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
 
-   client_https.setTimeout(5); // was 15 Seconds
-   client_https.setHandshakeTimeout(5);
-   yield();
-   Serial.println(F("Connecting forecast.solar with CA check."));
-   Serial.println(host_forecast_solar);
-   delay(1000);
+  client_https.setCACert(letsencrypt_ca_certificate);
 
-   if (!client_https.connect(host_forecast_solar, httpsPort))
-   {
-     int err;
-     char error_buf[70];
-     err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
-     if (err != 0)
-     {
-       strncat(error_buf, "(connecting forecast.solar)", sizeof(error_buf) - strlen(error_buf));
-       log_msg(MSG_TYPE_ERROR, error_buf);
-     }
-     else
-       log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to forecast.solar server. Quitting forecast query."));
-     client_https.stop();
-     return false;
+  client_https.setTimeout(5); // was 15 Seconds
+  client_https.setHandshakeTimeout(5);
+  yield();
+  Serial.println(F("Connecting forecast.solar with CA check."));
+  Serial.println(host_forecast_solar);
+  delay(1000);
+
+  if (!client_https.connect(host_forecast_solar, httpsPort))
+  {
+    int err;
+    char error_buf[70];
+    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
+    if (err != 0)
+    {
+      strncat(error_buf, "(connecting forecast.solar)", sizeof(error_buf) - strlen(error_buf));
+      log_msg(MSG_TYPE_ERROR, error_buf);
+    }
+    else
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to forecast.solar server. Quitting forecast query."));
+    client_https.stop();
+    return false;
   }
   yield();
 
@@ -4806,25 +4806,25 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
     line = read_http11_line(&client_https);
     // Serial.println(line);
     line.trim();
-          //  period = ElementToUTCts(line.substring(1)); // meneekö ihan tällä?, ohitetaan eka lainausmerkki
+    //  period = ElementToUTCts(line.substring(1)); // meneekö ihan tällä?, ohitetaan eka lainausmerkki
     sep1 = line.indexOf("\"watt_hours_period\"");
-    if (sep1 > -1) 
+    if (sep1 > -1)
       actual_data = true;
-   else
-     sep1 = 0;
+    else
+      sep1 = 0;
 
-   if (actual_data)
-   {
+    if (actual_data)
+    {
       sep2 = line.indexOf("}", sep1);
       if (sep2 > sep1)
         actual_data = false;
-      else 
+      else
         sep2 = line.length() - 1;
       strncat(in_buffer, (const char *)line.substring(sep1, sep2 + 1).c_str(), sizeof(in_buffer) - strlen(in_buffer) - 2);
-   }
+    }
   }
   strcat(in_buffer, "}");
-    // Free resources
+  // Free resources
   client_https.stop();
   Serial.println("in_buffer:");
   Serial.println(in_buffer);
@@ -4843,13 +4843,13 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
     Serial.print(period);
     Serial.print(", ");
     Serial.println(energy);
-       if (energy > 0.001)
+    if (energy > 0.001)
     {
       time_series->set(period, energy);
     }
   }
 
-   yield();
+  yield();
   Serial.printf("get_solar_forecast_experimental end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
@@ -4905,7 +4905,7 @@ bool get_price_data_entsoe()
   // initiate prices
   localtime_r(&start_ts, &tm_struct);
   Serial.println(start_ts);
- 
+
   snprintf(date_str_start, sizeof(date_str_start), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
   localtime_r(&end_ts, &tm_struct);
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
@@ -5015,7 +5015,7 @@ bool get_price_data_entsoe()
         prices2.set_by_pos(i,VARIABLE_LONG_MISSING);
 
       }
-      
+
       record_start = record_end_excl - (PRICE_RESOLUTION_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
       Serial.printf("period_start: %ld record_start: %ld - period_end: %ld\n", period_start, record_start, period_end);
@@ -5059,17 +5059,17 @@ bool get_price_data_entsoe()
     { // this signals the end of the response from XML API
       // fill potentially missing points - Entso-E new data format
       for (int i = 0; i < prices2.n(); i++)
-    {
+      {
         if (prices2.get_by_pos(i) == VARIABLE_LONG_MISSING && price_last > VARIABLE_LONG_MISSING)
         {
           prices2.set_by_pos(i, price_last);
           Serial.printf("Filling missing value of index %d, with ", i);
           Serial.println(price_last);
-            price_rows++;
-          }
-          else
+          price_rows++;
+        }
+        else
           price_last = prices2.get_by_pos(i);
-    }
+      }
 
       end_reached = true;
       save_on = false;
@@ -7185,7 +7185,7 @@ void onWebUploadConfigPost(AsyncWebServerRequest *request, uint8_t *data, size_t
     {
       if (ajson_bool_get(doc, (char *)"reset_config", true))
       {
-      reset_config();
+        reset_config();
       }
       else
         Serial.println("Partial setup, no reset.");
@@ -7290,74 +7290,74 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
  */
 AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandler("/actions", [](AsyncWebServerRequest *request, JsonVariant json)
                                                                                   {
-  if (!request->authenticate(s.http_username, s.http_password))
-    return request->requestAuthentication();
+    if (!request->authenticate(s.http_username, s.http_password))
+      return request->requestAuthentication();
 
-  JsonObject doc = json.as<JsonObject>();
-  String action = doc["action"];
-  Serial.println(action);
+    JsonObject doc = json.as<JsonObject>();
+    String action = doc["action"];
+    Serial.println(action);
 
-  bool todo_in_loop_restart_local = false; // set global variable in the end when data is set
+    bool todo_in_loop_restart_local = false; // set global variable in the end when data is set
 
-  if (action == "update")
-  {
-    update_release_selected = String((const char *)doc["version"]);
-    todo_in_loop_update_firmware_partition = true;
-    Serial.println(update_release_selected);
-    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 240}");
-  }
+    if (action == "update")
+    {
+      update_release_selected = String((const char *)doc["version"]);
+      todo_in_loop_update_firmware_partition = true;
+      Serial.println(update_release_selected);
+      request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 240}");
+    }
 
- if (action == "ts") // set time from workstation
-  {
-    time_t ts = (time_t)doc["ts"];
-    Serial.print("DEBUG set internal clock:");
-    Serial.println(ts);
-    setInternalTime(ts);
+    if (action == "ts") // set time from workstation
+    {
+      time_t ts = (time_t)doc["ts"];
+      Serial.print("DEBUG set internal clock:");
+      Serial.println(ts);
+      setInternalTime(ts);
 #ifdef RTC_PCF8563_ENABLED
       if (rtc_found)
       {
-      setRTC();
- }
+        setRTC();
+      }
 #endif
-    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}");
-    return;
-  }
+      request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}");
+      return;
+    }
 
-  if (doc["action"] == "restart")
-  {
-    todo_in_loop_restart_local = true;
-    // expire caches
-    prices2.clear_store();
+    if (doc["action"] == "restart")
+    {
+      todo_in_loop_restart_local = true;
+      // expire caches
+      prices2.clear_store();
       // prices2.save_to_cache(0);
-   // solar_forecast.save_to_cache(0);
-   // wind_forecast.save_to_cache(0);
-  }
-  if (doc["action"] == "scan_sensors")
-  {
-    todo_in_loop_scan_sensors = true;
-    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}");
-    return;
-  }
+      // solar_forecast.save_to_cache(0);
+      // wind_forecast.save_to_cache(0);
+    }
+    if (doc["action"] == "scan_sensors")
+    {
+      todo_in_loop_scan_sensors = true;
+      request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}");
+      return;
+    }
 
-  if (doc["action"] == "reset")
-  {
-    reset_config();
-    todo_in_loop_restart_local = true;
-    writeToEEPROM();
-  }
-  if (doc["action"] == "scan_wifis")
-  {
-    todo_in_loop_scan_wifis = true;
-  }
+    if (doc["action"] == "reset")
+    {
+      reset_config();
+      todo_in_loop_restart_local = true;
+      writeToEEPROM();
+    }
+    if (doc["action"] == "scan_wifis")
+    {
+      todo_in_loop_scan_wifis = true;
+    }
 
-  todo_in_loop_restart = todo_in_loop_restart_local;
+    todo_in_loop_restart = todo_in_loop_restart_local;
 
-  if (todo_in_loop_restart)
-  {
-    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 30}");
-  }
-  else
-    request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}"); });
+    if (todo_in_loop_restart)
+    {
+      request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 30}");
+    }
+    else
+      request->send(200, "application/json", "{\"status\":\"ok\", \"refresh\" : 0}"); });
 
 /**
  * @brief Handles chunks from post to /settings, called by UI Settings
@@ -8151,7 +8151,7 @@ void setup()
 #endif
 
 #ifdef OTA_UPDATE_ENABLED
-              //  update form
+  //  update form
   server_web.on("/update", HTTP_GET, [](AsyncWebServerRequest *request)
                 { onWebUpdateGet(request); });
 
@@ -8585,7 +8585,7 @@ void loop()
   {
     io_tasks(STATE_PROCESSING);
     got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
-   // got_forecast_ok = get_solar_forecast_experimental(&solar_forecast);
+    // got_forecast_ok = get_solar_forecast_experimental(&solar_forecast);
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);

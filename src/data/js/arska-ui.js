@@ -671,7 +671,7 @@ function update_status(repeat) {
 
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
-
+                
             if (data.hasOwnProperty("wg_status"))
                 document.getElementById("wg_status_text").innerHTML = `Connection status: ${remote_status_texts[data.wg_status]}`;
             
@@ -1720,7 +1720,7 @@ function load_and_update_settings() {
             return false;
         }
     });
-
+    
     if (g_settings.hasOwnProperty("wg_expires")) {
         var expire_text = '';
         if (g_settings.wg_expires == 0)
