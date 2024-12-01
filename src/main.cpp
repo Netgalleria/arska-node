@@ -101,6 +101,24 @@ RTC_PCF8563 rtc;
 #endif
 */
 
+// experimental remote connection, WiP
+#define REMOTE_ENABLED_NOT
+#ifdef REMOTE_ENABLED
+#define MAX_WG_KEY_LENGTH 45
+#define MAX_WG_HOST_LENGTH 20
+
+#define REMOTE_STATUS_OK 0
+#define REMOTE_STATUS_UNDEFINED 1
+#define REMOTE_STATUS_INVALID_PARAMS 2
+#define REMOTE_STATUS_EXPIRED 3
+#define REMOTE_STATUS_NOT_INITIATED 4
+#define REMOTE_STATUS_TEST_FAILED 5
+#define REMOTE_STATUS_NO_INTERNET 6
+
+uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
+
+#endif
+
 
 #define MDNS_ENABLED_NOT
 #ifdef MDNS_ENABLED
@@ -603,6 +621,12 @@ typedef struct
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
   uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
   uint16_t load_manager_reswitch_moratorium_m; //<!
+#endif
+#ifdef REMOTE_ENABLED
+  uint8_t wg_peer_id; // 0 none
+  IPAddress wg_local_ip;
+  char wg_private_key[MAX_WG_KEY_LENGTH];
+  uint32_t wg_expires;
 #endif
 #ifdef MDNS_ENABLED
   bool mdns_active;
@@ -2985,6 +3009,10 @@ void readFromEEPROM()
   if (s.netting_period_sec == 0) // TODO: should not happen normally, only if not well resetted
     s.netting_period_sec = 3600;
 
+#ifdef REMOTE_ENABLED
+  s.wg_private_key[MAX_WG_KEY_LENGTH - 1] = '\0'; // null termination
+#endif
+
   set_netting_source();
 
   ch_prio_sort(); // experimental, keep sorted channel array up to date
@@ -3238,6 +3266,115 @@ bool read_ds18b20_sensors()
 #define RESTART_AFTER_LAST_OK_METER_READ 18000 //!< If all energy meter readings are failed within this period, restart the device
 #define WARNING_AFTER_FAILED_READING_SECS 240  //!< If all energy/production meter readings are failed within this period, log/react
 
+#ifdef REMOTE_ENABLED
+
+#include <WireGuard-ESP32.h>
+
+typedef struct
+{
+  uint16_t id;
+  char name[MAX_WG_HOST_LENGTH];
+  uint32_t gw_ip;
+  uint32_t netmask;
+  char public_key[MAX_WG_KEY_LENGTH];
+  uint16_t port;
+  char hostname[MAX_WG_HOST_LENGTH];
+
+} wg_peer_st;
+
+#define WG_PEER_COUNT 2
+wg_peer_st wg_peers[WG_PEER_COUNT] = {
+    {0, "undefined", 0, 0, "", 0, ""},
+    {2, "Arska - test", (10) + (10 << 8) + (0 << 16) + (1 << 24), (255) + (255 << 8) + (0 << 16) + (0 << 24), "VBdULdt0f5jWnvXFBcE0uM7mCfqJbEnogZo5jFk1LSc=", 51822, "vpn.arska.info"}};
+// 167789056, 1107296266
+
+unsigned long last_wg_handshake = 0;
+#define WG_HANDSHAKE_INTERVAL_SEC 180
+
+static WireGuard wg;
+
+int get_peer_idx(int id)
+{
+  for (int i = 0; i < WG_PEER_COUNT; i++)
+  {
+    if (id == wg_peers[i].id)
+    {
+      return i;
+    }
+  }
+  Serial.printf("DEBUG get_hw_template_idx for %d returned -1\n", id);
+  return 0;
+}
+
+bool wg_handshake(bool force_reconnect = true)
+{
+  if (!wifi_sta_connected)
+  {
+    wg_status = REMOTE_STATUS_NO_INTERNET;
+    return false;
+  }
+
+  if (strlen(s.wg_private_key) < 44)
+  {
+    return false;
+    wg_status = REMOTE_STATUS_INVALID_PARAMS;
+  }
+  if (s.wg_peer_id == 0)
+  {
+    wg_status = REMOTE_STATUS_UNDEFINED;
+    return false;
+  }
+
+  Serial.print("Connection expires:");
+  Serial.println(s.wg_expires);
+  last_wg_handshake = millis();
+  if (s.wg_expires < time(nullptr))
+  {
+    if (wg.is_initialized())
+    {
+      log_msg(MSG_TYPE_INFO, "Remote connection expired.", true);
+      wg.end();
+      s.wg_expires = 0;
+      wg_status = REMOTE_STATUS_EXPIRED;
+      writeToEEPROM();
+    }
+    return false;
+  }
+
+  time_t now_infunc = time(nullptr);
+  localtime_r(&now_infunc, &tm_struct);
+  // snprintf(date_str, sizeof(date_str), "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+
+  int wg_peer_idx = get_peer_idx(s.wg_peer_id);
+  bool test_ok = test_host(IPAddress(wg_peers[wg_peer_idx].gw_ip), 2);
+  if (!wg.is_initialized() || !test_ok)
+  {
+    if (wg.is_initialized())
+      wg.end();
+    // Serial.print(date_str);
+    Serial.print(" connecting wg:");
+
+    wg.begin(
+        s.wg_local_ip, wg_peers[wg_peer_idx].netmask, wg_peers[wg_peer_idx].port, wg_peers[wg_peer_idx].gw_ip,
+        s.wg_private_key,
+        wg_peers[wg_peer_idx].hostname,
+        wg_peers[wg_peer_idx].public_key,
+        wg_peers[wg_peer_idx].port, IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0) // filters
+        ,
+        false // default interface
+    );
+  }
+  if (!wg.is_initialized())
+    wg_status = REMOTE_STATUS_NOT_INITIATED;
+  else
+    wg_status = test_host(IPAddress(wg_peers[wg_peer_idx].gw_ip), 2) ? REMOTE_STATUS_OK : REMOTE_STATUS_TEST_FAILED;
+  // test_ok = test_host(IPAddress(wg_peers[wg_peer_idx].gw_ip), 2);
+  return (wg_status == REMOTE_STATUS_OK);
+}
+
+// WireGuard configuration --- UPDATE this configuration from JSON
+
+#endif
 #ifdef LOAD_MGMT_ENABLED
 time_t load_manager_overload_last_ts = 0;
 
@@ -5098,6 +5235,10 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   ADD_JSON_BOOL(doc, "INFLUX_REPORT_ENABLED", false);
 #endif
 
+#ifdef REMOTE_ENABLED
+  ADD_JSON_BOOL(doc, "REMOTE_ENABLED", true);
+#endif
+
 #ifdef MDNS_ENABLED
   ADD_JSON_BOOL(doc, "MDNS_ENABLED", true);
 #endif
@@ -5170,6 +5311,17 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   }
 
   // JsonArray json_hs_templates = doc.createNestedArray("hw_templates");
+
+#ifdef REMOTE_ENABLED
+  JSON_ARRAY_NODE json_wg_peers = ADD_JSON_ARRAY(doc, "wg_peers", json_wg_peers);
+  for (int wg_peer_idx = 0; wg_peer_idx < WG_PEER_COUNT; wg_peer_idx++)
+  {
+    JSON_CHILD_NODE json_wg_peer = ADD_JSON_CHILD_NODE(json_wg_peers, json_wg_peer);
+    ADD_JSON_NUMBER(json_wg_peer, "id", (int)wg_peers[wg_peer_idx].id);
+    ADD_JSON_TEXT(json_wg_peer, "name", wg_peers[wg_peer_idx].name);
+  }
+#endif
+
   JSON_ARRAY_NODE json_hs_templates = ADD_JSON_ARRAY(doc, "hw_templates", json_hs_templates);
   for (int hw_template_idx = 0; hw_template_idx < HW_TEMPLATE_COUNT; hw_template_idx++)
   {
@@ -6361,6 +6513,12 @@ void reset_config()
   s.energy_meter_gpio = 255; //!< energy meter gpio , ENERGYM_HAN_DIRECT
 #endif
 
+#ifdef REMOTE_ENABLED
+  s.wg_peer_id = 0;
+  s.wg_local_ip = IPAddress(0, 0, 0, 0);
+  strcpy(s.wg_private_key, "");
+  s.wg_expires = 0;
+#endif
 
 #ifdef MDNS_ENABLED
   s.mdns_active = false;
@@ -6490,6 +6648,13 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   }
 #ifdef METER_HAN_DIRECT_ENABLED
   doc["energy_meter_gpio"] = s.energy_meter_gpio;
+#endif
+
+#ifdef REMOTE_ENABLED
+  doc["wg_peer_id"] = s.wg_peer_id;
+  doc["wg_local_ip"] = s.wg_local_ip.toString();
+  doc["wg_private_key"] = s.wg_private_key;
+  doc["wg_expires"] = s.wg_expires;
 #endif
 
 #ifdef MDNS_ENABLED
@@ -6747,6 +6912,22 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
   s.energy_meter_gpio = ajson_int_get(doc, (char *)"energy_meter_gpio", s.energy_meter_gpio);
 
+#ifdef REMOTE_ENABLED
+  uint32_t wg_connection_expires_rel = 0;
+  s.wg_peer_id = ajson_int_get(doc, (char *)"wg_peer_id", s.wg_peer_id);
+  s.wg_local_ip = ajson_ip_get(doc, (char *)"wg_local_ip", s.wg_local_ip);
+  ajson_str_to_mem(doc, (char *)"wg_private_key", s.wg_private_key, sizeof(s.wg_private_key));
+
+  wg_connection_expires_rel = ajson_int_get(doc, (char *)"wg_connection_expires_rel", wg_connection_expires_rel);
+  // Serial.print("wg_connection_expires_rel:");
+  // Serial.println(wg_connection_expires_rel);
+  if (wg_connection_expires_rel == 1)
+    s.wg_expires = 0;
+  else if (wg_connection_expires_rel == LONG_MAX)
+    s.wg_expires = LONG_MAX;
+  else if (wg_connection_expires_rel != 0)
+    s.wg_expires = time(nullptr) + wg_connection_expires_rel;
+#endif
 
 #ifdef MDNS_ENABLED
   s.mdns_active = ajson_bool_get(doc, (char *)"mdns_active", s.mdns_active);
@@ -7447,6 +7628,10 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   doc["load_manager_overload_last_ts"] = load_manager_overload_last_ts;
 #endif
 
+#ifdef REMOTE_ENABLED
+  doc["wg_status"] = wg_status;
+#endif
+
   doc["free_heap"] = ESP.getFreeHeap();
   serializeJson(doc, output);
   request->send(200, "application/json", output);
@@ -7930,6 +8115,12 @@ void setup()
   */
 
   io_tasks(); // starting leds
+
+#ifdef REMOTE_ENABLED
+  // define before web server startup
+  Serial.print("wg_handshake(true):");
+  Serial.println(wg_handshake(true));
+#endif
 
 #ifdef OTA_UPDATE_ENABLED
               //  update form
@@ -8475,6 +8666,13 @@ void loop()
     period_changed = false;
   }
   // <-- Scheduled tasks
+
+#ifdef REMOTE_ENABLED
+  if (millis() - last_wg_handshake > (WG_HANDSHAKE_INTERVAL_SEC * 1000))
+  {
+    wg_handshake(false);
+  }
+#endif
 
   // Tasks that should be run
 #ifdef INVERTER_SMA_MODBUS_ENABLED
