@@ -101,6 +101,13 @@ RTC_PCF8563 rtc;
 #endif
 */
 
+
+#define MDNS_ENABLED_NOT
+#ifdef MDNS_ENABLED
+#include <mdns.h>
+#define MAX_MDNS_ID_LENGTH 11
+#endif
+
 #ifdef COOLINGEXPR_ENABLED
 #include "driver/adc.h"
 #endif
@@ -596,6 +603,10 @@ typedef struct
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
   uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
   uint16_t load_manager_reswitch_moratorium_m; //<!
+#endif
+#ifdef MDNS_ENABLED
+  bool mdns_active;
+  char mdns_id[MAX_MDNS_ID_LENGTH];
 #endif
 } settings_struct;
 
@@ -5087,6 +5098,10 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   ADD_JSON_BOOL(doc, "INFLUX_REPORT_ENABLED", false);
 #endif
 
+#ifdef MDNS_ENABLED
+  ADD_JSON_BOOL(doc, "MDNS_ENABLED", true);
+#endif
+
 #ifdef PRICE_ELERING_ENABLED
   ADD_JSON_BOOL(doc, "PRICE_ELERING_ENABLED", true);
 #endif
@@ -6346,6 +6361,12 @@ void reset_config()
   s.energy_meter_gpio = 255; //!< energy meter gpio , ENERGYM_HAN_DIRECT
 #endif
 
+
+#ifdef MDNS_ENABLED
+  s.mdns_active = false;
+  strcpy(s.mdns_id, "arska");
+#endif
+
 #ifdef LOAD_MGMT_ENABLED
   s.load_manager_active = false;
   s.load_manager_phase_count = 3;
@@ -6469,6 +6490,11 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   }
 #ifdef METER_HAN_DIRECT_ENABLED
   doc["energy_meter_gpio"] = s.energy_meter_gpio;
+#endif
+
+#ifdef MDNS_ENABLED
+  doc["mdns_active"] = s.mdns_active;
+  doc["mdns_id"] = s.mdns_id;
 #endif
 
 #ifdef HW_SHIFTREG_ENABLED
@@ -6720,6 +6746,12 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
   s.energy_meter_gpio = ajson_int_get(doc, (char *)"energy_meter_gpio", s.energy_meter_gpio);
+
+
+#ifdef MDNS_ENABLED
+  s.mdns_active = ajson_bool_get(doc, (char *)"mdns_active", s.mdns_active);
+  ajson_str_to_mem(doc, (char *)"mdns_id", s.mdns_id, sizeof(s.mdns_id));
+#endif
 
   s.energy_meter_ip = ajson_ip_get(doc, (char *)"energy_meter_ip", s.energy_meter_ip);
   ajson_str_to_mem(doc, (char *)"energy_meter_password", s.energy_meter_password, sizeof(s.energy_meter_password));
@@ -7517,6 +7549,12 @@ void wifi_event_handler(WiFiEvent_t event)
     wifi_sta_connected = true;
     //  Serial.println(F("Got IP"));
     set_timezone_ntp_settings(true);
+    // Experimental
+#ifdef MDNS_ENABLED
+    if (s.mdns_active)
+      start_mdns_service();
+#endif
+
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
     wifi_sta_connected = false;
