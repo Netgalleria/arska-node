@@ -3375,6 +3375,28 @@ bool wg_handshake(bool force_reconnect = true)
 // WireGuard configuration --- UPDATE this configuration from JSON
 
 #endif
+
+#ifdef MDNS_ENABLED
+
+void start_mdns_service()
+{
+  // initialize mDNS service
+  esp_err_t err = mdns_init();
+  if (err)
+  {
+    Serial.printf("MDNS Init failed: %d\n", err);
+    return;
+  }
+  else
+    Serial.println("Started mDNS.");
+  // set hostname
+  mdns_hostname_set(s.mdns_id);
+  // set default instance
+  mdns_instance_name_set("Arska Energy");
+  mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+}
+#endif
+
 #ifdef LOAD_MGMT_ENABLED
 time_t load_manager_overload_last_ts = 0;
 
