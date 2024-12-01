@@ -263,6 +263,7 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 /* Application variable constants */
 #define VARIABLE_COUNT 48
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
+#define VARIABLE_LONG_MISSING -2147483647 //!< variable with this value is undefined
 // do not change variable id:s (will broke statements)
 
 #define VARIABLE_PRICE 0                     //!< price of current period, 1 decimal
@@ -682,6 +683,7 @@ public:
   bool read_from_cache(time_t expires);
   void clear_store(bool reset_cache);
   void set(time_t ts, T new_value);
+  void set_by_pos(int idx, T new_value);
   int n() { return store.n; };
   uint16_t resolution_sec() { return store.resolution_sec; };
   time_t start() { return store.start; };
@@ -691,7 +693,7 @@ public:
   time_t last_set_period_ts();
   time_t last_update() { return store.last_update_ts; };
   T get(time_t ts);
-  T get_pos(int idx);
+  T get_by_pos(int idx);
   T get(time_t ts, T default_value);
   T avg(time_t start_ts, time_t end_ts_incl);
   void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg);
@@ -2091,6 +2093,14 @@ void timeSeries::set(time_t ts, T new_value)
   //  if (id_==0) Serial.printf("debug set ts %ld %d = max(store.max_value_idx %d, idx %d)\n",ts,store.max_value_idx, store.max_value_idx, idx);
   store.last_update_ts = time(nullptr);
 };
+
+void timeSeries::set_by_pos(int idx, T new_value)
+{
+  store.arr[idx] = new_value;
+  store.min_value_idx = min(store.min_value_idx, idx);
+  store.max_value_idx = max(store.max_value_idx, idx);
+  store.last_update_ts = time(nullptr);
+};
 int timeSeries::get_idx(time_t ts)
 {
   int index_candidate = (ts - store.start) / store.resolution_sec;
@@ -2126,7 +2136,7 @@ T timeSeries::get(time_t ts = time(nullptr))
   else
     return store.arr[idx];
 }
-T timeSeries::get_pos(int idx)
+T timeSeries::get_by_pos(int idx)
 {
   if (idx < 0 || idx >= store.n)
     return store.init_value;
@@ -4718,7 +4728,7 @@ bool get_price_data_entsoe()
 
   end_ts = start_ts + SECONDS_IN_DAY * 2;
 
-  int pos = -1;
+  int pos = -1, last_pos = -1;
   long price = VARIABLE_LONG_UNKNOWN;
 
   // initiate prices
@@ -4826,6 +4836,15 @@ bool get_price_data_entsoe()
       record_end_excl = period_end;
       Serial.printf("Debug before get_price_data_entsoe %lu, %d", period_end, prices2.n());
       prices2.set_store_start(period_end - prices2.n() * prices2.resolution_sec());
+
+      // prepare for Entso-E missing data points
+      for (int i = 0; i < prices2.n(); i++)
+      {
+        //prices2.set(period_start + i * PRICE_RESOLUTION_SEC, VARIABLE_LONG_MISSING);
+        prices2.set_by_pos(i,VARIABLE_LONG_MISSING);
+
+      }
+      
       record_start = record_end_excl - (PRICE_RESOLUTION_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
       Serial.printf("period_start: %ld record_start: %ld - period_end: %ld\n", period_start, record_start, period_end);
@@ -4840,6 +4859,7 @@ bool get_price_data_entsoe()
     if (line.endsWith(F("</position>")))
     {
       pos = getElementValue(line).toInt();
+      last_pos = pos;
     }
 
     // max price in NordPool is 4000€/MWh https://www.nordpoolgroup.com/en/trading/Operational-Message-List/2022/04/day-ahead-reminder---new-harmonised-maximum-clearing-price-from-delivery-day-wednesday-11th-may-20220427161200/
@@ -4857,14 +4877,29 @@ bool get_price_data_entsoe()
     }
     else if (line.endsWith("</Point>"))
     {
-
       prices2.set(period_start + (pos - 1) * PRICE_RESOLUTION_SEC, price);
       pos = -1;
       price = VARIABLE_LONG_UNKNOWN;
     }
 
+    // Fill potentially missing points with revious data point value
+    long price_last = VARIABLE_LONG_UNKNOWN;
     if (line.indexOf(F("</Publication_MarketDocument")) > -1)
     { // this signals the end of the response from XML API
+      // fill potentially missing points - Entso-E new data format
+      for (int i = 0; i < prices2.n(); i++)
+    {
+        if (prices2.get_by_pos(i) == VARIABLE_LONG_MISSING && price_last > VARIABLE_LONG_MISSING)
+        {
+          prices2.set_by_pos(i, price_last);
+          Serial.printf("Filling missing value of index %d, with ", i);
+          Serial.println(price_last);
+            price_rows++;
+          }
+          else
+          price_last = prices2.get_by_pos(i);
+    }
+
       end_reached = true;
       save_on = false;
       read_ok = true;
