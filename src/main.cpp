@@ -7996,6 +7996,13 @@ void setup()
   todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
+  
+  // tweak for Lilygo esp32s3 6ch rev 1.1
+// #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
+  if (s.hw_template_id == 8) {
+    pinMode(4, OUTPUT);
+    digitalWrite(4, LOW);
+  }
 
 // test led functinality, currently only LilyGo T6
 #ifdef TEST_LEDS_RGB_INIT
