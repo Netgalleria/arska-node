@@ -3325,8 +3325,7 @@ bool wg_handshake(bool force_reconnect = true)
     return false;
   }
 
-  Serial.print("Connection expires:");
-  Serial.println(s.wg_expires);
+
   last_wg_handshake = millis();
   if (s.wg_expires < time(nullptr))
   {
@@ -3340,13 +3339,17 @@ bool wg_handshake(bool force_reconnect = true)
     }
     return false;
   }
+    yield();
 
-  time_t now_infunc = time(nullptr);
-  localtime_r(&now_infunc, &tm_struct);
+  //time_t now_infunc = time(nullptr);
+  //localtime_r(&now_infunc, &tm_struct);
   // snprintf(date_str, sizeof(date_str), "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
 
   int wg_peer_idx = get_peer_idx(s.wg_peer_id);
   bool test_ok = test_host(IPAddress(wg_peers[wg_peer_idx].gw_ip), 2);
+  
+  yield();
+
   if (!wg.is_initialized() || !test_ok)
   {
     if (wg.is_initialized())
