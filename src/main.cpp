@@ -3346,6 +3346,11 @@ bool wg_handshake(bool force_reconnect = true)
   // snprintf(date_str, sizeof(date_str), "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
 
   int wg_peer_idx = get_peer_idx(s.wg_peer_id);
+  if (wg_peer_idx==0) {
+    wg_status = REMOTE_STATUS_INVALID_PARAMS;
+    return false;
+  }
+
   bool test_ok = test_host(IPAddress(wg_peers[wg_peer_idx].gw_ip), 2);
   
   yield();
@@ -7999,7 +8004,7 @@ void setup()
   todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
-  
+
   // tweak for Lilygo esp32s3 6ch rev 1.1
 // #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
   if (s.hw_template_id == 8) {
