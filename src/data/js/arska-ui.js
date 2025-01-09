@@ -3,8 +3,9 @@ var g_application;
 var g_templates;
 
 var g_price_elering_enabled;
-var g_remote_enabled
-var g_mdns_enabled 
+var g_remote_enabled;
+var g_mdns_enabled;
+var g_influx_report_enabled;
 
 var isp_label; //imbalance setting period
 
@@ -31,6 +32,7 @@ const CH_TYPE_GPIO_USER_DEF = 3;
 const CH_TYPE_SHELLY_2GEN = 4;
 const CH_TYPE_TASMOTA = 5;
 const CH_TYPE_GPIO_USR_INVERSED = 10;
+const CH_TYPE_FRONIUS_GEN24_MODBUS_RTU = 50;
 
 const CH_TYPE_MODBUS_RTU = 20;
 const CH_TYPE_DISABLED = 255;
@@ -61,7 +63,10 @@ const OPER_IDX_BOOLEANONLY = 5
 const OPER_IDX_HASVALUE = 6
 const OPER_IDX_MULTISELECT = 7
 
-const remote_status_texts = ['OK',"Undefined","Invalid parameters", "Expired","Not initiated", "Test failed","No internet connection"];
+const remote_status_texts = ['OK', "Undefined", "Invalid parameters", "Expired", "Not initiated", "Test failed", "No internet connection"];
+
+const channel_profiles=[[100,'Charge 100%'],[105,'Charge 50%'],[110,'Charge 0%'],[115,'Discharge 50%'],[120,'Discharge 100%'],[121,'No control']]
+
 
 let variable_list = {}; // populate later from json
 
@@ -456,23 +461,31 @@ const rule_html = `<div class="col">
              <div class="mt-3" style="margin-left: 0.5rem;"><span id="ch_#:r_#:desc"class="text-muted"></span></div>
          </div>
          <div class="card-body">
-             <div class="input-group mb-3">
-                 <span class="input-group-text">Matching rule sets
-                     channel</span>
-                 <input id="ch_#:r_#:up_0" type="radio"
-                     class="btn-check" name="ch_#:r_#:up" checked="">
-                 <label class="btn btn-secondary"
-                     for="ch_#:r_#:up_0">
-                     <span data-feather="zap-off"
-            class="align-text-bottom" style="pointer-events: none;"></span>
-                     down</label>
-                 <input id="ch_#:r_#:up_1" type="radio"
-                     class="btn-check" name="ch_#:r_#:up">
-                 <label class="btn btn-secondary"
-                     for="ch_#:r_#:up_1">
-                     <span data-feather="zap"
-            class="align-text-bottom" style="pointer-events: none;"></span>
-                     up</label>
+            <div class="input-group mb-3 invisible" id="ch_#:r_#:profiled" >
+                <span class="input-group-text">Matching rule sets
+                channel</span>
+                <select id="ch_#:r_#:profile" class="form-select" aria-label="variable" data-bs-toggle="tooltip" title="Profile">
+                <option value="-1">&nbsp;</option>
+                </select>
+             </div>
+
+             <div class="input-group mb-3 visible" id="ch_#:r_#:updownd" >        
+                    <span class="input-group-text">Matching rule sets
+                    channel</span>
+                    <input id="ch_#:r_#:up_0" type="radio"
+                        class="btn-check" name="ch_#:r_#:up" checked="">
+                    <label class="btn btn-secondary"
+                        for="ch_#:r_#:up_0">
+                        <span data-feather="zap-off"
+                class="align-text-bottom" style="pointer-events: none;"></span>
+                        down</label>
+                    <input id="ch_#:r_#:up_1" type="radio"
+                        class="btn-check" name="ch_#:r_#:up">
+                    <label class="btn btn-secondary"
+                        for="ch_#:r_#:up_1">
+                        <span data-feather="zap"
+                class="align-text-bottom" style="pointer-events: none;"></span>
+                        up</label>
              </div>
              
              <span class="row g-1 form-label">Conditions (and):</span>
@@ -497,7 +510,16 @@ const default_state_html = `<div class="col">
         <div class="mt-3" style="margin-left: 0.5rem;"><span id="ch_(ch#):default_state:desc"class="text-muted">If none of rule conditions above match channel is set to default state.</span></div>
     </div>
     <div class="card-body">
-        <div class="input-group mb-3">
+
+        <div class="input-group mb-3 invisible" id="ch_(ch#):profiled" >
+            <span class="input-group-text">Default profile
+            channel</span>
+            <select id="ch_(ch#):default_profile" name="ch_(ch#):default_profile" class="form-select" aria-label="variable" data-bs-toggle="tooltip" title="Profile">
+            <option value="-1">&nbsp;</option>
+            </select>
+        </div>
+
+        <div class="input-group mb-3 visible" id="ch_(ch#):updownd">
             <span class="input-group-text">Default state
                 </span>
             <input id="ch_(ch#):default_state_0" type="radio"
@@ -1713,6 +1735,9 @@ function load_and_update_settings() {
                 isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
             }
             console.log("/settings took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
+
+
             return true;
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -1721,6 +1746,7 @@ function load_and_update_settings() {
         }
     });
     
+
     if (g_settings.hasOwnProperty("wg_expires")) {
         var expire_text = '';
         if (g_settings.wg_expires == 0)
@@ -1729,9 +1755,8 @@ function load_and_update_settings() {
             expire_text = "No expiration";
         else
             expire_text = 'Expires: ' + get_time_string_from_ts(g_settings.wg_expires, false, true);
-   //     document.getElementById("wg_expires_text").innerHTML = expire_text;
-        document.getElementById("wg_connection_expires_rel").options[0].innerHTML = "Current: " +expire_text;
-        
+//     document.getElementById("wg_expires_text").innerHTML = expire_text;
+        document.getElementById("wg_connection_expires_rel").options[0].innerHTML = "Current: " +expire_text; 
     }
 
 
@@ -1747,10 +1772,8 @@ function load_and_update_settings() {
                 ctrl.value = g_settings[property];
             }
         }
-      /*  else {
-            console.log("not found:",property);
-        }
-    */    }
+    }
+    
     return true;
 }
 
@@ -1776,6 +1799,10 @@ function load_application_config() {
             g_mdns_enabled = g_application.hasOwnProperty("MDNS_ENABLED") ? g_application.MDNS_ENABLED : false;
             if (g_mdns_enabled)
                 document.getElementById(`mdns_div`).classList.remove("collapse");
+            
+            g_influx_report_enabled = g_application.hasOwnProperty("INFLUX_REPORT_ENABLED") ? g_application.INFLUX_REPORT_ENABLED : false;
+            set_ctrl_visibility(document.getElementById(`influx:card`), g_influx_report_enabled);
+                
             
             document.getElementById(`wifi_info`).innerHTML = `Current IP: ${g_application.wifi_ip} , MAC: ${g_application.wifi_mac.toLowerCase()}`;
         },
@@ -1876,12 +1903,15 @@ function is_relay_id_used(channel_type) { // id required
 }
 function is_relay_ip_used(channel_type) { //ip required
 
-    return [CH_TYPE_SHELLY_1GEN, CH_TYPE_SHELLY_2GEN, CH_TYPE_TASMOTA].includes(parseInt(channel_type));
+    return [CH_TYPE_SHELLY_1GEN, CH_TYPE_SHELLY_2GEN, CH_TYPE_TASMOTA, CH_TYPE_FRONIUS_GEN24_MODBUS_RTU].includes(parseInt(channel_type));
 }
 function is_relay_uid_used(channel_type) { //unit_id required
     if (is_relay_ip_used(parseInt(channel_type)))
         return true;
     return [CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
+}
+function is_relay_profile_used(channel_type) { //battery control uses profiles, not just up/down
+    return [ CH_TYPE_FRONIUS_GEN24_MODBUS_RTU].includes(parseInt(channel_type));
 }
 
 function set_relay_field_visibility(channel_idx, ch_type) {
@@ -1981,7 +2011,6 @@ function populate_template_select(selEl, template_id = -1) {
     for (i = 0; i < g_template_list.length; i++) {
         addOption(selEl, g_template_list[i]["id"], g_template_list[i]["id"] + " - " + g_template_list[i]["name"], (template_id == g_template_list[i]["id"]));
     }
-
 }
 
 //KESKEN
@@ -2107,6 +2136,22 @@ function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0
     document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:const`).value = stmt[3];
 }
 
+
+
+function populate_profile_select(selEl, profile_id = -1) {
+    
+  
+   // console.log("populate_profile_select:" + channel_profiles.length);
+    if (selEl.options && selEl.options.length <= 1) {
+        if (selEl.length == 0)
+            addOption(selEl, -1, "Select profile", false);
+        for (i = 0; i < channel_profiles.length; i++) {
+            addOption(selEl, channel_profiles[i][0], "(" + channel_profiles[i][0] + ") " + channel_profiles[i][1], (profile_id == channel_profiles[i][0]));
+        }
+    }
+    if (profile_id != -1)
+        selEl.value = profile_id;
+}
 
 function addStmt(channel_idx, rule_idx = 1, stmt_idx = -1, stmt = [-1, -1, 0, 0]) {
     //get next statement index if not defined
@@ -2257,7 +2302,17 @@ function changed_template_ev(ev, selEl) {
     return true;
 }
 
+function set_ctrl_visibility(ctrl, visible) {
+    if (visible) {
+        ctrl.classList.remove("invisible");
+        ctrl.classList.add("visible");
+    }
+    else {
+        ctrl.classList.remove("visible");
+        ctrl.classList.add("invisible");
+    }
 
+}
 //todo: data as parameter?
 function populate_channel(channel_idx) {
     now_ts = Date.now() / 1000;
@@ -2312,26 +2367,43 @@ function populate_channel(channel_idx) {
 
     switch_rule_mode(channel_idx, ch_cur["config_mode"], false, ch_cur["template_id"]);
 
+    //state / profile
     document.getElementById(`ch_${channel_idx}:default_state_0`).checked = ch_cur["default_state"] ? false : true;
     document.getElementById(`ch_${channel_idx}:default_state_1`).checked = ch_cur["default_state"] ? true : false;
+
+    set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:profiled`), is_relay_profile_used(ch_cur["type"]));
+    set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:updownd`), !is_relay_profile_used(ch_cur["type"]));
+    populate_profile_select(document.getElementById(`ch_${channel_idx}:default_profile`),ch_cur["default_profile"])
     // console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
 
     if ("rules" in ch_cur) {
-        for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
-            this_rule = ch_cur["rules"][rule_idx];
-            document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = this_rule["on"] ? false : true;
-            document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
-            for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_application.RULE_STATEMENTS_MAX); stmt_idx++) {
-                this_stmt = this_rule["stmts"][stmt_idx];
+      //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
 
-                populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
 
+        for (rule_idx = 0; rule_idx <  g_application.CHANNEL_RULES_MAX; rule_idx++) {
+            console.log("Channel" + channel_idx + " Set rule "+ rule_idx+ "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"])) ;
+            set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profiled`), is_relay_profile_used(ch_cur["type"]));
+            set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:updownd`), !is_relay_profile_used(ch_cur["type"]));
+            populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`))
+
+            if (rule_idx < ch_cur["rules"].length)  {
+                this_rule = ch_cur["rules"][rule_idx];
+                if (is_relay_profile_used(ch_cur["type"])) {
+                    populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`), this_rule["profile"])
+                }
+                else {
+                    document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = this_rule["on"] ? false : true;
+                    document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
+                }
+
+                for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_application.RULE_STATEMENTS_MAX); stmt_idx++) {
+                    this_stmt = this_rule["stmts"][stmt_idx];
+                    populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
+                }
             }
         }
     }
-
 }
-
 
 function is_var_logical(constant_type) {
     return (constant_type >= 50 && constant_type <= 51);
@@ -2858,7 +2930,6 @@ function define_multiselect_popover(stmt_id) {
 
             return form + '<div class="d-grid gap-2 d-md-flex justify-content-md-end"><button onClick="save_hide_multiselect_popover(\'' + stmt_id + '\');" class="btn btn-primary me-md-2" type="submit">' + multiselect_icon_svg + '</button></div></div>';
 
-            //return form + "<button class='btn save' onClick='save_hide_multiselect_popover(\"" + stmt_id + "\");'>Close</button>";
         },
         title: function () {
             var_id = document.getElementById(stmt_id + ":var").value;
@@ -3183,6 +3254,9 @@ function save_channel_ev(ev) {
     data_ch["config_mode"] = parseInt(document.getElementById(`ch_${channel_idx}:config_mode_0`).checked ? 0 : 1);
 
     data_ch["default_state"] = document.getElementById(`ch_${channel_idx}:default_state_0`).checked ? false : true;
+    data_ch["default_profile"] = document.getElementById(`ch_${channel_idx}:default_profile`).value ;
+
+    
 
     rules = [];
 
@@ -3190,6 +3264,7 @@ function save_channel_ev(ev) {
         stmt_count = 0;
         rule_stmts = [];
         up_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked ? false : true;
+        profile_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`).value ;
 
         for (stmt_idx = 0; stmt_idx < g_application.RULE_STATEMENTS_MAX; stmt_idx++) {
             var_value = parseInt(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`).value);
@@ -3203,7 +3278,7 @@ function save_channel_ev(ev) {
             }
         }
         if (rule_stmts.length > 0)
-            rules.push({ "on": up_value, "stmts": rule_stmts });
+            rules.push({ "on": up_value,"profile" : profile_value, "stmts": rule_stmts });
     }
     data_ch["rules"] = rules;
 
