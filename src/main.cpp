@@ -43,6 +43,8 @@ DEVEL BRANCH
 #include "nvs.h"
 #endif
 
+
+
 #define FILESYSTEM_LITTLEFS
 
 #ifdef FILESYSTEM_LITTLEFS
@@ -100,6 +102,20 @@ RTC_PCF8563 rtc;
 // #include <ESP32Time.h>
 #endif
 */
+
+//experimental battery charging/discharging
+#define BATTERY_ENABLED
+#ifdef BATTERY_ENABLED
+#define CH_PROFILE_DOWN 0
+#define CH_PROFILE_UP 1
+// battery control targets
+#define CH_PROFILE_BATT_CHARGE_100 100
+#define CH_PROFILE_BATT_CHARGE_50 105
+#define CH_PROFILE_BATT_CHARGE_0 110
+#define CH_PROFILE_BATT_DISCHARGE_50 115
+#define CH_PROFILE_BATT_DISCHARGE_100 120
+#define CH_PROFILE_BATT_NO_CTRL 121
+#endif   
 
 // experimental remote connection, WiP
 #define REMOTE_ENABLED_NOT
@@ -187,6 +203,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #define CH_TYPE_TASMOTA 5            //
 #define CH_TYPE_GPIO_USR_INVERSED 10 // inversed
 #define CH_TYPE_MODBUS_RTU 20        // RFU
+#define CH_TYPE_FRONIUS_GEN24_MODBUS_RTU 50 // inversed
 #define CH_TYPE_DISABLED 255         // RFU, we could have disabled, but allocated channels (binary )
 
 // #define CHANNEL_RULES_MAX 3 //platformio.ini
@@ -215,7 +232,13 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #define ID_NA 255
 #define GPIO_STATE_NA -1
-#define CHANNEL_TYPE_COUNT 6
+
+#ifdef BATTERY_ENABLED
+#define CHANNEL_TYPE_COUNT 7 //
+#else
+#define CHANNEL_TYPE_COUNT 6 //
+#endif
+
 
 #define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
 #define WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC 3600
@@ -537,9 +560,11 @@ struct hw_template_st
 typedef struct
 {
   statement_st statements[RULE_STATEMENTS_MAX];
-  float target_val; // TODO: remove
   bool on;
   bool rule_active; // for showing if the rule is currently active, for tracing
+#ifdef BATTERY_ENABLED
+  uint8_t profile;
+#endif
 } rule_struct;      // size 88
 
 // Channel stucture, elements of channel array in setting, stored in non-volatile memory
@@ -564,6 +589,10 @@ typedef struct
   uint32_t channel_color;   //<! channel UI color in graphs etc
   uint8_t priority;         //<! channel switching priority, channel with the lowest priority value is switched on first and off last
   uint16_t load;            //<! estimated device load in Watts
+#ifdef BATTERY_ENABLED
+  uint8_t profile;
+  uint8_t default_profile;
+#endif
 } channel_struct;
 
 #ifdef SENSOR_DS18B20_ENABLED
@@ -1270,8 +1299,11 @@ bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters 
 bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 bool todo_in_loop_save_time_to_rtc = false;
 
+#ifdef BATTERY_ENABLED
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true},{CH_TYPE_FRONIUS_GEN24_MODBUS_RTU, "Fronius Gen 24 battery control ", true}};
+#else
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
-
+#endif
 // hw_template_st hw_templates[HW_TEMPLATE_COUNT] = {{0, "manual", {ID_NA, ID_NA, ID_NA, ID_NA}}, {1, "esp32lilygo-4ch", {21, 19, 18, 5}}, {2, "esp32wroom-4ch-a", {32, 33, 25, 26}}, {3, "devantech-esp32lr42", {33, 25, 26, 27}}};
 /*
 {
@@ -5369,6 +5401,11 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
     ADD_JSON_TEXT(json_hs_template, "name", hw_templates[hw_template_idx].name);
   }
 
+#ifdef BATTERY_ENABLED
+  JSON_ARRAY_NODE json_ch_profiles = ADD_JSON_ARRAY(doc, "channel_profiles", json_ch_profiles);
+
+#endif
+
   JSON_SERIALIZE(doc, output);
   JSON_SEND(request, output);
   JSON_FREE_RESOURCES(output_string);
@@ -6751,6 +6788,9 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["ch"][channel_idx]["r_ip"] = s.ch[channel_idx].relay_ip.toString();
     doc["ch"][channel_idx]["r_uid"] = s.ch[channel_idx].relay_unit_id;
     doc["ch"][channel_idx]["default_state"] = s.ch[channel_idx].default_state;
+    doc["ch"][channel_idx]["default_profile"] = s.ch[channel_idx].default_profile;
+
+    
 
     // rules[rule_idx].rule_active
     active_rule_idx = -1;
@@ -6780,6 +6820,10 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
       if (stmt_count > 0)
       {
         doc["ch"][channel_idx]["rules"][rule_idx_output]["on"] = s.ch[channel_idx].rules[rule_idx].on;
+  #ifdef BATTERY_ENABLED
+        doc["ch"][channel_idx]["rules"][rule_idx_output]["profile"] = s.ch[channel_idx].rules[rule_idx].profile;
+  #endif
+
         rule_idx_output++;
         active_rule_count++;
       }
@@ -7047,6 +7091,9 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
     s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
 
     s.ch[channel_idx].default_state = ajson_bool_get(ch, (char *)"default_state", s.ch[channel_idx].default_state);
+    s.ch[channel_idx].default_profile= ajson_int_get(ch, (char *)"default_profile", s.ch[channel_idx].default_profile);
+
+    
 
     // clear  statements
     // TODO: add to new version
@@ -7067,6 +7114,9 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
     for (JsonObject ch_rule : ch["rules"].as<JsonArray>())
     {
       s.ch[channel_idx].rules[rule_idx].on = ch_rule["on"];
+#ifdef BATTERY_ENABLED
+      s.ch[channel_idx].rules[rule_idx].profile = ch_rule["profile"];
+#endif
       stmt_idx = 0;
       Serial.printf("rule on %s", s.ch[channel_idx].rules[rule_idx].on ? "true" : "false");
 
