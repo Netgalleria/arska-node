@@ -1,15 +1,15 @@
-//1.1.0-beta10
+//1.1.0-beta12
   #ifndef VERSION_BASE
-    #define VERSION_BASE "1.1.0-beta10"
+    #define VERSION_BASE "1.1.0-beta12"
   #endif
   #ifndef BUILD_NUMBER
-    #define BUILD_NUMBER "5538"
+    #define BUILD_NUMBER "5555"
   #endif
   #ifndef VERSION
-    #define VERSION "1.1.0-beta10.5538 - 2024-12-01 16:22:39"
+    #define VERSION "1.1.0-beta12.5555 - 2025-01-09 12:41:58"
   #endif
   #ifndef VERSION_SHORT
-    #define VERSION_SHORT "1.1.0-beta10.5538"
+    #define VERSION_SHORT "1.1.0-beta12.5555"
   #endif
   #ifndef ESP_IDF_VERSION_CUSTOM
     #define ESP_IDF_VERSION_CUSTOM "4.4.5"

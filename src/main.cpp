@@ -3216,7 +3216,7 @@ bool read_ds18b20_sensors()
   if (sensor_count == 0)
     return false;
 
-  if ((time(nullptr) % MINUTES_BETWEEN_SENSOR_READS) != 0) // read one in two minutes, experimental
+  if ((time(nullptr) % MINUTES_BETWEEN_SENSOR_READS) != 0) // read once in two minutes, experimental
     return false;
 
   Serial.printf(PSTR("Starting read_ds18b20_sensors, sensor_count: %d\n"), sensor_count);
