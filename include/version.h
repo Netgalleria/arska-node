@@ -3,13 +3,13 @@
     #define VERSION_BASE "1.1.0-beta12"
   #endif
   #ifndef BUILD_NUMBER
-    #define BUILD_NUMBER "5563"
+    #define BUILD_NUMBER "5588"
   #endif
   #ifndef VERSION
-    #define VERSION "1.1.0-beta12.5563 - 2025-01-09 23:29:11"
+    #define VERSION "1.1.0-beta12.5588 - 2025-01-10 22:31:11"
   #endif
   #ifndef VERSION_SHORT
-    #define VERSION_SHORT "1.1.0-beta12.5563"
+    #define VERSION_SHORT "1.1.0-beta12.5588"
   #endif
   #ifndef ESP_IDF_VERSION_CUSTOM
     #define ESP_IDF_VERSION_CUSTOM "4.4.5"
