@@ -65,7 +65,7 @@ const OPER_IDX_MULTISELECT = 7
 
 const remote_status_texts = ['OK', "Undefined", "Invalid parameters", "Expired", "Not initiated", "Test failed", "No internet connection"];
 
-const channel_profiles=[[100,'Charge 100%'],[105,'Charge 50%'],[110,'Charge 0%'],[115,'Discharge 50%'],[120,'Discharge 100%'],[121,'No control']]
+const channel_profiles = [[100, 'Charge 100%'], [105, 'Charge 50%'], [110, 'Charge 0%'], [115, 'Discharge 50%'], [120, 'Discharge 100%'], [121, 'No control']];
 
 
 let variable_list = {}; // populate later from json
@@ -241,13 +241,20 @@ const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch
                       <span class="input-group-text bg-light" >
                         <span data-feather="edit-3" class="align-text-bottom" style="pointer-events: none;"></span>
                       </span>
-                      <div class="col-md-6 col-lg-3">
+
+                      <div class="col-md-6 col-lg-4">
                         <select id="sch_(ch#):duration" class="form-select" aria-label="variable" data-bs-toggle="tooltip" title="Duration of the schedule hh:mm">
                         </select>
                       </div>
                       <!--./col-->
-                      <div class="col-md-6 col-lg-6">
+                      <div class="col-md-4 col-lg-4">
                         <select id="sch_(ch#):start" class="form-select" aria-label="variable">
+                        </select>
+                      </div>
+                      <!--./col-->
+                      <div id="sch_(ch#):profilecol" class="col-md-4 col-lg-4 d-none">
+                        <select id="sch_(ch#):profile" class="form-select" aria-label="variable">
+                        <option value="-1">&nbsp;</option>
                         </select>
                       </div>
                       <!--./col-->
@@ -257,6 +264,7 @@ const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch
                       <label class="btn btn-secondary" for="sch_(ch#):save">
                         <span data-feather="plus" class="align-text-bottom" style="pointer-events: none;"></span>
                         </label>
+
                     </div>
                     <!--./input-group-->
                     <div id="sch_(ch#):alert">
@@ -921,6 +929,27 @@ function get_variable_desc(var_id, include_value, channel_idx) {
     return variable_desc + value_txt + range_txt + ".";
 }
 
+function get_profile_text_by_id(id) {
+    for (var i = 0; i < channel_profiles.length; i++) {
+        if (channel_profiles[i][0] == id) {
+            return channel_profiles[i][1];
+        }
+    };
+    return 'profile N/A';
+}
+
+function ch_is_twoway(ch) {
+    return (parseInt(ch.type) == 50); // now only Fronius
+}
+
+function ch_is_active(ch) {
+    if (is_relay_profile_used(ch["type"])) {
+        return (parseInt(ch["profile"])>= 100 && parseInt(ch["profile"]) < 120 && parseInt(ch["profile"]) != 110);
+    }
+    else {
+        return ch.is_up;
+    }
+}
 
 function populate_channel_status(channel_idx, ch) {
     //TODO: update this to new...
@@ -934,25 +963,27 @@ function populate_channel_status(channel_idx, ch) {
     sch_status_icon_span = document.getElementById(`sch_${channel_idx}:status_icon`);
     sch_status_text_span = document.getElementById(`sch_${channel_idx}:status_txt`);
 
-    if ((ch.force_up_until > now_ts)) {
+    if ((ch.force_state_until > now_ts)) {
         //same duration as scheduled
-        document.getElementById(`sch_${channel_idx}:duration`).value = parseInt((ch.force_up_until - ch.force_up_from) / 60); //same default duration for input/update
+        document.getElementById(`sch_${channel_idx}:duration`).value = parseInt((ch.force_state_until - ch.force_state_from) / 60); //same default duration for input/update
         update_fup_schedule_element(channel_idx);
-        duration_c_m = parseInt((ch.force_up_until - ch.force_up_from) / 60);
+        duration_c_m = parseInt((ch.force_state_until - ch.force_state_from) / 60);
         // duration_c_str = pad_to_2digits(parseInt(duration_c_m / 60)) + ":" + pad_to_2digits(duration_c_m % 60);
-        duration_c_str = ts_duration_str(ch.force_up_until - ch.force_up_from, false);
+        duration_c_str = ts_duration_str(ch.force_state_until - ch.force_state_from, false);
         sch_duration_c_span.innerHTML = duration_c_str;
-        sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_up_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_up_until, false, true);
+        sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_state_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_state_until, false, true);
         //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
     }
     else {
         sch_duration_c_span.innerHTML = "-";
         sch_start_c_span.innerHTML = "-";
     }
-    sch_delete_radio.disabled = (ch.force_up_until <= now_ts);
+    sch_delete_radio.disabled = (ch.force_state_until <= now_ts);
 
-    sch_status_label.classList.remove(ch.is_up ? "text-bg-danger" : "text-bg-success");
-    sch_status_label.classList.add(ch.is_up ? "text-bg-success" : "text-bg-danger");
+
+    sch_status_label.classList.remove(ch_is_active(ch) ? "text-bg-danger" : "text-bg-success");
+    sch_status_label.classList.add(ch_is_active(ch) ? "text-bg-success" : "text-bg-danger");
+   // console.log(channel_idx, "ch_is_active(ch)", ch_is_active(ch));
 
     info_text = "";
     if (ch.active_rule > -1)
@@ -966,6 +997,11 @@ function populate_channel_status(channel_idx, ch) {
         sch_status_label.classList.add("text-bg-muted");
         sch_status_label.classList.remove("text-bg-danger");
         sch_status_label.classList.remove("text-bg-success");
+    }
+    else if (ch.profile > 99) {
+        info_text += get_profile_text_by_id(ch.profile);
+       // if (!ch.wanna_be_up)
+       //     info_text += ", going down.";
     }
     else if (ch.is_up) {
         info_text += "Up";
@@ -1574,12 +1610,12 @@ function populate_wifi_ssid_list() {
 //Scheduling functions
 
 //TODO: get from main.cpp
-const force_up_mins = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440, 2880, 10080];
+const force_state_minutes = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 1200, 1440, 2880, 10080];
 
 
-function post_schedule_update(channel_idx, duration, start, duration_old) {
+function post_schedule_update(channel_idx, duration, start, profile) {
     var scheds = [];
-    scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start });
+    scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start , "profile": profile });
     console.log(scheds);
 
     $.ajax({
@@ -1609,7 +1645,7 @@ function post_schedule_update(channel_idx, duration, start, duration_old) {
 function schedule_update_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
     console.log("schedule_update_ev channel_idx:", channel_idx);
-    post_schedule_update(channel_idx, document.getElementById(`sch_${channel_idx}:duration`).value, document.getElementById(`sch_${channel_idx}:start`).value);
+    post_schedule_update(channel_idx, document.getElementById(`sch_${channel_idx}:duration`).value, document.getElementById(`sch_${channel_idx}:start`).value, document.getElementById(`sch_${channel_idx}:profile`).value,-1);
     console.log("next update_fup_duration_element");
     // update select list
     duration = document.getElementById(`sch_${channel_idx}:duration`).value;
@@ -1699,11 +1735,10 @@ function duration_changed_ev(evt) {
 
 function delete_schedule_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
-    post_schedule_update(channel_idx, 0, 0);
+    post_schedule_update(channel_idx, 0, 0,-1);
     document.getElementById(`sch_${channel_idx}:delete`).disabled = true;
     document.getElementById(`sch_${channel_idx}:start`).value = -1;
     setTimeout(function () { update_status(false); }, 1000); //update UI
-
 }
 
 //TODO: refaktoroi myös muut
@@ -2139,8 +2174,6 @@ function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0
 
 
 function populate_profile_select(selEl, profile_id = -1) {
-    
-  
    // console.log("populate_profile_select:" + channel_profiles.length);
     if (selEl.options && selEl.options.length <= 1) {
         if (selEl.length == 0)
@@ -2322,11 +2355,11 @@ function populate_channel(channel_idx) {
     current_duration_minute = 0;
     current_start_ts = 0;
     has_forced_setting = false;
-    if ((ch_cur.force_up_until > now_ts)) {
+    if ((ch_cur.force_state_until > now_ts)) {
         has_forced_setting = true;
     }
-    if ((ch_cur.force_up_from > now_ts)) {
-        current_start_ts = ch_cur.force_up_from;
+    if ((ch_cur.force_state_from > now_ts)) {
+        current_start_ts = ch_cur.force_state_from;
     }
     //color
     document.getElementById(`sch_${channel_idx}:title`).style.color = ch_cur["channel_color"];
@@ -2743,6 +2776,7 @@ function create_channels() {
         channel_type_ctrl = document.getElementById(`ch_${channel_idx}:type`);
         //  console.log(`ch_${channel_idx}:type`);
         var locked = g_settings.ch[channel_idx].locked;
+        var ch_cur = g_settings.ch[channel_idx];
         // add right type to select list, right captions/texts
         for (var i = 0; i < g_application.channel_types.length; i++) {
             var type_name = g_application.channel_types[i].name;
@@ -2758,7 +2792,13 @@ function create_channels() {
             if ((locked && internal_relay) || ( !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
                 addOption(channel_type_ctrl, type_id, type_name, (g_settings.ch[channel_idx]["type"] == type_id));
         }
-
+            
+        
+        if (is_relay_profile_used(ch_cur["type"])) {
+            populate_profile_select(document.getElementById(`sch_${channel_idx}:profile`));
+            document.getElementById(`sch_${channel_idx}:profilecol`).classList.remove("d-none");
+        }
+        
         sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
         if (channel_idx < (g_settings.ch.length)) { // we should have data
             //initiate rule structure
@@ -2783,8 +2823,8 @@ function create_channels() {
             // schedule controls
             remove_select_options(sch_duration_sel);
             if (g_settings.ch[channel_idx]["type"] != 0) { // only if relay defined
-                for (i = 0; i < force_up_mins.length; i++) {
-                    min_cur = force_up_mins[i];
+                for (i = 0; i < force_state_minutes.length; i++) {
+                    min_cur = force_state_minutes[i];
                     // duration_str = pad_to_2digits(parseInt(min_cur / 60)) + ":" + pad_to_2digits(parseInt(min_cur % 60));
                     duration_str = ts_duration_str(min_cur * 60, false);
                     addOption(sch_duration_sel, min_cur, duration_str, min_cur == 60); //check checked
