@@ -230,6 +230,8 @@ const char *host_fcst_fmi PROGMEM = "cdn.fmi.fi";
 
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *fmi_ca_filename PROGMEM = "/data/GEANTOVRSACA4.cer";
+const char *elering_ca_filename PROGMEM = "/data/GTS_Root_R4.pem";
+
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
 // #define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
@@ -5997,7 +5999,16 @@ bool get_price_data_elering()
   time_t ts_max = 0;
   long prices_local[MAX_PRICE_PERIODS];
 
-  client_https.setCACert(letsencrypt_ca_certificate);
+  //client_https.setCACert(letsencrypt_ca_certificate);
+  if (!FILESYSTEM.exists(elering_ca_filename))
+  {
+    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Certificate file is missing."));
+    return false;
+  }
+
+  String ca_cert = FILESYSTEM.open(elering_ca_filename, "r").readString();
+  client_https.setCACert(ca_cert.c_str());
+
 
   client_https.setTimeout(15); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
