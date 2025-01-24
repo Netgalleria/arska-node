@@ -119,7 +119,6 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #endif
 
-
 #define MDNS_ENABLED_NOT
 #ifdef MDNS_ENABLED
 #include <mdns.h>
@@ -616,8 +615,9 @@ typedef struct
   char influx_org[30];
   char influx_bucket[20];
 #endif
-  uint32_t baseload; //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
-  uint32_t pv_power; //!<
+  uint32_t baseload;      //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
+  uint32_t pv_power;      //!<
+  bool disable_ca_checks; //!< If true client does not check server identity with certificates.
 #ifdef LOAD_MGMT_ENABLED
   bool load_manager_active;                    //!< //
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
@@ -3327,7 +3327,6 @@ bool wg_handshake(bool force_reconnect = true)
     return false;
   }
 
-
   last_wg_handshake = millis();
   if (s.wg_expires < time(nullptr))
   {
@@ -3341,20 +3340,21 @@ bool wg_handshake(bool force_reconnect = true)
     }
     return false;
   }
-    yield();
+  yield();
 
-  //time_t now_infunc = time(nullptr);
-  //localtime_r(&now_infunc, &tm_struct);
-  // snprintf(date_str, sizeof(date_str), "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
+  // time_t now_infunc = time(nullptr);
+  // localtime_r(&now_infunc, &tm_struct);
+  //  snprintf(date_str, sizeof(date_str), "%04d-%02d-%02dT%02d:%02d:%02d", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min, tm_struct.tm_sec);
 
   int wg_peer_idx = get_peer_idx(s.wg_peer_id);
-  if (wg_peer_idx==0) {
+  if (wg_peer_idx == 0)
+  {
     wg_status = REMOTE_STATUS_INVALID_PARAMS;
     return false;
   }
 
   bool test_ok = test_host(IPAddress(wg_peers[wg_peer_idx].gw_ip), 2);
-  
+
   yield();
 
   if (!wg.is_initialized() || !test_ok)
@@ -4544,20 +4544,26 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
   }
 
-  if (!FILESYSTEM.exists(fmi_ca_filename))
+  if (s.disable_ca_checks)
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Certificate file is missing."));
-    return false;
+    Serial.println(F("Connecting FMI without CA check."));
+    client_https.setInsecure();
   }
-
-  String ca_cert = FILESYSTEM.open(fmi_ca_filename, "r").readString();
-
-  client_https.setCACert(ca_cert.c_str());
+  else
+  {
+    if (!FILESYSTEM.exists(fmi_ca_filename))
+    {
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Certificate file is missing."));
+      return false;
+    }
+    String ca_cert = FILESYSTEM.open(fmi_ca_filename, "r").readString();
+    client_https.setCACert(ca_cert.c_str());
+  }
 
   client_https.setTimeout(5); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
   yield();
-  Serial.println(F("Connecting FMI with CA check."));
+
   Serial.println(host_fcst_fmi);
   delay(1000);
 
@@ -4921,20 +4927,26 @@ bool get_price_data_entsoe()
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
-  if (!FILESYSTEM.exists(entsoe_ca_filename))
+
+  if (s.disable_ca_checks)
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
-    return false;
+    Serial.println(F("Connecting Entso-E without CA check."));
+    client_https.setInsecure();
   }
-
-  String ca_cert = FILESYSTEM.open(entsoe_ca_filename, "r").readString();
-  client_https.setCACert(ca_cert.c_str());
-
+  else
+  {
+    if (!FILESYSTEM.exists(entsoe_ca_filename))
+    {
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
+      return false;
+    }
+    String ca_cert = FILESYSTEM.open(entsoe_ca_filename, "r").readString();
+    client_https.setCACert(ca_cert.c_str());
+    Serial.println(F("Connecting  Entso-E  with CA check."));
+  }
   client_https.setTimeout(15); // was 5,15 Seconds
   client_https.setHandshakeTimeout(15);
   delay(1000);
-
-  Serial.println(F("Connecting with CA check."));
 
   if (!client_https.connect(host_prices, httpsPort))
   {
@@ -5021,9 +5033,8 @@ bool get_price_data_entsoe()
       // prepare for Entso-E missing data points
       for (int i = 0; i < prices2.n(); i++)
       {
-        //prices2.set(period_start + i * PRICE_RESOLUTION_SEC, VARIABLE_LONG_MISSING);
-        prices2.set_by_pos(i,VARIABLE_LONG_MISSING);
-
+        // prices2.set(period_start + i * PRICE_RESOLUTION_SEC, VARIABLE_LONG_MISSING);
+        prices2.set_by_pos(i, VARIABLE_LONG_MISSING);
       }
 
       record_start = record_end_excl - (PRICE_RESOLUTION_SEC * MAX_PRICE_PERIODS);
@@ -5999,22 +6010,29 @@ bool get_price_data_elering()
   time_t ts_max = 0;
   long prices_local[MAX_PRICE_PERIODS];
 
-  //client_https.setCACert(letsencrypt_ca_certificate);
-  if (!FILESYSTEM.exists(elering_ca_filename))
+  if (s.disable_ca_checks)
   {
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Certificate file is missing."));
-    return false;
+    Serial.println(F("Connecting Elering without CA check."));
+    client_https.setInsecure();
   }
+  else
+  {
 
-  String ca_cert = FILESYSTEM.open(elering_ca_filename, "r").readString();
-  client_https.setCACert(ca_cert.c_str());
+    if (!FILESYSTEM.exists(elering_ca_filename))
+    {
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Certificate file is missing."));
+      return false;
+    }
 
+    String ca_cert = FILESYSTEM.open(elering_ca_filename, "r").readString();
+    client_https.setCACert(ca_cert.c_str());
+    Serial.println(F("Connecting Elering with CA check."));
+  }
 
   client_https.setTimeout(15); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
 
   yield();
-  Serial.println(F("Connecting Elering with CA check."));
 
   if (!client_https.connect(host_prices_elering, httpsPort))
   {
@@ -6047,7 +6065,6 @@ bool get_price_data_elering()
 
   client_https.setTimeout(15); // was 15 Seconds
   delay(1000);
-  Serial.println(F("Connecting Elering with CA check."));
 
   /// api/nps/price/csv?start=2020-05-31T20%3A59%3A59.999Z&end=2020-06-30T20%3A59%3A59.999Z&fields=fi
   snprintf(url, sizeof(url), "/api/nps/price/csv?start=%s&end=%s&fields=%s", date_str_start, date_str_end, country_code);
@@ -6188,7 +6205,16 @@ bool get_releases()
   }
 
   WiFiClientSecure client_https;
-  client_https.setCACert(letsencrypt_ca_certificate);
+
+  if (s.disable_ca_checks)
+  {
+    Serial.println(F("Connecting Arska install site without CA check."));
+    client_https.setInsecure();
+  }
+  else
+  {
+    client_https.setCACert(letsencrypt_ca_certificate);
+  }
   if (!client_https.connect(RELEASES_HOST, 443))
   {
     Serial.println(F("Cannot get release info from the firmware site."));
@@ -6256,7 +6282,17 @@ t_httpUpdate_return update_program()
 
   WiFiClientSecure client_https;
   Serial.println("update_program");
-  client_https.setCACert(letsencrypt_ca_certificate);
+
+  if (s.disable_ca_checks)
+  {
+    Serial.println(F("Connecting Arska install site without CA check."));
+    client_https.setInsecure();
+  }
+  else
+  {
+    client_https.setCACert(letsencrypt_ca_certificate);
+  }
+
   client_https.setTimeout(15); // timeout for SSL fetch
   String file_to_download = "/arska-install/files/" + String(HWID) + "/" + update_release_selected + "/firmware.bin";
   Serial.println(file_to_download);
@@ -6566,6 +6602,8 @@ void reset_config()
   strcpy(s.mdns_id, "arska");
 #endif
 
+  s.disable_ca_checks = false;
+
 #ifdef LOAD_MGMT_ENABLED
   s.load_manager_active = false;
   s.load_manager_phase_count = 3;
@@ -6718,6 +6756,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["production_meter_id"] = s.production_meter_id;
   }
 
+  doc["disable_ca_checks"] = s.disable_ca_checks;
 #ifdef LOAD_MGMT_ENABLED
   doc["load_manager_active"] = s.load_manager_active;
   doc["load_manager_phase_count"] = s.load_manager_phase_count;
@@ -6985,6 +7024,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
   s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
 
+  s.disable_ca_checks = ajson_bool_get(doc, (char *)"disable_ca_checks", s.disable_ca_checks);
 #ifdef LOAD_MGMT_ENABLED
   s.load_manager_active = ajson_bool_get(doc, (char *)"load_manager_active", s.load_manager_active);
   s.load_manager_phase_count = ajson_int_get(doc, (char *)"load_manager_phase_count", s.load_manager_phase_count);
@@ -8015,10 +8055,13 @@ void setup()
   todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
+  Serial.println("Temporary delay- remove");
+  delay(10000);
 
   // tweak for Lilygo esp32s3 6ch rev 1.1
-// #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
-  if (s.hw_template_id == 8) {
+  // #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
+  if (s.hw_template_id == 8)
+  {
     pinMode(4, OUTPUT);
     digitalWrite(4, LOW);
   }
