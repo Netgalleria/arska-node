@@ -1785,6 +1785,7 @@ function load_application_config() {
     });
 
     //Add UI price area fields to enable Elering price query
+    /* Deprecated, Elering will be backup for EE,FI,LV,LT
     if (g_price_elering_enabled) {
         var price_area_ctrl = document.getElementById("entsoe_area_code");
         price_area_ctrl.options.add(new Option("Price source ENTSO-E", "entsoe"), price_area_ctrl.options[1]);
@@ -1807,6 +1808,7 @@ function load_application_config() {
         var info_span = document.getElementById("price_data:info");
         info_span.innerHTML = info_span.innerHTML + " Elering provides price data for Estonia, Finland, Lithuania and Latvia without an API key."
     }
+    */
 
     document.getElementById("energy_meter_type").addEventListener(
         "change",

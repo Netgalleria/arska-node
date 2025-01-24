@@ -149,7 +149,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10105 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10106 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -851,7 +851,10 @@ bool set_netting_source();
 
 // *** Application Interface Functions
 // * Get data from external sources
-bool get_price_data_elering();
+bool get_backup_country_code(const char *entsoe_country_code, char *backup_country_code);
+bool get_entsoe_country_code(const char *backup_country_code, char *entsoe_country_code);
+bool get_price_data_elering(char *country_code);
+
 bool get_price_data_entsoe();
 // bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series);
 
@@ -3015,6 +3018,18 @@ void readFromEEPROM()
   s.wg_private_key[MAX_WG_KEY_LENGTH - 1] = '\0'; // null termination
 #endif
 
+#ifdef PRICE_ELERING_ENABLED
+  // convert old Elering codes to EntsoE codes,
+  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+  {
+    Serial.printf(PSTR("Converting Elering country code %s -> "), &s.entsoe_area_code[8]);
+    get_entsoe_country_code(&s.entsoe_area_code[8], s.entsoe_area_code);
+    Serial.println(s.entsoe_area_code);
+    writeToEEPROM();
+  }
+
+#endif
+
   set_netting_source();
 
   ch_prio_sort(); // experimental, keep sorted channel array up to date
@@ -4360,10 +4375,10 @@ void calculate_price_rank_variables()
   }
   else if (prices_expires_ts + SECONDS_IN_HOUR * 1 < now_infunc)
   {
-    if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
+  //  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+  //    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
+  //  else
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E or Elering. Check availability from https://transparency.entsoe.eu/."));
   }
 
   localtime_r(&current_period_start_ts, &tm_struct_l);
@@ -4570,11 +4585,11 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   if (!client_https.connect(host_fcst_fmi, httpsPort))
   {
     int err;
-    char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
+    char error_buf[80];
+    err = client_https.lastError(error_buf, sizeof(error_buf) - 11);
     if (err != 0)
     {
-      strncat(error_buf, "(connecting FMI)", sizeof(error_buf) - strlen(error_buf));
+      strncat(error_buf, "(FMI)", sizeof(error_buf) - strlen(error_buf));
       log_msg(MSG_TYPE_ERROR, error_buf);
     }
     else
@@ -4951,11 +4966,11 @@ bool get_price_data_entsoe()
   if (!client_https.connect(host_prices, httpsPort))
   {
     int err;
-    char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
+    char error_buf[80];
+    err = client_https.lastError(error_buf, sizeof(error_buf)-11);
     if (err != 0)
     {
-      strncat(error_buf, "(connecting Entso-E)", sizeof(error_buf) - strlen(error_buf));
+      strncat(error_buf, "(Entso-E)", sizeof(error_buf) - strlen(error_buf));
       log_msg(MSG_TYPE_ERROR, error_buf);
     }
     else
@@ -5977,7 +5992,41 @@ void set_relays(bool grid_protection_delay_used)
 }
 
 #ifdef PRICE_ELERING_ENABLED
-bool get_price_data_elering()
+#define ELERING_CC_COUNT 4
+struct elering_cc_st
+{
+  char entsoe_country_code[17]; //!< identifier used in data structures
+  char elering_country_code[3];
+};
+
+const elering_cc_st elering_ccs[ELERING_CC_COUNT] =
+    {{"10Y1001A1001A39I", "ee"},
+     {"10YFI-1--------U", "fi"},
+     {"10YLV-1001A00074", "lv"},
+     {"10YLT-1001A0008Q", "lt"}};
+
+bool get_backup_country_code(const char *entsoe_country_code, char *backup_country_code)
+{
+  for (int i = 0; i < ELERING_CC_COUNT; i++)
+    if (strcmp(elering_ccs[i].entsoe_country_code, entsoe_country_code) == 0)
+    {
+      strcpy(backup_country_code, elering_ccs[i].elering_country_code);
+      return true;
+    }
+  return false;
+}
+bool get_entsoe_country_code(const char *backup_country_code, char *entsoe_country_code)
+{
+  for (int i = 0; i < ELERING_CC_COUNT; i++)
+    if (strcmp(elering_ccs[i].elering_country_code, backup_country_code) == 0)
+    {
+      strcpy(entsoe_country_code, elering_ccs[i].entsoe_country_code);
+      return true;
+    }
+  return false;
+}
+
+bool get_price_data_elering(char *country_code)
 {
   Serial.printf("get_price_data_elering \n");
 #ifdef NVS_CACHE_ENABLED
@@ -5992,8 +6041,8 @@ bool get_price_data_elering()
 
   WiFiClientSecure client_https;
   char url[120];
-  char country_code[3];
-  strncpy(country_code, &s.entsoe_area_code[8], 3);
+  // char country_code[3];
+  // strncpy(country_code, &s.entsoe_area_code[8], 3);
   Serial.printf("Elering country code: %s\n", country_code);
 
   time_t start_ts, end_ts; // this is the epoch
@@ -6037,11 +6086,11 @@ bool get_price_data_elering()
   if (!client_https.connect(host_prices_elering, httpsPort))
   {
     int err;
-    char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
+    char error_buf[80];
+    err = client_https.lastError(error_buf, sizeof(error_buf) - 11);
     if (err != 0)
     {
-      strncat(error_buf, "(connecting Elering)", sizeof(error_buf) - strlen(error_buf));
+      strncat(error_buf, "(Elering)", sizeof(error_buf) - strlen(error_buf));
       log_msg(MSG_TYPE_ERROR, error_buf);
     }
     else
@@ -8630,6 +8679,22 @@ void loop()
     }
     else
     {
+
+      // NEW WAY
+      got_price_ok = get_price_data_entsoe();
+#ifdef PRICE_ELERING_ENABLED
+      char backup_country_code[3];
+      delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+      if (!got_price_ok && get_backup_country_code(s.entsoe_area_code, backup_country_code))
+      {
+        got_price_ok = get_price_data_elering(backup_country_code);
+        if (got_price_ok) {
+              log_msg(MSG_TYPE_INFO, PSTR("Got price data from secondary source Elering (EE,FI,LV,LT)."));
+        }
+
+      }
+#endif
+/*
 #ifdef PRICE_ELERING_ENABLED
       if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
         got_price_ok = get_price_data_elering();
@@ -8638,6 +8703,8 @@ void loop()
 #else
       got_price_ok = get_price_data_entsoe();
 #endif
+*/
+
       delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     }
     io_tasks(STATE_PROCESSING);
