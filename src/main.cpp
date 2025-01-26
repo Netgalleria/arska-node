@@ -103,6 +103,8 @@ RTC_PCF8563 rtc;
 
 // experimental remote connection, WiP
 #define REMOTE_ENABLED_NOT
+#define MDNS_ENABLED_NOT
+
 #ifdef REMOTE_ENABLED
 #define MAX_WG_KEY_LENGTH 45
 #define MAX_WG_HOST_LENGTH 20
@@ -119,7 +121,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #endif
 
-#define MDNS_ENABLED_NOT
+
 #ifdef MDNS_ENABLED
 #include <mdns.h>
 #define MAX_MDNS_ID_LENGTH 11
@@ -149,7 +151,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10106 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10108 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -6365,6 +6367,7 @@ t_httpUpdate_return update_fs()
   if (update_ok == HTTP_UPDATE_FAILED)
   {
     Serial.println(F("Filesystem update failed!"));
+    FILESYSTEM.begin(); //remount
     return update_ok;
   }
   if (update_ok == HTTP_UPDATE_OK)
@@ -7022,7 +7025,10 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.wg_peer_id = ajson_int_get(doc, (char *)"wg_peer_id", s.wg_peer_id);
   s.wg_local_ip = ajson_ip_get(doc, (char *)"wg_local_ip", s.wg_local_ip);
   ajson_str_to_mem(doc, (char *)"wg_private_key", s.wg_private_key, sizeof(s.wg_private_key));
-
+  
+  //settings file
+  s.wg_expires = ajson_int_get(doc, (char *)"wg_expires", s.wg_expires);
+  // relative from UI
   wg_connection_expires_rel = ajson_int_get(doc, (char *)"wg_connection_expires_rel", wg_connection_expires_rel);
   // Serial.print("wg_connection_expires_rel:");
   // Serial.println(wg_connection_expires_rel);
@@ -8080,8 +8086,6 @@ void setup()
   todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
-  Serial.println("Temporary delay- remove");
-  delay(10000);
 
   // tweak for Lilygo esp32s3 6ch rev 1.1
   // #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
