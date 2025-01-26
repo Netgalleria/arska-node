@@ -4375,10 +4375,10 @@ void calculate_price_rank_variables()
   }
   else if (prices_expires_ts + SECONDS_IN_HOUR * 1 < now_infunc)
   {
-  //  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-  //    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
-  //  else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E or Elering. Check availability from https://transparency.entsoe.eu/."));
+    //  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+    //    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
+    //  else
+    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get prices from Entso-E or Elering. Check https://transparency.entsoe.eu/."));
   }
 
   localtime_r(&current_period_start_ts, &tm_struct_l);
@@ -4526,6 +4526,57 @@ char in_buffer[2048]; // common buffer for multi chunk response and multiline in
 #define FORECAST_TYPE_FI_LOCAL_SOLAR 1
 #define FORECAST_TYPE_FI_WIND 2
 
+char error_msg_buf[80];
+
+bool setCACertificate(WiFiClientSecure *client_https_p,const char *ca_str, const char *ca_file_name, const char *unit_str,bool disable_ca_check)
+{
+  if (disable_ca_check)
+  {
+    Serial.println(F("Connecting without CA check."));
+    client_https_p->setInsecure();
+    return true;
+  }
+
+  if (ca_str) {
+      client_https_p->setCACert(ca_str);
+      return true;
+  }
+  if (!FILESYSTEM.exists(ca_file_name))
+  {
+    sprintf(error_msg_buf, PSTR("%s: Cannot connect to server. Certificate file is missing."),unit_str);
+    log_msg(MSG_TYPE_ERROR, error_msg_buf);
+    return false;
+  }
+  File ca_file = FILESYSTEM.open(ca_file_name, "r");
+  String ca_cert = ca_file.readString();
+  client_https_p->setCACert(ca_cert.c_str());
+  ca_file.close();
+  return true;
+}
+
+bool connect_https_with_check(WiFiClientSecure *client_https_p, const char *host, const int port, const char *unit_str)
+{
+  yield();
+  if (client_https_p->connect(host, port)) {
+    yield();
+    return true;
+  }
+  else
+  {
+    int err;
+    sprintf(error_msg_buf, "%s: ",unit_str);
+    err = client_https_p->lastError(&error_msg_buf[strlen(error_msg_buf)], sizeof(error_msg_buf) - 1);
+    if (err == 0)
+    {
+      sprintf(error_msg_buf, "%s: Cannot connect to server.", unit_str);
+    }
+    log_msg(MSG_TYPE_ERROR, error_msg_buf);
+    client_https_p->stop();
+    return false;
+  }
+  
+}
+
 /**
  * @brief Get the solar forecast from FMI open data.
  *
@@ -4559,22 +4610,9 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
   }
 
-  if (s.disable_ca_checks)
-  {
-    Serial.println(F("Connecting FMI without CA check."));
-    client_https.setInsecure();
-  }
-  else
-  {
-    if (!FILESYSTEM.exists(fmi_ca_filename))
-    {
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Certificate file is missing."));
+    if (!setCACertificate(&client_https, nullptr,fmi_ca_filename, "FMI",s.disable_ca_checks))
       return false;
-    }
-    String ca_cert = FILESYSTEM.open(fmi_ca_filename, "r").readString();
-    client_https.setCACert(ca_cert.c_str());
-  }
-
+  
   client_https.setTimeout(5); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
   yield();
@@ -4582,21 +4620,10 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   Serial.println(host_fcst_fmi);
   delay(1000);
 
-  if (!client_https.connect(host_fcst_fmi, httpsPort))
-  {
-    int err;
-    char error_buf[80];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 11);
-    if (err != 0)
-    {
-      strncat(error_buf, "(FMI)", sizeof(error_buf) - strlen(error_buf));
-      log_msg(MSG_TYPE_ERROR, error_buf);
-    }
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Quitting forecast query."));
-    client_https.stop();
+
+  if (!connect_https_with_check(&client_https, host_fcst_fmi, httpsPort, "FMI"))
     return false;
-  }
+
   yield();
 
   if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
@@ -4943,41 +4970,17 @@ bool get_price_data_entsoe()
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
 
-  if (s.disable_ca_checks)
-  {
-    Serial.println(F("Connecting Entso-E without CA check."));
-    client_https.setInsecure();
-  }
-  else
-  {
-    if (!FILESYSTEM.exists(entsoe_ca_filename))
-    {
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
-      return false;
-    }
-    String ca_cert = FILESYSTEM.open(entsoe_ca_filename, "r").readString();
-    client_https.setCACert(ca_cert.c_str());
-    Serial.println(F("Connecting  Entso-E  with CA check."));
-  }
+ 
+  if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E",s.disable_ca_checks))
+    return false;
+    
+ 
   client_https.setTimeout(15); // was 5,15 Seconds
   client_https.setHandshakeTimeout(15);
   delay(1000);
 
-  if (!client_https.connect(host_prices, httpsPort))
-  {
-    int err;
-    char error_buf[80];
-    err = client_https.lastError(error_buf, sizeof(error_buf)-11);
-    if (err != 0)
-    {
-      strncat(error_buf, "(Entso-E)", sizeof(error_buf) - strlen(error_buf));
-      log_msg(MSG_TYPE_ERROR, error_buf);
-    }
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Quitting price query."));
-    client_https.stop();
-    return false;
-  }
+   if (!connect_https_with_check(&client_https, host_prices, httpsPort, "Entso-E"))
+     return false;
   char url[220];
   snprintf(url, sizeof(url), "%s&securityToken=%s&In_Domain=%s&Out_Domain=%s&periodStart=%s&periodEnd=%s", url_base, s.entsoe_api_key, s.entsoe_area_code, s.entsoe_area_code, date_str_start, date_str_end);
   Serial.print("requesting URL: ");
@@ -6059,45 +6062,17 @@ bool get_price_data_elering(char *country_code)
   time_t ts_max = 0;
   long prices_local[MAX_PRICE_PERIODS];
 
-  if (s.disable_ca_checks)
-  {
-    Serial.println(F("Connecting Elering without CA check."));
-    client_https.setInsecure();
-  }
-  else
-  {
-
-    if (!FILESYSTEM.exists(elering_ca_filename))
-    {
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Certificate file is missing."));
+  if (!setCACertificate(&client_https, nullptr,elering_ca_filename, "Elering",s.disable_ca_checks))
       return false;
-    }
-
-    String ca_cert = FILESYSTEM.open(elering_ca_filename, "r").readString();
-    client_https.setCACert(ca_cert.c_str());
-    Serial.println(F("Connecting Elering with CA check."));
-  }
 
   client_https.setTimeout(15); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
 
   yield();
 
-  if (!client_https.connect(host_prices_elering, httpsPort))
-  {
-    int err;
-    char error_buf[80];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 11);
-    if (err != 0)
-    {
-      strncat(error_buf, "(Elering)", sizeof(error_buf) - strlen(error_buf));
-      log_msg(MSG_TYPE_ERROR, error_buf);
-    }
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Quitting price query."));
-    client_https.stop();
-    return false;
-  }
+   if (!connect_https_with_check(&client_https, host_prices_elering, httpsPort, "Elering"))
+     return false;
+
   yield();
 
   start_ts = time(nullptr) - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
@@ -6262,7 +6237,8 @@ bool get_releases()
   }
   else
   {
-    client_https.setCACert(letsencrypt_ca_certificate);
+    setCACertificate(&client_https, letsencrypt_ca_certificate, nullptr, "Firmware", s.disable_ca_checks);
+
   }
   if (!client_https.connect(RELEASES_HOST, 443))
   {
@@ -6339,7 +6315,7 @@ t_httpUpdate_return update_program()
   }
   else
   {
-    client_https.setCACert(letsencrypt_ca_certificate);
+   setCACertificate(&client_https, letsencrypt_ca_certificate, nullptr, "Firmware", s.disable_ca_checks);
   }
 
   client_https.setTimeout(15); // timeout for SSL fetch
@@ -8688,22 +8664,12 @@ void loop()
       if (!got_price_ok && get_backup_country_code(s.entsoe_area_code, backup_country_code))
       {
         got_price_ok = get_price_data_elering(backup_country_code);
-        if (got_price_ok) {
-              log_msg(MSG_TYPE_INFO, PSTR("Got price data from secondary source Elering (EE,FI,LV,LT)."));
+        if (got_price_ok)
+        {
+          log_msg(MSG_TYPE_INFO, PSTR("Got price data from secondary source Elering (EE,FI,LV,LT)."));
         }
-
       }
 #endif
-/*
-#ifdef PRICE_ELERING_ENABLED
-      if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-        got_price_ok = get_price_data_elering();
-      else
-        got_price_ok = get_price_data_entsoe();
-#else
-      got_price_ok = get_price_data_entsoe();
-#endif
-*/
 
       delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     }
