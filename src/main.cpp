@@ -68,6 +68,7 @@ char version_fs[45];
 String version_fs_base;     //= "";
 uint8_t now_updating = 255; // could be included in /application query and outputted to /update page
 
+char ca_cert_buffer[3000];
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
@@ -4530,7 +4531,7 @@ char in_buffer[2048]; // common buffer for multi chunk response and multiline in
 
 char error_msg_buf[80];
 
-bool setCACertificate(WiFiClientSecure *client_https_p,const char *ca_str, const char *ca_file_name, const char *unit_str,bool disable_ca_check)
+bool setCACertificate(WiFiClientSecure *client_https_p, const char *ca_str, const char *ca_file_name, const char *unit_str, bool disable_ca_check)
 {
   if (disable_ca_check)
   {
@@ -4539,34 +4540,43 @@ bool setCACertificate(WiFiClientSecure *client_https_p,const char *ca_str, const
     return true;
   }
 
-  if (ca_str) {
-      client_https_p->setCACert(ca_str);
-      return true;
+  if (ca_str)
+  {
+    client_https_p->setCACert(ca_str);
+    return true;
   }
   if (!FILESYSTEM.exists(ca_file_name))
   {
-    sprintf(error_msg_buf, PSTR("%s: Cannot connect to server. Certificate file is missing."),unit_str);
+    sprintf(error_msg_buf, PSTR("%s: Cannot connect to server. Certificate file is missing."), unit_str);
     log_msg(MSG_TYPE_ERROR, error_msg_buf);
     return false;
   }
   File ca_file = FILESYSTEM.open(ca_file_name, "r");
-  String ca_cert = ca_file.readString();
-  client_https_p->setCACert(ca_cert.c_str());
+  // String ca_cert = ca_file.readString();
+  memset(ca_cert_buffer, 0, sizeof(ca_cert_buffer));
+
+  ca_file.readBytes(ca_cert_buffer, ca_file.size());
   ca_file.close();
+  client_https_p->setCACert(ca_cert_buffer);
+
+  // client_https_p->setCACert(ca_cert.c_str());
+  // client_https_p->setCACert(ca_file.readString().c_str());
+  // ca_file.close();
   return true;
 }
 
 bool connect_https_with_check(WiFiClientSecure *client_https_p, const char *host, const int port, const char *unit_str)
 {
   yield();
-  if (client_https_p->connect(host, port)) {
+  if (client_https_p->connect(host, port))
+  {
     yield();
     return true;
   }
   else
   {
     int err;
-    sprintf(error_msg_buf, "%s: ",unit_str);
+    sprintf(error_msg_buf, "%s: ", unit_str);
     err = client_https_p->lastError(&error_msg_buf[strlen(error_msg_buf)], sizeof(error_msg_buf) - 1);
     if (err == 0)
     {
@@ -4576,7 +4586,6 @@ bool connect_https_with_check(WiFiClientSecure *client_https_p, const char *host
     client_https_p->stop();
     return false;
   }
-  
 }
 
 /**
@@ -4612,7 +4621,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
   }
 
-    if (!setCACertificate(&client_https, nullptr,fmi_ca_filename, "FMI",s.disable_ca_checks))
+  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
       return false;
   
   client_https.setTimeout(5); // was 15 Seconds
@@ -4621,7 +4630,6 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
 
   Serial.println(host_fcst_fmi);
   delay(1000);
-
 
   if (!connect_https_with_check(&client_https, host_fcst_fmi, httpsPort, "FMI"))
     return false;
@@ -4972,11 +4980,9 @@ bool get_price_data_entsoe()
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
 
- 
-  if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E",s.disable_ca_checks))
+  if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E", s.disable_ca_checks))
     return false;
     
- 
   client_https.setTimeout(15); // was 5,15 Seconds
   client_https.setHandshakeTimeout(15);
   delay(1000);
@@ -6064,7 +6070,7 @@ bool get_price_data_elering(char *country_code)
   time_t ts_max = 0;
   long prices_local[MAX_PRICE_PERIODS];
 
-  if (!setCACertificate(&client_https, nullptr,elering_ca_filename, "Elering",s.disable_ca_checks))
+  if (!setCACertificate(&client_https, nullptr, elering_ca_filename, "Elering", s.disable_ca_checks))
       return false;
 
   client_https.setTimeout(15); // was 15 Seconds
