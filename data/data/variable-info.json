@@ -280,8 +280,8 @@
     },
     "501": {
         "code": "grid utilisation",
-        "desc": "Utilization of grid during current period %",
-        "desc_fi": "Verkkokuormitus periodin aikana %",
+        "desc": "Load management, utilization of grid during current period %",
+        "desc_fi": "Kuormanhallinta, verkkokuormitus periodin aikana %",
         "min": 0,
         "max": 200
     },
