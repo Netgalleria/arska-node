@@ -681,7 +681,13 @@ function update_status(repeat) {
          
             if (data.energy_meter_read_last_ts > (new Date().getTime() / 1000) - 180) {
                 if (data.hasOwnProperty("energy_meter_current_latest")) {
-                    lm_info += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]  (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+                    lm_info += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]";
+                    if (!isNaN(data.variables[VARIABLE_SELLING_POWER])) {
+                        lm_info += ", avg " + (-data.variables[VARIABLE_SELLING_POWER]/1000).toFixed(2) + " kW";
+                    }
+                    lm_info +=  " (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+
+                    
                 }
                 if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
                     lm_info += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";

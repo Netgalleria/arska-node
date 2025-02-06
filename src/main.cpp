@@ -122,7 +122,6 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #endif
 
-
 #ifdef MDNS_ENABLED
 #include <mdns.h>
 #define MAX_MDNS_ID_LENGTH 11
@@ -152,7 +151,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10108 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10109 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -290,7 +289,7 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define CONFIG_JSON_SIZE_MAX 8192 // was 6144, 20.1.2024  bigger allocation to get all channel data
 
 /* Application variable constants */
-#define VARIABLE_COUNT 48
+#define VARIABLE_COUNT 49
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 #define VARIABLE_LONG_MISSING -2147483647 //!< variable with this value is undefined
 // do not change variable id:s (will broke statements)
@@ -344,6 +343,8 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define VARIABLE_WIND_AVG_DAY1B_FI 421
 #define VARIABLE_WIND_AVG_DAY2B_FI 422
 #define VARIABLE_SOLAR_RANK_FIXED_24 430
+
+#define  VARIABLE_LOADM_UTILIZED_POWER_PERIOD 501
 
 #define VARIABLE_NET_ESTIMATE_SOURCE 701 //!< 0-no estimate,1-grid measurement, 2-production measurement - baseload, 3-production estimate - baseload
 #define VARIABLE_NET_ESTIMATE_SOURCE_NONE 0L
@@ -624,7 +625,9 @@ typedef struct
 #ifdef LOAD_MGMT_ENABLED
   bool load_manager_active;                    //!< //
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
-  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
+  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) 
+  uint8_t load_manager_power_max;              //!< max total power in kW
+  uint8_t load_manager_options_rfu;              //!< bitmask for load manager options, reserved for future use
   uint16_t load_manager_reswitch_moratorium_m; //<!
 #endif
 #ifdef REMOTE_ENABLED
@@ -681,7 +684,7 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}  ,  {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
   int get_variable_index(int id);
 };
 
@@ -1246,7 +1249,7 @@ double energy_meter_cumulative_periodstart_out = 0; //!< Energy meter export val
 
 // Calculated values
 float energy_meter_power_netin = 0;    //!< Energy meter last, momentary power value
-float energy_meter_period_power_netin; // short/no history, using momentary value
+float energy_meter_period_power_netin; // avg power in withing period, W
 float energy_meter_period_netin = 0;   //< Netted incoming energy during this period
 
 // Energy meter read timestamps and counters
@@ -3430,18 +3433,21 @@ time_t load_manager_overload_last_ts = 0;
 
 void set_relays(bool grid_protection_delay_used); // defined later
 
-float load_manager_capacity = 0; // global
+float load_manager_capacity_a = 0; // global
 // returns available load in the most loaded phase, use energy_meter_current_latest[], update global
 float check_current_load()
 {
   int drop_count = 0;
-  load_manager_capacity = 9999;
+  load_manager_capacity_a = 9999;
   for (int i = 0; i < s.load_manager_phase_count; i++)
   {
-    load_manager_capacity = min(load_manager_capacity, (float)(s.load_manager_current_max - energy_meter_current_latest[i]));
+    load_manager_capacity_a = min(load_manager_capacity_a, (float)(s.load_manager_current_max - energy_meter_current_latest[i]));
   }
 
-  if (load_manager_capacity < 0)
+  //Total power based calculation,  balance period based average
+  load_manager_capacity_a = min(load_manager_capacity_a, (float)((s.load_manager_power_max * 1000 - energy_meter_period_power_netin) / s.load_manager_phase_count / WATTS_TO_AMPERES_FACTOR));
+
+  if (load_manager_capacity_a < 0)
   {
     Serial.println("System overload, do something, buy a new fuse...");
     load_manager_overload_last_ts = time(nullptr);
@@ -3463,8 +3469,8 @@ float check_current_load()
     }
     set_relays(false);
   }
-  // Serial.println(load_manager_capacity);
-  return load_manager_capacity;
+  // Serial.println(load_manager_capacity_a);
+  return load_manager_capacity_a;
 }
 
 #endif
@@ -3479,12 +3485,7 @@ void process_energy_meter_readings()
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
 
-#ifdef LOAD_MGMT_ENABLED
-  if (s.load_manager_active)
-  {
-    check_current_load();
-  }
-#endif
+
 
   // TODO: minify printout , maybe dtostrf(energy_meter_power_latest_in, 4, 2, str_temp);
   /*
@@ -3526,6 +3527,7 @@ void process_energy_meter_readings()
   // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_netin %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_netin);
 
   energy_meter_period_netin = (energy_meter_cumulative_latest_in - energy_meter_cumulative_latest_out - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
+  
   // debug anomalies
   if (abs(energy_meter_period_netin) > 100000)
   {
@@ -3539,6 +3541,19 @@ void process_energy_meter_readings()
     Serial.println(energy_meter_cumulative_periodstart_out);
   }
   energy_meter_period_power_netin = round(energy_meter_period_netin * 3600.0 / ((energy_meter_read_succesfully_ts - energy_meter_period_first_read_ts)));
+
+#ifdef LOAD_MGMT_ENABLED
+  if (s.load_manager_active)
+  {
+    check_current_load();
+  }
+  if (s.load_manager_power_max>0 && abs(energy_meter_period_power_netin)>0.1) {
+   vars.set(VARIABLE_LOADM_UTILIZED_POWER_PERIOD, (long)round(energy_meter_period_power_netin / s.load_manager_power_max / 10));
+  }
+
+  
+
+#endif
 
   vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_netin < 0) ? 1L : 0L);
   vars.set(VARIABLE_SELLING_POWER, (long)round(-energy_meter_period_power_netin));
@@ -4622,8 +4637,8 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   }
 
   if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
-      return false;
-  
+    return false;
+
   client_https.setTimeout(5); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
   yield();
@@ -4731,6 +4746,147 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   Serial.printf("get_renewable_forecast end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
+/* WiP, combined query
+bool get_renewable_forecast_fmi()
+{
+
+  timeSeries *time_series;
+  WiFiClientSecure client_https;
+  char fcst_url[120];
+  DynamicJsonDocument doc(4096);
+  unsigned long task_started;
+  bool actual_data;
+  // doc.garbageCollect();
+
+  Serial.printf("get_renewable_forecast start getFreeHeap: %d\n", (int)ESP.getFreeHeap());
+  if (strlen(s.forecast_loc) < 2)
+  {
+    Serial.println(F("FMI forecast location undefined. Quitting"));
+    return false;
+  }
+
+  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
+    return false;
+
+  client_https.setTimeout(5); // was 15 Seconds
+  client_https.setHandshakeTimeout(5);
+  yield();
+
+  Serial.println(host_fcst_fmi);
+  delay(1000);
+
+  if (!connect_https_with_check(&client_https, host_fcst_fmi, httpsPort, "FMI"))
+    return false;
+
+  yield();
+  // reset variables
+  for (uint8_t forecast_type = FORECAST_TYPE_FI_LOCAL_SOLAR; forecast_type <= FORECAST_TYPE_FI_WIND; forecast_type++)
+  {
+    if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
+    {
+      time_series = &solar_forecast;
+      time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
+      snprintf(fcst_url, sizeof(fcst_url), "/products/renewable-energy-forecasts/solar/%s/solar_%s_fi_latest.json", s.forecast_loc, s.forecast_loc);
+    }
+    else if (forecast_type == FORECAST_TYPE_FI_WIND)
+    {
+      time_series = &solar_forecast;
+      time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
+      snprintf(fcst_url, sizeof(fcst_url), "/products/renewable-energy-forecasts/wind/windpower_fi_latest.json");
+    }
+
+    Serial.printf("Requesting URL: %s\n", fcst_url);
+
+    client_https.print(String("GET ") + fcst_url + " HTTP/1.0\r\n" +
+                       "Host: " + host_fcst_fmi + "\r\n" +
+                       "User-Agent: ArskaNodeESP\r\n" +
+                       "Connection: close\r\n\r\n");
+
+     Serial.println("request sent");
+
+    // yield();
+    task_started = millis();
+    while (client_https.connected())
+    {
+      String lineh = client_https.readStringUntil('\n');
+      Serial.println(lineh);
+      if (lineh == "\r")
+      {
+        Serial.println("headers received");
+        break;
+      }
+      if (millis() - task_started > 10000)
+      {
+        Serial.println(PSTR("Timeout in receiving headers"));
+        client_https.stop();
+        return false;
+      }
+      yield();
+    }
+    Serial.println(F("Waiting the document"));
+    String line;
+
+    memset(in_buffer, 0, sizeof(in_buffer));
+    strcat(in_buffer, "[");
+    yield();
+    actual_data = false;
+
+    while (client_https.available() > 1) // last byte in the end causes an error message
+    {
+      line = read_http11_line(&client_https);
+      // Serial.println(line);
+      line.trim();
+      line.replace("000.0", ""); // timestamp millisec -> sec
+
+      if (line.indexOf("\"data\":") > -1) // process only node "data"
+        actual_data = true;
+      else if (actual_data)
+      {
+        // Serial.print("*");
+        strncat(in_buffer, (const char *)line.c_str(), sizeof(in_buffer) - strlen(in_buffer) - 2);
+        if ((line.indexOf("]") > -1) && (line.indexOf("],") == -1)) // data array ends
+        {
+          actual_data = false;
+          strcat(in_buffer, "]");
+        }
+      }
+    }
+    client_https.stop();
+    Serial.println("in_buffer:");
+    Serial.println(in_buffer);
+
+    DeserializationError error = deserializeJson(doc, in_buffer);
+    if (error)
+    {
+      Serial.print("deserializeJson() failed: ");
+      Serial.println(error.c_str());
+      return false;
+    }
+
+    time_t period;
+    float energy;
+
+    for (JsonArray elem : doc.as<JsonArray>())
+    {
+      period = (time_t)elem[0] - SECONDS_IN_HOUR; // The value represent previous hour, Anders Lindfors 3.5.2023
+      energy = elem[1];
+      if (energy > 0.001)
+      {
+        time_series->set(period, energy * 1000);
+      }
+    }
+    yield();
+  }
+  // Free resources
+  client_https.stop();
+
+  yield();
+  Serial.printf("get_renewable_forecast_fmi end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
+  delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+
+  return true;
+}
+*/
 // We keep the CA certificate in program code to avoid potential littlefs-hack
 // Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
 const char *letsencrypt_ca_certificate =
@@ -4982,13 +5138,13 @@ bool get_price_data_entsoe()
 
   if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E", s.disable_ca_checks))
     return false;
-    
+
   client_https.setTimeout(15); // was 5,15 Seconds
   client_https.setHandshakeTimeout(15);
   delay(1000);
 
-   if (!connect_https_with_check(&client_https, host_prices, httpsPort, "Entso-E"))
-     return false;
+  if (!connect_https_with_check(&client_https, host_prices, httpsPort, "Entso-E"))
+    return false;
   char url[220];
   snprintf(url, sizeof(url), "%s&securityToken=%s&In_Domain=%s&Out_Domain=%s&periodStart=%s&periodEnd=%s", url_base, s.entsoe_api_key, s.entsoe_area_code, s.entsoe_area_code, date_str_start, date_str_end);
   Serial.print("requesting URL: ");
@@ -5803,7 +5959,7 @@ void calculate_channel_states()
   bool forced_up;
   float current_capacity_available = 9999;
 #ifdef LOAD_MGMT_ENABLED
-  current_capacity_available = load_manager_capacity;
+  current_capacity_available = load_manager_capacity_a;
 #endif
   int channel_idx;
   // loop channels and check whether channel should be up
@@ -5988,7 +6144,7 @@ void set_relays(bool grid_protection_delay_used)
 
 #ifdef LOAD_MGMT_ENABLED
     // overload, drop all channels marked
-    if (load_manager_capacity < 0 && !(drop_rise == 0))
+    if (load_manager_capacity_a < 0 && !(drop_rise == 0))
       switchings_to_todo = drop_count;
 #endif
 
@@ -6071,15 +6227,15 @@ bool get_price_data_elering(char *country_code)
   long prices_local[MAX_PRICE_PERIODS];
 
   if (!setCACertificate(&client_https, nullptr, elering_ca_filename, "Elering", s.disable_ca_checks))
-      return false;
+    return false;
 
   client_https.setTimeout(15); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
 
   yield();
 
-   if (!connect_https_with_check(&client_https, host_prices_elering, httpsPort, "Elering"))
-     return false;
+  if (!connect_https_with_check(&client_https, host_prices_elering, httpsPort, "Elering"))
+    return false;
 
   yield();
 
@@ -6323,7 +6479,7 @@ t_httpUpdate_return update_program()
   }
   else
   {
-   setCACertificate(&client_https, letsencrypt_ca_certificate, nullptr, "Firmware", s.disable_ca_checks);
+    setCACertificate(&client_https, letsencrypt_ca_certificate, nullptr, "Firmware", s.disable_ca_checks);
   }
 
   client_https.setTimeout(15); // timeout for SSL fetch
@@ -6373,7 +6529,7 @@ t_httpUpdate_return update_fs()
   if (update_ok == HTTP_UPDATE_FAILED)
   {
     Serial.println(F("Filesystem update failed!"));
-    FILESYSTEM.begin(); //remount
+    FILESYSTEM.begin(); // remount
     return update_ok;
   }
   if (update_ok == HTTP_UPDATE_OK)
@@ -6642,6 +6798,7 @@ void reset_config()
   s.load_manager_active = false;
   s.load_manager_phase_count = 3;
   s.load_manager_current_max = 25;
+  s.load_manager_power_max = 17;
   s.load_manager_reswitch_moratorium_m = 5;
 #endif
   strcpy(s.forecast_loc, "#");
@@ -6795,6 +6952,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["load_manager_active"] = s.load_manager_active;
   doc["load_manager_phase_count"] = s.load_manager_phase_count;
   doc["load_manager_current_max"] = s.load_manager_current_max;
+  doc["load_manager_power_max"] = s.load_manager_power_max;
   doc["load_manager_reswitch_moratorium_m"] = s.load_manager_reswitch_moratorium_m;
 #endif
   doc["forecast_loc"] = s.forecast_loc;
@@ -7031,8 +7189,8 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.wg_peer_id = ajson_int_get(doc, (char *)"wg_peer_id", s.wg_peer_id);
   s.wg_local_ip = ajson_ip_get(doc, (char *)"wg_local_ip", s.wg_local_ip);
   ajson_str_to_mem(doc, (char *)"wg_private_key", s.wg_private_key, sizeof(s.wg_private_key));
-  
-  //settings file
+
+  // settings file
   s.wg_expires = ajson_int_get(doc, (char *)"wg_expires", s.wg_expires);
   // relative from UI
   wg_connection_expires_rel = ajson_int_get(doc, (char *)"wg_connection_expires_rel", wg_connection_expires_rel);
@@ -7066,6 +7224,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.load_manager_active = ajson_bool_get(doc, (char *)"load_manager_active", s.load_manager_active);
   s.load_manager_phase_count = ajson_int_get(doc, (char *)"load_manager_phase_count", s.load_manager_phase_count);
   s.load_manager_current_max = ajson_int_get(doc, (char *)"load_manager_current_max", s.load_manager_current_max);
+  s.load_manager_power_max = ajson_int_get(doc, (char *)"load_manager_power_max", s.load_manager_power_max);
   s.load_manager_reswitch_moratorium_m = ajson_int_get(doc, (char *)"load_manager_reswitch_moratorium_m", s.load_manager_reswitch_moratorium_m);
 #endif
 
@@ -8701,6 +8860,7 @@ void loop()
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+    // WiP: got_forecast_ok = get_renewable_forecast_fmi();
 
     todo_calculate_ranks_period_variables = true;
     next_query_fcst_data_ts = time(nullptr) + (got_forecast_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));
