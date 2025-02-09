@@ -731,7 +731,7 @@
                       <select id="energy_meter_type" class="form-select" aria-label="variable">
                         <option value="0">not in use</option>
                         <option value="1">Shelly 3 EM</option>
-                        <option value="2">Shelly Gen 2(test)</option>
+                        <option value="2">Shelly Gen 2 (no load management)</option>
                         <option value="5">HAN P1 Serial</option>
                         <option value="4">HAN P1 Proxy</option>
                       </select>
@@ -834,8 +834,7 @@
                     <h5 id="loadm:title" class="card-title">Load Management</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
                       <span class="text-muted">The load management will automatically switch off devices if measured
-                        current is over a limit. Applies to channels with a defined maximum load (load>0 W). Shelly Gen
-                        2 meters are not supported.</span>
+                        current per phase or total power is over the limits. Applies to channels with a defined maximum load (load>0 W). </span>
                     </div>
                   </div>
                   <div class="card-body">
