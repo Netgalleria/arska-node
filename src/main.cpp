@@ -892,7 +892,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned);
 // bool get_han_ts(String *strp, time_t *returned);
 bool get_han_ts(const char *strp, time_t *returned);
 // bool parse_han_row(String *row_in_p);
-bool parse_han_row(const char *row_in_p);
+bool parse_han_row(const char *row_in_p,bool *message_error);
 
 // * Json node values to memory
 bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length);
@@ -1233,8 +1233,8 @@ long int production_meter_read_last = 0;  //!< last succesfull inverter value
 // Energy meter globals
 // Values directly read from the meter
 time_t energy_meter_ts_latest;
-double energy_meter_cumulative_latest_in = 0;  //!< Energy meter last import value
-double energy_meter_cumulative_latest_out = 0; //!< Energy meter last export value
+volatile double energy_meter_cumulative_latest_in = 0;  //!< Energy meter last import value
+volatile double energy_meter_cumulative_latest_out = 0; //!< Energy meter last export value
 double energy_meter_power_latest_in = 0;
 double energy_meter_power_latest_out = 0;
 double energy_meter_current_latest[3] = {0, 0, 0};
@@ -1278,7 +1278,7 @@ bool todo_in_loop_update_firmware_partition = false;
 bool todo_in_loop_reapply_relay_states = false;
 bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters have been changed and r
 
-bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
+volatile bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 bool todo_in_loop_save_time_to_rtc = false;
 
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
@@ -3659,10 +3659,12 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
  */
 
 //  Char array based replacing String input version
-bool parse_han_row(const char *row_in_p)
+bool parse_han_row(const char *row_in_p,bool *message_error)
 {
   //  Serial.println(row_in_p);
   // return if time obis code found in the row
+  double value_read;
+  *message_error = false;
   if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
   if (strncmp(row_in_p, "1-0:", 4) != 0)
@@ -3674,20 +3676,35 @@ bool parse_han_row(const char *row_in_p)
   if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &value_read))
   {
-    if (energy_meter_cumulative_latest_in < 0.01)
+    if ((value_read < 0.01) || (energy_meter_cumulative_latest_in > value_read))
     {
+      *message_error = true;
       Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in %s ->", time(nullptr), row_in_p);
-      Serial.println(energy_meter_cumulative_latest_in);
+      Serial.println(value_read);
       return false;
     }
-    else
+    else {
+      energy_meter_cumulative_latest_in = value_read;
       return true;
+    }
   }
 
-  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
-    return true;
+  if (get_han_dbl(row_in_p, "1-0:2.8.0", &value_read))
+  {
+    if ( (energy_meter_value_previous_out > value_read))
+    {
+      *message_error = true;
+      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out %s ->", time(nullptr), row_in_p);
+      Serial.println(value_read);
+      return false;
+    }
+    else {
+      energy_meter_cumulative_latest_out = value_read;
+      return true;
+    }
+  }
 
   if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
     return true;
@@ -3719,18 +3736,22 @@ size_t han_available_bytes;
 bool receive_energy_meter_han_direct() // direct
 {
   han_value_count = 0;
+  bool message_error;
   // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
   // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   //{
   //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
   //}
 
+  if (todo_in_loop_process_energy_meter_readings)
+    return false; //old readings  still unprocessed
+
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
 
   // OR 31.5.24, added variable init
-  energy_meter_cumulative_latest_in = 0;
-  energy_meter_cumulative_latest_out = 0;
+  //energy_meter_cumulative_latest_in = 0;
+  //energy_meter_cumulative_latest_out = 0;
 
   if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
   {
@@ -3753,12 +3774,12 @@ bool receive_energy_meter_han_direct() // direct
       if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
         continue;
 
-      if (parse_han_row(row_buffer))
+      if (parse_han_row(row_buffer,&message_error))
       {
         han_value_count++;
       }
     }
-    if (han_value_count < 5)
+    if (han_value_count < 5 ||message_error ) //3 phase should have < 7
     {
       Serial.println("Cannot read all HAN P1 port values");
       xSemaphoreGive(xHAN_P1_Semaphore);
@@ -3797,6 +3818,7 @@ bool read_energy_meter_han_wifi()
   char url[90];
   snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
   Serial.println(url);
+  bool message_error;
 
   yield();
   String telegram = httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL);
@@ -3822,8 +3844,7 @@ bool read_energy_meter_han_wifi()
     row_in = telegram.substring(s_idx, e_idx);
     //  Serial.println(row_in);
 
-    // if (parse_han_row(&row_in))
-    if (parse_han_row(row_in.c_str()))
+    if (parse_han_row(row_in.c_str(),&message_error))
       value_count++;
     s_idx = e_idx + 1;
   }
