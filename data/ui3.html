@@ -481,7 +481,7 @@
                         Transparency Platform requires an API-key. <a target="_blank"
                           href="https://github.com/Netgalleria/arska-node/wiki/Settings">How to get
                           an ENTSO-E API
-                          key.</a></span>
+                          key.</a> Elering is a backup data source for EE, FI, LV and LT.</span>
                     </div>
                     <!--./chart-info-->
                   </div>
@@ -731,7 +731,7 @@
                       <select id="energy_meter_type" class="form-select" aria-label="variable">
                         <option value="0">not in use</option>
                         <option value="1">Shelly 3 EM</option>
-                        <option value="2">Shelly Gen 2(test)</option>
+                        <option value="2">Shelly Gen 2 (no load management)</option>
                         <option value="5">HAN P1 Serial</option>
                         <option value="4">HAN P1 Proxy</option>
                       </select>
@@ -834,8 +834,7 @@
                     <h5 id="loadm:title" class="card-title">Load Management</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
                       <span class="text-muted">The load management will automatically switch off devices if measured
-                        current is over a limit. Applies to channels with a defined maximum load (load>0 W). Shelly Gen
-                        2 meters are not supported.</span>
+                        current per phase or total power is over the limits. Applies to channels with a defined maximum load (load>0 W). </span>
                     </div>
                   </div>
                   <div class="card-body">
@@ -854,6 +853,11 @@
                     <div class="mb-2">
                       <label for="load_manager_current_max" class="form-label">Max phase current (A)</label>
                       <input id="load_manager_current_max" type="number" class="form-control" placeholder="25" min="0"
+                        step="1" max="255">
+                    </div>
+                    <div class="mb-2">
+                      <label for="load_manager_power_max" class="form-label">Max total power (kW)</label>
+                      <input id="load_manager_power_max" type="number" class="form-control" placeholder="25" min="0"
                         step="1" max="255">
                     </div>
                     <div class="mb-2">
@@ -1178,6 +1182,13 @@
                               <span class="text-muted"></span>
                             </div>
 
+                            <label for="netting_period_sec" class="form-label">Data security</label>
+                            <div class="mb-2 form-check form-switch">
+                              <input class="form-check-input" type="checkbox" id="disable_ca_checks">
+                              <label class="form-check-label" for="disable_ca_checks">Disable server identity check.</label>
+                              <span class="text-muted">If disabled external server identity is not checked when connected. This can resolve some connection problems.</span>
+                            </div>
+
                             <div id="mdns_div" class="collapse in">
                               <label  class="form-label">Network discovery (mDNS)</label>
 
@@ -1298,7 +1309,7 @@
                         href="https://github.com/chartjs/Chart.js" target="wiki">Chart.js</a>
                     </p>
 
-                    <p>Arska (R), Copyright Netgalleria Oy, Olli Rinne, 2021-2024</p>
+                    <p>Arska (R), Copyright Netgalleria Oy, Olli Rinne, 2021-2025</p>
 
                   </div>
                   <!--./card-body-->

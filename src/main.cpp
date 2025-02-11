@@ -69,6 +69,7 @@ char version_fs[45];
 String version_fs_base;     //= "";
 uint8_t now_updating = 255; // could be included in /application query and outputted to /update page
 
+char ca_cert_buffer[3000];
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <HTTPClient.h>
@@ -118,6 +119,8 @@ RTC_PCF8563 rtc;
 
 // experimental remote connection, WiP
 #define REMOTE_ENABLED_NOT
+#define MDNS_ENABLED_NOT
+
 #ifdef REMOTE_ENABLED
 #define MAX_WG_KEY_LENGTH 45
 #define MAX_WG_HOST_LENGTH 20
@@ -134,7 +137,6 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #endif
 
-#define MDNS_ENABLED_NOT
 #ifdef MDNS_ENABLED
 #include <mdns.h>
 #define MAX_MDNS_ID_LENGTH 11
@@ -164,7 +166,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10107 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10109 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -250,6 +252,8 @@ const char *host_fcst_fmi PROGMEM = "cdn.fmi.fi";
 
 const char *entsoe_ca_filename PROGMEM = "/data/sectigo_ca.pem";
 const char *fmi_ca_filename PROGMEM = "/data/GEANTOVRSACA4.cer";
+const char *elering_ca_filename PROGMEM = "/data/GTS_Root_R4.pem";
+
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
 // #define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
@@ -313,7 +317,7 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define CONFIG_JSON_SIZE_MAX 8192 // was 6144, 20.1.2024  bigger allocation to get all channel data
 
 /* Application variable constants */
-#define VARIABLE_COUNT 48
+#define VARIABLE_COUNT 49
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 #define VARIABLE_LONG_MISSING -2147483647 //!< variable with this value is undefined
 // do not change variable id:s (will broke statements)
@@ -367,6 +371,8 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #define VARIABLE_WIND_AVG_DAY1B_FI 421
 #define VARIABLE_WIND_AVG_DAY2B_FI 422
 #define VARIABLE_SOLAR_RANK_FIXED_24 430
+
+#define  VARIABLE_LOADM_UTILIZED_POWER_PERIOD 501
 
 #define VARIABLE_NET_ESTIMATE_SOURCE 701 //!< 0-no estimate,1-grid measurement, 2-production measurement - baseload, 3-production estimate - baseload
 #define VARIABLE_NET_ESTIMATE_SOURCE_NONE 0L
@@ -649,12 +655,15 @@ typedef struct
   char influx_org[30];
   char influx_bucket[20];
 #endif
-  uint32_t baseload; //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
-  uint32_t pv_power; //!<
+  uint32_t baseload;      //!< production above baseload is "free" to use/store, used to estimate own consumption when production is read from inverter and no ebergy meter is connected
+  uint32_t pv_power;      //!<
+  bool disable_ca_checks; //!< If true client does not check server identity with certificates.
 #ifdef LOAD_MGMT_ENABLED
   bool load_manager_active;                    //!< //
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
-  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) not yet export/import
+  uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A) 
+  uint8_t load_manager_power_max;              //!< max total power in kW
+  uint8_t load_manager_options_rfu;              //!< bitmask for load manager options, reserved for future use
   uint16_t load_manager_reswitch_moratorium_m; //<!
 #endif
 #ifdef REMOTE_ENABLED
@@ -711,7 +720,7 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}  ,  {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
   int get_variable_index(int id);
 };
 
@@ -884,7 +893,10 @@ bool set_netting_source();
 
 // *** Application Interface Functions
 // * Get data from external sources
-bool get_price_data_elering();
+bool get_backup_country_code(const char *entsoe_country_code, char *backup_country_code);
+bool get_entsoe_country_code(const char *backup_country_code, char *entsoe_country_code);
+bool get_price_data_elering(char *country_code);
+
 bool get_price_data_entsoe();
 // bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series);
 
@@ -918,7 +930,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned);
 // bool get_han_ts(String *strp, time_t *returned);
 bool get_han_ts(const char *strp, time_t *returned);
 // bool parse_han_row(String *row_in_p);
-bool parse_han_row(const char *row_in_p);
+bool parse_han_row(const char *row_in_p,bool *message_error);
 
 // * Json node values to memory
 bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length);
@@ -1258,8 +1270,8 @@ long int production_meter_read_last = 0;  //!< last succesfull inverter value
 // Energy meter globals
 // Values directly read from the meter
 time_t energy_meter_ts_latest;
-double energy_meter_cumulative_latest_in = 0;  //!< Energy meter last import value
-double energy_meter_cumulative_latest_out = 0; //!< Energy meter last export value
+volatile double energy_meter_cumulative_latest_in = 0;  //!< Energy meter last import value
+volatile double energy_meter_cumulative_latest_out = 0; //!< Energy meter last export value
 double energy_meter_power_latest_in = 0;
 double energy_meter_power_latest_out = 0;
 double energy_meter_current_latest[3] = {0, 0, 0};
@@ -1274,7 +1286,7 @@ double energy_meter_cumulative_periodstart_out = 0; //!< Energy meter export val
 
 // Calculated values
 float energy_meter_power_netin = 0;    //!< Energy meter last, momentary power value
-float energy_meter_period_power_netin; // short/no history, using momentary value
+float energy_meter_period_power_netin; // avg power in withing period, W
 float energy_meter_period_netin = 0;   //< Netted incoming energy during this period
 
 // Energy meter read timestamps and counters
@@ -1303,7 +1315,7 @@ bool todo_in_loop_update_firmware_partition = false;
 bool todo_in_loop_reapply_relay_states = false;
 bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters have been changed and r
 
-bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
+volatile bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 bool todo_in_loop_save_time_to_rtc = false;
 
 #ifdef BATTERY_ENABLED
@@ -3052,6 +3064,18 @@ void readFromEEPROM()
   s.wg_private_key[MAX_WG_KEY_LENGTH - 1] = '\0'; // null termination
 #endif
 
+#ifdef PRICE_ELERING_ENABLED
+  // convert old Elering codes to EntsoE codes,
+  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+  {
+    Serial.printf(PSTR("Converting Elering country code %s -> "), &s.entsoe_area_code[8]);
+    get_entsoe_country_code(&s.entsoe_area_code[8], s.entsoe_area_code);
+    Serial.println(s.entsoe_area_code);
+    writeToEEPROM();
+  }
+
+#endif
+
   set_netting_source();
 
   ch_prio_sort(); // experimental, keep sorted channel array up to date
@@ -3449,18 +3473,21 @@ time_t load_manager_overload_last_ts = 0;
 
 void set_relays(bool grid_protection_delay_used); // defined later
 
-float load_manager_capacity = 0; // global
+float load_manager_capacity_a = 0; // global
 // returns available load in the most loaded phase, use energy_meter_current_latest[], update global
 float check_current_load()
 {
   int drop_count = 0;
-  load_manager_capacity = 9999;
+  load_manager_capacity_a = 9999;
   for (int i = 0; i < s.load_manager_phase_count; i++)
   {
-    load_manager_capacity = min(load_manager_capacity, (float)(s.load_manager_current_max - energy_meter_current_latest[i]));
+    load_manager_capacity_a = min(load_manager_capacity_a, (float)(s.load_manager_current_max - energy_meter_current_latest[i]));
   }
 
-  if (load_manager_capacity < 0)
+  //Total power based calculation,  balance period based average
+  load_manager_capacity_a = min(load_manager_capacity_a, (float)((s.load_manager_power_max * 1000 - energy_meter_period_power_netin) / s.load_manager_phase_count / WATTS_TO_AMPERES_FACTOR));
+
+  if (load_manager_capacity_a < 0)
   {
     Serial.println("System overload, do something, buy a new fuse...");
     load_manager_overload_last_ts = time(nullptr);
@@ -3482,8 +3509,8 @@ float check_current_load()
     }
     set_relays(false);
   }
-  // Serial.println(load_manager_capacity);
-  return load_manager_capacity;
+  // Serial.println(load_manager_capacity_a);
+  return load_manager_capacity_a;
 }
 
 #endif
@@ -3498,12 +3525,7 @@ void process_energy_meter_readings()
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
 
-#ifdef LOAD_MGMT_ENABLED
-  if (s.load_manager_active)
-  {
-    check_current_load();
-  }
-#endif
+
 
   // TODO: minify printout , maybe dtostrf(energy_meter_power_latest_in, 4, 2, str_temp);
   /*
@@ -3545,6 +3567,7 @@ void process_energy_meter_readings()
   // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_netin %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_netin);
 
   energy_meter_period_netin = (energy_meter_cumulative_latest_in - energy_meter_cumulative_latest_out - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
+  
   // debug anomalies
   if (abs(energy_meter_period_netin) > 100000)
   {
@@ -3558,6 +3581,19 @@ void process_energy_meter_readings()
     Serial.println(energy_meter_cumulative_periodstart_out);
   }
   energy_meter_period_power_netin = round(energy_meter_period_netin * 3600.0 / ((energy_meter_read_succesfully_ts - energy_meter_period_first_read_ts)));
+
+#ifdef LOAD_MGMT_ENABLED
+  if (s.load_manager_active)
+  {
+    check_current_load();
+  }
+  if (s.load_manager_power_max>0 && abs(energy_meter_period_power_netin)>0.1) {
+   vars.set(VARIABLE_LOADM_UTILIZED_POWER_PERIOD, (long)round(energy_meter_period_power_netin / s.load_manager_power_max / 10));
+  }
+
+  
+
+#endif
 
   vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_netin < 0) ? 1L : 0L);
   vars.set(VARIABLE_SELLING_POWER, (long)round(-energy_meter_period_power_netin));
@@ -3663,10 +3699,12 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
  */
 
 //  Char array based replacing String input version
-bool parse_han_row(const char *row_in_p)
+bool parse_han_row(const char *row_in_p,bool *message_error)
 {
   //  Serial.println(row_in_p);
   // return if time obis code found in the row
+  double value_read;
+  *message_error = false;
   if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
     return true;
   if (strncmp(row_in_p, "1-0:", 4) != 0)
@@ -3678,20 +3716,35 @@ bool parse_han_row(const char *row_in_p)
   if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
     return true;
 
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &energy_meter_cumulative_latest_in))
+  if (get_han_dbl(row_in_p, "1-0:1.8.0", &value_read))
   {
-    if (energy_meter_cumulative_latest_in < 0.01)
+    if ((value_read < 0.01) || (energy_meter_cumulative_latest_in > value_read))
     {
+      *message_error = true;
       Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in %s ->", time(nullptr), row_in_p);
-      Serial.println(energy_meter_cumulative_latest_in);
+      Serial.println(value_read);
       return false;
     }
-    else
+    else {
+      energy_meter_cumulative_latest_in = value_read;
       return true;
+    }
   }
 
-  if (get_han_dbl(row_in_p, "1-0:2.8.0", &energy_meter_cumulative_latest_out))
-    return true;
+  if (get_han_dbl(row_in_p, "1-0:2.8.0", &value_read))
+  {
+    if ( (energy_meter_value_previous_out > value_read))
+    {
+      *message_error = true;
+      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out %s ->", time(nullptr), row_in_p);
+      Serial.println(value_read);
+      return false;
+    }
+    else {
+      energy_meter_cumulative_latest_out = value_read;
+      return true;
+    }
+  }
 
   if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
     return true;
@@ -3723,18 +3776,22 @@ size_t han_available_bytes;
 bool receive_energy_meter_han_direct() // direct
 {
   han_value_count = 0;
+  bool message_error;
   // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
   // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   //{
   //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
   //}
 
+  if (todo_in_loop_process_energy_meter_readings)
+    return false; //old readings  still unprocessed
+
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
 
   // OR 31.5.24, added variable init
-  energy_meter_cumulative_latest_in = 0;
-  energy_meter_cumulative_latest_out = 0;
+  //energy_meter_cumulative_latest_in = 0;
+  //energy_meter_cumulative_latest_out = 0;
 
   if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
   {
@@ -3757,12 +3814,12 @@ bool receive_energy_meter_han_direct() // direct
       if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
         continue;
 
-      if (parse_han_row(row_buffer))
+      if (parse_han_row(row_buffer,&message_error))
       {
         han_value_count++;
       }
     }
-    if (han_value_count < 5)
+    if (han_value_count < 5 ||message_error ) //3 phase should have < 7
     {
       Serial.println("Cannot read all HAN P1 port values");
       xSemaphoreGive(xHAN_P1_Semaphore);
@@ -3801,6 +3858,7 @@ bool read_energy_meter_han_wifi()
   char url[90];
   snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
   Serial.println(url);
+  bool message_error;
 
   yield();
   String telegram = httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL);
@@ -3826,8 +3884,7 @@ bool read_energy_meter_han_wifi()
     row_in = telegram.substring(s_idx, e_idx);
     //  Serial.println(row_in);
 
-    // if (parse_han_row(&row_in))
-    if (parse_han_row(row_in.c_str()))
+    if (parse_han_row(row_in.c_str(),&message_error))
       value_count++;
     s_idx = e_idx + 1;
   }
@@ -4421,10 +4478,10 @@ void calculate_price_rank_variables()
   }
   else if (prices_expires_ts + SECONDS_IN_HOUR * 1 < now_infunc)
   {
-    if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Entso-E. Check availability from https://transparency.entsoe.eu/."));
+    //  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
+    //    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
+    //  else
+    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get prices from Entso-E or Elering. Check https://transparency.entsoe.eu/."));
   }
 
   localtime_r(&current_period_start_ts, &tm_struct_l);
@@ -4572,6 +4629,65 @@ char in_buffer[2048]; // common buffer for multi chunk response and multiline in
 #define FORECAST_TYPE_FI_LOCAL_SOLAR 1
 #define FORECAST_TYPE_FI_WIND 2
 
+char error_msg_buf[80];
+
+bool setCACertificate(WiFiClientSecure *client_https_p, const char *ca_str, const char *ca_file_name, const char *unit_str, bool disable_ca_check)
+{
+  if (disable_ca_check)
+  {
+    Serial.println(F("Connecting without CA check."));
+    client_https_p->setInsecure();
+    return true;
+  }
+
+  if (ca_str)
+  {
+    client_https_p->setCACert(ca_str);
+    return true;
+  }
+  if (!FILESYSTEM.exists(ca_file_name))
+  {
+    sprintf(error_msg_buf, PSTR("%s: Cannot connect to server. Certificate file is missing."), unit_str);
+    log_msg(MSG_TYPE_ERROR, error_msg_buf);
+    return false;
+  }
+  File ca_file = FILESYSTEM.open(ca_file_name, "r");
+  // String ca_cert = ca_file.readString();
+  memset(ca_cert_buffer, 0, sizeof(ca_cert_buffer));
+
+  ca_file.readBytes(ca_cert_buffer, ca_file.size());
+  ca_file.close();
+  client_https_p->setCACert(ca_cert_buffer);
+
+  // client_https_p->setCACert(ca_cert.c_str());
+  // client_https_p->setCACert(ca_file.readString().c_str());
+  // ca_file.close();
+  return true;
+}
+
+bool connect_https_with_check(WiFiClientSecure *client_https_p, const char *host, const int port, const char *unit_str)
+{
+  yield();
+  if (client_https_p->connect(host, port))
+  {
+    yield();
+    return true;
+  }
+  else
+  {
+    int err;
+    sprintf(error_msg_buf, "%s: ", unit_str);
+    err = client_https_p->lastError(&error_msg_buf[strlen(error_msg_buf)], sizeof(error_msg_buf) - 1);
+    if (err == 0)
+    {
+      sprintf(error_msg_buf, "%s: Cannot connect to server.", unit_str);
+    }
+    log_msg(MSG_TYPE_ERROR, error_msg_buf);
+    client_https_p->stop();
+    return false;
+  }
+}
+
 /**
  * @brief Get the solar forecast from FMI open data.
  *
@@ -4605,38 +4721,19 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
   }
 
-  if (!FILESYSTEM.exists(fmi_ca_filename))
-  {
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Certificate file is missing."));
+  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
     return false;
-  }
-
-  String ca_cert = FILESYSTEM.open(fmi_ca_filename, "r").readString();
-
-  client_https.setCACert(ca_cert.c_str());
 
   client_https.setTimeout(5); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
   yield();
-  Serial.println(F("Connecting FMI with CA check."));
+
   Serial.println(host_fcst_fmi);
   delay(1000);
 
-  if (!client_https.connect(host_fcst_fmi, httpsPort))
-  {
-    int err;
-    char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
-    if (err != 0)
-    {
-      strncat(error_buf, "(connecting FMI)", sizeof(error_buf) - strlen(error_buf));
-      log_msg(MSG_TYPE_ERROR, error_buf);
-    }
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to FMI server. Quitting forecast query."));
-    client_https.stop();
+  if (!connect_https_with_check(&client_https, host_fcst_fmi, httpsPort, "FMI"))
     return false;
-  }
+
   yield();
 
   if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
@@ -4734,6 +4831,147 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   Serial.printf("get_renewable_forecast end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
+/* WiP, combined query
+bool get_renewable_forecast_fmi()
+{
+
+  timeSeries *time_series;
+  WiFiClientSecure client_https;
+  char fcst_url[120];
+  DynamicJsonDocument doc(4096);
+  unsigned long task_started;
+  bool actual_data;
+  // doc.garbageCollect();
+
+  Serial.printf("get_renewable_forecast start getFreeHeap: %d\n", (int)ESP.getFreeHeap());
+  if (strlen(s.forecast_loc) < 2)
+  {
+    Serial.println(F("FMI forecast location undefined. Quitting"));
+    return false;
+  }
+
+  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
+    return false;
+
+  client_https.setTimeout(5); // was 15 Seconds
+  client_https.setHandshakeTimeout(5);
+  yield();
+
+  Serial.println(host_fcst_fmi);
+  delay(1000);
+
+  if (!connect_https_with_check(&client_https, host_fcst_fmi, httpsPort, "FMI"))
+    return false;
+
+  yield();
+  // reset variables
+  for (uint8_t forecast_type = FORECAST_TYPE_FI_LOCAL_SOLAR; forecast_type <= FORECAST_TYPE_FI_WIND; forecast_type++)
+  {
+    if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
+    {
+      time_series = &solar_forecast;
+      time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
+      snprintf(fcst_url, sizeof(fcst_url), "/products/renewable-energy-forecasts/solar/%s/solar_%s_fi_latest.json", s.forecast_loc, s.forecast_loc);
+    }
+    else if (forecast_type == FORECAST_TYPE_FI_WIND)
+    {
+      time_series = &solar_forecast;
+      time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
+      snprintf(fcst_url, sizeof(fcst_url), "/products/renewable-energy-forecasts/wind/windpower_fi_latest.json");
+    }
+
+    Serial.printf("Requesting URL: %s\n", fcst_url);
+
+    client_https.print(String("GET ") + fcst_url + " HTTP/1.0\r\n" +
+                       "Host: " + host_fcst_fmi + "\r\n" +
+                       "User-Agent: ArskaNodeESP\r\n" +
+                       "Connection: close\r\n\r\n");
+
+     Serial.println("request sent");
+
+    // yield();
+    task_started = millis();
+    while (client_https.connected())
+    {
+      String lineh = client_https.readStringUntil('\n');
+      Serial.println(lineh);
+      if (lineh == "\r")
+      {
+        Serial.println("headers received");
+        break;
+      }
+      if (millis() - task_started > 10000)
+      {
+        Serial.println(PSTR("Timeout in receiving headers"));
+        client_https.stop();
+        return false;
+      }
+      yield();
+    }
+    Serial.println(F("Waiting the document"));
+    String line;
+
+    memset(in_buffer, 0, sizeof(in_buffer));
+    strcat(in_buffer, "[");
+    yield();
+    actual_data = false;
+
+    while (client_https.available() > 1) // last byte in the end causes an error message
+    {
+      line = read_http11_line(&client_https);
+      // Serial.println(line);
+      line.trim();
+      line.replace("000.0", ""); // timestamp millisec -> sec
+
+      if (line.indexOf("\"data\":") > -1) // process only node "data"
+        actual_data = true;
+      else if (actual_data)
+      {
+        // Serial.print("*");
+        strncat(in_buffer, (const char *)line.c_str(), sizeof(in_buffer) - strlen(in_buffer) - 2);
+        if ((line.indexOf("]") > -1) && (line.indexOf("],") == -1)) // data array ends
+        {
+          actual_data = false;
+          strcat(in_buffer, "]");
+        }
+      }
+    }
+    client_https.stop();
+    Serial.println("in_buffer:");
+    Serial.println(in_buffer);
+
+    DeserializationError error = deserializeJson(doc, in_buffer);
+    if (error)
+    {
+      Serial.print("deserializeJson() failed: ");
+      Serial.println(error.c_str());
+      return false;
+    }
+
+    time_t period;
+    float energy;
+
+    for (JsonArray elem : doc.as<JsonArray>())
+    {
+      period = (time_t)elem[0] - SECONDS_IN_HOUR; // The value represent previous hour, Anders Lindfors 3.5.2023
+      energy = elem[1];
+      if (energy > 0.001)
+      {
+        time_series->set(period, energy * 1000);
+      }
+    }
+    yield();
+  }
+  // Free resources
+  client_https.stop();
+
+  yield();
+  Serial.printf("get_renewable_forecast_fmi end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
+  delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+
+  return true;
+}
+*/
 // We keep the CA certificate in program code to avoid potential littlefs-hack
 // Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
 const char *letsencrypt_ca_certificate =
@@ -4982,36 +5220,16 @@ bool get_price_data_entsoe()
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
   Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
-  if (!FILESYSTEM.exists(entsoe_ca_filename))
-  {
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Certificate file is missing."));
-    return false;
-  }
 
-  String ca_cert = FILESYSTEM.open(entsoe_ca_filename, "r").readString();
-  client_https.setCACert(ca_cert.c_str());
+  if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E", s.disable_ca_checks))
+    return false;
 
   client_https.setTimeout(15); // was 5,15 Seconds
   client_https.setHandshakeTimeout(15);
   delay(1000);
 
-  Serial.println(F("Connecting with CA check."));
-
-  if (!client_https.connect(host_prices, httpsPort))
-  {
-    int err;
-    char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
-    if (err != 0)
-    {
-      strncat(error_buf, "(connecting Entso-E)", sizeof(error_buf) - strlen(error_buf));
-      log_msg(MSG_TYPE_ERROR, error_buf);
-    }
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Entso-E server. Quitting price query."));
-    client_https.stop();
+  if (!connect_https_with_check(&client_https, host_prices, httpsPort, "Entso-E"))
     return false;
-  }
   char url[220];
   snprintf(url, sizeof(url), "%s&securityToken=%s&In_Domain=%s&Out_Domain=%s&periodStart=%s&periodEnd=%s", url_base, s.entsoe_api_key, s.entsoe_area_code, s.entsoe_area_code, date_str_start, date_str_end);
   Serial.print("requesting URL: ");
@@ -6018,7 +6236,7 @@ void calculate_channel_states()
   bool forced_up;
   float current_capacity_available = 9999;
 #ifdef LOAD_MGMT_ENABLED
-  current_capacity_available = load_manager_capacity;
+  current_capacity_available = load_manager_capacity_a;
 #endif
   int channel_idx;
   // loop channels and check whether channel should be up
@@ -6247,7 +6465,7 @@ void set_relays(bool grid_protection_delay_used)
 
 #ifdef LOAD_MGMT_ENABLED
     // overload, drop all channels marked
-    if (load_manager_capacity < 0 && !(drop_rise == 0))
+    if (load_manager_capacity_a < 0 && !(drop_rise == 0))
       switchings_to_todo = drop_count;
 #endif
 
@@ -6269,7 +6487,41 @@ void set_relays(bool grid_protection_delay_used)
 }
 
 #ifdef PRICE_ELERING_ENABLED
-bool get_price_data_elering()
+#define ELERING_CC_COUNT 4
+struct elering_cc_st
+{
+  char entsoe_country_code[17]; //!< identifier used in data structures
+  char elering_country_code[3];
+};
+
+const elering_cc_st elering_ccs[ELERING_CC_COUNT] =
+    {{"10Y1001A1001A39I", "ee"},
+     {"10YFI-1--------U", "fi"},
+     {"10YLV-1001A00074", "lv"},
+     {"10YLT-1001A0008Q", "lt"}};
+
+bool get_backup_country_code(const char *entsoe_country_code, char *backup_country_code)
+{
+  for (int i = 0; i < ELERING_CC_COUNT; i++)
+    if (strcmp(elering_ccs[i].entsoe_country_code, entsoe_country_code) == 0)
+    {
+      strcpy(backup_country_code, elering_ccs[i].elering_country_code);
+      return true;
+    }
+  return false;
+}
+bool get_entsoe_country_code(const char *backup_country_code, char *entsoe_country_code)
+{
+  for (int i = 0; i < ELERING_CC_COUNT; i++)
+    if (strcmp(elering_ccs[i].elering_country_code, backup_country_code) == 0)
+    {
+      strcpy(entsoe_country_code, elering_ccs[i].entsoe_country_code);
+      return true;
+    }
+  return false;
+}
+
+bool get_price_data_elering(char *country_code)
 {
   Serial.printf("get_price_data_elering \n");
 #ifdef NVS_CACHE_ENABLED
@@ -6284,8 +6536,8 @@ bool get_price_data_elering()
 
   WiFiClientSecure client_https;
   char url[120];
-  char country_code[3];
-  strncpy(country_code, &s.entsoe_area_code[8], 3);
+  // char country_code[3];
+  // strncpy(country_code, &s.entsoe_area_code[8], 3);
   Serial.printf("Elering country code: %s\n", country_code);
 
   time_t start_ts, end_ts; // this is the epoch
@@ -6302,29 +6554,17 @@ bool get_price_data_elering()
   time_t ts_max = 0;
   long prices_local[MAX_PRICE_PERIODS];
 
-  client_https.setCACert(letsencrypt_ca_certificate);
+  if (!setCACertificate(&client_https, nullptr, elering_ca_filename, "Elering", s.disable_ca_checks))
+    return false;
 
   client_https.setTimeout(15); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
 
   yield();
-  Serial.println(F("Connecting Elering with CA check."));
 
-  if (!client_https.connect(host_prices_elering, httpsPort))
-  {
-    int err;
-    char error_buf[70];
-    err = client_https.lastError(error_buf, sizeof(error_buf) - 1);
-    if (err != 0)
-    {
-      strncat(error_buf, "(connecting Elering)", sizeof(error_buf) - strlen(error_buf));
-      log_msg(MSG_TYPE_ERROR, error_buf);
-    }
-    else
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot connect to Elering server. Quitting price query."));
-    client_https.stop();
+  if (!connect_https_with_check(&client_https, host_prices_elering, httpsPort, "Elering"))
     return false;
-  }
+
   yield();
 
   start_ts = time(nullptr) - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
@@ -6341,7 +6581,6 @@ bool get_price_data_elering()
 
   client_https.setTimeout(15); // was 15 Seconds
   delay(1000);
-  Serial.println(F("Connecting Elering with CA check."));
 
   /// api/nps/price/csv?start=2020-05-31T20%3A59%3A59.999Z&end=2020-06-30T20%3A59%3A59.999Z&fields=fi
   snprintf(url, sizeof(url), "/api/nps/price/csv?start=%s&end=%s&fields=%s", date_str_start, date_str_end, country_code);
@@ -6482,7 +6721,17 @@ bool get_releases()
   }
 
   WiFiClientSecure client_https;
-  client_https.setCACert(letsencrypt_ca_certificate);
+
+  if (s.disable_ca_checks)
+  {
+    Serial.println(F("Connecting Arska install site without CA check."));
+    client_https.setInsecure();
+  }
+  else
+  {
+    setCACertificate(&client_https, letsencrypt_ca_certificate, nullptr, "Firmware", s.disable_ca_checks);
+
+  }
   if (!client_https.connect(RELEASES_HOST, 443))
   {
     Serial.println(F("Cannot get release info from the firmware site."));
@@ -6550,7 +6799,17 @@ t_httpUpdate_return update_program()
 
   WiFiClientSecure client_https;
   Serial.println("update_program");
-  client_https.setCACert(letsencrypt_ca_certificate);
+
+  if (s.disable_ca_checks)
+  {
+    Serial.println(F("Connecting Arska install site without CA check."));
+    client_https.setInsecure();
+  }
+  else
+  {
+    setCACertificate(&client_https, letsencrypt_ca_certificate, nullptr, "Firmware", s.disable_ca_checks);
+  }
+
   client_https.setTimeout(15); // timeout for SSL fetch
   String file_to_download = "/arska-install/files/" + String(HWID) + "/" + update_release_selected + "/firmware.bin";
   Serial.println(file_to_download);
@@ -6598,6 +6857,7 @@ t_httpUpdate_return update_fs()
   if (update_ok == HTTP_UPDATE_FAILED)
   {
     Serial.println(F("Filesystem update failed!"));
+    FILESYSTEM.begin(); // remount
     return update_ok;
   }
   if (update_ok == HTTP_UPDATE_OK)
@@ -6860,10 +7120,13 @@ void reset_config()
   strcpy(s.mdns_id, "arska");
 #endif
 
+  s.disable_ca_checks = false;
+
 #ifdef LOAD_MGMT_ENABLED
   s.load_manager_active = false;
   s.load_manager_phase_count = 3;
   s.load_manager_current_max = 25;
+  s.load_manager_power_max = 17;
   s.load_manager_reswitch_moratorium_m = 5;
 #endif
   strcpy(s.forecast_loc, "#");
@@ -7012,10 +7275,12 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
     doc["production_meter_id"] = s.production_meter_id;
   }
 
+  doc["disable_ca_checks"] = s.disable_ca_checks;
 #ifdef LOAD_MGMT_ENABLED
   doc["load_manager_active"] = s.load_manager_active;
   doc["load_manager_phase_count"] = s.load_manager_phase_count;
   doc["load_manager_current_max"] = s.load_manager_current_max;
+  doc["load_manager_power_max"] = s.load_manager_power_max;
   doc["load_manager_reswitch_moratorium_m"] = s.load_manager_reswitch_moratorium_m;
 #endif
   doc["forecast_loc"] = s.forecast_loc;
@@ -7262,6 +7527,9 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.wg_local_ip = ajson_ip_get(doc, (char *)"wg_local_ip", s.wg_local_ip);
   ajson_str_to_mem(doc, (char *)"wg_private_key", s.wg_private_key, sizeof(s.wg_private_key));
 
+  // settings file
+  s.wg_expires = ajson_int_get(doc, (char *)"wg_expires", s.wg_expires);
+  // relative from UI
   wg_connection_expires_rel = ajson_int_get(doc, (char *)"wg_connection_expires_rel", wg_connection_expires_rel);
 
   if (wg_connection_expires_rel == 1)
@@ -7287,10 +7555,12 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   s.production_meter_port = ajson_int_get(doc, (char *)"production_meter_port", s.production_meter_port);
   s.production_meter_id = ajson_int_get(doc, (char *)"production_meter_id", s.production_meter_id);
 
+  s.disable_ca_checks = ajson_bool_get(doc, (char *)"disable_ca_checks", s.disable_ca_checks);
 #ifdef LOAD_MGMT_ENABLED
   s.load_manager_active = ajson_bool_get(doc, (char *)"load_manager_active", s.load_manager_active);
   s.load_manager_phase_count = ajson_int_get(doc, (char *)"load_manager_phase_count", s.load_manager_phase_count);
   s.load_manager_current_max = ajson_int_get(doc, (char *)"load_manager_current_max", s.load_manager_current_max);
+  s.load_manager_power_max = ajson_int_get(doc, (char *)"load_manager_power_max", s.load_manager_power_max);
   s.load_manager_reswitch_moratorium_m = ajson_int_get(doc, (char *)"load_manager_reswitch_moratorium_m", s.load_manager_reswitch_moratorium_m);
 #endif
 
@@ -8911,14 +9181,22 @@ void loop()
     }
     else
     {
-#ifdef PRICE_ELERING_ENABLED
-      if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
-        got_price_ok = get_price_data_elering();
-      else
-        got_price_ok = get_price_data_entsoe();
-#else
+
+      // NEW WAY
       got_price_ok = get_price_data_entsoe();
+#ifdef PRICE_ELERING_ENABLED
+      char backup_country_code[3];
+      delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+      if (!got_price_ok && get_backup_country_code(s.entsoe_area_code, backup_country_code))
+      {
+        got_price_ok = get_price_data_elering(backup_country_code);
+        if (got_price_ok)
+        {
+          log_msg(MSG_TYPE_INFO, PSTR("Got price data from secondary source Elering (EE,FI,LV,LT)."));
+        }
+      }
 #endif
+
       delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     }
     io_tasks(STATE_PROCESSING);
@@ -8939,6 +9217,7 @@ void loop()
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     get_renewable_forecast(FORECAST_TYPE_FI_WIND, &wind_forecast);
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
+    // WiP: got_forecast_ok = get_renewable_forecast_fmi();
 
     todo_calculate_ranks_period_variables = true;
     next_query_fcst_data_ts = time(nullptr) + (got_forecast_ok ? (3 * SECONDS_IN_HOUR + random(0, 200)) : 600 + random(0, 100));

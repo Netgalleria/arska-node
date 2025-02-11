@@ -278,6 +278,13 @@
         "min": 1,
         "max": 24
     },
+    "501": {
+        "code": "grid utilisation",
+        "desc": "Load management, utilization of grid during current period %",
+        "desc_fi": "Kuormanhallinta, verkkokuormitus periodin aikana %",
+        "min": 0,
+        "max": 200
+    },
     "701": {
         "code": "netting source",
         "desc": "Netting info source: 0) no estimate, 1) grid measurement (103) 2) production MEASUREMENT (105) - (estimated channel consumption (160) + baseload)  3) production FORECAST (402) - (estimated channel consumption (160) + baseload)",
