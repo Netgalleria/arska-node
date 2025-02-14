@@ -216,7 +216,7 @@ const schedule_html = `<div class="col"><div class="card white-card" id="sch_(ch
                         <span id="sch_(ch#):title"></span>
                     </h5>
                         
-                    <span id="sch_(ch#):status" class="btn btn-secondary btn-sm text-bg-success">
+                    <span id="sch_(ch#):status" class="btn  btn-sm text-bg-success">
                       <span id="sch_(ch#):status_icon" data-feather="zap" class="align-text-bottom"></span>
                       <span id="sch_(ch#):status_txt"></span>
                     </span>
@@ -950,7 +950,7 @@ function ch_is_twoway(ch) {
 
 function ch_is_active(ch) {
     if (is_relay_profile_used(ch["type"])) {
-        return (parseInt(ch["profile"])>= 100 && parseInt(ch["profile"]) < 120 && parseInt(ch["profile"]) != 110);
+        return (parseInt(ch["profile"]) != 121);
     }
     else {
         return ch.is_up;
@@ -986,10 +986,29 @@ function populate_channel_status(channel_idx, ch) {
     }
     sch_delete_radio.disabled = (ch.force_state_until <= now_ts);
 
-
-    sch_status_label.classList.remove(ch_is_active(ch) ? "text-bg-danger" : "text-bg-success");
-    sch_status_label.classList.add(ch_is_active(ch) ? "text-bg-success" : "text-bg-danger");
    // console.log(channel_idx, "ch_is_active(ch)", ch_is_active(ch));
+    if (is_relay_profile_used(ch["type"])) { 
+        sch_status_label.classList.remove("text-bg-primary","text-bg-info", "text-bg-danger" ,"text-bg-success");
+        switch(parseInt(ch["profile"])) {
+            case 100:
+            case 105:
+                sch_status_label.classList.add("text-bg-success");
+              break;
+            case 110:
+                sch_status_label.classList.add("text-bg-info");
+                break;
+            case 115:
+            case 120:
+                sch_status_label.classList.add("text-bg-primary");
+              break;
+            default:
+                sch_status_label.classList.add("text-bg-danger");
+          }
+    }
+    else {
+        sch_status_label.classList.remove(ch_is_active(ch) ? "text-bg-danger" : "text-bg-success");
+        sch_status_label.classList.add(ch_is_active(ch) ? "text-bg-success" : "text-bg-danger");
+    }
 
     info_text = "";
     if (ch.active_rule > -1)
