@@ -41,6 +41,7 @@ const VARIABLE_PRODUCTION_POWER = "101";
 const VARIABLE_SELLING_POWER = "102";
 const VARIABLE_SELLING_ENERGY = "103";
 const VARIABLE_PRODUCTION_ENERGY = "105";
+const VARIABLE_SOC_BASE_0 = "600";
 
 const VAR_IDX_ID = 0; //variables from g_application.variables
 const VAR_IDX_TYPE = 1;
@@ -1197,7 +1198,6 @@ function create_dashboard_chart() {
                 if (dataset_started) {
                     if (chart_start_ts <= ts && ts < chart_end_excl_ts)
                         import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
-
                 }
             }
             ts += g_settings.netting_period_sec;
@@ -1224,61 +1224,11 @@ function create_dashboard_chart() {
                 });
     }
 
-    // solar forecast, could be combined with get_price_data
-    var start = new Date().getTime();
-    $.ajax({
-        url: '/series?solar_fcst=true',
-        cache: false,
-        dataType: 'json',
-        async: false,
-        success: function (data, textStatus, jqXHR) {
-            console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
-
-            //   console.log('got solar forecast', textStatus, jqXHR.status);
-            let fcst_ds = [];
-            if (!data.hasOwnProperty("solar_forecast"))
-                return false;
-
-            solar_fcst = data.solar_forecast.s;
-            resolution_sec = data.solar_forecast.resolution_sec;
-            series_started = false;
-            for (idx = 0; idx < solar_fcst.length; idx++) {
-                ts = (data.solar_forecast.start + idx * resolution_sec);
-                if (solar_fcst[idx] > 0)
-                    series_started = true;
-                if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
-                    fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
-            }
-            if (fcst_ds.length) {
-                datasets.push(
-                    {
-                        label: 'solar fcst Wh/' + period_label,
-                        data: fcst_ds,
-                        yAxisID: 'y_energy',
-                        cubicInterpolationMode: 'monotone',
-                        borderColor: ['#ffff00'
-                        ],
-                        backgroundColor: '#ffff00',
-                        pointStyle: 'circle',
-                        pointRadius: 1,
-                        pointHoverRadius: 5,
-                        fill: false,
-                        stepped: false,
-                        borderWidth: 2
-                    });
-            }
-
-        },
-        error: function (jqXHR, textStatus, errorThrown) {
-            console.log("Cannot get solar forecast", textStatus, jqXHR.status);
-        }
-    });
-
+  
 
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
         dataset_started = false;
         let production_ds = [];
-
         for (h_idx = 0; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
             //probably 1 resolutions unit too small, fixed 10.4.2024
             ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx-1) * chart_resolution_sec;
@@ -1308,11 +1258,100 @@ function create_dashboard_chart() {
                 });
     }
 
+    function add_history_ds(ds_id,label,color,yaxis) {
+
+        if (has_history_values[ds_id]) {
+            dataset_started = false;
+            let ds = [];
+            for (h_idx = 0; h_idx < variable_history[ds_id].length; h_idx++) {
+                //probably 1 resolutions unit too small, fixed 10.4.2024
+                ts = now_period_ts - (variable_history[ds_id].length - h_idx-1) * chart_resolution_sec;
+                if (Math.abs(variable_history[ds_id][h_idx]) > 1)
+                    dataset_started = true;
+    
+                if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
+                    ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] });
+            }// chart_resolution_sec
+    
+            if (dataset_started)
+                datasets.push(
+                    {
+                        label: label,
+                        data: ds,
+                        yAxisID: yaxis,
+                        cubicInterpolationMode: 'monotone',
+                        borderColor: [color
+                        ],
+                        backgroundColor: color,
+                        pointStyle: 'circle',
+                        pointRadius: 1,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        stepped: false,
+                        borderWidth: 2
+                    });
+        }
+    }
+    add_history_ds(VARIABLE_SOC_BASE_0, 'SoC ', '#f58d42', 'y_soc');
+    //TODO: refactor also VARIABLE_PRODUCTION_ENERGY, VARIABLE_SELLING_ENERGY
+
+
+      // solar forecast, could be combined with get_price_data
+      var start = new Date().getTime();
+      $.ajax({
+          url: '/series?solar_fcst=true',
+          cache: false,
+          dataType: 'json',
+          async: false,
+          success: function (data, textStatus, jqXHR) {
+              console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+  
+              //   console.log('got solar forecast', textStatus, jqXHR.status);
+              let fcst_ds = [];
+              if (!data.hasOwnProperty("solar_forecast"))
+                  return false;
+  
+              solar_fcst = data.solar_forecast.s;
+              resolution_sec = data.solar_forecast.resolution_sec;
+              series_started = false;
+              for (idx = 0; idx < solar_fcst.length; idx++) {
+                  ts = (data.solar_forecast.start + idx * resolution_sec);
+                  if (solar_fcst[idx] > 0)
+                      series_started = true;
+                  if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
+                      fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
+              }
+              if (fcst_ds.length) {
+                  datasets.push(
+                      {
+                          label: 'solar fcst Wh/' + period_label,
+                          data: fcst_ds,
+                          yAxisID: 'y_energy',
+                          cubicInterpolationMode: 'monotone',
+                          borderColor: ['#ffff00'
+                          ],
+                          backgroundColor: '#ffff00',
+                          pointStyle: 'circle',
+                          pointRadius: 1,
+                          pointHoverRadius: 5,
+                          fill: false,
+                          stepped: false,
+                          borderWidth: 2
+                      });
+              }
+  
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+              console.log("Cannot get solar forecast", textStatus, jqXHR.status);
+          }
+      });
+  
+
     var channel_dataset;
     now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
     first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_settings.netting_period_sec;
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
-        if (g_settings.ch[channel_idx]["type"] == 0) // undefined
+        if (g_settings.ch[channel_idx]["type"] == 0 || g_settings.ch[channel_idx]["type"] >=  50) // undefined or inverter
             continue;
         channel_dataset = [];
         dataset_started = false;
@@ -1410,6 +1449,18 @@ function create_dashboard_chart() {
                         font: { size: 12 },
                         callback: function (value, index, values) {
                             return value + ' Wh';
+                        }
+                    }
+                },
+                y_soc: {
+                    display: 'auto',
+                    beginAtZero: true,
+                    grid: { display: false },
+                    ticks: {
+                        color: '#4f4f42',
+                        font: { size: 12 },
+                        callback: function (value, index, values) {
+                            return value + ' %';
                         }
                     }
                 },
