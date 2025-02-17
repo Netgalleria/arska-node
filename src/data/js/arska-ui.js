@@ -521,8 +521,7 @@ const default_state_html = `<div class="col">
     <div class="card-body">
 
         <div class="input-group mb-3 invisible" id="ch_(ch#):profiled" >
-            <span class="input-group-text">Default profile
-            channel</span>
+            <span class="input-group-text">Default profile</span>
             <select id="ch_(ch#):default_profile" name="ch_(ch#):default_profile" class="form-select" aria-label="variable" data-bs-toggle="tooltip" title="Profile">
             <option value="-1">&nbsp;</option>
             </select>
