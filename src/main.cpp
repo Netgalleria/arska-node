@@ -303,7 +303,11 @@ const char *ntp_server_3 PROGMEM = "time.windows.com";
 #endif
 
 #ifdef BATTERY_ENABLED
+
 time_t next_read_channels_stats_ts = 0;
+#define READ_CHANNEL_STATS_INTERVAL_SECS 300
+#define READ_CHANNEL_STATS_INTERVAL_FAILED_SECS 125
+
 /* Modbus registry offsets , https://www.libe.net/en/byd-modbus
 If you have set the SunSpec Model Type to "float", you must add 10 to the registers used here.
 e.g. the start address for reading the battery is 40345 for "int + SF",
@@ -6055,15 +6059,13 @@ void read_channels_stats()
       // default:
     }
   }
-  if (!ok) {
-    next_read_channels_stats_ts += 120;
-    return;
+  if (ok) {
+    next_read_channels_stats_ts = time(nullptr)+READ_CHANNEL_STATS_INTERVAL_SECS;
   }
-  if (next_read_channels_stats_ts<get_netting_period_start_time(time(nullptr)) + s.netting_period_sec / 2) //first read, started first half of the period
-    next_read_channels_stats_ts = get_netting_period_start_time(time(nullptr)) + s.netting_period_sec / 2;
-  else
-    next_read_channels_stats_ts = get_netting_period_start_time(time(nullptr)) + s.netting_period_sec / 2 + s.netting_period_sec;
-
+  else {
+     next_read_channels_stats_ts = time(nullptr)+READ_CHANNEL_STATS_INTERVAL_FAILED_SECS;
+  }
+  return;
 }
 #endif
 
@@ -7545,6 +7547,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
         doc["ch"][channel_idx]["rules"][rule_idx_output]["profile"] = s.ch[channel_idx].rules[rule_idx].profile;
 #endif
 
+
         rule_idx_output++;
         active_rule_count++;
       }
@@ -7816,7 +7819,9 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
     s.ch[channel_idx].relay_unit_id = ajson_int_get(ch, (char *)"r_uid", s.ch[channel_idx].relay_unit_id);
 
     s.ch[channel_idx].default_state = ajson_bool_get(ch, (char *)"default_state", s.ch[channel_idx].default_state);
+#ifdef BATTERY_ENABLED
     s.ch[channel_idx].default_profile = ajson_int_get(ch, (char *)"default_profile", s.ch[channel_idx].default_profile);
+#endif
 
     // clear  statements
     // TODO: add to new version
