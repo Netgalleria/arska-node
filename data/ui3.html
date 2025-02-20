@@ -543,65 +543,81 @@
                       <input type="url" class="form-control" id="entsoe_api_key"
                         placeholder="Enter API key sent by ENTSO-E">
                     </div>
-                   
-                      <label for="pricemodui" class="form-label">Price modifier (c/kWh)</label>
-                      <div class="mb-2">
-                        <input type="text" class="form-control" id="pricemodui" placeholder="2,2" size="10"
-                          maxlength="5" step="0.1" min="-100" max="100">
+                   <!-- price modifier accordion -> -->
+                    <div class="accordion" id="pricemod_acc_h">
+                      <div class="accordion-item">
+                        <h2 class="accordion-header" id="pricemod_accordionh3">
+                          <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                            data-bs-target="#pricemod_acc" aria-expanded="true" aria-controls="pricemod_acc">
+                            Price modifier
+                          </button>
+                        </h2>
+                        <div id="pricemod_acc" class="accordion-collapse collapsed collapse"
+                          aria-labelledby="pricemod_accordionh3" data-bs-parent="#pricemod_accordionh3">
+                          <div class="accordion-body">
+                            <label for="pricemodui" class="form-label">Price modifier (c/kWh)</label>
+                            <div class="mb-2">
+                              <input type="text" class="form-control" id="pricemodui" placeholder="2,2" size="10"
+                                maxlength="5" step="0.1" min="-100" max="100">
+                            </div>
+                            <label class="form-label">Select hours to modify</label>
+                            <div class='multiselector' id="pricemod_ms_div">
+                              <input class="form-check-input" type="checkbox" id="pricemod_0"><label class="form-check-label"
+                                for="pricemod_0">00-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_1"> <label class="form-check-label"
+                                for="pricemod_1">01-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_2"> <label class="form-check-label"
+                                for="pricemod_2">02-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_3"> <label class="form-check-label"
+                                for="pricemod_3">03-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_4"> <label class="form-check-label"
+                                for="pricemod_4">04-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_5"> <label class="form-check-label"
+                                for="pricemod_5">05-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_6"> <label class="form-check-label"
+                                for="pricemod_6">06-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_7"> <label class="form-check-label"
+                                for="pricemod_7">07-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_8"> <label class="form-check-label"
+                                for="pricemod_8">08-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_9"> <label class="form-check-label"
+                                for="pricemod_9">09-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_10"> <label class="form-check-label"
+                                for="pricemod_10">10-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_11"> <label class="form-check-label"
+                                for="pricemod_11">11-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_12"> <label class="form-check-label"
+                                for="pricemod_12">12-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_13"> <label class="form-check-label"
+                                for="pricemod_13">13-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_14"> <label class="form-check-label"
+                                for="pricemod_14">14-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_15"> <label class="form-check-label"
+                                for="pricemod_15">15-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_16"> <label class="form-check-label"
+                                for="pricemod_16">16-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_17"> <label class="form-check-label"
+                                for="pricemod_17">17-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_18"> <label class="form-check-label"
+                                for="pricemod_18">18-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_19"> <label class="form-check-label"
+                                for="pricemod_19">19-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_20"> <label class="form-check-label"
+                                for="pricemod_20">20-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_21"> <label class="form-check-label"
+                                for="pricemod_21">21-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_22"> <label class="form-check-label"
+                                for="pricemod_22">22-</label>
+                              <input class="form-check-input" type="checkbox" id="pricemod_23"> <label class="form-check-label"
+                                for="pricemod_23">23-</label>
+                            </div>
+                            <span class="text-muted">Modify price for selected hours. You can for example set negative
+                              modifier for night time hours when the transmission cost is lower. Clear price cache and restart after the change.</span>
+                          </div>
+                        </div>
                       </div>
-                      <label class="form-label">Select the hours modified</label>
-                      <div class='multiselector' id="pricemod_ms_div">
-                        <input class="form-check-input" type="checkbox" id="pricemod_0"><label class="form-check-label"
-                          for="pricemod_0">00-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_1"> <label class="form-check-label"
-                          for="pricemod_1">01-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_2"> <label class="form-check-label"
-                          for="pricemod_2">02-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_3"> <label class="form-check-label"
-                          for="pricemod_3">03-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_4"> <label class="form-check-label"
-                          for="pricemod_4">04-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_5"> <label class="form-check-label"
-                          for="pricemod_5">05-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_6"> <label class="form-check-label"
-                          for="pricemod_6">06-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_7"> <label class="form-check-label"
-                          for="pricemod_7">07-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_8"> <label class="form-check-label"
-                          for="pricemod_8">08-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_9"> <label class="form-check-label"
-                          for="pricemod_9">09-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_10"> <label class="form-check-label"
-                          for="pricemod_10">10-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_11"> <label class="form-check-label"
-                          for="pricemod_11">11-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_12"> <label class="form-check-label"
-                          for="pricemod_12">12-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_13"> <label class="form-check-label"
-                          for="pricemod_13">13-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_14"> <label class="form-check-label"
-                          for="pricemod_14">14-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_15"> <label class="form-check-label"
-                          for="pricemod_15">15-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_16"> <label class="form-check-label"
-                          for="pricemod_16">16-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_17"> <label class="form-check-label"
-                          for="pricemod_17">17-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_18"> <label class="form-check-label"
-                          for="pricemod_18">18-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_19"> <label class="form-check-label"
-                          for="pricemod_19">19-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_20"> <label class="form-check-label"
-                          for="pricemod_20">20-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_21"> <label class="form-check-label"
-                          for="pricemod_21">21-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_22"> <label class="form-check-label"
-                          for="pricemod_22">22-</label>
-                        <input class="form-check-input" type="checkbox" id="pricemod_23"> <label class="form-check-label"
-                          for="pricemod_23">23-</label>
-                      </div>
-                      <span class="text-muted">Modify price for selected hours. You can for example set negative
-                        modifier for night time hours when the transmission cost is lower. Clear price cache and restart after the change.</span>
+                    </div><!-- admin pricemod-->
+
                     <div id="price_data:alert"></div>
                   </div>
                   <!--./card-body-->

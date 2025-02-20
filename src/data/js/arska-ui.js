@@ -1876,6 +1876,9 @@ function load_and_update_settings() {
             }
         };
         document.getElementById("pricemodui").value = Math.round((g_settings["pricemod"] + Number.EPSILON)) / 10;
+        if (Math.abs(g_settings["pricemod"]) > 0)
+            document.getElementById("pricemod_acc").classList.add("show");
+        
         console.log("pricemodui", document.getElementById("pricemodui").value,g_settings["pricemod"] );
     }
 
