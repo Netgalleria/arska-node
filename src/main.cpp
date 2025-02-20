@@ -166,7 +166,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10109 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10110 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -324,7 +324,6 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 // #define FRONIUSGEN24_INOUTWRTE_SF_RO_OFFSET 40378
 
 // Gen24_Primo_Symo_Inverter_Register_Map_Int&SF_storage_ROW, Excel value -1
-#define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 100
 #define FRONIUSGEN24_SUNSECSTATUS_OFFSET 40343
 #define FRONIUSGEN24_WCHAMAX_OFFSET 40345
 #define FRONIUSGEN24_SUNSECSTATUS_EXPECTED 124
@@ -333,6 +332,11 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define FRONIUSGEN24_INWRTE_OFFSET 40356
 #define FRONIUSGEN24_INOUTWRTE_SF_RO_OFFSET 40368
 #define FRONIUSGEN24_CHASTATE_OFFSET 40351
+
+//#define FRONIUSGEN24_POWER_MAX_REAL 5000 // This will come from the
+//define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 100
+#define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 //5kW 5000/40960*100=12.2
+
 
 #endif
 
@@ -657,6 +661,8 @@ typedef struct
   char variable_server[MAX_ID_STR_LENGTH]; //!< projected to be used in replica mode, RFU
   char entsoe_api_key[37];                 //!< EntsoE API key
   char entsoe_area_code[17];               //!< Price area code in day ahead market
+  int16_t pricemod;                        //!< Price modifier 0.1 cents, scaled
+  uint32_t pricemod_hours;                //!< Price modifier hour mask hours 0-23, mask += Math.pow(2, i)
   char custom_ntp_server[35];              //!< RFU, TODO:UI to set up
   char timezone[4];                        //!< EET,CET supported
   uint8_t ota_update_phase;                //!< Phase of curent OTA update, if updating
@@ -812,6 +818,7 @@ public:
   void set_store_start(time_t new_start);
   // new experimental version of time series ranking
   int get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
+  void apply_pricemodifier();
 
 private:
   uint8_t id_;
@@ -2408,6 +2415,26 @@ int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts
   yield();
   return rank;
 }
+
+void timeSeries::apply_pricemodifier() {
+  
+  time_t start_ts;
+  bool hour_modified;
+  for (int i = 0; i < store.n; i++)
+  {
+    start_ts = store.start + i * store.resolution_sec;
+    localtime_r(&start_ts, &tm_struct);
+              //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
+
+    hour_modified = s.pricemod_hours & (1 << tm_struct.tm_hour);
+    if (hour_modified)
+      store.arr[i] += s.pricemod*100;
+
+    Serial.printf("%d, %lu  hour %d  %s", i, start_ts,tm_struct.tm_hour,hour_modified?"M":" ");
+    Serial.println(store.arr[i]);
+  }
+
+};
 
 // Time series globals
 timeSeries prices2(0, 0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, 0);
@@ -4044,7 +4071,7 @@ bool read_inverter_fronius_data(long int &total_energy, long int &current_power)
 
   StaticJsonDocument<256> doc;
   char inverter_url[190];
-  snprintf(inverter_url, sizeof(inverter_url), "http://%s:%d/solar_api/v1/GetInverterRealtimeData.cgi?scope=Device&DeviceId=1&DataCollection=CumulationInverterData", s.production_meter_ip.toString().c_str(), s.production_meter_port);
+  snprintf(inverter_url, sizeof(inverter_url), "http://%s:%d/solar_api/v1/GetInverterRealtimeData.cgi?Scope=Device&DeviceId=1&DataCollection=CumulationInverterData", s.production_meter_ip.toString().c_str(), s.production_meter_port);
   Serial.println(inverter_url);
 
   yield();
@@ -5458,6 +5485,7 @@ bool get_price_data_entsoe()
       break;
     }
 
+
     if (line.indexOf(F("Service Temporarily Unavailable")) > 0)
     {
       Serial.println(F("Service Temporarily Unavailable"));
@@ -5493,7 +5521,10 @@ bool get_price_data_entsoe()
     }
 
     Serial.println(F("Finished succesfully get_price_data_entsoe."));
-    prices2.debug_print();
+    prices2.apply_pricemodifier();// just testing
+    prices2.debug_print();    
+    
+
 
 #ifdef INFLUX_REPORT_ENABLED
     // update to Influx if defined
@@ -6870,6 +6901,8 @@ bool get_price_data_elering(char *country_code)
     prices_expires_ts = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
     Serial.printf("prices_expires_ts %lu\n", prices_expires_ts);
     Serial.println(F("Finished succesfully get_price_data_elering."));
+
+    prices2.apply_pricemodifier();
     prices2.debug_print();
 
 #ifdef NVS_CACHE_ENABLED
@@ -7416,6 +7449,9 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
 
   doc["entsoe_api_key"] = s.entsoe_api_key;
   doc["entsoe_area_code"] = s.entsoe_area_code;
+  doc["pricemod"] = s.pricemod;
+  doc["pricemod_hours"] =  s.pricemod_hours;
+
   //  if (s.variable_mode == VARIABLE_MODE_REPLICA)
   //   doc["variable_server"] = s.variable_server;
   doc["custom_ntp_server"] = s.custom_ntp_server;
@@ -7623,6 +7659,20 @@ int32_t ajson_int_get(JsonVariant parent_node, char *doc_key, int32_t default_va
   }
   return default_val;
 }
+/*
+float ajson_float_get(JsonVariant parent_node, char *doc_key, float default_val )
+{
+  JsonVariant element = parent_node[doc_key];
+  if (!element.isNull())
+  {
+    if (element.is<float>())
+      return element.as<float>();
+    else
+      return (float)atof(element.as<const char *>());
+  }
+  return default_val;
+}
+*/
 
 /**
  * @brief Gets an ip address from a json node.
@@ -7681,6 +7731,16 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   ajson_str_to_mem(doc, (char *)"wifi_password", s.wifi_password, sizeof(s.wifi_password));
   ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
   ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
+
+/* alternative...
+  float pricemod_f= ajson_float_get(doc, (char *)"pricemod", 0);
+  if (abs(pricemod_f)>0.01) {
+    s.pricemod = (int16_t)(pricemod_f*10+0.5); //scale and convert to int
+  }
+*/
+  s.pricemod = ajson_int_get(doc, (char *)"pricemod", s.pricemod);
+  s.pricemod_hours = ajson_int_get(doc, (char *)"pricemod_hours", s.pricemod_hours);
+
 
   ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
   ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));

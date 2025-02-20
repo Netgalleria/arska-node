@@ -701,23 +701,23 @@ function update_status(repeat) {
 
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
-                
+
             if (data.hasOwnProperty("wg_status"))
                 document.getElementById("wg_status_text").innerHTML = `Connection status: ${remote_status_texts[data.wg_status]}`;
-            
+
             var lm_status = 'success';
             var lm_info = '';
             var lm_status_el = document.getElementById("load_manager_status");
-         
+
             if (data.energy_meter_read_last_ts > (new Date().getTime() / 1000) - 180) {
                 if (data.hasOwnProperty("energy_meter_current_latest")) {
                     lm_info += " Load [" + data.energy_meter_current_latest.join(" A, ") + " A]";
                     if (!isNaN(data.variables[VARIABLE_SELLING_POWER])) {
-                        lm_info += ", avg " + (-data.variables[VARIABLE_SELLING_POWER]/1000).toFixed(2) + " kW";
+                        lm_info += ", avg " + (-data.variables[VARIABLE_SELLING_POWER] / 1000).toFixed(2) + " kW";
                     }
-                    lm_info +=  " (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
+                    lm_info += " (" + get_time_string_from_ts(data.energy_meter_read_last_ts, true, true) + ")";
 
-                    
+
                 }
                 if (data.hasOwnProperty("load_manager_overload_last_ts") && (data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60 > (new Date()).getTime() / 1000)) {
                     lm_info += "<br>Overload at " + get_time_string_from_ts(data.load_manager_overload_last_ts) + ". Reswitching earliest " + get_time_string_from_ts(data.load_manager_overload_last_ts + g_settings.load_manager_reswitch_moratorium_m * 60, true, true) + ".";
@@ -986,24 +986,24 @@ function populate_channel_status(channel_idx, ch) {
     }
     sch_delete_radio.disabled = (ch.force_state_until <= now_ts);
 
-   // console.log(channel_idx, "ch_is_active(ch)", ch_is_active(ch));
-    if (is_relay_profile_used(ch["type"])) { 
-        sch_status_label.classList.remove("text-bg-primary","text-bg-info", "text-bg-danger" ,"text-bg-success");
-        switch(parseInt(ch["profile"])) {
+    // console.log(channel_idx, "ch_is_active(ch)", ch_is_active(ch));
+    if (is_relay_profile_used(ch["type"])) {
+        sch_status_label.classList.remove("text-bg-primary", "text-bg-info", "text-bg-danger", "text-bg-success");
+        switch (parseInt(ch["profile"])) {
             case 100:
             case 105:
                 sch_status_label.classList.add("text-bg-success");
-              break;
+                break;
             case 110:
                 sch_status_label.classList.add("text-bg-info");
                 break;
             case 115:
             case 120:
                 sch_status_label.classList.add("text-bg-primary");
-              break;
+                break;
             default:
                 sch_status_label.classList.add("text-bg-danger");
-          }
+        }
     }
     else {
         sch_status_label.classList.remove(ch_is_active(ch) ? "text-bg-danger" : "text-bg-success");
@@ -1025,8 +1025,8 @@ function populate_channel_status(channel_idx, ch) {
     }
     else if (ch.profile > 99) {
         info_text += get_profile_text_by_id(ch.profile);
-       // if (!ch.wanna_be_up)
-       //     info_text += ", going down.";
+        // if (!ch.wanna_be_up)
+        //     info_text += ", going down.";
     }
     else if (ch.is_up) {
         info_text += "Up";
@@ -1223,14 +1223,14 @@ function create_dashboard_chart() {
                 });
     }
 
-  
+
 
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
         dataset_started = false;
         let production_ds = [];
         for (h_idx = 0; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
             //probably 1 resolutions unit too small, fixed 10.4.2024
-            ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx-1) * chart_resolution_sec;
+            ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx - 1) * chart_resolution_sec;
             if (Math.abs(variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]) > 1)
                 dataset_started = true;
 
@@ -1257,21 +1257,21 @@ function create_dashboard_chart() {
                 });
     }
 
-    function add_history_ds(ds_id,label,color,yaxis) {
+    function add_history_ds(ds_id, label, color, yaxis) {
 
         if (has_history_values[ds_id]) {
             dataset_started = false;
             let ds = [];
             for (h_idx = 0; h_idx < variable_history[ds_id].length; h_idx++) {
                 //probably 1 resolutions unit too small, fixed 10.4.2024
-                ts = now_period_ts - (variable_history[ds_id].length - h_idx-1) * chart_resolution_sec;
+                ts = now_period_ts - (variable_history[ds_id].length - h_idx - 1) * chart_resolution_sec;
                 if (Math.abs(variable_history[ds_id][h_idx]) > 1)
                     dataset_started = true;
-    
+
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
                     ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] });
             }// chart_resolution_sec
-    
+
             if (dataset_started)
                 datasets.push(
                     {
@@ -1295,62 +1295,62 @@ function create_dashboard_chart() {
     //TODO: refactor also VARIABLE_PRODUCTION_ENERGY, VARIABLE_SELLING_ENERGY
 
 
-      // solar forecast, could be combined with get_price_data
-      var start = new Date().getTime();
-      $.ajax({
-          url: '/series?solar_fcst=true',
-          cache: false,
-          dataType: 'json',
-          async: false,
-          success: function (data, textStatus, jqXHR) {
-              console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
-  
-              //   console.log('got solar forecast', textStatus, jqXHR.status);
-              let fcst_ds = [];
-              if (!data.hasOwnProperty("solar_forecast"))
-                  return false;
-  
-              solar_fcst = data.solar_forecast.s;
-              resolution_sec = data.solar_forecast.resolution_sec;
-              series_started = false;
-              for (idx = 0; idx < solar_fcst.length; idx++) {
-                  ts = (data.solar_forecast.start + idx * resolution_sec);
-                  if (solar_fcst[idx] > 0)
-                      series_started = true;
-                  if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
-                      fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
-              }
-              if (fcst_ds.length) {
-                  datasets.push(
-                      {
-                          label: 'solar fcst Wh/' + period_label,
-                          data: fcst_ds,
-                          yAxisID: 'y_energy',
-                          cubicInterpolationMode: 'monotone',
-                          borderColor: ['#ffff00'
-                          ],
-                          backgroundColor: '#ffff00',
-                          pointStyle: 'circle',
-                          pointRadius: 1,
-                          pointHoverRadius: 5,
-                          fill: false,
-                          stepped: false,
-                          borderWidth: 2
-                      });
-              }
-  
-          },
-          error: function (jqXHR, textStatus, errorThrown) {
-              console.log("Cannot get solar forecast", textStatus, jqXHR.status);
-          }
-      });
-  
+    // solar forecast, could be combined with get_price_data
+    var start = new Date().getTime();
+    $.ajax({
+        url: '/series?solar_fcst=true',
+        cache: false,
+        dataType: 'json',
+        async: false,
+        success: function (data, textStatus, jqXHR) {
+            console.log("/series?solar_fcst=true took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
+
+            //   console.log('got solar forecast', textStatus, jqXHR.status);
+            let fcst_ds = [];
+            if (!data.hasOwnProperty("solar_forecast"))
+                return false;
+
+            solar_fcst = data.solar_forecast.s;
+            resolution_sec = data.solar_forecast.resolution_sec;
+            series_started = false;
+            for (idx = 0; idx < solar_fcst.length; idx++) {
+                ts = (data.solar_forecast.start + idx * resolution_sec);
+                if (solar_fcst[idx] > 0)
+                    series_started = true;
+                if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
+                    fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
+            }
+            if (fcst_ds.length) {
+                datasets.push(
+                    {
+                        label: 'solar fcst Wh/' + period_label,
+                        data: fcst_ds,
+                        yAxisID: 'y_energy',
+                        cubicInterpolationMode: 'monotone',
+                        borderColor: ['#ffff00'
+                        ],
+                        backgroundColor: '#ffff00',
+                        pointStyle: 'circle',
+                        pointRadius: 1,
+                        pointHoverRadius: 5,
+                        fill: false,
+                        stepped: false,
+                        borderWidth: 2
+                    });
+            }
+
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            console.log("Cannot get solar forecast", textStatus, jqXHR.status);
+        }
+    });
+
 
     var channel_dataset;
     now_period_start = period_start_ts(now_ts); //parseInt(now_ts / NETTING_PERIOD_SEC) * NETTING_PERIOD_SEC;
     first_chh_period = now_period_start - (MAX_HISTORY_PERIODS - 1) * g_settings.netting_period_sec;
     for (channel_idx = 0; channel_idx < channel_history.length; channel_idx++) {
-        if (g_settings.ch[channel_idx]["type"] == 0 || g_settings.ch[channel_idx]["type"] >=  50) // undefined or inverter
+        if (g_settings.ch[channel_idx]["type"] == 0 || g_settings.ch[channel_idx]["type"] >= 50) // undefined or inverter
             continue;
         channel_dataset = [];
         dataset_started = false;
@@ -1690,7 +1690,7 @@ const force_state_minutes = [30, 60, 120, 180, 240, 360, 480, 600, 720, 960, 120
 
 function post_schedule_update(channel_idx, duration, start, profile) {
     var scheds = [];
-    scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start , "profile": profile });
+    scheds.push({ "ch_idx": channel_idx, "duration": duration, "from": start, "profile": profile });
     console.log(scheds);
 
     $.ajax({
@@ -1720,7 +1720,7 @@ function post_schedule_update(channel_idx, duration, start, profile) {
 function schedule_update_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
     console.log("schedule_update_ev channel_idx:", channel_idx);
-    post_schedule_update(channel_idx, document.getElementById(`sch_${channel_idx}:duration`).value, document.getElementById(`sch_${channel_idx}:start`).value, document.getElementById(`sch_${channel_idx}:profile`).value,-1);
+    post_schedule_update(channel_idx, document.getElementById(`sch_${channel_idx}:duration`).value, document.getElementById(`sch_${channel_idx}:start`).value, document.getElementById(`sch_${channel_idx}:profile`).value, -1);
     console.log("next update_fup_duration_element");
     // update select list
     duration = document.getElementById(`sch_${channel_idx}:duration`).value;
@@ -1810,7 +1810,7 @@ function duration_changed_ev(evt) {
 
 function delete_schedule_ev(evt) {
     channel_idx = get_idx_from_str(evt.target.id, 0);
-    post_schedule_update(channel_idx, 0, 0,-1);
+    post_schedule_update(channel_idx, 0, 0, -1);
     document.getElementById(`sch_${channel_idx}:delete`).disabled = true;
     document.getElementById(`sch_${channel_idx}:start`).value = -1;
     setTimeout(function () { update_status(false); }, 1000); //update UI
@@ -1855,7 +1855,7 @@ function load_and_update_settings() {
             return false;
         }
     });
-    
+
 
     if (g_settings.hasOwnProperty("wg_expires")) {
         var expire_text = '';
@@ -1865,8 +1865,18 @@ function load_and_update_settings() {
             expire_text = "No expiration";
         else
             expire_text = 'Expires: ' + get_time_string_from_ts(g_settings.wg_expires, false, true);
-//     document.getElementById("wg_expires_text").innerHTML = expire_text;
-        document.getElementById("wg_connection_expires_rel").options[0].innerHTML = "Current: " +expire_text; 
+        //     document.getElementById("wg_expires_text").innerHTML = expire_text;
+        document.getElementById("wg_connection_expires_rel").options[0].innerHTML = "Current: " + expire_text;
+    }
+
+    if (g_settings.hasOwnProperty("pricemod_hours")) {
+        for (var i = 0; i < 24; i++) {
+            if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
+                document.getElementById("pricemod_" + i).checked = true;
+            }
+        };
+        document.getElementById("pricemodui").value = Math.round((g_settings["pricemod"] + Number.EPSILON)) / 10;
+        console.log("pricemodui", document.getElementById("pricemodui").value,g_settings["pricemod"] );
     }
 
 
@@ -1883,7 +1893,7 @@ function load_and_update_settings() {
             }
         }
     }
-    
+
     return true;
 }
 
@@ -1905,15 +1915,15 @@ function load_application_config() {
             g_remote_enabled = g_application.hasOwnProperty("REMOTE_ENABLED") ? g_application.REMOTE_ENABLED : false;
             if (g_remote_enabled)
                 document.getElementById(`remote_accordion`).classList.remove("collapse");
-            
+
             g_mdns_enabled = g_application.hasOwnProperty("MDNS_ENABLED") ? g_application.MDNS_ENABLED : false;
             if (g_mdns_enabled)
                 document.getElementById(`mdns_div`).classList.remove("collapse");
-            
+
             g_influx_report_enabled = g_application.hasOwnProperty("INFLUX_REPORT_ENABLED") ? g_application.INFLUX_REPORT_ENABLED : false;
             set_ctrl_visibility(document.getElementById(`influx:card`), g_influx_report_enabled);
-                
-            
+
+
             document.getElementById(`wifi_info`).innerHTML = `Current IP: ${g_application.wifi_ip} , MAC: ${g_application.wifi_mac.toLowerCase()}`;
         },
         error: function (jqXHR, textStatus, errorThrown) {
@@ -2023,7 +2033,7 @@ function is_relay_uid_used(channel_type) { //unit_id required
     return [CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
 }
 function is_relay_profile_used(channel_type) { //battery control uses profiles, not just up/down
-    return [ CH_TYPE_FRONIUS_GEN24_MODBUS_RTU].includes(parseInt(channel_type));
+    return [CH_TYPE_FRONIUS_GEN24_MODBUS_RTU].includes(parseInt(channel_type));
 }
 
 function set_relay_field_visibility(channel_idx, ch_type) {
@@ -2251,7 +2261,7 @@ function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0
 
 
 function populate_profile_select(selEl, profile_id = -1) {
-   // console.log("populate_profile_select:" + channel_profiles.length);
+    // console.log("populate_profile_select:" + channel_profiles.length);
     if (selEl.options && selEl.options.length <= 1) {
         if (selEl.length == 0)
             addOption(selEl, -1, "Select profile", false);
@@ -2483,20 +2493,20 @@ function populate_channel(channel_idx) {
 
     set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:profiled`), is_relay_profile_used(ch_cur["type"]));
     set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:updownd`), !is_relay_profile_used(ch_cur["type"]));
-    populate_profile_select(document.getElementById(`ch_${channel_idx}:default_profile`),ch_cur["default_profile"])
+    populate_profile_select(document.getElementById(`ch_${channel_idx}:default_profile`), ch_cur["default_profile"])
     // console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
 
     if ("rules" in ch_cur) {
-      //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
+        //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
 
 
-        for (rule_idx = 0; rule_idx <  g_application.CHANNEL_RULES_MAX; rule_idx++) {
-            console.log("Channel" + channel_idx + " Set rule "+ rule_idx+ "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"])) ;
+        for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
+            console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
             set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profiled`), is_relay_profile_used(ch_cur["type"]));
             set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:updownd`), !is_relay_profile_used(ch_cur["type"]));
             populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`))
 
-            if (rule_idx < ch_cur["rules"].length)  {
+            if (rule_idx < ch_cur["rules"].length) {
                 this_rule = ch_cur["rules"][rule_idx];
                 if (is_relay_profile_used(ch_cur["type"])) {
                     populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`), this_rule["profile"])
@@ -2865,17 +2875,17 @@ function create_channels() {
             }
 
             var internal_relay = [CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED].includes(parseInt(type_id));
-          //  if ((locked && internal_relay) || (!locked && !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
-            if ((locked && internal_relay) || ( !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
+            //  if ((locked && internal_relay) || (!locked && !internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
+            if ((locked && internal_relay) || (!internal_relay) || (g_settings.hw_template_id == 0) || (type_id == CH_TYPE_UNDEFINED))
                 addOption(channel_type_ctrl, type_id, type_name, (g_settings.ch[channel_idx]["type"] == type_id));
         }
-            
-        
+
+
         if (is_relay_profile_used(ch_cur["type"])) {
             populate_profile_select(document.getElementById(`sch_${channel_idx}:profile`));
             document.getElementById(`sch_${channel_idx}:profilecol`).classList.remove("d-none");
         }
-        
+
         sch_duration_sel = document.getElementById(`sch_${channel_idx}:duration`);
         if (channel_idx < (g_settings.ch.length)) { // we should have data
             //initiate rule structure
@@ -3112,6 +3122,10 @@ function save_hide_multiselect_popover(stmt_id) {
 }
 
 
+
+
+
+
 // triggred from window onload
 function init_ui() {
     console.log("Init ui");
@@ -3252,7 +3266,7 @@ function find_parent_card(el) { //finds first parend card or accordion
     var p = el;
     while (p = p.parentNode) {
         var colon_count = (p.id.match(/:/g) || []).length; //filter out rule sub cards 
-        if (p.id && ((p.id.endsWith(":card") && colon_count == 1) ||  p.id.endsWith("_accordion")) ) {
+        if (p.id && ((p.id.endsWith(":card") && colon_count == 1) || p.id.endsWith("_accordion"))) {
             //   console.log("returns:",p.id.replace(":card", ""));
             return p.id.replace(":card", "").replace("_accordion", "");
         }
@@ -3371,9 +3385,9 @@ function save_channel_ev(ev) {
     data_ch["config_mode"] = parseInt(document.getElementById(`ch_${channel_idx}:config_mode_0`).checked ? 0 : 1);
 
     data_ch["default_state"] = document.getElementById(`ch_${channel_idx}:default_state_0`).checked ? false : true;
-    data_ch["default_profile"] = document.getElementById(`ch_${channel_idx}:default_profile`).value ;
+    data_ch["default_profile"] = document.getElementById(`ch_${channel_idx}:default_profile`).value;
 
-    
+
 
     rules = [];
 
@@ -3381,7 +3395,7 @@ function save_channel_ev(ev) {
         stmt_count = 0;
         rule_stmts = [];
         up_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked ? false : true;
-        profile_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`).value ;
+        profile_value = document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`).value;
 
         for (stmt_idx = 0; stmt_idx < g_application.RULE_STATEMENTS_MAX; stmt_idx++) {
             var_value = parseInt(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:s_${stmt_idx}:var`).value);
@@ -3395,7 +3409,7 @@ function save_channel_ev(ev) {
             }
         }
         if (rule_stmts.length > 0)
-            rules.push({ "on": up_value,"profile" : profile_value, "stmts": rule_stmts });
+            rules.push({ "on": up_value, "profile": profile_value, "stmts": rule_stmts });
     }
     data_ch["rules"] = rules;
 
@@ -3469,14 +3483,35 @@ function save_card_ev(ev) {
     card = id_a[0];
     var post_data = {};
 
+    if (card == "price_data") {
+        var mask = 0;
+        for (i = 0; i < 24; i++) {
+            id = "pricemod_" + i;
+            //  console.log(i, document.getElementById(id).checked);
+            if (document.getElementById(id)) {
+                if (document.getElementById(id).checked) {
+                    mask += Math.pow(2, i);
+                }
+
+            }
+        }
+        // document.getElementById("pricemod_hours").value = mask;
+        console.log('pricemod_hours:' + mask);
+        post_data["pricemod_hours"] = mask;
+    }
+
     card_div = document.getElementById(card + ":card");
 
     if (card_div == null) //accordion fix
         card_div = document.getElementById(card + "_accordion");
 
     let elems = card_div.querySelectorAll('input, select');
+
     for (let i = 0; i < elems.length; i++) {
+        if (elems[i].id.startsWith("pricemod_"))
+            continue;
         console.log("POST:" + elems[i].id + ", " + elems[i].type.toLowerCase())
+
         if (elems[i].id == 'http_password') {
             // console.log(elems[i].id, elems[i].value, document.getElementById('http_password2').value);
             if (elems[i].value != document.getElementById('http_password2').value) {
@@ -3488,11 +3523,14 @@ function save_card_ev(ev) {
         if (elems[i].type.toLowerCase() == 'checkbox') {
             post_data[elems[i].id] = elems[i].checked;
         }
+        else if (elems[i].id == 'pricemodui') {
+            post_data["pricemod"] = Math.round(elems[i].value * 10);
+        }
         else {
             post_data[elems[i].id] = elems[i].value;
         }
     }
-
+    console.log(JSON.stringify(post_data));
     live_alert(card, "Sending:" + JSON.stringify(post_data), 'success');
 
     $.ajax({
