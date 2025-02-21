@@ -109,12 +109,24 @@ RTC_PCF8563 rtc;
 #define CH_PROFILE_DOWN 0
 #define CH_PROFILE_UP 1
 // battery control profiles, ids 100-109 reserved for charging profiles, 111-120 for discharge
+/* #define CH_PROFILE_BATT_STEP 10
 #define CH_PROFILE_BATT_CHARGE_100 100
 #define CH_PROFILE_BATT_CHARGE_50 105
 #define CH_PROFILE_BATT_CHARGE_0 110
 #define CH_PROFILE_BATT_DISCHARGE_50 115
 #define CH_PROFILE_BATT_DISCHARGE_100 120
-#define CH_PROFILE_BATT_NO_CTRL 121
+#define CH_PROFILE_BATT_NO_CTRL 121*/
+#define CH_PROFILE_BATT_STEP 5
+#define CH_PROFILE_BATT_CHARGE_100 100
+#define CH_PROFILE_BATT_CHARGE_75 105
+#define CH_PROFILE_BATT_CHARGE_50 110
+#define CH_PROFILE_BATT_CHARGE_25 115
+#define CH_PROFILE_BATT_CHARGE_0 120
+#define CH_PROFILE_BATT_DISCHARGE_25 125
+#define CH_PROFILE_BATT_DISCHARGE_50 130
+#define CH_PROFILE_BATT_DISCHARGE_75 135
+#define CH_PROFILE_BATT_DISCHARGE_100 140
+#define CH_PROFILE_BATT_NO_CTRL 141
 #endif
 
 // experimental remote connection, WiP
@@ -333,10 +345,9 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define FRONIUSGEN24_INOUTWRTE_SF_RO_OFFSET 40368
 #define FRONIUSGEN24_CHASTATE_OFFSET 40351
 
-//#define FRONIUSGEN24_POWER_MAX_REAL 5000 // This will come from the
-//define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 100
-#define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 //5kW 5000/40960*100=12.2
-
+// #define FRONIUSGEN24_POWER_MAX_REAL 5000 // This will come from the
+// define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 100
+#define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 // 5kW 5000/40960*100=12.2
 
 #endif
 
@@ -406,7 +417,7 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define VARIABLE_LOADM_UTILIZED_POWER_PERIOD 501
 
 #define VARIABLE_SOC_BASE_0 600
-#define VARIABLE_PRODUCTION_BASE_0 620//RFU
+#define VARIABLE_PRODUCTION_BASE_0 620 // RFU
 
 #define VARIABLE_NET_ESTIMATE_SOURCE 701 //!< 0-no estimate,1-grid measurement, 2-production measurement - baseload, 3-production estimate - baseload
 #define VARIABLE_NET_ESTIMATE_SOURCE_NONE 0L
@@ -662,7 +673,7 @@ typedef struct
   char entsoe_api_key[37];                 //!< EntsoE API key
   char entsoe_area_code[17];               //!< Price area code in day ahead market
   int16_t pricemod;                        //!< Price modifier 0.1 cents, scaled
-  uint32_t pricemod_hours;                //!< Price modifier hour mask hours 0-23, mask += Math.pow(2, i)
+  uint32_t pricemod_hours;                 //!< Price modifier hour mask hours 0-23, mask += Math.pow(2, i)
   char custom_ntp_server[35];              //!< RFU, TODO:UI to set up
   char timezone[4];                        //!< EET,CET supported
   uint8_t ota_update_phase;                //!< Phase of curent OTA update, if updating
@@ -756,7 +767,7 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE},{VARIABLE_SOC_BASE_0, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_SOC_BASE_0, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
   int get_variable_index(int id);
 };
 
@@ -1843,7 +1854,7 @@ void Variables::rotate_period()
     variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = this->get_l(history_variables[v_idx]);
     for (int h_idx = 0; (h_idx + 1) < MAX_HISTORY_PERIODS; h_idx++)
       variable_history[v_idx][h_idx] = variable_history[v_idx][h_idx + 1];
-    if (history_variables[v_idx] != VARIABLE_SOC_BASE_0) //init soc with last period value 
+    if (history_variables[v_idx] != VARIABLE_SOC_BASE_0)    // init soc with last period value
       variable_history[v_idx][MAX_HISTORY_PERIODS - 1] = 0; // current period
   }
   this->set(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0L); // DO WE NEED THIS?
@@ -2416,24 +2427,24 @@ int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts
   return rank;
 }
 
-void timeSeries::apply_pricemodifier() {
-  
+void timeSeries::apply_pricemodifier()
+{
+
   time_t start_ts;
   bool hour_modified;
   for (int i = 0; i < store.n; i++)
   {
     start_ts = store.start + i * store.resolution_sec;
     localtime_r(&start_ts, &tm_struct);
-              //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
+    //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
 
     hour_modified = s.pricemod_hours & (1 << tm_struct.tm_hour);
     if (hour_modified)
-      store.arr[i] += s.pricemod*100;
+      store.arr[i] += s.pricemod * 100;
 
-    Serial.printf("%d, %lu  hour %d  %s", i, start_ts,tm_struct.tm_hour,hour_modified?"M":" ");
+    Serial.printf("%d, %lu  hour %d  %s", i, start_ts, tm_struct.tm_hour, hour_modified ? "M" : " ");
     Serial.println(store.arr[i]);
   }
-
 };
 
 // Time series globals
@@ -5485,7 +5496,6 @@ bool get_price_data_entsoe()
       break;
     }
 
-
     if (line.indexOf(F("Service Temporarily Unavailable")) > 0)
     {
       Serial.println(F("Service Temporarily Unavailable"));
@@ -5521,10 +5531,8 @@ bool get_price_data_entsoe()
     }
 
     Serial.println(F("Finished succesfully get_price_data_entsoe."));
-    prices2.apply_pricemodifier();// just testing
-    prices2.debug_print();    
-    
-
+    prices2.apply_pricemodifier(); // just testing
+    prices2.debug_print();
 
 #ifdef INFLUX_REPORT_ENABLED
     // update to Influx if defined
@@ -6036,7 +6044,7 @@ bool read_channel_stats_modbus(int channel_idx)
   yield();
   if (!mb.isConnected(ip_address))
   {
-    Serial.print(F("set_profile_modbus_tcp: Connecting Modbus TCP..."));
+    Serial.print(F("read_channel_stats_modbus: Connecting Modbus TCP..."));
     bool cresult = mb.connect(ip_address, ip_port);
     Serial.println(cresult);
     mb.task();
@@ -6075,7 +6083,6 @@ bool read_channel_stats_modbus(int channel_idx)
   return true;
 }
 
-
 void read_channels_stats()
 {
   Serial.println(F("read_channels_stats()"));
@@ -6083,18 +6090,20 @@ void read_channels_stats()
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     switch (s.ch[channel_idx].type)
-    {   
+    {
     case CH_TYPE_FRONIUS_GEN24_MODBUS_TCP:
       ok = read_channel_stats_modbus(channel_idx);
       break;
       // default:
     }
   }
-  if (ok) {
-    next_read_channels_stats_ts = time(nullptr)+READ_CHANNEL_STATS_INTERVAL_SECS;
+  if (ok)
+  {
+    next_read_channels_stats_ts = time(nullptr) + READ_CHANNEL_STATS_INTERVAL_SECS;
   }
-  else {
-     next_read_channels_stats_ts = time(nullptr)+READ_CHANNEL_STATS_INTERVAL_FAILED_SECS;
+  else
+  {
+    next_read_channels_stats_ts = time(nullptr) + READ_CHANNEL_STATS_INTERVAL_FAILED_SECS;
   }
   return;
 }
@@ -6295,6 +6304,8 @@ bool set_profile_modbus_tcp(int channel_idx)
   long StorCtl_Mod;
   long InWRte;
   long OutWRte;
+  long InWRte_mbus;
+  long OutWRte_mbus;
 
   if (s.ch[channel_idx].wannabe_profile < CH_PROFILE_BATT_CHARGE_100 || s.ch[channel_idx].wannabe_profile > CH_PROFILE_BATT_NO_CTRL)
   {
@@ -6313,8 +6324,8 @@ bool set_profile_modbus_tcp(int channel_idx)
     StorCtl_Mod = 3;
 
     // default calculated based of profile id:s
-    InWRte = (CH_PROFILE_BATT_CHARGE_0 - s.ch[channel_idx].wannabe_profile) * 10;
-    OutWRte = (s.ch[channel_idx].wannabe_profile - CH_PROFILE_BATT_CHARGE_0) * 10;
+    InWRte = (CH_PROFILE_BATT_CHARGE_0 - s.ch[channel_idx].wannabe_profile) * CH_PROFILE_BATT_STEP;
+    OutWRte = (s.ch[channel_idx].wannabe_profile - CH_PROFILE_BATT_CHARGE_0) * CH_PROFILE_BATT_STEP;
   }
 
   uint16_t ip_port = 502;                                  // TODO: need to change?
@@ -6333,17 +6344,18 @@ bool set_profile_modbus_tcp(int channel_idx)
     mb.task();
   }
   yield();
+  InWRte_mbus = InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+  OutWRte_mbus = OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+  Serial.printf("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld \n", OutWRte_mbus, InWRte_mbus, StorCtl_Mod);
 
   if (mb.isConnected(ip_address))
   { // Check if connection to Modbus slave is established
     mb.task();
     Serial.println(F("Connection ok. Setting  Modbus registries."));
 
-    // set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_INOUTWRTE_SF_OFFSET, -2);//40359 nOutWRte_SF , error04
-
-    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, 0); // disable patterns first
-    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_OUTWRTE_OFFSET, OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536);
-    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_INWRTE_OFFSET, InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536);
+    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, 0); // disable patterns first, to avoid atomaric checks
+    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_OUTWRTE_OFFSET, OutWRte_mbus);
+    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_INWRTE_OFFSET, InWRte_mbus);
     if (StorCtl_Mod != 0)
     {                                                                                                   // emnable back if needed
       set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, StorCtl_Mod); //
@@ -7450,7 +7462,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["entsoe_api_key"] = s.entsoe_api_key;
   doc["entsoe_area_code"] = s.entsoe_area_code;
   doc["pricemod"] = s.pricemod;
-  doc["pricemod_hours"] =  s.pricemod_hours;
+  doc["pricemod_hours"] = s.pricemod_hours;
 
   //  if (s.variable_mode == VARIABLE_MODE_REPLICA)
   //   doc["variable_server"] = s.variable_server;
@@ -7582,7 +7594,6 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
 #ifdef BATTERY_ENABLED
         doc["ch"][channel_idx]["rules"][rule_idx_output]["profile"] = s.ch[channel_idx].rules[rule_idx].profile;
 #endif
-
 
         rule_idx_output++;
         active_rule_count++;
@@ -7732,15 +7743,14 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   ajson_str_to_mem(doc, (char *)"entsoe_api_key", s.entsoe_api_key, sizeof(s.entsoe_api_key));
   ajson_str_to_mem(doc, (char *)"entsoe_area_code", s.entsoe_area_code, sizeof(s.entsoe_area_code));
 
-/* alternative...
-  float pricemod_f= ajson_float_get(doc, (char *)"pricemod", 0);
-  if (abs(pricemod_f)>0.01) {
-    s.pricemod = (int16_t)(pricemod_f*10+0.5); //scale and convert to int
-  }
-*/
+  /* alternative...
+    float pricemod_f= ajson_float_get(doc, (char *)"pricemod", 0);
+    if (abs(pricemod_f)>0.01) {
+      s.pricemod = (int16_t)(pricemod_f*10+0.5); //scale and convert to int
+    }
+  */
   s.pricemod = ajson_int_get(doc, (char *)"pricemod", s.pricemod);
   s.pricemod_hours = ajson_int_get(doc, (char *)"pricemod_hours", s.pricemod_hours);
-
 
   ajson_str_to_mem(doc, (char *)"custom_ntp_server", s.custom_ntp_server, sizeof(s.custom_ntp_server));
   ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
@@ -8471,7 +8481,9 @@ void onWebStatusGet(AsyncWebServerRequest *request)
     doc["ch"][channel_idx]["type"] = s.ch[channel_idx].type;
 #ifdef BATTERY_ENABLED
     doc["ch"][channel_idx]["profile"] = s.ch[channel_idx].profile;
+    doc["ch"][channel_idx]["force_state_profile"] = s.ch[channel_idx].force_state_profile;
     doc["ch"][channel_idx]["wannabe_profile"] = s.ch[channel_idx].wannabe_profile;
+
 #endif
 
     doc["ch"][channel_idx]["active_rule"] = get_channel_active_rule(channel_idx);
@@ -9514,9 +9526,10 @@ void loop()
   }
 
 #ifdef BATTERY_ENABLED
-if (next_read_channels_stats_ts<time(nullptr) ){
-  read_channels_stats();
-}
+  if (next_read_channels_stats_ts < time(nullptr))
+  {
+    read_channels_stats();
+  }
 #endif
 
 #ifdef INFLUX_REPORT_ENABLED
