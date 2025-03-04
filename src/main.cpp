@@ -105,17 +105,12 @@ RTC_PCF8563 rtc;
 
 // experimental battery charging/discharging
 #define BATTERY_ENABLED
+#define EXTENDED_FILE_DEBUG_ENABLED // Modbus logs to  "/data/log.txt"
+
 #ifdef BATTERY_ENABLED
 #define CH_PROFILE_DOWN 0
 #define CH_PROFILE_UP 1
-// battery control profiles, ids 100-109 reserved for charging profiles, 111-120 for discharge
-/* #define CH_PROFILE_BATT_STEP 10
-#define CH_PROFILE_BATT_CHARGE_100 100
-#define CH_PROFILE_BATT_CHARGE_50 105
-#define CH_PROFILE_BATT_CHARGE_0 110
-#define CH_PROFILE_BATT_DISCHARGE_50 115
-#define CH_PROFILE_BATT_DISCHARGE_100 120
-#define CH_PROFILE_BATT_NO_CTRL 121*/
+// battery control profiles, ids 100-119 reserved for charging profiles, 121-140 for discharge
 #define CH_PROFILE_BATT_STEP 5
 #define CH_PROFILE_BATT_CHARGE_100 100
 #define CH_PROFILE_BATT_CHARGE_75 105
@@ -127,11 +122,14 @@ RTC_PCF8563 rtc;
 #define CH_PROFILE_BATT_DISCHARGE_75 135
 #define CH_PROFILE_BATT_DISCHARGE_100 140
 #define CH_PROFILE_BATT_NO_CTRL 141
+#define CH_PROFILE_BATT_CHARGE_EXCESS 142    // Charge 0-100%
+#define CH_PROFILE_BATT_DISCHARGE_EXCESS 143 // Discharge 0-100%
+
 #endif
 
 // experimental remote connection, WiP
-#define REMOTE_ENABLED
-#define MDNS_ENABLED
+#define REMOTE_ENABLED_NOT
+#define MDNS_ENABLED_NOT
 
 #ifdef REMOTE_ENABLED
 #define MAX_WG_KEY_LENGTH 45
@@ -332,7 +330,6 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 */
 // #define FRONIUSGEN24_OUTWRTE_OFFSET 40365
 // #define FRONIUSGEN24_INWRTE_OFFSET 40366
-// #define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 100
 // #define FRONIUSGEN24_INOUTWRTE_SF_RO_OFFSET 40378
 
 // Gen24_Primo_Symo_Inverter_Register_Map_Int&SF_storage_ROW, Excel value -1
@@ -346,7 +343,6 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define FRONIUSGEN24_CHASTATE_OFFSET 40351
 
 // #define FRONIUSGEN24_POWER_MAX_REAL 5000 // This will come from the
-// define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 100
 #define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 // 5kW 5000/40960*100=12.2
 
 #endif
@@ -1027,7 +1023,8 @@ void ntp_time_is_set(bool from_sntp);
 void loop_watchdog(void *pvParameters);
 void cooling(uint8_t cool_down_to_f, uint32_t max_wait_ms);
 void io_tasks(uint8_t state);
-void log_msg(uint8_t type, const char *msg, bool write_to_file);
+// void log_msg(uint8_t type, const char *msg, bool write_to_file);
+void log_msg(uint8_t type, const char *msg, bool write_to_file, bool update_last_msg);
 
 // * Web interface, get
 void onWebApplicationGet(AsyncWebServerRequest *request);
@@ -1127,12 +1124,17 @@ void ts_to_date_str(time_t *tsp, char *out_str)
  * @param msg
  * @param write_to_file
  */
-void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
+void log_msg(uint8_t type, const char *msg, bool write_to_file = false, bool update_last_msg = true)
 {
   memset(last_msg.msg, 0, ERROR_MSG_LEN);
-  strncpy(last_msg.msg, msg, (ERROR_MSG_LEN - 1));
-  last_msg.type = type;
-  last_msg.ts = time(nullptr);
+
+  time_t now = time(nullptr);
+  if (update_last_msg)
+  {
+    strncpy(last_msg.msg, msg, (ERROR_MSG_LEN - 1));
+    last_msg.type = type;
+    last_msg.ts = now;
+  }
 
 #ifdef DEBUG_FILE_ENABLED
   char datebuff[35];
@@ -1144,7 +1146,7 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false)
       Serial.println(F("Cannot open the log file."));
       return;
     }
-    gmtime_r(&last_msg.ts, &tm_struct_g);
+    gmtime_r(&now, &tm_struct_g);
     sprintf(datebuff, "%04d-%02d-%02dT%02d:%02d:%02dZ (%lu)", tm_struct_g.tm_year + 1900, tm_struct_g.tm_mon + 1, tm_struct_g.tm_mday, tm_struct_g.tm_hour, tm_struct_g.tm_min, tm_struct_g.tm_sec, millis());
     log_file.printf("%s %d %s\n", datebuff, (int)type, msg);
     log_file.close();
@@ -1266,6 +1268,7 @@ uint8_t channel_attr[CHANNEL_COUNT];
 uint16_t channel_history_s[CHANNEL_COUNT][MAX_HISTORY_PERIODS];
 int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY, VARIABLE_SOC_BASE_0};
 
+char error_msg_buf[ERROR_MSG_LEN]; // global buffer
 /**
  * @brief Returns idx of history variable based on variable id in history variable array
  *
@@ -1367,7 +1370,7 @@ volatile bool todo_in_loop_process_energy_meter_readings = false; //!< do rest o
 bool todo_in_loop_save_time_to_rtc = false;
 
 #ifdef BATTERY_ENABLED
-channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}, {CH_TYPE_FRONIUS_GEN24_MODBUS_TCP, "Fronius Gen 24 battery control (int)", true}};
+channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}, {CH_TYPE_FRONIUS_GEN24_MODBUS_TCP, "Fronius GEN24 Plus charging (int)", true}};
 #else
 channel_type_st channel_types[CHANNEL_TYPE_COUNT] = {{CH_TYPE_UNDEFINED, "undefined", false}, {CH_TYPE_GPIO_USER_DEF, "GPIO", false}, {CH_TYPE_SHELLY_1GEN, "Shelly Gen 1", false}, {CH_TYPE_SHELLY_2GEN, "Shelly Gen 2", false}, {CH_TYPE_TASMOTA, "Tasmota", false}, {CH_TYPE_GPIO_USR_INVERSED, "GPIO, inversed", true}};
 #endif
@@ -3540,9 +3543,10 @@ void start_mdns_service()
 #ifdef LOAD_MGMT_ENABLED
 time_t load_manager_overload_last_ts = 0;
 
-void set_relays(bool grid_protection_delay_used); // defined later
+// void set_relays(bool grid_protection_delay_used); // defined later
 
 float load_manager_capacity_a = 0; // global
+
 // returns available load in the most loaded phase, use energy_meter_current_latest[], update global
 float check_current_load()
 {
@@ -4153,7 +4157,13 @@ bool modbus_callback(Modbus::ResultCode event, uint16_t transactionId, void *dat
       Serial.println(event, HEX);
     }
     //  mb.disconnect( remote);
+
+#ifdef EXTENDED_FILE_DEBUG_ENABLED
+    sprintf(error_msg_buf, PSTR("Modbus error: 0x%03X in (trans %u)"), event, transactionId);
+    log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
+#endif
   }
+
   /* else
    {
      Serial.println(F(" Modbus read succesful"));
@@ -4759,8 +4769,6 @@ char in_buffer[2048]; // common buffer for multi chunk response and multiline in
 #define FORECAST_TYPE_FI_LOCAL_SOLAR 1
 #define FORECAST_TYPE_FI_WIND 2
 
-char error_msg_buf[ERROR_MSG_LEN]; // global buffer
-
 bool setCACertificate(WiFiClientSecure *client_https_p, const char *ca_str, const char *ca_file_name, const char *unit_str, bool disable_ca_check)
 {
   if (disable_ca_check)
@@ -4888,7 +4896,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-    // Serial.println(lineh);
+    Serial.println(lineh);
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -5383,7 +5391,7 @@ bool get_price_data_entsoe()
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-    // Serial.println(lineh);
+    Serial.println(lineh);
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -5558,6 +5566,7 @@ bool get_price_data_entsoe()
 
 bool is_force_state_valid(int channel_idx)
 {
+  // Serial.printf("DEBUGA ch %d force_state_from_ts %ld, time(nullptr) %ld, force_state_until_ts %ld\n", channel_idx, s.ch[channel_idx].force_state_from_ts, time(nullptr), s.ch[channel_idx].force_state_until_ts);
   return ((s.ch[channel_idx].force_state_from_ts <= time(nullptr)) && (time(nullptr) < s.ch[channel_idx].force_state_until_ts));
 }
 /**
@@ -6121,12 +6130,14 @@ int get_channel_to_switch_prio(bool is_rise)
   uint8_t matching_prio;
   int matching_prio_channel = -1;
   //  Serial.printf("get_channel_to_switch_prio is_rise %s \n", is_rise ? "true" : "false");
+
 #ifdef BATTERY_ENABLED // proto version, combine when stabile...
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     //     Serial.printf("get_channel_to_switch_prio ch %d,  ch_is_active %s, ch_in_wannabe_state %s \n", channel_idx, ch_is_active(channel_idx) ? "true" : "false", ch_in_wannabe_state(channel_idx) ? "true" : "false");
     if (is_rise && ((ch_is_twoway(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up))))
     { // we should rise this up, select down channel with lowest priority value
+
       //   Serial.printf("get_channel_to_switch_prio ch %d wanna to be up \n", channel_idx);
       if (matching_prio_channel == -1 || matching_prio > s.ch[channel_idx].priority)
       {
@@ -6134,7 +6145,8 @@ int get_channel_to_switch_prio(bool is_rise)
         matching_prio_channel = channel_idx;
       }
     }
-    if (!is_rise && ((ch_is_twoway(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!ch_is_twoway(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up))))
+    //   if (!is_rise && ((ch_is_twoway(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!ch_is_twoway(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up))))
+    if (!is_rise && !ch_is_twoway(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up)
     { // we should drop this channel, select up channel with highest priority value
       //    Serial.printf("get_channel_to_switch_prio ch %d wanna be down , matching_prio %d, priority %d\n", channel_idx, (int)matching_prio, s.ch[channel_idx].priority);
       if (matching_prio_channel == -1 || matching_prio < s.ch[channel_idx].priority)
@@ -6307,7 +6319,7 @@ bool set_profile_modbus_tcp(int channel_idx)
   long InWRte_mbus;
   long OutWRte_mbus;
 
-  if (s.ch[channel_idx].wannabe_profile < CH_PROFILE_BATT_CHARGE_100 || s.ch[channel_idx].wannabe_profile > CH_PROFILE_BATT_NO_CTRL)
+  if (s.ch[channel_idx].wannabe_profile < CH_PROFILE_BATT_CHARGE_100 || s.ch[channel_idx].wannabe_profile > CH_PROFILE_BATT_DISCHARGE_EXCESS)
   {
     Serial.printf("set_profile_modbus_tcp: Invalid wannabe_profile %d\n", s.ch[channel_idx].wannabe_profile);
     return false;
@@ -6320,9 +6332,18 @@ bool set_profile_modbus_tcp(int channel_idx)
     OutWRte = 100;
     StorCtl_Mod = 0;
     break;
+  case CH_PROFILE_BATT_CHARGE_EXCESS:
+    InWRte = 100;
+    OutWRte = 0;
+    StorCtl_Mod = 3;
+    break;
+  case CH_PROFILE_BATT_DISCHARGE_EXCESS:
+    InWRte = 0;
+    OutWRte = 100;
+    StorCtl_Mod = 3;
+    break;
   default:
     StorCtl_Mod = 3;
-
     // default calculated based of profile id:s
     InWRte = (CH_PROFILE_BATT_CHARGE_0 - s.ch[channel_idx].wannabe_profile) * CH_PROFILE_BATT_STEP;
     OutWRte = (s.ch[channel_idx].wannabe_profile - CH_PROFILE_BATT_CHARGE_0) * CH_PROFILE_BATT_STEP;
@@ -6336,6 +6357,20 @@ bool set_profile_modbus_tcp(int channel_idx)
 
   mb.task();
   yield();
+
+  // #define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 // 5kW 5000/40960*100=12.2
+  long OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / 40960; // TEST THIS
+  InWRte_mbus = InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+  OutWRte_mbus = OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+  // Serial.printf("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld \n", OutWRte_mbus, InWRte_mbus, StorCtl_Mod);
+  sprintf(error_msg_buf, PSTR("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld (profile %d)"), OutWRte_mbus, InWRte_mbus, StorCtl_Mod, (int)s.ch[channel_idx].wannabe_profile);
+
+#ifdef EXTENDED_FILE_DEBUG_ENABLED
+  log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
+#else
+  Serial.println(error_msg_buf);
+#endif
+
   if (!mb.isConnected(ip_address))
   {
     Serial.print(F("set_profile_modbus_tcp: Connecting Modbus TCP..."));
@@ -6344,9 +6379,6 @@ bool set_profile_modbus_tcp(int channel_idx)
     mb.task();
   }
   yield();
-  InWRte_mbus = InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
-  OutWRte_mbus = OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
-  Serial.printf("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld \n", OutWRte_mbus, InWRte_mbus, StorCtl_Mod);
 
   if (mb.isConnected(ip_address))
   { // Check if connection to Modbus slave is established
@@ -6369,7 +6401,11 @@ bool set_profile_modbus_tcp(int channel_idx)
   }
   else
   {
+#ifdef EXTENDED_FILE_DEBUG_ENABLED
+    log_msg(MSG_TYPE_ERROR, PSTR("Modbus connection failed."), true, false);
+#else
     Serial.println(F("Connection failed."));
+#endif
     return false;
   }
   mb.task();
@@ -6397,7 +6433,10 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     s.ch[channel_idx].up_last_ts = time(nullptr);
     Serial.printf("Channel %d seen up now at %ld \n", channel_idx, (long)s.ch[channel_idx].up_last_ts);
   }
-  Serial.printf("ch%d ->%s", channel_idx, up ? "HIGH  " : "LOW  ");
+  if (ch_is_twoway(channel_idx))
+    Serial.printf("ch %d -> %d\n", channel_idx, (int)s.ch[channel_idx].profile);
+  else
+    Serial.printf("ch %d -> %s\n", channel_idx, up ? "HIGH  " : "LOW  ");
 
   ch_counters.set_state(channel_idx, up); // counters
   if (is_local_relay(s.ch[channel_idx].type))
@@ -6502,6 +6541,7 @@ void calculate_channel_states()
         s.ch[channel_idx].wannabe_up = false;
         if (ch_is_twoway(channel_idx))
         {
+          Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
           s.ch[channel_idx].wannabe_profile = CH_PROFILE_BATT_DISCHARGE_100; // TODO BATTERY: parametrize what to do with battery if overload
         }
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT_NOCAPACITY;
@@ -6519,15 +6559,39 @@ void calculate_channel_states()
 #endif
 
     forced_up = (is_force_state_valid(channel_idx));
-    if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
+
+    if (ch_is_twoway(channel_idx))
     {
-      //   Not yet time to drop channel
-      if (ch_is_twoway(channel_idx))
+      if (wait_minimum_uptime)
+      {
+        s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].profile;
+        continue;
+      }
+      else if (forced_up)
+      {
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
-      else
-        s.ch[channel_idx].wannabe_up = true;
+        continue;
+      }
+    }
+    else if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
+    {
+      s.ch[channel_idx].wannabe_up = true;
       continue;
     }
+
+    /*
+        if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
+        {
+          //   Not yet time to drop channel
+          if (ch_is_twoway(channel_idx)) {
+            Serial.printf("DEBUG ch %d set wannabe_profile <- force_state_profile %d\n", channel_idx, s.ch[channel_idx].force_state_profile );
+            s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
+          }
+          else
+            s.ch[channel_idx].wannabe_up = true;
+          continue;
+        }
+        */
 
     // reset
     for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
@@ -6567,7 +6631,7 @@ void calculate_channel_states()
 
     // Now checking normal state based rules
     s.ch[channel_idx].wannabe_up = false;
-    s.ch[channel_idx].wannabe_profile = 0;
+    s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].default_profile;
 
     // loop channel targets until there is match (or no more targets)
     bool statement_true;
@@ -6601,9 +6665,15 @@ void calculate_channel_states()
       if (!(nof_valid_statements == 0) && !one_or_more_failed)
       { // rule  matches
         if (ch_is_twoway(channel_idx))
+        {
+          Serial.printf("DEBUG ch %d set wannabe_profile <- rule (%d) profile %d\n", channel_idx, rule_idx, s.ch[channel_idx].rules[rule_idx].profile);
+
           s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].rules[rule_idx].profile; // set
+        }
         else
+        {
           s.ch[channel_idx].wannabe_up = s.ch[channel_idx].rules[rule_idx].on; // set
+        }
 
         chstate_transit[channel_idx] = CH_STATE_BYRULE;
         s.ch[channel_idx].rules[rule_idx].rule_active = true;
@@ -6629,9 +6699,14 @@ void calculate_channel_states()
     {
       chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
       if (ch_is_twoway(channel_idx))
+      {
+        Serial.printf("DEBUG ch %d set wannabe_profile <- rule default profile %d\n", channel_idx, s.ch[channel_idx].default_profile);
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].default_profile; // set
+      }
       else
+      {
         s.ch[channel_idx].wannabe_up = s.ch[channel_idx].default_state; // set
+      }
     }
     yield();
   } // channel loop
@@ -6668,11 +6743,25 @@ void set_relays(bool grid_protection_delay_used)
   int drop_count = 0;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
+    if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
+      continue;
 #ifdef BATTERY_ENABLED // proto, merge later
-    if (!ch_is_active(channel_idx) && ch_in_wannabe_state(channel_idx))
-      rise_count++;
-    if (ch_is_active(channel_idx) && !ch_in_wannabe_state(channel_idx))
-      drop_count++;
+    // handle two_way ie battery profile change only on rise phase
+    if (ch_is_twoway(channel_idx))
+    {
+      if (!ch_in_wannabe_state(channel_idx))
+      {
+        rise_count++;
+      }
+    }
+    else
+    {
+      if (!s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up)
+        rise_count++;
+      if (s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up)
+        drop_count++;
+    }
+
 #else
     if (!s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up)
       rise_count++;
@@ -6702,15 +6791,17 @@ void set_relays(bool grid_protection_delay_used)
     for (int i = 0; i < switchings_to_todo; i++)
     {
       int ch_to_switch = get_channel_to_switch_prio(is_rise); // return in priority order
-      Serial.printf("Switching ch %d  (%d) from %d .-> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
 
       if (ch_is_twoway(ch_to_switch))
       {
+        Serial.printf("Switching ch %d from %d -> %d\n", ch_to_switch, s.ch[ch_to_switch].profile, s.ch[ch_to_switch].wannabe_profile);
+
         s.ch[ch_to_switch].profile = s.ch[ch_to_switch].wannabe_profile; // set even if communication error to prevent blocking
         s.ch[ch_to_switch].is_up = ch_is_active(ch_to_switch);           // for activity statistics
       }
       else
       {
+        Serial.printf("Switching ch %d  (%d) from %d -> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
         s.ch[ch_to_switch].is_up = is_rise;
       }
       apply_relay_state(ch_to_switch, false);
@@ -6838,7 +6929,7 @@ bool get_price_data_elering(char *country_code)
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-    // Serial.println(lineh);
+    Serial.println(lineh);
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -8958,14 +9049,16 @@ void setup()
       s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
 
     //  set channels to default states before calculated values
-    Serial.printf("DEBUG ch %d default state %s\n", channel_idx, s.ch[channel_idx].default_state ? "up" : "down");
     if (ch_is_twoway(channel_idx))
     {
+      Serial.printf("DEBUG ch %d set wannabe_profile default profile %d\n", channel_idx, s.ch[channel_idx].default_profile);
       s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].default_profile;
       s.ch[channel_idx].profile = s.ch[channel_idx].default_profile;
     }
     else
     {
+      Serial.printf("DEBUG ch %d default state %s\n", channel_idx, s.ch[channel_idx].default_state ? "up" : "down");
+
       s.ch[channel_idx].wannabe_up = s.ch[channel_idx].default_state;
       s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
     }
@@ -9126,6 +9219,8 @@ void setup()
   server_web.serveStatic("/css/", FILESYSTEM, "/css/").setCacheControl("max-age=84600, public");
   // TODO: check authentication for files in /cache
   server_web.serveStatic("/data/", FILESYSTEM, "/data/").setCacheControl("max-age=84600, public");
+  server_web.serveStatic("/data/log.txt", FILESYSTEM, "/data/log.txt").setCacheControl("max-age=10");
+
   server_web.serveStatic("/cache/", FILESYSTEM, "/cache/");
 
   server_web.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest *request)

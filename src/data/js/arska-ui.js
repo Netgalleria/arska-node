@@ -77,10 +77,11 @@ const CH_PROFILE_BATT_DISCHARGE_50 = 130;
 const CH_PROFILE_BATT_DISCHARGE_75 = 135;
 const CH_PROFILE_BATT_DISCHARGE_100 = 140;
 const CH_PROFILE_BATT_NO_CTRL = 141;
+const CH_PROFILE_BATT_CHARGE_EXCESS = 142;
+const CH_PROFILE_BATT_DISCHARGE_EXCESS = 143;
 
 
-const channel_profiles = [CH_PROFILE_BATT_CHARGE_100, CH_PROFILE_BATT_CHARGE_75,CH_PROFILE_BATT_CHARGE_50,CH_PROFILE_BATT_CHARGE_25, CH_PROFILE_BATT_CHARGE_0, CH_PROFILE_BATT_DISCHARGE_25, CH_PROFILE_BATT_DISCHARGE_50, CH_PROFILE_BATT_DISCHARGE_75,CH_PROFILE_BATT_DISCHARGE_100, CH_PROFILE_BATT_NO_CTRL];
-
+const channel_profiles = [CH_PROFILE_BATT_CHARGE_100, CH_PROFILE_BATT_CHARGE_75,CH_PROFILE_BATT_CHARGE_50,CH_PROFILE_BATT_CHARGE_25, CH_PROFILE_BATT_CHARGE_0, CH_PROFILE_BATT_DISCHARGE_25, CH_PROFILE_BATT_DISCHARGE_50, CH_PROFILE_BATT_DISCHARGE_75,CH_PROFILE_BATT_DISCHARGE_100, CH_PROFILE_BATT_NO_CTRL,CH_PROFILE_BATT_CHARGE_EXCESS,CH_PROFILE_BATT_DISCHARGE_EXCESS];
 
 let variable_list = {}; // populate later from json
 
@@ -333,8 +334,7 @@ const channel_html = `<div class="col">
                     <!--./col-->
                     <div id="ch_(ch#):r_id_div" class="col-md-3">
                         <label id="ch_(ch#):r_id_lbl" for="ch_(ch#):r_id" class="form-label">GPIO:</label>
-                        <input id="ch_(ch#):r_id" type="number" class="form-control" disabled=""  placeholder="33" min="0" step="1" max="33">
-                       
+                        <input id="ch_(ch#):r_id" type="number" class="form-control" disabled=""  placeholder="33" min="0" step="1" max="33">    
                     </div>
                     <!--./col-->
                     <div id="ch_(ch#):r_ip_div" class="col-md-4">
@@ -969,22 +969,21 @@ function get_profile_info_by_id(profile_id) {
         color = "text-bg-danger";
         label = "No control";
     }
+    else if (profile_id == CH_PROFILE_BATT_CHARGE_EXCESS) {
+        color = "text-bg-success";
+        label = "Charge 0-100%";
+    }
+    else if (profile_id == CH_PROFILE_BATT_DISCHARGE_EXCESS) {
+        color = "text-bg-primary";
+        label =  "Discharge 0-100%";
+    }
 
     return   {
         label: label,
         color: color,
     };
 }
-/*
-function get_profile_text_by_id(id) {
-    for (var i = 0; i < channel_profiles.length; i++) {
-        if (channel_profiles[i][0] == id) {
-            return channel_profiles[i][1];
-        }
-    };
-    return 'profile N/A';
-}
-*/
+
 
 function ch_is_twoway(ch) {
     return (parseInt(ch.type) == 50); // now only Fronius
@@ -1065,17 +1064,18 @@ function populate_channel_status(channel_idx, ch) {
     }
     else if (ch.profile > 99) {
         info_text += get_profile_info_by_id(ch.profile).label;
-        // if (!ch.wanna_be_up)
+        // if (!ch.wannabe_up)
         //     info_text += ", going down.";
     }
     else if (ch.is_up) {
         info_text += "Up";
-        if (!ch.wanna_be_up)
+        if (!ch.wannabe_up) {
             info_text += ", going down.";
+        }
     }
     else {
         info_text += "Down";
-        if (ch.wanna_be_up)
+        if (ch.wannabe_up)
             info_text += ", going up.";
     }
 
@@ -1088,12 +1088,15 @@ function populate_channel_status(channel_idx, ch) {
             transit_txt = "manual schedule";
         else if (ch.transit == CH_STATE_BYLMGMT)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>overload</a>";
-        else if (ch.transit == CH_STATE_BYDEFAULT)
-            transit_txt = "channel default";
+        else if (ch.transit == CH_STATE_BYDEFAULT) {
+            rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":default_state\");'";
+            transit_txt = "<a class='chlink' " + rule_link_a + ">channel default</a>";
+        }
         else if (ch.transit == CH_STATE_BYLMGMT_MORATORIUM)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>reswitch delay</a>";
         else if (ch.transit == CH_STATE_BYLMGMT_NOCAPACITY)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load limited</a>";
+        else transit_txt = " " + ch.transit + " ";
     }
     else
         transit_txt = "";
@@ -2061,9 +2064,9 @@ function addOption(el, value, text, selected = false, disabled = false) {
     el.appendChild(opt);
 }
 
-function is_relay_id_used(channel_type) { // id required
+function is_relay_id_used(channel_type) { // id required, power in inverter ch:s
 
-    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED, CH_TYPE_MODBUS_RTU].includes(parseInt(channel_type));
+    return [CH_TYPE_GPIO_FIXED, CH_TYPE_GPIO_USER_DEF, CH_TYPE_GPIO_USR_INVERSED, CH_TYPE_MODBUS_RTU, CH_TYPE_FRONIUS_GEN24_MODBUS_RTU].includes(parseInt(channel_type));
 }
 function is_relay_ip_used(channel_type) { //ip required
 
@@ -2087,7 +2090,7 @@ function set_relay_field_visibility(channel_idx, ch_type) {
 }
 
 
-function set_channel_fields_relay_type(channel_idx, chtype_in) {
+function set_channel_fields_relay_type(channel_idx, chtype_in) { //deprecated
     if (chtype_in.substring(0, 5) == "1000_") { //combined id, like 1000_2_192.168.66.36_0 
         id_a = chtype_in.split("_");
         chtype = id_a[1];
@@ -2540,13 +2543,16 @@ function populate_channel(channel_idx) {
     populate_profile_select(document.getElementById(`ch_${channel_idx}:default_profile`), ch_cur["default_profile"])
     // console.log("default_state", ch_cur["default_state"], document.getElementById(`ch_${channel_idx}:default_state_0`).checked, document.getElementById(`ch_${channel_idx}:default_state_1`).checked);
 
+    for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
+        set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profiled`), is_relay_profile_used(ch_cur["type"]));
+        set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:updownd`), !is_relay_profile_used(ch_cur["type"]));
+        populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`))
+    }
+
     if ("rules" in ch_cur) {
         //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
         for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
             console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
-            set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profiled`), is_relay_profile_used(ch_cur["type"]));
-            set_ctrl_visibility(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:updownd`), !is_relay_profile_used(ch_cur["type"]));
-            populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`))
 
             if (rule_idx < ch_cur["rules"].length) {
                 this_rule = ch_cur["rules"][rule_idx];
@@ -2924,6 +2930,7 @@ function create_channels() {
 
 
         if (is_relay_profile_used(ch_cur["type"])) {
+            document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Power (kWh):";
             populate_profile_select(document.getElementById(`sch_${channel_idx}:profile`));
             document.getElementById(`sch_${channel_idx}:profilecol`).classList.remove("d-none");
             document.getElementById(`sch_${channel_idx}:profile_c`).classList.remove("d-none");
