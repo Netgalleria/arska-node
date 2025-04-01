@@ -7,6 +7,8 @@ var g_remote_enabled;
 var g_mdns_enabled;
 var g_influx_report_enabled;
 
+var g_open_popover = null;
+
 var isp_label; //imbalance setting period
 
 var day_ahead_chart_obj;
@@ -127,6 +129,13 @@ window.onload = function () {
 
         if (non_saved_cards) {
             if (confirm('You have\'t saved all the changes. Do you want to change the active tab anyway?')) {
+                if (!(g_open_popover === null)) {
+                    g_open_popover.hide();
+                    g_open_popover = null;
+                    console.log("Hiding abandoned multiselect popover.");
+                }
+                
+               
                 // User clicked OK
             } else {
                 // User clicked Cancel
@@ -1062,10 +1071,8 @@ function populate_channel_status(channel_idx, ch) {
         sch_status_label.classList.remove("text-bg-danger");
         sch_status_label.classList.remove("text-bg-success");
     }
-    else if (ch.profile > 99) {
+    else if (ch.profile > 99 && is_relay_profile_used(g_settings.ch[channel_idx]["type"])) { 
         info_text += get_profile_info_by_id(ch.profile).label;
-        // if (!ch.wannabe_up)
-        //     info_text += ", going down.";
     }
     else if (ch.is_up) {
         info_text += "Up";
@@ -1816,6 +1823,9 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
     cheapest_price = -VARIABLE_LONG_UNKNOWN;
     cheapest_ts = -1;
     cheapest_index = -1;
+    exp_price = VARIABLE_LONG_UNKNOWN;
+    exp_ts = -1
+    exp_index = -1;
 
     remove_select_options(sch_start_sel);
     addOption(sch_start_sel, 0, "now &rarr;", (prev_selected == 0));
@@ -1828,6 +1838,13 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
             cheapest_ts = start_ts;
             cheapest_index = k;
         }
+       
+        if (segment_price > exp_price && segment_price!= -VARIABLE_LONG_UNKNOWN) {
+            exp_price = segment_price;
+            exp_ts = start_ts;
+            exp_index = k;
+        }
+
 
         if (segment_price != -VARIABLE_LONG_UNKNOWN)
             price_str = " &bull; " + segment_price.toFixed(1) + " c/kWh";
@@ -1837,10 +1854,19 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         addOption(sch_start_sel, start_ts, get_time_string_from_ts(start_ts, false, true) + "-> " + price_str, (prev_selected == start_ts));
         start_ts += SECONDS_IN_HOUR;
     }
+
     if (cheapest_index > -1) {
-        //  console.log("cheapest_ts", cheapest_ts)
+        sch_start_sel.options[cheapest_index + 1].innerHTML = sch_start_sel.options[cheapest_index + 1].innerHTML + " &#9660;";
+    }
+    if (exp_index > -1 && is_relay_profile_used(g_settings.ch[channel_idx]["type"])) {
+        sch_start_sel.options[exp_index + 1].innerHTML = sch_start_sel.options[exp_index + 1].innerHTML + " &#9650;";
+    }
+
+    if (is_relay_profile_used(g_settings.ch[channel_idx]["type"])) {
+        sch_start_sel.value = 0;
+    }
+    else if (cheapest_index > -1) {
         sch_start_sel.value = cheapest_ts;
-        sch_start_sel.options[cheapest_index + 1].innerHTML = sch_start_sel.options[cheapest_index + 1].innerHTML + " ***";
     }
 }
 
@@ -2084,7 +2110,7 @@ function is_relay_profile_used(channel_type) { //battery control uses profiles, 
 function set_relay_field_visibility(channel_idx, ch_type) {
     var locked = g_settings.ch[channel_idx].hasOwnProperty("locked") ? g_settings.ch[channel_idx].locked : false;
     document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type));//|| locked);
-    document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type) || locked);
+    document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type));// || locked);
     document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type));// || locked);
 
 }
@@ -2610,7 +2636,7 @@ function selected_oper(el_oper) {
     if ((oper_id >= 0)) { //oper defined, ie > -1
 
         show_const = !(oper[OPER_IDX_BOOLEANONLY] || oper[OPER_IDX_HASVALUE]); //boolean
-
+        // show multiselect
         if (oper[OPER_IDX_MULTISELECT]) {
             //   el_const.readOnly = true;
             el_const.classList.add("d-none");
@@ -2890,7 +2916,6 @@ var restore_config = function (event) {
 
 function create_channels() {
     console.log("create_channels");
-
     //front page 
     for (channel_idx = 0; channel_idx < g_application.CHANNEL_COUNT; channel_idx++) { //
         //  console.log("creating scheduling for ch " + channel_idx);
@@ -2930,7 +2955,7 @@ function create_channels() {
 
 
         if (is_relay_profile_used(ch_cur["type"])) {
-            document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Power (kWh):";
+            document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Power (kW):";
             populate_profile_select(document.getElementById(`sch_${channel_idx}:profile`));
             document.getElementById(`sch_${channel_idx}:profilecol`).classList.remove("d-none");
             document.getElementById(`sch_${channel_idx}:profile_c`).classList.remove("d-none");
@@ -3119,6 +3144,7 @@ function define_multiselect_popover(stmt_id) {
             }
         }
     });
+    g_open_popover = popover;
     return popover;
 }
 function update_multiselect_count(stmt_id) {
@@ -3169,6 +3195,7 @@ function save_hide_multiselect_popover(stmt_id) {
     update_multiselect_count(stmt_id);
 
     bootstrap.Popover.getInstance(document.getElementById(stmt_id + ':msb')).hide();
+    g_open_popover = null;
 }
 
 
