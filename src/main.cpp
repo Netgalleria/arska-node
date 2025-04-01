@@ -176,7 +176,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10110 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10111 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -616,7 +616,7 @@ typedef struct
 #ifdef BATTERY_ENABLED
   uint8_t profile;
 #endif
-} rule_struct; // size 88
+} rule_struct; // size 64
 
 // Channel stucture, elements of channel array in setting, stored in non-volatile memory
 typedef struct
@@ -1151,7 +1151,7 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false, bool upd
     log_file.printf("%s %d %s\n", datebuff, (int)type, msg);
     log_file.close();
     // debug debug
-    Serial.println("Writing to log file:");
+    // Serial.println("Writing to log file:");
     Serial.printf("%s %d %s\n", datebuff, (int)type, msg);
   }
 #endif
@@ -1321,8 +1321,8 @@ long int production_meter_read_last = 0;  //!< last succesfull inverter value
 // Energy meter globals
 // Values directly read from the meter
 time_t energy_meter_ts_latest;
-volatile double energy_meter_cumulative_latest_in = 0;  //!< Energy meter last import value
-volatile double energy_meter_cumulative_latest_out = 0; //!< Energy meter last export value
+volatile double energy_meter_cumulative_latest_in_vol = 0;  //!< Energy meter last import value
+volatile double energy_meter_cumulative_latest_out_vol = 0; //!< Energy meter last export value
 double energy_meter_power_latest_in = 0;
 double energy_meter_power_latest_out = 0;
 double energy_meter_current_latest[3] = {0, 0, 0};
@@ -1574,7 +1574,7 @@ void led_set_color_rgb(byte r, byte g, byte b)
   led_rgb[0] = r;
   led_rgb[1] = g;
   led_rgb[2] = b;
-  Serial.printf("led_set_color_rgb %d, %d, %d\n", (int)r, (int)g, (int)b);
+  // Serial.printf("led_set_color_rgb %d, %d, %d\n", (int)r, (int)g, (int)b);
   led_write_color();
 }
 
@@ -3162,6 +3162,9 @@ void writeToEEPROM()
   set_netting_source();
   // is directly called for critical update
   int eeprom_used_size = sizeof(s);
+  // sizeof(channel_struct);
+  // sizeof(rule_struct);
+  // sizeof(statement_st);
   EEPROM.begin(eeprom_used_size);
   EEPROM.put(eepromaddr, s); // write data to array in ram
   bool commit_ok = EEPROM.commit();
@@ -3590,39 +3593,39 @@ float check_current_load()
 
 // update variable etc...
 // postprocessing after succesfully received measure date
-void process_energy_meter_readings()
+SemaphoreHandle_t xHAN_P1_Semaphore = NULL;
+
+void process_energy_meter_readings(bool exclusive)
 {
+  // Semaphore could be required because double read operations are not atomic (HAN direct)
+  if (exclusive) {
+    if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)100) == pdFALSE)
+    {
+      Serial.println(PSTR("process_energy_meter_readings - cannot get semaphore"));
+      log_msg(MSG_TYPE_ERROR, PSTR("process_energy_meter_readings - cannot get semaphore"));
+      return;
+    }
+    // delay((int)random(3000, 15000));
+    //  Serial.println("TESTING WITH RANDOM DELAY");
+  }
 
   bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
   energy_meter_read_ok_count++; // global
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
 
-  // TODO: minify printout , maybe dtostrf(energy_meter_power_latest_in, 4, 2, str_temp);
-  /*
-  Serial.print(energy_meter_power_latest_in);
-  Serial.print("W (in), ");
-  Serial.print(energy_meter_power_latest_out);
-  Serial.println("W (out), ");
-  Serial.print(energy_meter_cumulative_latest_in);
-  Serial.print("Wh (in), ");
-  Serial.print(energy_meter_cumulative_latest_out);
-  Serial.println("Wh (out), ");
-  Serial.print(energy_meter_current_latest[0]);
-  Serial.print("A, ");
-  Serial.print(energy_meter_current_latest[1]);
-  Serial.print("A, ");
-  Serial.print(energy_meter_current_latest[2]);
-  Serial.println("A");
-  */
-  //  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in %f Wh, energy_meter_cumulative_latest_out %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in, energy_meter_cumulative_latest_out, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
+  //  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in_vol %f Wh, energy_meter_cumulative_latest_out_vol %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in_vol, energy_meter_cumulative_latest_out_vol, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
 
   // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
   {
     energy_meter_period_first_read_ts = time(nullptr);
-    energy_meter_cumulative_periodstart_in = energy_meter_cumulative_latest_in;
-    energy_meter_cumulative_periodstart_out = energy_meter_cumulative_latest_out;
+    energy_meter_cumulative_periodstart_in = energy_meter_cumulative_latest_in_vol;
+    energy_meter_cumulative_periodstart_out = energy_meter_cumulative_latest_out_vol;
+    if (exclusive)
+    {
+      xSemaphoreGive(xHAN_P1_Semaphore);
+    }
     return; // skip other processing in the first measurement
   }
 
@@ -3637,15 +3640,15 @@ void process_energy_meter_readings()
 
   // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_netin %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_netin);
 
-  energy_meter_period_netin = (energy_meter_cumulative_latest_in - energy_meter_cumulative_latest_out - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
+  energy_meter_period_netin = (energy_meter_cumulative_latest_in_vol - energy_meter_cumulative_latest_out_vol - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
 
   // debug anomalies
   if (abs(energy_meter_period_netin) > 100000)
   {
     Serial.printf("DEBUG  %lu: Anomaly in energy_meter_period_netin: latest in, latest out, period start in,  period start out: ", time(nullptr));
-    Serial.print(energy_meter_cumulative_latest_in);
+    Serial.print(energy_meter_cumulative_latest_in_vol);
     Serial.print(", ");
-    Serial.print(energy_meter_cumulative_latest_out);
+    Serial.print(energy_meter_cumulative_latest_out_vol);
     Serial.print(", ");
     Serial.print(energy_meter_cumulative_periodstart_in);
     Serial.print(", ");
@@ -3671,8 +3674,13 @@ void process_energy_meter_readings()
   vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, (long)round(-energy_meter_period_netin));
   vars.set(VARIABLE_SELLING_POWER_NOW, (long)round(-energy_meter_power_netin)); // momentary
 
-  energy_meter_value_previous_in = energy_meter_cumulative_latest_in;
-  energy_meter_value_previous_out = energy_meter_cumulative_latest_out;
+  energy_meter_value_previous_in = energy_meter_cumulative_latest_in_vol;
+  energy_meter_value_previous_out = energy_meter_cumulative_latest_out_vol;
+
+  if (exclusive)
+  {
+    xSemaphoreGive(xHAN_P1_Semaphore);
+  }
 }
 
 #ifdef METER_HAN_ENABLED
@@ -3788,16 +3796,16 @@ bool parse_han_row(const char *row_in_p, bool *message_error)
 
   if (get_han_dbl(row_in_p, "1-0:1.8.0", &value_read))
   {
-    if ((value_read < 0.01) || (energy_meter_cumulative_latest_in > value_read))
+    if ((value_read < 0.01) || (energy_meter_cumulative_latest_in_vol > value_read))
     {
       *message_error = true;
-      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in %s ->", time(nullptr), row_in_p);
+      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in_vol %s ->", time(nullptr), row_in_p);
       Serial.println(value_read);
       return false;
     }
     else
     {
-      energy_meter_cumulative_latest_in = value_read;
+      energy_meter_cumulative_latest_in_vol = value_read;
       return true;
     }
   }
@@ -3807,13 +3815,13 @@ bool parse_han_row(const char *row_in_p, bool *message_error)
     if ((energy_meter_value_previous_out > value_read))
     {
       *message_error = true;
-      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out %s ->", time(nullptr), row_in_p);
+      Serial.printf("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out_vol %s ->", time(nullptr), row_in_p);
       Serial.println(value_read);
       return false;
     }
     else
     {
-      energy_meter_cumulative_latest_out = value_read;
+      energy_meter_cumulative_latest_out_vol = value_read;
       return true;
     }
   }
@@ -3830,7 +3838,6 @@ bool parse_han_row(const char *row_in_p, bool *message_error)
   return false;
 }
 
-SemaphoreHandle_t xHAN_P1_Semaphore = NULL;
 // global variable to save stack space, Aidon  max about 30 chars/row
 #define ROW_BUFFER_LENGTH 50
 char row_buffer[ROW_BUFFER_LENGTH];
@@ -3839,6 +3846,7 @@ static int han_value_count = 0;
 size_t han_received_chars;
 size_t han_available_bytes;
 
+#define EXTENDED_HAN_LOGGING_NOT // extra logging
 /**
  * @brief UART callback function called when there is new data from HAN P1 Serial port. Keep lean to save stack space and processing time.
  *
@@ -3856,14 +3864,21 @@ bool receive_energy_meter_han_direct() // direct
   //}
 
   if (todo_in_loop_process_energy_meter_readings)
-    return false; // old readings  still unprocessed
+  {
+#ifdef EXTENDED_HAN_LOGGING
+    log_msg(MSG_TYPE_ERROR, PSTR("HAN P1 - old readings unprocessed"));
+#else
+    Serial.println(PSTR("HAN P1 - old readings unprocessed"));
+#endif
+    return false; // old readings still unprocessed
+  }
 
   // This is a callback function that will be activated on UART RX events
   delay(100); // there should be some delay to fill the buffer...
 
   // OR 31.5.24, added variable init
-  // energy_meter_cumulative_latest_in = 0;
-  // energy_meter_cumulative_latest_out = 0;
+  // energy_meter_cumulative_latest_in_vol = 0;
+  // energy_meter_cumulative_latest_out_vol = 0;
 
   if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
   {
@@ -3871,6 +3886,11 @@ bool receive_energy_meter_han_direct() // direct
     // Serial.printf("HAN P1 %d bytes\n", (int)han_available_bytes);
     if (han_available_bytes < 200)
     {
+#ifdef EXTENDED_HAN_LOGGING
+      log_msg(MSG_TYPE_ERROR, PSTR("HAN P1 - message too short"));
+#else
+      Serial.println(PSTR("HAN P1 - message too short"));
+#endif
       HAN_P1_SERIAL.flush();
       xSemaphoreGive(xHAN_P1_Semaphore);
       return false;
@@ -3893,7 +3913,12 @@ bool receive_energy_meter_han_direct() // direct
     }
     if (han_value_count < 5 || message_error) // 3 phase should have < 7
     {
+      //
+#ifdef EXTENDED_HAN_LOGGING
+      log_msg(MSG_TYPE_ERROR, PSTR("Cannot read all HAN P1 port values"));
+#else
       Serial.println("Cannot read all HAN P1 port values");
+#endif
       xSemaphoreGive(xHAN_P1_Semaphore);
       return false;
     }
@@ -3913,7 +3938,13 @@ bool receive_energy_meter_han_direct() // direct
   }
   else
   {
-    Serial.println("Cannot reserve HAN P1 port for reading (xHAN_P1_Semaphore) ");
+   // Serial.println("Cannot reserve HAN P1 port for reading (xHAN_P1_Semaphore) ");
+    log_msg(MSG_TYPE_ERROR, PSTR("Cannot reserve HAN P1 port for reading"));
+   /* while (HAN_P1_SERIAL.available()) //  empty rx buffer for
+    {
+      han_received_chars = HAN_P1_SERIAL.readBytes(row_buffer, ROW_BUFFER_LENGTH);
+    }*/
+    HAN_P1_SERIAL.flush();
     return false;
   }
 }
@@ -3941,8 +3972,8 @@ bool read_energy_meter_han_wifi()
   Serial.printf("Length of telegram: %i\n", len);
 
   // read
-  energy_meter_cumulative_latest_in = 0;
-  energy_meter_cumulative_latest_out = 0;
+  energy_meter_cumulative_latest_in_vol = 0;
+  energy_meter_cumulative_latest_out_vol = 0;
   int value_count = 0;
 
   // new
@@ -3970,7 +4001,7 @@ bool read_energy_meter_han_wifi()
   yield();
   energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
   // read done
-  process_energy_meter_readings();
+  process_energy_meter_readings(false);
 
   yield();
   return true;
@@ -4023,8 +4054,8 @@ bool read_energy_meter_shelly3em()
   float power_tot = 0;
   int idx = 0;
   float power[3];
-  energy_meter_cumulative_latest_in = 0;
-  energy_meter_cumulative_latest_out = 0;
+  energy_meter_cumulative_latest_in_vol = 0;
+  energy_meter_cumulative_latest_out_vol = 0;
   energy_meter_power_latest_in = 0;
   energy_meter_power_latest_out = 0;
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
@@ -4036,8 +4067,8 @@ bool read_energy_meter_shelly3em()
       if (emeter["is_valid"])
       {
         energy_meter_power_latest_in += (float)emeter["power"];
-        energy_meter_cumulative_latest_in += (float)emeter["total"];
-        energy_meter_cumulative_latest_out += (float)emeter["total_returned"];
+        energy_meter_cumulative_latest_in_vol += (float)emeter["total"];
+        energy_meter_cumulative_latest_out_vol += (float)emeter["total_returned"];
         energy_meter_current_latest[idx] = (double)emeter["current"];
       }
       idx++;
@@ -4046,15 +4077,15 @@ bool read_energy_meter_shelly3em()
   else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
   {
     power_tot = 0; // not available in /status
-    energy_meter_cumulative_latest_in = (float)doc["total_act"];
-    energy_meter_cumulative_latest_out = (float)doc["total_act_ret"];
+    energy_meter_cumulative_latest_in_vol = (float)doc["total_act"];
+    energy_meter_cumulative_latest_out_vol = (float)doc["total_act_ret"];
   }
 
   energy_meter_power_netin = power_tot;
 
   // read done
 
-  process_energy_meter_readings();
+  process_energy_meter_readings(false);
 
   yield();
   return true;
@@ -4295,7 +4326,7 @@ bool set_mbus_register_value(IPAddress remote, uint8_t modbusip_unit, const int 
   }
 
   yield();
-  return true;
+  return (last_modbus_code == Modbus::EX_SUCCESS);
 }
 #endif
 
@@ -6298,7 +6329,7 @@ bool switch_http_relay(int channel_idx, bool up)
  *
  * @param channel_idx
  * @return true
- * @return false
+ * @return false if the first set_mbus_register_value timed out
  */
 bool set_profile_modbus_tcp(int channel_idx)
 {
@@ -6318,6 +6349,10 @@ bool set_profile_modbus_tcp(int channel_idx)
   long OutWRte;
   long InWRte_mbus;
   long OutWRte_mbus;
+
+  bool cresult;
+  bool first_write_timed_out;
+  long OutOutWRte_SF;
 
   if (s.ch[channel_idx].wannabe_profile < CH_PROFILE_BATT_CHARGE_100 || s.ch[channel_idx].wannabe_profile > CH_PROFILE_BATT_DISCHARGE_EXCESS)
   {
@@ -6359,9 +6394,13 @@ bool set_profile_modbus_tcp(int channel_idx)
   yield();
 
   // #define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 // 5kW 5000/40960*100=12.2
-  long OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / 40960; // TEST THIS
-  InWRte_mbus = InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
-  OutWRte_mbus = OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+  // InWRte_mbus = InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+  // OutWRte_mbus = OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+
+  OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / 40960; // TEST THIS
+  InWRte_mbus = InWRte >= 0 ? InWRte * OutOutWRte_SF : InWRte * OutOutWRte_SF + 65536;
+  OutWRte_mbus = OutWRte >= 0 ? OutWRte * OutOutWRte_SF : OutWRte * OutOutWRte_SF + 65536;
+
   // Serial.printf("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld \n", OutWRte_mbus, InWRte_mbus, StorCtl_Mod);
   sprintf(error_msg_buf, PSTR("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld (profile %d)"), OutWRte_mbus, InWRte_mbus, StorCtl_Mod, (int)s.ch[channel_idx].wannabe_profile);
 
@@ -6370,45 +6409,65 @@ bool set_profile_modbus_tcp(int channel_idx)
 #else
   Serial.println(error_msg_buf);
 #endif
+#define MODBUS_WRITE_TRIALS 2
 
-  if (!mb.isConnected(ip_address))
+  for (int trial_idx = 0; trial_idx < MODBUS_WRITE_TRIALS; trial_idx++)
   {
-    Serial.print(F("set_profile_modbus_tcp: Connecting Modbus TCP..."));
-    bool cresult = mb.connect(ip_address, ip_port);
-    Serial.println(cresult);
-    mb.task();
-  }
-  yield();
-
-  if (mb.isConnected(ip_address))
-  { // Check if connection to Modbus slave is established
-    mb.task();
-    Serial.println(F("Connection ok. Setting  Modbus registries."));
-
-    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, 0); // disable patterns first, to avoid atomaric checks
-    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_OUTWRTE_OFFSET, OutWRte_mbus);
-    set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_INWRTE_OFFSET, InWRte_mbus);
-    if (StorCtl_Mod != 0)
-    {                                                                                                   // emnable back if needed
-      set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, StorCtl_Mod); //
+    if (!mb.isConnected(ip_address))
+    {
+      Serial.print(F("set_profile_modbus_tcp: Connecting Modbus TCP..."));
+      cresult = mb.connect(ip_address, ip_port);
+      Serial.println(cresult);
+      mb.task();
     }
-
-    mb.disconnect(ip_address); // disconnect in the end, TODO: check  memory leaks
-    mb.task();
     yield();
 
-    return true;
-  }
-  else
-  {
+    if (mb.isConnected(ip_address))
+    { // Check if connection to Modbus slave is established
+      mb.task();
+      Serial.println(F("Connection ok. Setting Modbus registries."));
+      delay(100);
+
+      set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, 0); // disable patterns first, to avoid atomaric checks
+
+      first_write_timed_out = (last_modbus_code == Modbus::EX_TIMEOUT);
+
+      // If the connection has timed out, disconnect (and retry)
+      if (!first_write_timed_out)
+      {
+        set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_OUTWRTE_OFFSET, OutWRte_mbus);
+        set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_INWRTE_OFFSET, InWRte_mbus);
+        if (StorCtl_Mod != 0)
+        {                                                                                                   // enable back if needed
+          set_mbus_register_value(ip_address, modbusip_unit, FRONIUSGEN24_STORCTL_MOD_OFFSET, StorCtl_Mod); //
+        }
+      }
+      mb.disconnect(ip_address); // disconnect in the end, TODO: check memory leaks
+      mb.task();
+      yield();
+      if (!first_write_timed_out)
+        return (!first_write_timed_out); // success - no timeout
+
 #ifdef EXTENDED_FILE_DEBUG_ENABLED
-    log_msg(MSG_TYPE_ERROR, PSTR("Modbus connection failed."), true, false);
-#else
-    Serial.println(F("Connection failed."));
+      if (trial_idx == 0)
+      {
+        log_msg(MSG_TYPE_INFO, PSTR("Retrying set_profile_modbus_tcp() after Modbus timeout"), true, false);
+      }
 #endif
-    return false;
+    }
+    else
+    {
+#ifdef EXTENDED_FILE_DEBUG_ENABLED
+      log_msg(MSG_TYPE_ERROR, PSTR("Modbus connection failed."), true, false);
+#else
+      Serial.println(F("Connection failed."));
+#endif
+    }
+    mb.task();
+    delay(1000);
   }
-  mb.task();
+
+  return true;
 }
 
 /**
@@ -6537,7 +6596,7 @@ void calculate_channel_states()
     {
       if ((s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count) > current_capacity_available)
       {
-        Serial.printf("DEBUG: Not available capacity for channel %d to get up\n", channel_idx);
+        Serial.printf(PSTR("DEBUG: Not available capacity for channel %d to get up, %f\n"), channel_idx,current_capacity_available);
         s.ch[channel_idx].wannabe_up = false;
         if (ch_is_twoway(channel_idx))
         {
@@ -8002,9 +8061,19 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
     // channel rules
     for (JsonObject ch_rule : ch["rules"].as<JsonArray>())
     {
+
       s.ch[channel_idx].rules[rule_idx].on = ch_rule["on"];
+      Serial.println(ch_rule);
+
 #ifdef BATTERY_ENABLED
-      s.ch[channel_idx].rules[rule_idx].profile = ch_rule["profile"];
+
+      if (!ch_rule["profile"].isNull() && ch_rule["profile"].as<int>() > -1)
+      {
+        s.ch[channel_idx].rules[rule_idx].profile = ch_rule["profile"];
+      }
+      // Serial.print("profile:");
+      // Serial.println(s.ch[channel_idx].rules[rule_idx].profile);
+
 #endif
       stmt_idx = 0;
       Serial.printf("rule on %s", s.ch[channel_idx].rules[rule_idx].on ? "true" : "false");
@@ -8991,6 +9060,8 @@ void setup()
     Serial.printf("Initializing HAN P1 Serial for HAN P1 read. GPIO: %d\n", (int)s.energy_meter_gpio);
 
     xHAN_P1_Semaphore = xSemaphoreCreateMutex();
+    // uart_set_rx_full_threshold();
+    // HAN_P1_SERIAL.setRxFIFOFull();//default 120
     HAN_P1_SERIAL.setRxBufferSize(HAN_P1_SERIAL_SIZE_RX);
     HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, uart_tx_gpio_unused); // Hardware Serial of ESP32, was -1 now 34
     HAN_P1_SERIAL.flush();
@@ -9479,7 +9550,7 @@ void loop()
   if (todo_in_loop_process_energy_meter_readings)
   {
     todo_in_loop_process_energy_meter_readings = false;
-    process_energy_meter_readings();
+    process_energy_meter_readings(true); // skip semaphore with false
   }
 
   // experimental , save internal time to rtc
