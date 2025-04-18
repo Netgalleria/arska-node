@@ -3886,7 +3886,10 @@ bool receive_energy_meter_han_direct() // direct
 #else
       Serial.println(PSTR("HAN P1 - message too short"));
 #endif
-      HAN_P1_SERIAL.flush();
+      while (HAN_P1_SERIAL.available()) // empty the UART buffer
+      {
+        HAN_P1_SERIAL.read();
+      }
       xSemaphoreGive(xHAN_P1_Semaphore);
       return false;
     }
