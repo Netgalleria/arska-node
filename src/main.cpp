@@ -3857,11 +3857,6 @@ bool receive_energy_meter_han_direct() // direct
 {
   han_value_count = 0;
   bool message_error;
-  // experimental, blink led on HomeWizard P1 Meter when receiving data, todo: use compatible calls: set_led etc
-  // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-  //{
-  //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], LOW);
-  //}
 
   if (todo_in_loop_process_energy_meter_readings)
   {
@@ -3940,11 +3935,10 @@ bool receive_energy_meter_han_direct() // direct
   {
    // Serial.println("Cannot reserve HAN P1 port for reading (xHAN_P1_Semaphore) ");
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot reserve HAN P1 port for reading"));
-   /* while (HAN_P1_SERIAL.available()) //  empty rx buffer for
+    while (HAN_P1_SERIAL.available())
     {
-      han_received_chars = HAN_P1_SERIAL.readBytes(row_buffer, ROW_BUFFER_LENGTH);
-    }*/
-    HAN_P1_SERIAL.flush();
+      HAN_P1_SERIAL.read(); // empty receive buffer
+    }
     return false;
   }
 }
@@ -6918,8 +6912,6 @@ bool get_price_data_elering(char *country_code)
 
   WiFiClientSecure client_https;
   char url[120];
-  // char country_code[3];
-  // strncpy(country_code, &s.entsoe_area_code[8], 3);
   Serial.printf("Elering country code: %s\n", country_code);
 
   time_t start_ts, end_ts; // this is the epoch
@@ -7026,7 +7018,6 @@ bool get_price_data_elering(char *country_code)
       val_string = line.substring(sep2 + 1);
       val_string.trim(); // remove?
       val_string.replace(",", ".");
-
       ts = ts_string.toInt();
       if (ts > ACCEPTED_TIMESTAMP_MINIMUM)
       {
@@ -8530,6 +8521,13 @@ void loop_watchdog(void *pvParameters)
     Serial.print("loop_watchdog() running at core ");
     Serial.println(xPortGetCoreID());
     check_loop_is_called();
+    if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
+    {
+      while (HAN_P1_SERIAL.available()) // empty the UART buffer
+      {
+        HAN_P1_SERIAL.read();
+      }
+    }
     delay(100000);
   }
 }
