@@ -104,6 +104,34 @@
         "desc_fi": "Hintaero nykyhinnan ja tulevan 24 h aurinkosähkön hinnan (muuttuja 22) välillä",
         "unit": "¢/kWh"
     },
+    "51": {
+        "code": "period price rank in sliding 9h",
+        "desc": "15 min period price rank in 9 hours sliding windows, 1 for lowest price",
+        "desc_fi": "15 jakson hintasijoitus 9 tunnin liukuvassa aikaikkunassa, 1 edullisin ",
+        "min": 1,
+        "max": 36
+    },
+    "52": {
+        "code": "period price rank sliding 24 h",
+        "desc": "15 min period price rank in 24 hours sliding windows, 1 for lowest price",
+        "desc_fi": "15 min jakson hintasijoitus 24 tunnin liukuvassa aikaikkunassa, 1 edullisin ",
+        "min": 1,
+        "max": 96
+    },
+    "53": {
+        "code": "period price rank fixed 24h",
+        "desc": "15 min period price rank in fixed nychthemeron 00:00-23:59, 1 for lowest price",
+        "desc_fi": "15 min jakson hintasijoitus kuluvan vuorokauden (00-23:59) aikana, 1 edullisin ",
+        "min": 1,
+        "max": 96
+    },
+    "54": {
+        "code": "rank in 8 h block",
+        "desc": "15 min period price rank in fixed 8 hour block",
+        "desc_fi": "15 min jakson hintasijoitus kiinteän 8 tunnin jakson aikana",
+        "min": 1,
+        "max": 32
+    },
     "100": {
         "code": "extra production",
         "desc": "True if there is extra production, measured from grid or inverter production or estimated from solar forecast. See current source from variable 700.",

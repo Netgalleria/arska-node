@@ -667,12 +667,15 @@ var net_exports = [];
 
 let has_history_values = {};
 var variable_history;
-var variable_values = {};
+var variable_history_ts;
 var channel_history = [];
+var channel_history_ts;
+var variable_values = {};
+
 
 var prices_first_ts = 0;
 var prices_last_ts = 0;
-var price_resolution_sec = SECONDS_IN_HOUR; //TODO: read from data
+var price_resolution_sec = SECONDS_IN_HOUR; //later updated from /prices
 var prices_expires = 0;
 
 // update variables and channels statuses to channels form
@@ -696,7 +699,49 @@ function update_status(repeat) {
     const interval_s = 60;
     const process_time_s = 15;
     let next_query_in = interval_s;
+     
+    if (parseInt(variable_history_ts / 900000) != parseInt(new Date().getTime() / 900000)) {
+        console.log("Get variable history, last", variable_history_ts)
+        var jqxhr_obj = $.ajax({
+            url: '/variable-history',
+            cache: false,
+            dataType: 'json',
+            async: false,
+            success: function (data, textStatus, jqXHR) { 
+                variable_history = data.variable_history;
+                variable_history_ts = new Date().getTime();   
+                console.log("variable_history", variable_history);
+                for (const variable_code in variable_history) {
 
+                    console.log("variable_code", variable_code, variable_history[variable_code], variable_history[variable_code].length);
+
+                    for (i = 0; i < variable_history[variable_code].length; i++) {
+                        if (Math.abs(variable_history[variable_code][i]) > 1) {
+                            has_history_values[variable_code] = true;
+                            break;
+                        }
+                    }
+                    console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+                }
+            }
+        })
+    }
+  
+
+    if (parseInt(channel_history_ts / 900000) != parseInt(new Date().getTime() / 900000)) {
+        console.log("Get channel history, last", channel_history_ts)
+        var jqxhr_obj = $.ajax({
+            url: '/channel-history',
+            cache: false,
+            dataType: 'json',
+            async: false,
+            success: function (data, textStatus, jqXHR) { 
+                channel_history = data.channel_history;
+                channel_history_ts = new Date().getTime();   
+            }
+        })
+    }
+  
     var start = new Date().getTime();
     var jqxhr_obj = $.ajax({
         url: '/status',
@@ -706,19 +751,14 @@ function update_status(repeat) {
         success: function (data, textStatus, jqXHR) {
             console.log("/status took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
             console.log("got status data", textStatus, jqXHR.status);
-            // moved from chart creation create_dashboard_chart
-            channel_history = data.channel_history;
+       
             variable_values = data.variables;
-            variable_history = data.variable_history;
-            //  console.log("data.variable_history",data.variable_history);
-            for (const variable_code in data.variable_history) {
-                for (i = 0; i < data.variable_history[variable_code].length; i++) {
-                    if (Math.abs(data.variable_history[variable_code][i]) > 1) {
-                        has_history_values[variable_code] = true;
-                        break;
-                    }
-                }
-                //             console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+
+            // current value to data series
+            for (const variable_code in variable_history) {
+         //       console.log("current value",variable_code, variable_history[variable_code].length - 1, variable_values[variable_code]);
+
+                variable_history[variable_code][variable_history[variable_code].length - 1] = variable_values[variable_code];
             }
             //** 
 
@@ -846,6 +886,7 @@ function update_status(repeat) {
                     variable_name = "";
                     variable_desc = "";
                     var value_txt = "";
+                    var var_code = "";
                     if (var_this) {
                         if (variable == "null") {
                             value_txt = "undefined";
@@ -864,12 +905,16 @@ function update_status(repeat) {
                                 }
                             }
                             variable_desc += ", unit: " + variable_list[id]["unit"];
+                            var_code = variable_list[id]["code"]; //replace  var_this[1]
+                        }
+                        else {
+                            var_code = '';
                         }
                     }
 
                     ///double work...
                     variable_desc = get_variable_desc(id, false);
-                    var_code = variable_list[id]["code"]; //replace  var_this[1]
+                   
                     newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
                     $(newRow).appendTo($("#tblVariables_tb"));
 
@@ -1180,7 +1225,6 @@ function create_dashboard_chart() {
         price_data_exists = true;
         chart_start_ts = price_data.record_start;
         chart_end_excl_ts = price_data.record_end_excl;
-        // chart_resolution_sec = price_data.resolution_sec;
         chart_resolution_sec = Math.min(price_data.resolution_sec, g_settings.netting_period_sec);
     }
 
@@ -1195,7 +1239,7 @@ function create_dashboard_chart() {
 
     if (price_data_exists) {
         idx = 0;
-        for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_resolution_sec) {
+        for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_data.resolution_sec) {
             if (price_data.prices[idx] != VARIABLE_LONG_UNKNOWN) {
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts)
                     prices_out.push({ x: ts * 1000, y: Math.round(price_data.prices[idx] / 100) / 10 });
@@ -2332,7 +2376,7 @@ function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0
 
 
 function populate_profile_select(selEl, profile_id = -1) {
-    console.log("populate_profile_select:" + channel_profiles.length, selEl.id);
+  //  console.log("populate_profile_select:" + channel_profiles.length, selEl.id);
     if (selEl.options && selEl.options.length <= 1) {
         if (selEl.length == 0)
             addOption(selEl, -1, "Select profile", false);
