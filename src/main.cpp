@@ -23,7 +23,7 @@ DEVEL BRANCH
 */
 
 // Features enabled
-#define CRASH_REPORTING_ENABLED_NOT
+#define CRASH_REPORTING_ENABLED
 
 #define MTU15M_ENABLED // Handle prices in 15 min intervals
 
@@ -194,10 +194,12 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #define MAX_PRICE_HOURS 48
 #ifdef MTU15M_ENABLED
+#define NETTING_PERIOD_SEC 900
 #define PRICE_RESOLUTION_SEC 900
 #define MAX_PRICE_PERIODS 192 //!< number of price period in the memory array
 #define TIMESERIES_ELEMENT_MAX 192
 #else
+#define NETTING_PERIOD_SEC (s.netting_period_sec)
 #define PRICE_RESOLUTION_SEC 3600
 #define MAX_PRICE_PERIODS 48 //!< number of price period in the memory array
 #define TIMESERIES_ELEMENT_MAX 72
@@ -301,6 +303,7 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 #define CH_STATE_BYDEFAULT 5
 #define CH_STATE_BYLMGMT_MORATORIUM 6
 #define CH_STATE_BYLMGMT_NOCAPACITY 7
+#define CH_STATE_MINIMUM_UPTIME 32 //Bitmask, can be set with the previous values
 // #define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
 #define WATT_EPSILON 50
 
@@ -746,8 +749,8 @@ typedef struct
   bool state;
   time_t this_state_started_period_ts; //!< current state start time within period (minimum period start)
   time_t this_state_started_epoch_ts;
-  int on_time;
-  int off_time;
+  int on_time;  // secs
+  int off_time; // secs
 } channel_log_struct;
 
 struct wifi_st
@@ -777,7 +780,7 @@ public:
   int get_variable_by_id(int id, variable_st *variable, int channel_idx);
   void get_variable_by_idx(int idx, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
- // float const_to_float(int id, long const_in);
+  // float const_to_float(int id, long const_in);
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
   int get_variable_count() { return VARIABLE_COUNT; };
   void rotate_period();
@@ -849,7 +852,6 @@ public:
   int get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
   int get_period_rank_hour(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
   void apply_pricemodifier();
-
 
 private:
   uint8_t id_;
@@ -1195,7 +1197,6 @@ time_t prices_record_start;
 time_t prices_expires_ts = 0;
 
 uint8_t chstate_transit[CHANNEL_COUNT]; // logging why the channel is in this state, latest transit decision (also blocking)
-bool channel_forced_down[CHANNEL_COUNT];
 
 // Jos LMGMT blokkaa niin palataan entiseen eli käytännössä syyksi muuttuu CH_STATE_BYLMGMT
 // Mutta ehdot lasketaan uusiksi, joten ei syytä jättää transitioon pidemmäksi aikaa, mutta priorisointi tehdään vasta myöhemmin
@@ -2555,7 +2556,7 @@ timeSeries wind_forecast(2, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
  */
 time_t get_netting_period_start_time(time_t ts)
 {
-  return long(ts / (s.netting_period_sec)) * (s.netting_period_sec);
+  return long(ts / (NETTING_PERIOD_SEC)) * (NETTING_PERIOD_SEC);
 }
 
 // experimental with channel_idx, resolve ch_counters reference
@@ -2587,7 +2588,7 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
   for (int h_idx = MAX_HISTORY_PERIODS - 2; h_idx > MAX_HISTORY_PERIODS - periods - 1; h_idx--)
   {
     periods_from_current = MAX_HISTORY_PERIODS - 1 - h_idx;
-    period_end = (current_period_start_ts - (periods_from_current - 1) * 3600);
+    period_end = (current_period_start_ts - (periods_from_current - 1) * SECONDS_IN_HOUR);
     if (period_end < processing_started_ts) // not yet history from that
       continue;
 
@@ -2645,8 +2646,9 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
     {
       uint32_t load_watt_seconds = 0;
-      if (0<= channel_idx) {
-      ch_counters.update_times(channel_idx);
+      if (0 <= channel_idx)
+      {
+        ch_counters.update_times(channel_idx);
       }
       for (int channel_idx_local = 0; channel_idx_local < CHANNEL_COUNT; channel_idx_local++)
       {
@@ -2859,7 +2861,7 @@ void ChannelCounters::new_log_period(time_t ts_report)
  */
 void ChannelCounters::update_times(int channel_idx) // no state change, just update times
 {
-  if (channel_idx<0) //should not happen
+  if (channel_idx < 0) // should not happen
     return;
   int previous_state_duration = (time(nullptr) - channel_logs[channel_idx].this_state_started_period_ts);
   if (channel_logs[channel_idx].state)
@@ -3225,7 +3227,7 @@ void readFromEEPROM()
   hw_template_idx = get_hw_template_idx(s.hw_template_id); // update cached variable
 
   if (s.netting_period_sec == 0) // TODO: should not happen normally, only if not well resetted
-    s.netting_period_sec = 3600;
+    s.netting_period_sec = 900;
 
 #ifdef REMOTE_ENABLED
   s.wg_private_key[MAX_WG_KEY_LENGTH - 1] = '\0'; // null termination
@@ -3474,7 +3476,7 @@ bool read_ds18b20_sensors()
 
         Serial.printf("Sensor %d, temp C: %f\n", j, temp_c);
         vars.set(VARIABLE_SENSOR_1 + j, temp_c);
-        temperature_updated_ts =time(nullptr); // TODO: per sensor?
+        temperature_updated_ts = time(nullptr); // TODO: per sensor?
       }
       else
       { //
@@ -3705,7 +3707,7 @@ void process_energy_meter_readings(bool exclusive)
     //  Serial.println("TESTING WITH RANDOM DELAY");
   }
 
-  bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
+  bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
   energy_meter_read_ok_count++; // global
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
@@ -4505,7 +4507,6 @@ void calculate_time_based_variables()
   localtime_r(&now_ts, &tm_struct);
   Serial.println("DEBUG start calculate_time_based_variables");
 
-
   yield();
   // update globals
   day_start_local = (((int)(time(nullptr) / SECONDS_IN_HOUR)) - tm_struct.tm_hour) * SECONDS_IN_HOUR; // TODO:DST
@@ -4523,7 +4524,7 @@ void calculate_time_based_variables()
     time_t day_end_local = day_start_local + 23 * SECONDS_IN_HOUR;
     // uint16_t day_sum = solar_forecast.sum(day_start_local, day_end_local);
     long period_power_fcst = max((long)0, (long)(solar_forecast.get(time(nullptr)) * s.pv_power / 1000));
-    long period_power_fcst_available = max((long)0, (long)(solar_forecast.get(time(nullptr)) * s.pv_power / 1000 - (s.baseload * s.netting_period_sec / SECONDS_IN_HOUR)));
+    long period_power_fcst_available = max((long)0, (long)(solar_forecast.get(time(nullptr)) * s.pv_power / 1000 - (s.baseload * NETTING_PERIOD_SEC / SECONDS_IN_HOUR)));
 
     long day_sum_tuned = 0;
 
@@ -4532,10 +4533,10 @@ void calculate_time_based_variables()
       day_sum_tuned += max((long)0, (long)(solar_forecast.get(period) * s.pv_power / 1000 - s.baseload));
     }
 
-    uint8_t isp_minutes = s.netting_period_sec / SECONDS_IN_MINUTE;
+    uint8_t isp_minutes = NETTING_PERIOD_SEC / SECONDS_IN_MINUTE;
     if (period_power_fcst_available < WATT_EPSILON / 10 || day_sum_tuned < WATT_EPSILON)
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)HOURS_IN_DAY * 60);
-    else if (s.netting_period_sec == SECONDS_IN_HOUR)
+    else if (NETTING_PERIOD_SEC == SECONDS_IN_HOUR)
     {
       vars.set(VARIABLE_SOLAR_MINUTES_TUNED, (long)(tm_struct.tm_min * day_sum_tuned / period_power_fcst_available));
     }
@@ -4559,7 +4560,7 @@ void calculate_time_based_variables()
       vars.set(VARIABLE_OVERPRODUCTION, (long)vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE) > 0L ? 1L : 0L);
       Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; prod %ld , channels %ld , baseload so far %ld  \n", vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE), production_estimate_sofar, vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION), baseload_energy_period_sofar);
 #else // allocate all estimated available energy for use from actual start to the end of period, less swtiching
-      long estimated_available_energy = max(0L, (current_period_start_ts + s.netting_period_sec - period_started_real) * (period_power_fcst - (long)s.baseload) / 3600);
+      long estimated_available_energy = max(0L, (current_period_start_ts + NETTING_PERIOD_SEC - period_started_real) * (period_power_fcst - (long)s.baseload) / 3600);
       vars.set(VARIABLE_SELLING_ENERGY_ESTIMATE, estimated_available_energy - (vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, 0)));
       vars.set(VARIABLE_OVERPRODUCTION, (long)vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE) > 0L ? 1L : 0L);
       Serial.printf("VARIABLE_SELLING_ENERGY_ESTIMATE %ld ; available %ld , channels used  %ld  \n", vars.get_l(VARIABLE_SELLING_ENERGY_ESTIMATE), estimated_available_energy, vars.get_l(VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION));
@@ -4709,7 +4710,7 @@ void calculate_price_rank_variables()
 
   int32_t window_price_avg;
   int32_t price_differs_avg;
-  time_t now_infunc= time(nullptr);
+  time_t now_infunc = time(nullptr);
   time_t current_period_start_ts = get_netting_period_start_time(time(nullptr));
   time_t current_hour_start_ts = (time(nullptr) / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
   bool use_prices = (strncmp(s.entsoe_area_code, "#", 1) != 0);
@@ -4775,7 +4776,7 @@ void calculate_price_rank_variables()
   rank = prices2.get_period_rank_hour(current_period_start_ts, last_ts_in_window - 8 * SECONDS_IN_HOUR, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
 
-  prices2.stats(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  prices2.stats(current_period_start_ts, last_ts_in_window - 8 * SECONDS_IN_HOUR, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   // Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
@@ -4796,7 +4797,7 @@ void calculate_price_rank_variables()
   Serial.println("VARIABLE_PRICERANK_24");
   rank = prices2.get_period_rank_hour(current_period_start_ts, last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window);
 
-  prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  prices2.stats(current_period_start_ts, last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   // Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
   vars.set(VARIABLE_PRICERANK_24, (long)rank);
 
@@ -4828,7 +4829,7 @@ void calculate_price_rank_variables()
   rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_FIXED_15_24, (long)rank);
 
-  prices2.stats(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  prices2.stats(current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   // Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
@@ -5515,7 +5516,7 @@ bool get_price_data_entsoe()
 
   time_t start_ts, end_ts; // this is the epoch
   tm tm_struct;
-  time_t now_infunc= time(nullptr);
+  time_t now_infunc = time(nullptr);
   start_ts = now_infunc - (SECONDS_IN_HOUR * 22); // no previous day after 22h, assume we have data ready for next day
 
   // #pragma message("Testing with special date setting, REMOVE")
@@ -5909,6 +5910,10 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
   ADD_JSON_BOOL(doc, "PRICE_ELERING_ENABLED", true);
 #endif
 
+#ifdef MTU15M_ENABLED
+  ADD_JSON_BOOL(doc, "MTU15M_ENABLED", true);
+#endif
+
 #ifdef DEBUG_MODE_ENABLED
   ADD_JSON_BOOL(doc, "DEBUG_MODE_ENABLED", true);
 #else
@@ -6098,7 +6103,7 @@ void read_production_meter()
   bool internet_connection_ok = false;
   long int total_energy = 0;
   long int current_power = 0;
-  bool period_changed_since_last_read = ((production_meter_read_last_ts / s.netting_period_sec) != (time(nullptr) / s.netting_period_sec));
+  bool period_changed_since_last_read = ((production_meter_read_last_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
 
   Serial.println("read_production_meter");
 
@@ -6307,7 +6312,7 @@ bool read_channel_stats_modbus(int channel_idx)
 void read_channels_stats()
 {
   Serial.println(F("read_channels_stats()"));
-  bool ok=false;
+  bool ok = false;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     switch (s.ch[channel_idx].type)
@@ -6737,7 +6742,6 @@ bool apply_relay_state(int channel_idx, bool init_relay)
 
   return false;
 }
-
 /**
  * @brief Check which channels can be raised /dropped
  *
@@ -6745,6 +6749,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
 void calculate_channel_states()
 {
   bool forced_up;
+  bool print_debug_info = false; // for problem solving / debugging
   float current_capacity_available = 9999;
 #ifdef LOAD_MGMT_ENABLED
   current_capacity_available = load_manager_capacity_a;
@@ -6754,6 +6759,9 @@ void calculate_channel_states()
   for (int channel_idx_ = 0; channel_idx_ < CHANNEL_COUNT; channel_idx_++)
   {
     channel_idx = ch_prio_sorted[channel_idx_]; // handle in priority order - if capacity is limited only best priority can be switch on
+   
+    chstate_transit[channel_idx] &= ~CH_STATE_MINIMUM_UPTIME; //clear bit
+
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     {
       s.ch[channel_idx].wannabe_up = false;
@@ -6763,7 +6771,8 @@ void calculate_channel_states()
 
     // reset rule_active variable
     bool wait_minimum_uptime = (ch_counters.get_duration_in_this_state(channel_idx) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
-
+    if (print_debug_info)
+      Serial.printf("\ncalculate_channel_states channel_idx %d, wait_minimum_uptime %s, duration %d\n", channel_idx, wait_minimum_uptime ? "true" : "false", ch_counters.get_duration_in_this_state(channel_idx));
     if (s.ch[channel_idx].force_state_until_ts == -1)
     { // force down
       s.ch[channel_idx].force_state_until_ts = 0;
@@ -6777,11 +6786,13 @@ void calculate_channel_states()
     {
       if ((s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count) > current_capacity_available)
       {
-        Serial.printf(PSTR("DEBUG: Not available capacity for channel %d to get up, %f\n"), channel_idx, current_capacity_available);
+        if (print_debug_info)
+          Serial.printf(PSTR("DEBUG: Not available capacity for channel %d to get up, %f\n"), channel_idx, current_capacity_available);
         s.ch[channel_idx].wannabe_up = false;
         if (ch_is_twoway(channel_idx))
         {
-          Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
+          if (print_debug_info)
+            Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
           s.ch[channel_idx].wannabe_profile = CH_PROFILE_BATT_DISCHARGE_100; // TODO BATTERY: parametrize what to do with battery if overload
         }
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT_NOCAPACITY;
@@ -6789,7 +6800,8 @@ void calculate_channel_states()
       }
       if (time(nullptr) - load_manager_overload_last_ts < s.load_manager_reswitch_moratorium_m * 60)
       {
-        Serial.printf("DEBUG: Load manager moratorium , channel %d \n", channel_idx);
+        if (print_debug_info)
+          Serial.printf("DEBUG: Load manager moratorium , channel %d \n", channel_idx);
         s.ch[channel_idx].wannabe_up = false;
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT_MORATORIUM;
         continue; // cannot switch on
@@ -6799,6 +6811,8 @@ void calculate_channel_states()
 #endif
 
     forced_up = (is_force_state_valid(channel_idx));
+    if (print_debug_info)
+      Serial.printf("DEBUG:  channel_idx %d forced_up %s\n", channel_idx, forced_up ? "true" : "false");
 
     if (ch_is_twoway(channel_idx))
     {
@@ -6816,6 +6830,11 @@ void calculate_channel_states()
     else if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
     {
       s.ch[channel_idx].wannabe_up = true;
+      if (wait_minimum_uptime)
+      chstate_transit[channel_idx]|= CH_STATE_MINIMUM_UPTIME;
+
+      if (print_debug_info)
+        Serial.printf("DEBUG:  channel %d wannabe_up = true\n", channel_idx);
       continue;
     }
 
@@ -6882,7 +6901,8 @@ void calculate_channel_states()
 
     for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
     {
-
+      if (print_debug_info)
+        Serial.printf("rule_idx: %d\n", rule_idx);
       nof_valid_statements = 0;
       one_or_more_failed = false;
       // now loop the statement until end or false statement
@@ -6892,8 +6912,10 @@ void calculate_channel_states()
         if (statement->variable_id != -1) // statement defined
         {
           nof_valid_statements++;
-          //   Serial.printf("calculate_channel_states statement.variable_id: %d\n", statement->variable_id);
           statement_true = vars.is_statement_true(statement, false, channel_idx);
+                if (print_debug_info)
+          Serial.printf("statement_idx %d, variable_id: %d, %s\n", statement_idx, statement->variable_id, statement_true ? "true" : "false");
+
           if (!statement_true)
           {
             one_or_more_failed = true;
@@ -6904,10 +6926,13 @@ void calculate_channel_states()
 
       if (!(nof_valid_statements == 0) && !one_or_more_failed)
       { // rule  matches
+      if (print_debug_info)
+        Serial.printf("the rule is matching\n");
+
         if (ch_is_twoway(channel_idx))
         {
-          Serial.printf("DEBUG ch %d set wannabe_profile <- rule (%d) profile %d\n", channel_idx, rule_idx, s.ch[channel_idx].rules[rule_idx].profile);
-
+            if (print_debug_info)
+            Serial.printf("DEBUG ch %d set wannabe_profile <- rule (%d) profile %d\n", channel_idx, rule_idx, s.ch[channel_idx].rules[rule_idx].profile);
           s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].rules[rule_idx].profile; // set
         }
         else
@@ -6927,6 +6952,7 @@ void calculate_channel_states()
         if (!s.ch[channel_idx].rules[rule_idx].rule_active)
         {
           // report debug change
+            if (print_debug_info)
           Serial.printf("channel_idx %d, rule_idx %d matches, channel wannabe_up: %s, tested %d rules.\n", channel_idx, rule_idx, s.ch[channel_idx].wannabe_up ? "true" : "false", nof_valid_statements);
         }
         nof_matching_rules++;
@@ -6935,11 +6961,14 @@ void calculate_channel_states()
     } // rules/rule loop
     //
     // no rules match, using default value
+      if (print_debug_info)
+    Serial.printf("nof_matching_rules %d\n", nof_matching_rules);
     if (nof_matching_rules == 0)
     {
       chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
       if (ch_is_twoway(channel_idx))
       {
+          if (print_debug_info)
         Serial.printf("DEBUG ch %d set wannabe_profile <- rule default profile %d\n", channel_idx, s.ch[channel_idx].default_profile);
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].default_profile; // set
       }
@@ -7717,7 +7746,7 @@ void reset_config()
   s.ota_update_phase = OTA_PHASE_NONE;
   s.energy_meter_type = ENERGYM_NONE;
   s.energy_meter_port = 80;
-  s.netting_period_sec = 3600;
+  s.netting_period_sec = 900;
   s.production_meter_type = PRODUCTIONM_NONE;
   s.production_meter_port = 80;
   s.production_meter_id = 3;
@@ -7856,7 +7885,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["baseload"] = s.baseload;
   doc["pv_power"] = s.pv_power;
   doc["energy_meter_type"] = s.energy_meter_type;
-  doc["netting_period_sec"] = s.netting_period_sec;
+  doc["netting_period_sec"] = NETTING_PERIOD_SEC;
 
   if (s.energy_meter_type != ENERGYM_NONE)
   {
@@ -9401,8 +9430,7 @@ void setup()
   int8_t uart_tx_gpio_unused = hw_templates[hw_template_idx].uart_tx_gpio_unused;
   if (!GPIO_IS_VALID_OUTPUT_GPIO(uart_tx_gpio_unused))
     uart_tx_gpio_unused = -1;
-
-  if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
+  if (s.energy_meter_type == ENERGYM_HAN_DIRECT && GPIO_IS_VALID_GPIO(s.energy_meter_gpio))
   {
     Serial.printf("Initializing HAN P1 Serial for HAN P1 read. GPIO: %d\n", (int)s.energy_meter_gpio);
 
