@@ -710,10 +710,10 @@ function update_status(repeat) {
             success: function (data, textStatus, jqXHR) { 
                 variable_history = data.variable_history;
                 variable_history_ts = new Date().getTime();   
-                console.log("variable_history", variable_history);
+               // console.log("variable_history", variable_history);
                 for (const variable_code in variable_history) {
 
-                    console.log("variable_code", variable_code, variable_history[variable_code], variable_history[variable_code].length);
+                  //  console.log("variable_code", variable_code, variable_history[variable_code], variable_history[variable_code].length);
 
                     for (i = 0; i < variable_history[variable_code].length; i++) {
                         if (Math.abs(variable_history[variable_code][i]) > 1) {
@@ -721,7 +721,7 @@ function update_status(repeat) {
                             break;
                         }
                     }
-                    console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+                //    console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
                 }
             }
         })
@@ -1295,7 +1295,7 @@ function create_dashboard_chart() {
             ts += g_settings.netting_period_sec;
         }
 
-        console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
+      //  console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
 
         if (dataset_started)
             datasets.push(
