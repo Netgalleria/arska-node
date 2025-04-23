@@ -6,6 +6,7 @@ var g_price_elering_enabled;
 var g_remote_enabled;
 var g_mdns_enabled;
 var g_influx_report_enabled;
+var g_mtu15m_enabled;
 
 var g_open_popover = null;
 
@@ -19,6 +20,9 @@ const HOURS_IN_DAY = 24
 const SECONDS_IN_HOUR = 3600
 const SECONDS_IN_MINUTE = 60
 //const NETTING_PERIOD_SEC = SECONDS_IN_HOUR // from /application constants
+
+const CH_STATE_MINIMUM_UPTIME = 32;
+
 
 const multiselect_icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pocket"><path d="M4 3h16a2 2 0 0 1 2 2v6a10 10 0 0 1-10 10A10 10 0 0 1 2 11V5a2 2 0 0 1 2-2z"></path><polyline points="8 10 12 14 16 10"></polyline></svg>';
 
@@ -1121,7 +1125,10 @@ function populate_channel_status(channel_idx, ch) {
     }
     else if (ch.is_up) {
         info_text += "Up";
-        if (!ch.wannabe_up) {
+        if (ch.transit & CH_STATE_MINIMUM_UPTIME) {
+            info_text += "- uptime limit";
+        }
+        else if (!ch.wannabe_up) {
             info_text += ", going down.";
         }
     }
@@ -1132,23 +1139,24 @@ function populate_channel_status(channel_idx, ch) {
     }
 
     if (g_settings.ch[channel_idx]["type"] != 0) {
-        if (ch.transit == CH_STATE_NONE)
+        let transit_reason = ch.transit  & ~CH_STATE_MINIMUM_UPTIME; 
+        if (transit_reason == CH_STATE_NONE)
             transit_txt = "";
-        else if (ch.transit == CH_STATE_BYRULE)
+        else if (transit_reason == CH_STATE_BYRULE)
             transit_txt = "<a class='chlink' " + rule_link_a + ">rule " + (ch.active_rule + 1) + "</a>";
-        else if (ch.transit == CH_STATE_BYFORCE)
+        else if (transit_reason == CH_STATE_BYFORCE)
             transit_txt = "manual schedule";
-        else if (ch.transit == CH_STATE_BYLMGMT)
+        else if (transit_reason == CH_STATE_BYLMGMT)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>overload</a>";
-        else if (ch.transit == CH_STATE_BYDEFAULT) {
+        else if (transit_reason == CH_STATE_BYDEFAULT) {
             rule_link_a = " onclick='jump(\"channels:ch_" + channel_idx + ":default_state\");'";
             transit_txt = "<a class='chlink' " + rule_link_a + ">channel default</a>";
         }
-        else if (ch.transit == CH_STATE_BYLMGMT_MORATORIUM)
+        else if (transit_reason == CH_STATE_BYLMGMT_MORATORIUM)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>reswitch delay</a>";
-        else if (ch.transit == CH_STATE_BYLMGMT_NOCAPACITY)
+        else if (transit_reason == CH_STATE_BYLMGMT_NOCAPACITY)
             transit_txt = "<a class='chlink' onclick='jump(\"admin:loadm\");'>load limited</a>";
-        else transit_txt = " " + ch.transit + " ";
+        else transit_txt = " " + transit_reason + " ";
     }
     else
         transit_txt = "";
@@ -2030,6 +2038,10 @@ function load_application_config() {
             g_remote_enabled = g_application.hasOwnProperty("REMOTE_ENABLED") ? g_application.REMOTE_ENABLED : false;
             if (g_remote_enabled)
                 document.getElementById(`remote_accordion`).classList.remove("collapse");
+            
+            g_mtu15m_enabled = g_application.hasOwnProperty("MTU15M_ENABLED") ? g_application.MTU15M_ENABLED : false;
+            if (!g_mtu15m_enabled)
+                document.getElementById(`isp_div`).classList.add("d-none"); 
 
             g_mdns_enabled = g_application.hasOwnProperty("MDNS_ENABLED") ? g_application.MDNS_ENABLED : false;
             if (g_mdns_enabled)
