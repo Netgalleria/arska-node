@@ -15,7 +15,7 @@ var isp_label; //imbalance setting period
 var day_ahead_chart_obj;
 
 const VARIABLE_LONG_UNKNOWN = -2147483648;
-const MAX_HISTORY_PERIODS = 24
+const MAX_HISTORY_PERIODS = (24 * 4);
 const HOURS_IN_DAY = 24
 const SECONDS_IN_HOUR = 3600
 const SECONDS_IN_MINUTE = 60
@@ -1458,14 +1458,15 @@ function create_dashboard_chart() {
 
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
             ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_settings.netting_period_sec;
-            if (Math.abs(channel_history[channel_idx][chh_idx]) > 1)
+            if (Math.abs(channel_history[channel_idx][chh_idx]) >= 1)
                 dataset_started = true;
             if (dataset_started) {
                 if (chart_start_ts <= ts)
                     channel_dataset.push({ x: ts * 1000, y: channel_history[channel_idx][chh_idx] });
             }
         }
-
+        //console.log("channel_history[channel_idx]", channel_history[channel_idx]);
+        //console.log("channel_dataset", channel_idx, dataset_started, channel_dataset);
         datasets.push({
             label: g_settings.ch[channel_idx]["id_str"],
             hidden: true,
@@ -2634,7 +2635,7 @@ function populate_channel(channel_idx) {
     if ("rules" in ch_cur) {
         //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
         for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
-            console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
+         //   console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
 
             if (rule_idx < ch_cur["rules"].length) {
                 this_rule = ch_cur["rules"][rule_idx];

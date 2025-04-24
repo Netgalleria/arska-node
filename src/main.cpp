@@ -371,7 +371,8 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define PROCESS_INTERVAL_SECS 60              //!< process interval, eg. energy meter polling and variable calculation
 #define ACCEPTED_TIMESTAMP_MINIMUM 1700000000 // if timestamp is greater, we assume it is from a real-time clock
 
-#define CONFIG_JSON_SIZE_MAX 8192 // was 6144, 20.1.2024  bigger allocation to get all channel data
+#define CONFIG_JSON_SIZE_MAX 10240 // was 6144, 20.1.2024 ->8192, 24.4.2025 10240 bigger allocation to get all channel data
+
 
 /* Application variable constants */
 #define VARIABLE_COUNT 54
@@ -6278,6 +6279,10 @@ bool read_channel_stats_modbus(int channel_idx)
   yield();
   long soc = 0;
 
+  
+
+
+
   if (mb.isConnected(ip_address))
   { // Check if connection to Modbus slave is established
     mb.task();
@@ -6831,7 +6836,7 @@ void calculate_channel_states()
     {
       s.ch[channel_idx].wannabe_up = true;
       if (wait_minimum_uptime)
-      chstate_transit[channel_idx]|= CH_STATE_MINIMUM_UPTIME;
+      chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
 
       if (print_debug_info)
         Serial.printf("DEBUG:  channel %d wannabe_up = true\n", channel_idx);
@@ -7268,8 +7273,8 @@ bool get_price_data_elering(char *country_code)
         if (prices2.start() != ts_min_stored)
         {
 
-          Serial.printf(PSTR("DEBUG get_price_data_elering prices2.start:  %d -> %d\n"), prices2.start(), ts_min_stored);
-          Serial.printf(PSTR("ts %d index is %d  bigger that new  start %d\n"), ts, (ts - ts_min_stored) / PRICE_RESOLUTION_SEC);
+       //   Serial.printf(PSTR("DEBUG get_price_data_elering prices2.start:  %d -> %d\n"), prices2.start(), ts_min_stored);
+       //   Serial.printf(PSTR("ts %d index is %d  bigger that new  start %d\n"), ts, (ts - ts_min_stored) / PRICE_RESOLUTION_SEC);
 
           prices2.set_store_start(ts_min_stored);
         }
@@ -7326,7 +7331,7 @@ bool get_price_data_elering(char *country_code)
     Serial.println(F("Finished succesfully get_price_data_elering."));
 
     prices2.apply_pricemodifier();
-    prices2.debug_print();
+   // prices2.debug_print();
 
 #ifdef NVS_CACHE_ENABLED
     prices2.save_to_cache(prices_expires_ts);
