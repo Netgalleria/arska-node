@@ -684,7 +684,7 @@ var prices_expires = 0;
 
 // update variables and channels statuses to channels form
 function update_status(repeat) {
-    console.log("update_status starting");
+   // console.log("update_status starting");
     if (!(typeof Chart === 'function')) { //wait for chartJs script loading, but should we?
         setTimeout(function () { update_status(repeat); }, 1000);
         return;
@@ -753,8 +753,8 @@ function update_status(repeat) {
         dataType: 'json',
         async: false,
         success: function (data, textStatus, jqXHR) {
-            console.log("/status took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
-            console.log("got status data", textStatus, jqXHR.status);
+            console.log("/status took " + (new Date().getTime() - start) / 1000 + "s to load", textStatus); //var start = new Date().getTime();
+           // console.log("got status data", textStatus, jqXHR.status);
        
             variable_values = data.variables;
 
@@ -914,12 +914,15 @@ function update_status(repeat) {
                         else {
                             var_code = '';
                         }
+                          ///double work...
+                        variable_desc = get_variable_desc(id, false);    
                     }
+                    else{}
+                        
+                    
+                  //  newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
+                    newRow = '<tr><th scope="row">' + id + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
 
-                    ///double work...
-                    variable_desc = get_variable_desc(id, false);
-                   
-                    newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
                     $(newRow).appendTo($("#tblVariables_tb"));
 
                 });
@@ -3099,7 +3102,7 @@ function jump(section_id_full) {
     //document.getElementById("mobileMenu").classList.remove("show");
     $('#mobileMenuClose').trigger('click');
 
-    console.log("Jumping to section " + section_id);
+   // console.log("Jumping to section " + section_id);
     $('#' + section_id + '-tab').trigger('click');
     // show new section div….
     let section_divs = document.querySelectorAll("div[id^='section_']");
@@ -3552,7 +3555,7 @@ function save_channel_ev(ev) {
 
 
     //POST
-    console.log("sending post_data", post_data);
+    //console.log("sending post_data", post_data);
 
     $.ajax({
         type: "POST",
@@ -3564,7 +3567,7 @@ function save_channel_ev(ev) {
         dataType: "json",
         success: function (data) {
             live_alert(card, "Updated", 'success');
-            console.log("success, card", card, data);
+          //  console.log("success, card", card, data);
             document.getElementById(card + ":save").disabled = true;
 
             //experimental 27.12.2023, this will update new names etc everywhere
