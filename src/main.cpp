@@ -1287,6 +1287,7 @@ bool check_filesystem_version()
   return is_ok;
 }
 RTC_NOINIT_ATTR time_t last_state_update_rtcmem;
+RTC_NOINIT_ATTR long variable_history_guard_value;
 RTC_NOINIT_ATTR long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIODS];
 
 uint8_t channel_attr[CHANNEL_COUNT];
@@ -9300,6 +9301,13 @@ void setup()
 
   // if(Serial) //experimental for LilyGo ESP32s,
   Serial.begin(115200);
+
+    // reset variable history if uninitiated
+    if ( variable_history_guard_value != 12345)
+    {
+      variable_history_guard_value = 12345;
+      memset(variable_history, 0, sizeof(variable_history));
+    };
 
   delay(2000); // wait for console to settle - only needed when debugging
 
