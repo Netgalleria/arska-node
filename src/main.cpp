@@ -6293,9 +6293,16 @@ bool read_channel_stats_modbus(int channel_idx)
     {
     case CH_TYPE_FRONIUS_GEN24_MODBUS_TCP:
       soc = get_mbus_value(ip_address, FRONIUSGEN24_CHASTATE_OFFSET, 1, modbusip_unit);
+     
       Serial.print("soc:");
       Serial.println(soc);
+      if ( last_modbus_code ==  Modbus::EX_SUCCESS) { 
       vars.set(VARIABLE_SOC_BASE_0 + channel_variable_idx, (long)((soc + 50) / 100));
+      }
+      else {
+        Serial.printf(PSTR("Cannot read Soc (0x%02) \n"),Modbus::EX_SUCCESS);
+      }
+
       break;
       // default:
     }
