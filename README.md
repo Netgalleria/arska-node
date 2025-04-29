@@ -23,8 +23,9 @@ Arska can control various electric switches connected to e.g. water heater and c
 
 [![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
 
-[![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=tg8wLuIKFNg)
+[![Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction (Finnish, English subtitles)](https://github.com/user-attachments/assets/df1db2e9-7489-4231-b5be-2aacfe4a504e)](https://www.youtube.com/watch?v=tg8wLuIKFNg)
 
+<img width="916" alt="image" src="https://github.com/user-attachments/assets/df1db2e9-7489-4231-b5be-2aacfe4a504e" />
 
 
 ![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
