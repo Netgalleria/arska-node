@@ -132,7 +132,7 @@
         "min": 1,
         "max": 32
     },
-    "59": {
+    "61": {
         "code": "rank within hour",
         "desc": "15 min period price rank during current hour",
         "desc_fi": "15 min jakson hintasijoitus kuluvan tunnin aikana",

@@ -4,7 +4,7 @@
 
 ### New features 
 * Supports  15-minute Market Time Unit (MTU), prices and reporting
-  * Hour based price variables changed to hour average, new 15 minutes variables
+  * Hour based price variables changed to hour average, new 15 minutes variables: 51,52,53, 54, 61
   * Dashboard graph in 15 minutes time scale
   * Before European 15-minute MTU go-live date (11 June 2025 or later) the price of is given to all 15 minutes periods.
 * Supports Fronius Gen24 plus inverters, a new channel type 

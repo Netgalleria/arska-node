@@ -1046,7 +1046,7 @@ function get_profile_info_by_id(profile_id) {
 }
 
 
-function ch_is_twoway(ch) {
+function ch_is_profile_based(ch) {
     return (parseInt(ch.type) == 50); // now only Fronius
 }
 
@@ -2172,28 +2172,14 @@ function set_relay_field_visibility(channel_idx, ch_type) {
     document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type));//|| locked);
     document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type));// || locked);
     document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type));// || locked);
+    if (is_relay_profile_used(ch_type)) { 
+        document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Power (kW):";
+    }
 
 }
 
 
-function set_channel_fields_relay_type(channel_idx, chtype_in) { //deprecated
-    if (chtype_in.substring(0, 5) == "1000_") { //combined id, like 1000_2_192.168.66.36_0 
-        id_a = chtype_in.split("_");
-        chtype = id_a[1];
-        if (is_relay_ip_used(chtype))
-            document.getElementById("ch_rip_" + channel_idx).value = id_a[2];
-        if (is_relay_uid_used(chtype))
-            document.getElementById("ch_ruid_" + channel_idx).value = id_a[3];
-        //       console.log(id_a,channel_idx,chtype,is_relay_ip_used(chtype));
-    }
-    else
-        chtype = chtype_in;
-    set_relay_field_visibility(channel_idx, chtype);
-    chtype = chtype_in;
-    for (var t = 0; t < g_application.RULE_STATEMENTS_MAX; t++) {
-        $('#d_rc1_' + channel_idx + ' input').attr('disabled', (chtype == CH_TYPE_UNDEFINED));
-    }
-}
+
 function get_idx_from_str(id_str, idx_nbr) {
     const fld_a1 = id_str.split(":");
     if (fld_a1.length <= idx_nbr)
@@ -2214,6 +2200,7 @@ function channel_type_changed_ev(evt, ch_idx) {
         ch_type = document.getElementById(`ch_${ch_idx}:type`).value
 
     set_relay_field_visibility(ch_idx, ch_type);
+    
     for (var t = 0; t < g_application.RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (ch_type == CH_TYPE_UNDEFINED));
     }
