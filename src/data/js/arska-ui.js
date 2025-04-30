@@ -101,9 +101,40 @@ function goodbye(e) {
     }
 }
 
+async function isTypekitReachable() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+  
+      await fetch("https://use.typekit.net/favicon.ico", {
+        method: "HEAD",
+        mode: "no-cors",       // allow CORS-safe request
+        signal: controller.signal
+      });
+  
+      clearTimeout(timeoutId);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  
+
 
 window.onload = function () {
     init_ui();
+
+    isTypekitReachable().then(reachable => {
+        if (reachable) {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "css/uwx3oza.css";
+          document.head.appendChild(link);
+          console.log("Typekit loaded.");
+        } else {
+          console.warn("Typekit host not reachable. Skipping font load.");
+        }
+      });
 
     //ch_0:save
 
