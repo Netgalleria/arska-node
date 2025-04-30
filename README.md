@@ -20,21 +20,23 @@ Arska can control various electric switches connected to e.g. water heater and c
 ## Intro Videos 
 
 [![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)
+*Arska power manager - installation and basic configuration - old video (old UI), but explains the basics *
 
 [![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
+*Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles*
 
 [![Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction (Finnish, English subtitles)](https://github.com/user-attachments/assets/df1db2e9-7489-4231-b5be-2aacfe4a504e)](https://www.youtube.com/watch?v=tg8wLuIKFNg)
-
-
-
-
-![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
+*Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction (Finnish, English subtitles)*
 
 
 ## More information:
 - [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) 
 - [Discussions, English or Finnish](https://github.com/Netgalleria/arska-node/discussions) 
 - [Arska on X](https://twitter.com/ArskaEnergy)
+
+![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
+*Arska Data flowa*
+
 
 # Current status
 The software is under development. Use beta version for newest features. Stable/release candidate versions are recommeded for production environments.   
