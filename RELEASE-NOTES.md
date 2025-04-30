@@ -1,16 +1,27 @@
 # Arska release notes
 
 ## Arska 1.3 
+
 ### New features 
 * Supports  15-minute Market Time Unit (MTU), prices and reporting
   * Hour based price variables changed to hour average, new 15 minutes variables
   * Dashboard graph in 15 minutes time scale
+  * Before European 15-minute MTU go-live date (11 June 2025 or later) the price of is given to all 15 minutes periods.
 * Supports Fronius Gen24 plus inverters, a new channel type 
+  * Communicates with Modbus TCP (port 502) with the inverter
   * Charging/discharging profiles can be controlled from the rules and the dashboard
+  * SoC (State of Charge) visible on the dashboard graph
 * Dashboard history values are saved in soft boots
 
 ### Bug Fixes
   * A memory corruption error fixed,22.4.2025
+  * several other fixes and tunings
+
+### Known open issuess
+  * 
+
+Version 1.2 is skipped
+
 
 ## Arska 1.1
 ### New features 
