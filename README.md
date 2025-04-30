@@ -18,8 +18,10 @@ Arska can control various electric switches connected to e.g. water heater and c
 
  
 ## Intro Videos 
-- [Arska power manager - installation and basic configuration](https://www.youtube.com/watch?v=MvDFJclwr6A) . Old video (old UI), but explains the basics, English with Finnish subtitles.
-- [Introducing the new version of Arska; basic settings and creating rules using rule templates)](https://www.youtube.com/watch?v=BFsiXRxTFBo), (Finnish, English subtitles
+- [Arska power manager - installation and basic configuration](https://www.youtube.com/watch?v=MvDFJclwr6A) . 
+    -Old video (old UI), but explains the basics
+    -English with Finnish subtitles.
+- [Introducing the new version of Arska; basic settings and creating rules using rule templates)](https://www.youtube.com/watch?v=BFsiXRxTFBo), Finnish, English subtitles
 - [Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction](https://www.youtube.com/watch?v=tg8wLuIKFNg), Finnish, English subtitles. 
 
 ## More information:
@@ -28,7 +30,8 @@ Arska can control various electric switches connected to e.g. water heater and c
 - [Arska on X](https://twitter.com/ArskaEnergy)
 
 ![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
-*Arska Data flowa*
+
+*Arska Data flows*
 
 
 # Current status
