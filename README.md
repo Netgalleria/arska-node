@@ -8,7 +8,8 @@ Arska makes your energy purchases greener and saves on your energy bill by deman
 Arska is a ESP32 microcontroller based application for managing energy consumption. It can switch on and of loads based on measured consumption and production information as well as price and solar energy forecast. 
 
 Arska can control various electric switches connected to e.g. water heater and car chargers. It can also privide potential-free signal for temperature control for example to heat-pumps. Arska controls devices based on following data:
-- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. Optional price data source [Elering](https://dashboard.elering.ee/assets/api-doc.html)  provides prices for Estonia, Finland, Lithuania and Latvia. 
+- Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. [Elering](https://dashboard.elering.ee/assets/api-doc.html) is back-up for price data for Estonia, Finland, Lithuania and Latvia. 
+- Version 1.3 support 15-minute Market Time Unit (MTU)
 - Grid energy metering, supports meters with HAN P1 port and Shelly 3 EM, [read more](https://github.com/Netgalleria/arska-node/wiki/Energy-Meter-configuration) 
 - Relays supported: on-board gpio relays, Shelly (Gen and Gen2), and Tasmota wifi-relays
 - Fronius Gen 24 plus charging control supported from version 1.3
@@ -18,11 +19,19 @@ Arska can control various electric switches connected to e.g. water heater and c
 
  
 ## Intro Videos 
-- [Arska power manager - installation and basic configuration](https://www.youtube.com/watch?v=MvDFJclwr6A) . 
-    -Old video (old UI), but explains the basics
-    -English with Finnish subtitles.
-- [Introducing the new version of Arska; basic settings and creating rules using rule templates)](https://www.youtube.com/watch?v=BFsiXRxTFBo), Finnish, English subtitles
-- [Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction](https://www.youtube.com/watch?v=tg8wLuIKFNg), Finnish, English subtitles. 
+- [Arska power manager - installation and basic configuration](https://www.youtube.com/watch?v=MvDFJclwr6A)  
+    - Old video (old UI), but explains the basics
+    - Basic hardware, relays
+    - Software installation
+    - English with Finnish subtitles.
+- [Introducing the new version of Arska; basic settings and creating rules using rule templates)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
+    - Rules and rule templates
+    - Renevable energy forecasts
+    - Finnish, English subtitles
+- [Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction](https://www.youtube.com/watch?v=tg8wLuIKFNg)
+    - HAN P1 adapter setup
+    - Load management
+    - Finnish, English subtitles. 
 
 ## More information:
 - [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) 
