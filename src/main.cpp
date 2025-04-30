@@ -180,7 +180,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10111 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10112 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -303,7 +303,7 @@ const char *host_releases PROGMEM = "iot.netgalleria.fi";
 #define CH_STATE_BYDEFAULT 5
 #define CH_STATE_BYLMGMT_MORATORIUM 6
 #define CH_STATE_BYLMGMT_NOCAPACITY 7
-#define CH_STATE_MINIMUM_UPTIME 32 //Bitmask, can be set with the previous values
+#define CH_STATE_MINIMUM_UPTIME 32 // Bitmask, can be set with the previous values
 // #define OTA_DOWNLOAD_ENABLED // OTA download from web site, OTA_UPDATE_ENABLED required, ->define in  platform.ini
 #define WATT_EPSILON 50
 
@@ -373,7 +373,6 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 
 #define CONFIG_JSON_SIZE_MAX 10240 // was 6144, 20.1.2024 ->8192, 24.4.2025 10240 bigger allocation to get all channel data
 
-
 /* Application variable constants */
 #define VARIABLE_COUNT 55
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
@@ -401,7 +400,7 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define VARIABLE_PRICERANK_15_24 52       //!< price rank of 15 minutes within 24 hours window
 #define VARIABLE_PRICERANK_FIXED_15_24 53 //!< price rank within 24 hours (day) fixed 00-23
 #define VARIABLE_PRICERANK_FIXED_15_8 54  //!< price rank within 8 hours fixed blocks 1)23-06, 2) 07-14, 3)15-22
-#define VARIABLE_PRICERANK_15_HOUR 59        //!< price rank of 15 minutes within 9 hours window
+#define VARIABLE_PRICERANK_15_HOUR 61     //!< price rank of 15 minutes within 9 hours window
 
 #define VARIABLE_OVERPRODUCTION 100
 #define VARIABLE_PRODUCTION_POWER 101 //!< average production power during this period, measured W
@@ -788,7 +787,7 @@ public:
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_15_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE},{VARIABLE_PRICERANK_15_HOUR, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE} ,{VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_SOC_BASE_0, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
+  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_15_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_HOUR, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_SOC_BASE_0, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
   int get_variable_index(int id);
 };
 
@@ -3382,7 +3381,7 @@ bool scan_sensors()
         continue;
       }
     }
-    Serial.printf(PSTR("DEBUG: scan_sensors, slot %d cleared\n"), j);
+   // Serial.printf(PSTR("DEBUG: scan_sensors, slot %d cleared\n"), j);
     memset(s.sensors[j].address, 0, sizeof(DeviceAddress));
     strncpy(s.sensors[j].id_str, "-", sizeof(s.sensors[j].id_str));
   }
@@ -4316,7 +4315,7 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
   long int combined;
 
   uint16_t trans = mb.readHreg(remote, reg_offset, buf, reg_num, modbus_callback, modbusip_unit);
-    
+
   while (mb.isTransaction(trans))
   { // Check if transaction is active
     mb.task();
@@ -4336,7 +4335,6 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
       combined = 0;
       Serial.println("buf[0] == 32768, disconnecting");
       mb.disconnect(s.production_meter_ip); // disconnect in the end
-    
     }
   }
   else
@@ -4775,9 +4773,9 @@ void calculate_price_rank_variables()
   // rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
   Serial.println("VARIABLE_PRICERANK_9 1");
   time_t last_ts_in_window = min(prices2.period_start(current_hour_start_ts + 8 * SECONDS_IN_HOUR), prices2.last_set_period_ts());
-  Serial.println(current_hour_start_ts + 8 * SECONDS_IN_HOUR);
-  Serial.println(prices2.last_set_period_ts());
-  prices2.debug_print(false);
+  //Serial.println(current_hour_start_ts + 8 * SECONDS_IN_HOUR);
+  //Serial.println(prices2.last_set_period_ts());
+  //prices2.debug_print(false);
 
   rank = prices2.get_period_rank_hour(current_period_start_ts, last_ts_in_window - 8 * SECONDS_IN_HOUR, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
@@ -4862,11 +4860,10 @@ void calculate_price_rank_variables()
   rank = prices2.get_period_rank(current_period_start_ts, first_ts_in_window, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_FIXED_15_8, (long)rank);
 
-  //period within current hour
+  // period within current hour
   first_ts_in_window = current_hour_start_ts - SECONDS_IN_HOUR * block_start_before_this_idx;
-  rank = prices2.get_period_rank(current_period_start_ts, current_hour_start_ts, current_hour_start_ts+3599);
+  rank = prices2.get_period_rank(current_period_start_ts, current_hour_start_ts, current_hour_start_ts + 3599);
   vars.set(VARIABLE_PRICERANK_15_HOUR, (long)rank);
-  
 
   yield();
 
@@ -6195,7 +6192,7 @@ void read_production_meter()
 }
 //
 #ifdef BATTERY_ENABLED
-bool ch_is_twoway(int channel_idx)
+bool ch_is_profile_based(int channel_idx)
 {
   switch (s.ch[channel_idx].type)
   {
@@ -6205,6 +6202,9 @@ bool ch_is_twoway(int channel_idx)
     return false;
   }
 }
+
+
+
 // battery is consuming only if charging, -1 if discharging, 0 if passive or no control
 int8_t ch_consuming_profile(uint8_t profile)
 {
@@ -6217,27 +6217,12 @@ int8_t ch_consuming_profile(uint8_t profile)
   else
     return 0;
 }
-/*
-bool ch_is_consuming(int channel_idx)
-{
-  if (ch_is_twoway(channel_idx))
-    return (CH_PROFILE_BATT_CHARGE_100 <= s.ch[channel_idx].profile && s.ch[channel_idx].profile < CH_PROFILE_BATT_CHARGE_0);
-  else
-    return s.ch[channel_idx].is_up;
-}
-bool ch_is_producing(int channel_idx)
-{
-  if (ch_is_twoway(channel_idx))
-    return (CH_PROFILE_BATT_CHARGE_0 < s.ch[channel_idx].profile && s.ch[channel_idx].profile <= CH_PROFILE_BATT_DISCHARGE_100);
-  else
-    return false;
-}
-*/
+
 
 bool ch_in_wannabe_state(int channel_idx)
 {
   {
-    if (ch_is_twoway(channel_idx))
+    if (ch_is_profile_based(channel_idx))
       return s.ch[channel_idx].profile == s.ch[channel_idx].wannabe_profile;
     else
       return s.ch[channel_idx].is_up == s.ch[channel_idx].wannabe_up;
@@ -6247,7 +6232,7 @@ bool ch_in_wannabe_state(int channel_idx)
 
 bool ch_is_active(int channel_idx)
 {
-  if (ch_is_twoway(channel_idx))
+  if (ch_is_profile_based(channel_idx))
     return (s.ch[channel_idx].profile != CH_PROFILE_BATT_NO_CTRL);
   else
     return s.ch[channel_idx].is_up;
@@ -6255,7 +6240,7 @@ bool ch_is_active(int channel_idx)
 
 bool ch_wannabe_active(int channel_idx)
 {
-  if (ch_is_twoway(channel_idx))
+  if (ch_is_profile_based(channel_idx))
     return ch_consuming_profile(s.ch[channel_idx].wannabe_profile) != 0;
   else
     return s.ch[channel_idx].wannabe_up;
@@ -6302,14 +6287,16 @@ bool read_channel_stats_modbus(int channel_idx)
     {
     case CH_TYPE_FRONIUS_GEN24_MODBUS_TCP:
       soc = get_mbus_value(ip_address, FRONIUSGEN24_CHASTATE_OFFSET, 1, modbusip_unit);
-     
+
       Serial.print("soc:");
       Serial.println(soc);
-      if ( last_modbus_code ==  Modbus::EX_SUCCESS) { 
+      if (last_modbus_code == Modbus::EX_SUCCESS)
+      {
         vars.set(VARIABLE_SOC_BASE_0 + channel_variable_idx, (long)((soc + 50) / 100));
       }
-      else {
-        Serial.printf(PSTR("Cannot read Soc (0x%02) \n"),Modbus::EX_SUCCESS);
+      else
+      {
+        Serial.printf(PSTR("Cannot read Soc (0x%02) \n"), Modbus::EX_SUCCESS);
       }
 
       break;
@@ -6357,7 +6344,7 @@ void read_channels_stats()
 #endif
 
 /**
- * @brief Get a channel to switch next, using channel priority
+ * @brief Get a channel to switch (is_rise: switch on, !is_rise: switch off) next, using channel priority
  * @details There can be multiple channels which could be switched but not all are switched at the same round
  *
  * @param is_rise
@@ -6369,13 +6356,13 @@ int get_channel_to_switch_prio(bool is_rise)
   int matching_prio_channel = -1;
   //  Serial.printf("get_channel_to_switch_prio is_rise %s \n", is_rise ? "true" : "false");
 
-#ifdef BATTERY_ENABLED // proto version, combine when stabile...
+#ifdef BATTERY_ENABLED // new version, combine when stabile...
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     //     Serial.printf("get_channel_to_switch_prio ch %d,  ch_is_active %s, ch_in_wannabe_state %s \n", channel_idx, ch_is_active(channel_idx) ? "true" : "false", ch_in_wannabe_state(channel_idx) ? "true" : "false");
-    if (is_rise && ((ch_is_twoway(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up))))
-    { // we should rise this up, select down channel with lowest priority value
-
+    // select channels to switch on or change profile, select first channel with lowest priority value ie best priority
+    if (is_rise && ((ch_is_profile_based(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up))))
+    { 
       //   Serial.printf("get_channel_to_switch_prio ch %d wanna to be up \n", channel_idx);
       if (matching_prio_channel == -1 || matching_prio > s.ch[channel_idx].priority)
       {
@@ -6383,9 +6370,9 @@ int get_channel_to_switch_prio(bool is_rise)
         matching_prio_channel = channel_idx;
       }
     }
-    //   if (!is_rise && ((ch_is_twoway(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!ch_is_twoway(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up))))
-    if (!is_rise && !ch_is_twoway(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up)
-    { // we should drop this channel, select up channel with highest priority value
+    // select channels to switch off,  select first channel (up) with highest priority value i.e. lowest priority
+    if (!is_rise && !ch_is_profile_based(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up)
+    { 
       //    Serial.printf("get_channel_to_switch_prio ch %d wanna be down , matching_prio %d, priority %d\n", channel_idx, (int)matching_prio, s.ch[channel_idx].priority);
       if (matching_prio_channel == -1 || matching_prio < s.ch[channel_idx].priority)
       {
@@ -6395,6 +6382,7 @@ int get_channel_to_switch_prio(bool is_rise)
     }
   }
 #else
+   //old branch, not supporting profiles
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     if (is_rise && !s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up)
@@ -6699,7 +6687,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     s.ch[channel_idx].up_last_ts = time(nullptr);
     Serial.printf("Channel %d seen up now at %ld \n", channel_idx, (long)s.ch[channel_idx].up_last_ts);
   }
-  if (ch_is_twoway(channel_idx))
+  if (ch_is_profile_based(channel_idx))
     Serial.printf("ch %d -> %d\n", channel_idx, (int)s.ch[channel_idx].profile);
   else
     Serial.printf("ch %d -> %s\n", channel_idx, up ? "HIGH  " : "LOW  ");
@@ -6751,7 +6739,7 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     return true;
   }
 #ifdef BATTERY_ENABLED
-  else if (wifi_sta_connected && ch_is_twoway(channel_idx))
+  else if (wifi_sta_connected && ch_is_profile_based(channel_idx))
   {
     if ((s.ch[channel_idx].type == CH_TYPE_FRONIUS_GEN24_MODBUS_TCP))
     {
@@ -6780,8 +6768,8 @@ void calculate_channel_states()
   for (int channel_idx_ = 0; channel_idx_ < CHANNEL_COUNT; channel_idx_++)
   {
     channel_idx = ch_prio_sorted[channel_idx_]; // handle in priority order - if capacity is limited only best priority can be switch on
-   
-    chstate_transit[channel_idx] &= ~CH_STATE_MINIMUM_UPTIME; //clear bit
+
+    chstate_transit[channel_idx] &= ~CH_STATE_MINIMUM_UPTIME; // clear bit
 
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     {
@@ -6810,7 +6798,7 @@ void calculate_channel_states()
         if (print_debug_info)
           Serial.printf(PSTR("DEBUG: Not available capacity for channel %d to get up, %f\n"), channel_idx, current_capacity_available);
         s.ch[channel_idx].wannabe_up = false;
-        if (ch_is_twoway(channel_idx))
+        if (ch_is_profile_based(channel_idx))
         {
           if (print_debug_info)
             Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
@@ -6835,7 +6823,7 @@ void calculate_channel_states()
     if (print_debug_info)
       Serial.printf("DEBUG:  channel_idx %d forced_up %s\n", channel_idx, forced_up ? "true" : "false");
 
-    if (ch_is_twoway(channel_idx))
+    if (ch_is_profile_based(channel_idx))
     {
       if (wait_minimum_uptime)
       {
@@ -6852,7 +6840,7 @@ void calculate_channel_states()
     {
       s.ch[channel_idx].wannabe_up = true;
       if (wait_minimum_uptime)
-      chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
+        chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
 
       if (print_debug_info)
         Serial.printf("DEBUG:  channel %d wannabe_up = true\n", channel_idx);
@@ -6863,7 +6851,7 @@ void calculate_channel_states()
         if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
         {
           //   Not yet time to drop channel
-          if (ch_is_twoway(channel_idx)) {
+          if (ch_is_profile_based(channel_idx)) {
             Serial.printf("DEBUG ch %d set wannabe_profile <- force_state_profile %d\n", channel_idx, s.ch[channel_idx].force_state_profile );
             s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
           }
@@ -6879,7 +6867,7 @@ void calculate_channel_states()
       s.ch[channel_idx].rules[rule_idx].rule_active = false;
     }
 
-    if (ch_is_twoway(channel_idx))
+    if (ch_is_profile_based(channel_idx))
     {
       if (!ch_in_wannabe_state(channel_idx) && forced_up)
       {
@@ -6934,8 +6922,8 @@ void calculate_channel_states()
         {
           nof_valid_statements++;
           statement_true = vars.is_statement_true(statement, false, channel_idx);
-                if (print_debug_info)
-          Serial.printf("statement_idx %d, variable_id: %d, %s\n", statement_idx, statement->variable_id, statement_true ? "true" : "false");
+          if (print_debug_info)
+            Serial.printf("statement_idx %d, variable_id: %d, %s\n", statement_idx, statement->variable_id, statement_true ? "true" : "false");
 
           if (!statement_true)
           {
@@ -6947,12 +6935,12 @@ void calculate_channel_states()
 
       if (!(nof_valid_statements == 0) && !one_or_more_failed)
       { // rule  matches
-      if (print_debug_info)
-        Serial.printf("the rule is matching\n");
+        if (print_debug_info)
+          Serial.printf("the rule is matching\n");
 
-        if (ch_is_twoway(channel_idx))
+        if (ch_is_profile_based(channel_idx))
         {
-            if (print_debug_info)
+          if (print_debug_info)
             Serial.printf("DEBUG ch %d set wannabe_profile <- rule (%d) profile %d\n", channel_idx, rule_idx, s.ch[channel_idx].rules[rule_idx].profile);
           s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].rules[rule_idx].profile; // set
         }
@@ -6973,8 +6961,8 @@ void calculate_channel_states()
         if (!s.ch[channel_idx].rules[rule_idx].rule_active)
         {
           // report debug change
-            if (print_debug_info)
-          Serial.printf("channel_idx %d, rule_idx %d matches, channel wannabe_up: %s, tested %d rules.\n", channel_idx, rule_idx, s.ch[channel_idx].wannabe_up ? "true" : "false", nof_valid_statements);
+          if (print_debug_info)
+            Serial.printf("channel_idx %d, rule_idx %d matches, channel wannabe_up: %s, tested %d rules.\n", channel_idx, rule_idx, s.ch[channel_idx].wannabe_up ? "true" : "false", nof_valid_statements);
         }
         nof_matching_rules++;
         break; // no more rule testing
@@ -6982,15 +6970,15 @@ void calculate_channel_states()
     } // rules/rule loop
     //
     // no rules match, using default value
-      if (print_debug_info)
-    Serial.printf("nof_matching_rules %d\n", nof_matching_rules);
+    if (print_debug_info)
+      Serial.printf("nof_matching_rules %d\n", nof_matching_rules);
     if (nof_matching_rules == 0)
     {
       chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
-      if (ch_is_twoway(channel_idx))
+      if (ch_is_profile_based(channel_idx))
       {
-          if (print_debug_info)
-        Serial.printf("DEBUG ch %d set wannabe_profile <- rule default profile %d\n", channel_idx, s.ch[channel_idx].default_profile);
+        if (print_debug_info)
+          Serial.printf("DEBUG ch %d set wannabe_profile <- rule default profile %d\n", channel_idx, s.ch[channel_idx].default_profile);
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].default_profile; // set
       }
       else
@@ -7037,7 +7025,7 @@ void set_relays(bool grid_protection_delay_used)
       continue;
 #ifdef BATTERY_ENABLED // proto, merge later
     // handle two_way ie battery profile change only on rise phase
-    if (ch_is_twoway(channel_idx))
+    if (ch_is_profile_based(channel_idx))
     {
       if (!ch_in_wannabe_state(channel_idx))
       {
@@ -7082,7 +7070,7 @@ void set_relays(bool grid_protection_delay_used)
     {
       int ch_to_switch = get_channel_to_switch_prio(is_rise); // return in priority order
 
-      if (ch_is_twoway(ch_to_switch))
+      if (ch_is_profile_based(ch_to_switch))
       {
         Serial.printf("Switching ch %d from %d -> %d\n", ch_to_switch, s.ch[ch_to_switch].profile, s.ch[ch_to_switch].wannabe_profile);
 
@@ -7289,8 +7277,8 @@ bool get_price_data_elering(char *country_code)
         if (prices2.start() != ts_min_stored)
         {
 
-       //   Serial.printf(PSTR("DEBUG get_price_data_elering prices2.start:  %d -> %d\n"), prices2.start(), ts_min_stored);
-       //   Serial.printf(PSTR("ts %d index is %d  bigger that new  start %d\n"), ts, (ts - ts_min_stored) / PRICE_RESOLUTION_SEC);
+          //   Serial.printf(PSTR("DEBUG get_price_data_elering prices2.start:  %d -> %d\n"), prices2.start(), ts_min_stored);
+          //   Serial.printf(PSTR("ts %d index is %d  bigger that new  start %d\n"), ts, (ts - ts_min_stored) / PRICE_RESOLUTION_SEC);
 
           prices2.set_store_start(ts_min_stored);
         }
@@ -7347,7 +7335,7 @@ bool get_price_data_elering(char *country_code)
     Serial.println(F("Finished succesfully get_price_data_elering."));
 
     prices2.apply_pricemodifier();
-   // prices2.debug_print();
+    // prices2.debug_print();
 
 #ifdef NVS_CACHE_ENABLED
     prices2.save_to_cache(prices_expires_ts);
@@ -9185,13 +9173,16 @@ bool connect_wifi()
     connect_started = millis();
     while (WiFi.status() != WL_CONNECTED)
     { // Wait for the Wi-Fi to connect
-      if (millis() - connect_started > 60000)
+      if (millis() - connect_started > 60000 || WiFi.status() == WL_NO_SSID_AVAIL)
       {
         Serial.println(F("WiFi Failed!"));
+        if (WiFi.status() == WL_NO_SSID_AVAIL)
+        {
+          Serial.printf(PSTR("Wifi %s does not exist.\n"), s.wifi_ssid);
+        }
         delay(1000);
         WiFi.disconnect();
         delay(3000);
-
         break;
       }
       io_tasks(STATE_CONNECTING_WIFI); // leds, reset
@@ -9238,8 +9229,9 @@ bool connect_wifi()
   {
     if (wifi_sta_connection_required)
     {
-      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Give WiFi number (see the list above) <enter> and give WiFi password <enter>.\n 2) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n"), APSSID.c_str(), WiFi.softAPIP().toString());
-      Serial.println();
+      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi number (see the list below) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
+      scan_and_store_wifis(true, false);
+
       if (Serial)
         Serial.flush();
     }
@@ -9310,12 +9302,12 @@ void setup()
   // if(Serial) //experimental for LilyGo ESP32s,
   Serial.begin(115200);
 
-    // reset variable history if uninitiated
-    if ( variable_history_guard_value != 12345)
-    {
-      variable_history_guard_value = 12345;
-      memset(variable_history, 0, sizeof(variable_history));
-    };
+  // reset variable history if uninitiated
+  if (variable_history_guard_value != 12345)
+  {
+    variable_history_guard_value = 12345;
+    memset(variable_history, 0, sizeof(variable_history));
+  };
 
   delay(2000); // wait for console to settle - only needed when debugging
 
@@ -9523,7 +9515,7 @@ void setup()
       s.ch[channel_idx].type = CH_TYPE_GPIO_USER_DEF;
 
     //  set channels to default states before calculated values
-    if (ch_is_twoway(channel_idx))
+    if (ch_is_profile_based(channel_idx))
     {
       Serial.printf("DEBUG ch %d set wannabe_profile default profile %d\n", channel_idx, s.ch[channel_idx].default_profile);
       s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].default_profile;
@@ -9726,7 +9718,7 @@ void setup()
   else
   {
     Serial.printf("\nArska dashboard url: http://%s/ in Arska private WiFi: %s\n", WiFi.softAPIP().toString().c_str(), WiFi.softAPSSID().c_str());
-    Serial.println("Select wifi from the list above, if you want to connect existing wifi.");
+    // Serial.printf("Select wifi from the list below, if you want to connect existing wifi.\n\n");
   }
 
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
@@ -9758,63 +9750,69 @@ void loop()
   io_tasks();
 
   //  handle initial wifi setting from the serial console command line, first 2 minutes only
-  if (!wifi_sta_connected && Serial.available() && millis() < 1000 * 120)
+  // if (!wifi_sta_connected && Serial.available() && millis() < 1000 * 120)
+  if (serial_command_state <= 2 & !wifi_sta_connected)
   {
-    serial_command = Serial.readStringUntil('\n');
-    if (serial_command_state == 0)
+    if (millis() > 1000 * 120)
     {
-      if (serial_command.c_str()[0] == 's')
-      {
-        scan_and_store_wifis(true, false);
-        delay(10);
-        return;
-      }
-      if (isdigit(serial_command[0]))
-      {
-        // Serial.print("Debug serial:");
-
-        int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
-        //  if (wifi_idx < network_count + WIFI_OPTION_NOWIFI_SERIAL && wifi_idx >= WIFI_OPTION_NOWIFI_SERIAL)
-        if (wifi_idx < network_count && wifi_idx >= 0)
-        {
-          strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
-          Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
-          Serial.println();
-          if (Serial)
-            Serial.flush();
-
-          serial_command_state = 1;
-        }
-        else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
-        {
-          s.wifi_ssid[0] = 0;
-          writeToEEPROM();
-          log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
-          serial_command_state = 99;
-        }
-        else
-        {
-          Serial.println("SERIAL");
-          Serial.println(wifi_idx);
-        }
-      }
+      Serial.printf(PSTR("Wifi serial config expired. Restart to give wifi setup from console.\n\n"));
+      serial_command_state = 98;
     }
-    else if (serial_command_state == 1)
+    else if (Serial.available())
     {
-      strncpy(s.wifi_password, serial_command.c_str(), 30);
-      for (int j = 0; j < strlen(s.wifi_password); j++)
-        if (s.wifi_password[j] < 32) // cleanup, line feed
-          s.wifi_password[j] = 0;
+      serial_command = Serial.readStringUntil('\n');
+      if (serial_command_state == 0) // waiting for wifi number
+      {
+        /* if (serial_command.c_str()[0] == 's')
+         {
+           scan_and_store_wifis(true, false);
+           delay(10);
+           return;
+         }*/
+        if (isdigit(serial_command[0]))
+        {
+          int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
+          if (wifi_idx < network_count && wifi_idx >= 0)
+          {
+            strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
+            Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
+            Serial.println();
+            if (Serial)
+              Serial.flush();
 
-      Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
-      Serial.println();
-      if (Serial)
-        Serial.flush();
-      writeToEEPROM();
-      log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
+            serial_command_state = 1;
+          }
+          else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
+          {
+            s.wifi_ssid[0] = 0;
+            writeToEEPROM();
+            log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
+            serial_command_state = 99;
+          }
+          else
+          {
+            Serial.println("SERIAL");
+            Serial.println(wifi_idx);
+          }
+        }
+      }
+      else if (serial_command_state == 1) // waiting for wifi password
+      {
+        strncpy(s.wifi_password, serial_command.c_str(), 30);
+        for (int j = 0; j < strlen(s.wifi_password); j++)
+          if (s.wifi_password[j] < 32) // cleanup, line feed
+            s.wifi_password[j] = 0;
 
-      delay(2000);
-      ESP.restart();
+        Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
+        Serial.println();
+        if (Serial)
+          Serial.flush();
+        writeToEEPROM();
+        log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
+
+        delay(2000);
+        ESP.restart();
+      }
     }
   }
 
