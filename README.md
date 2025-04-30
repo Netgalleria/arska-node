@@ -11,7 +11,7 @@ Arska can control various electric switches connected to e.g. water heater and c
 - Day-ahead electricity price per hour from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. Optional price data source [Elering](https://dashboard.elering.ee/assets/api-doc.html)  provides prices for Estonia, Finland, Lithuania and Latvia. 
 - Grid energy metering, supports meters with HAN P1 port and Shelly 3 EM, [read more](https://github.com/Netgalleria/arska-node/wiki/Energy-Meter-configuration) 
 - Relays supported: on-board gpio relays, Shelly (Gen and Gen2), and Tasmota wifi-relays
-- Fronius Gen 24 plus supported from version 1.3
+- Fronius Gen 24 plus charging control supported from version 1.3
 - Energy production metering, supports selected Fronius and SMA inverters
 - Current date and time, temperature sensor values
 - Local solar forecast and Finnish wind power forecast from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste), currently available in Finland 🇫🇮
@@ -19,13 +19,13 @@ Arska can control various electric switches connected to e.g. water heater and c
  
 ## Intro Videos 
 
-[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)]
+[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)
 
 [![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
 
 [![Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction (Finnish, English subtitles)](https://github.com/user-attachments/assets/df1db2e9-7489-4231-b5be-2aacfe4a504e)](https://www.youtube.com/watch?v=tg8wLuIKFNg)
 
-<img width="916" alt="image" src="https://github.com/user-attachments/assets/df1db2e9-7489-4231-b5be-2aacfe4a504e" />
+
 
 
 ![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
