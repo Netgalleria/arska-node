@@ -18,16 +18,9 @@ Arska can control various electric switches connected to e.g. water heater and c
 
  
 ## Intro Videos 
-
-[![Arska power manager - installation and basic configuration](https://github.com/Netgalleria/arska-node/assets/1752838/3d59ae0b-1a02-47c2-97b4-c399720c3787)](https://www.youtube.com/watch?v=MvDFJclwr6A)
-*Arska power manager - installation and basic configuration - old video (old UI), but explains the basics *
-
-[![Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles)](https://github.com/Netgalleria/arska-node/assets/1752838/39256ebc-ec60-4826-a3b2-3e6431a00345)](https://www.youtube.com/watch?v=BFsiXRxTFBo)
-*Introducing the new version of Arska; basic settings and creating rules using rule templates (Finnish, English subtitles*
-
-[![Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction (Finnish, English subtitles)](https://github.com/user-attachments/assets/df1db2e9-7489-4231-b5be-2aacfe4a504e)](https://www.youtube.com/watch?v=tg8wLuIKFNg)
-*Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction (Finnish, English subtitles)*
-
+- [Arska power manager - installation and basic configuration](https://www.youtube.com/watch?v=MvDFJclwr6A) . Old video (old UI), but explains the basics, English with Finnish subtitles.
+- [Introducing the new version of Arska; basic settings and creating rules using rule templates)](https://www.youtube.com/watch?v=BFsiXRxTFBo), (Finnish, English subtitles
+- [Arska version 1.1 introduction, LilyGo relay card and HAN P1 adapter introduction](https://www.youtube.com/watch?v=tg8wLuIKFNg), Finnish, English subtitles. 
 
 ## More information:
 - [Arska Wiki](https://github.com/Netgalleria/arska-node/wiki) 
