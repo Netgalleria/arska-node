@@ -11,11 +11,12 @@
   * Communicates with Modbus TCP (port 502) with the inverter
   * Charging/discharging profiles can be controlled from the rules and the dashboard
   * SoC (State of Charge) visible on the dashboard graph
-* Optional price modifier (Settings/Price data) allows to modify prices on selected hours. You can for example add negative price modifier to night hours to indicate cheaper transfer cost.
+* Optional price modifier (Settings/Price data) allows to modify prices on selected hours. You can for example add negative price modifier to night hours to indicate cheaper transfer cost. Price modifier takes effect after updating price data from Entso-E/Elering.
 * Dashboard history values are saved in soft boots
 
 ### Bug Fixes
-  * A memory corruption error fixed,22.4.2025
+  * A memory corruption error fixed (22.4.2025)
+  * Loads better from AP-mode wifi, 192.168.4.1 (30.4.2025)
   * several other fixes and tunings
 
 ### Known open issuess
