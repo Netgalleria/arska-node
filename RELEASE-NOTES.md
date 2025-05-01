@@ -11,6 +11,7 @@
   * Communicates with Modbus TCP (port 502) with the inverter
   * Charging/discharging profiles can be controlled from the rules and the dashboard
   * SoC (State of Charge) visible on the dashboard graph
+* Optional price modifier (Settings/Price data) allows to modify prices on selected hours. You can for example add negative price modifier to night hours to indicate cheaper transfer cost.
 * Dashboard history values are saved in soft boots
 
 ### Bug Fixes
