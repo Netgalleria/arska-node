@@ -196,8 +196,8 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #ifdef MTU15M_ENABLED
 #define NETTING_PERIOD_SEC 900
 #define PRICE_RESOLUTION_SEC 900
-#define MAX_PRICE_PERIODS 192 //!< number of price period in the memory array
-#define TIMESERIES_ELEMENT_MAX 192
+#define MAX_PRICE_PERIODS 196 //!< number of price period in the memory array, 192+4 (extra hour for fi )
+#define TIMESERIES_ELEMENT_MAX 196
 #else
 #define NETTING_PERIOD_SEC (s.netting_period_sec)
 #define PRICE_RESOLUTION_SEC 3600
@@ -392,7 +392,7 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define VARIABLE_PRICERATIO_9 13
 #define VARIABLE_PRICERATIO_24 14
 #define VARIABLE_PRICERATIO_FIXED_24 15
-#define VARIABLE_PVFORECAST_SUM24 20
+#define VARIABLE_PVFORECAST_SUM24 20        //!< Solar power forecast for local panels, next 24 hours
 #define VARIABLE_PVFORECAST_VALUE24 21
 #define VARIABLE_PVFORECAST_AVGPRICE24 22
 #define VARIABLE_AVGPRICE24_EXCEEDS_CURRENT 23
@@ -850,8 +850,8 @@ public:
   void debug_print(bool rows);
   void set_store_start(time_t new_start);
   // new experimental version of time series ranking
-  int get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
-  int get_period_rank_hour(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
+  int get_period_rank(const int id,time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
+  int get_period_rank_hour(const int id, time_t period_ts, time_t start_ts, time_t end_ts_incl, bool);
   void apply_pricemodifier();
 
 private:
@@ -2339,7 +2339,8 @@ T timeSeries::avg(time_t start_ts, time_t end_ts_incl)
 
 void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg)
 {
-  Serial.printf("stats ts %ld, start_ts %ld, end_ts_incl %ld \n", ts, start_ts, end_ts_incl);
+  yield();
+  Serial.printf("stats ts %ld, start_ts %ld, end_ts_incl %ld, 15-mins %ld \n", ts, start_ts, end_ts_incl, (get_netting_period_start_time(end_ts_incl)-get_netting_period_start_time(start_ts))/900+1);
   *avg_ = avg(start_ts, end_ts_incl);
   *differs_avg = get(ts) - *avg_;
   T suma = sum(start_ts, end_ts_incl);
@@ -2445,14 +2446,14 @@ void timeSeries::set_store_start(time_t new_start)
   //    Serial.println(PSTR("DEBUG set_store_start ended"));
 }
 
-int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
+int timeSeries::get_period_rank(const int id,time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
 {
   yield();
   int rank = 1;
   int start_idx = max(0, get_idx(start_ts));
   int end_idx = min(get_idx(end_ts_incl), store.n - 1); // 12.4.25 -1 added
   int this_period_idx = get_idx(period_ts);
-  Serial.printf("get_period_rank period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d, end_ts_incl %d\n", period_ts, start_idx, this_period_idx, end_idx, end_ts_incl);
+  Serial.printf("get_period_rank (id:%d) period_ts %ld, start_idx %d, this_period_idx %d, end_idx %d,start_ts %d,  end_ts_incl %d, 15-mins %ld\n", id, period_ts, start_idx, this_period_idx, end_idx, start_ts, end_ts_incl, (get_netting_period_start_time(end_ts_incl)-get_netting_period_start_time(start_ts))/900+1);
 
   if (start_idx <= this_period_idx && this_period_idx <= end_idx)
   {
@@ -2479,10 +2480,10 @@ int timeSeries::get_period_rank(time_t period_ts, time_t start_ts, time_t end_ts
   return rank;
 }
 // WiP
-int timeSeries::get_period_rank_hour(time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
+int timeSeries::get_period_rank_hour(const int id,time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
 {
   if (store.resolution_sec == SECONDS_IN_HOUR)
-    return get_period_rank(period_ts, start_ts, end_ts_incl, descending);
+    return get_period_rank(id,period_ts, start_ts, end_ts_incl, descending);
 
   yield();
   time_t period_hour_ts = int(period_ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
@@ -2490,7 +2491,7 @@ int timeSeries::get_period_rank_hour(time_t period_ts, time_t start_ts, time_t e
   time_t end_hour_ts_incl = int(end_ts_incl / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
   int hours_in_range = (end_hour_ts_incl - start_hour_ts) / SECONDS_IN_HOUR + 1;
 
-  Serial.printf("get_period_rank_hour period_hour_ts %d, start_hour_ts %d, end_hour_ts_incl %d, hours_in_range %d\n", period_hour_ts, start_hour_ts, end_hour_ts_incl, hours_in_range);
+  Serial.printf("get_period_rank_hour (id:%d) period_hour_ts %d, start_hour_ts %d, end_hour_ts_incl %d, hours_in_range %d\n", id, period_hour_ts, start_hour_ts, end_hour_ts_incl, hours_in_range);
 
   int rank = 1;
   T period_avg;
@@ -3440,7 +3441,6 @@ bool scan_sensors()
   int j;
   bool sensor_already_listed;
   int first_free_slot;
-  char msgbuff[50];
 
   sensors.begin(); // initiate bus
   delay(2000);     // let the sensors settle
@@ -3453,8 +3453,8 @@ bool scan_sensors()
   }
   else
   {
-    snprintf(msgbuff, sizeof(msgbuff), "Found %d sensors", sensor_count);
-    log_msg(MSG_TYPE_INFO, msgbuff, true);
+    snprintf(error_msg_buf, sizeof(error_msg_buf), "Found %d sensors", sensor_count);
+    log_msg(MSG_TYPE_INFO, error_msg_buf, true);
   }
 
   sensors.requestTemperatures();
@@ -3473,7 +3473,7 @@ bool scan_sensors()
         continue;
       }
     }
-   // Serial.printf(PSTR("DEBUG: scan_sensors, slot %d cleared\n"), j);
+    // Serial.printf(PSTR("DEBUG: scan_sensors, slot %d cleared\n"), j);
     memset(s.sensors[j].address, 0, sizeof(DeviceAddress));
     strncpy(s.sensors[j].id_str, "-", sizeof(s.sensors[j].id_str));
   }
@@ -4732,7 +4732,8 @@ void calculate_forecast_variables()
   long period_solar_rank = -1;
   if (solar_forecast.last_update() > time(nullptr) - SECONDS_IN_DAY)
   { // do we have the location & data
-    period_solar_rank = (long)solar_forecast.get_period_rank(current_period_start_ts, day_start_local, day_start_local + (HOURS_IN_DAY - 1) * SECONDS_IN_HOUR, true);
+  // Serial.println(F("VARIABLE_SOLAR_RANK_FIXED_24"));
+    period_solar_rank = (long)solar_forecast.get_period_rank(VARIABLE_SOLAR_RANK_FIXED_24,current_period_start_ts, day_start_local, day_start_local +  SECONDS_IN_DAY-SECONDS_IN_PT15M, true);
   }
   if (period_solar_rank == -1)
     vars.set_NA(VARIABLE_SOLAR_RANK_FIXED_24);
@@ -4746,9 +4747,10 @@ void calculate_forecast_variables()
 
   // FORECAST_TYPE_FI_LOCAL_SOLAR
   //  next 24 h
+  time_t current_hour_start_ts = (time(nullptr) / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
   if (solar_forecast.end() > time(nullptr))
   {
-    for (time_t period = current_period_start_ts; period < current_period_start_ts + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
+    for (time_t period = current_hour_start_ts; period < current_period_start_ts + SECONDS_IN_DAY; period += SOLAR_FORECAST_RESOLUTION_SEC)
     {
       price = prices2.get(period, VARIABLE_LONG_UNKNOWN);
       if (price != VARIABLE_LONG_UNKNOWN)
@@ -4759,7 +4761,7 @@ void calculate_forecast_variables()
         pv_value += pv_value_hour;
         got_future_prices = true; // we got some price data
                                   //    Serial.printf("solar_forecast.end() %ld", solar_forecast.end());
-        Serial.printf("j: %ld, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", period, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
+      //  Serial.printf("j: %ld, price: %ld,  sum_pv_fcst_with_price: %f , pv_value_hour: %f, pv_value: %f\n", period, price, sum_pv_fcst_with_price, pv_value_hour, pv_value);
       }
       yield();
     }
@@ -4810,6 +4812,7 @@ void calculate_price_rank_variables()
   time_t current_period_start_ts = get_netting_period_start_time(time(nullptr));
   time_t current_hour_start_ts = (time(nullptr) / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
   bool use_prices = (strncmp(s.entsoe_area_code, "#", 1) != 0);
+  time_t first_ts_in_window, last_ts_in_window;
 
   Serial.printf("calculate_price_rank_variables start: %ld, end: %ld, current_period_start_ts: %lu\n", prices_record_start, prices2.end() + PRICE_RESOLUTION_SEC, current_period_start_ts);
   if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
@@ -4863,44 +4866,43 @@ void calculate_price_rank_variables()
   // Serial.printf("\n current_period_start_ts %ld last_ts_in_window %ld, A %ld,  B %ld\n", current_period_start_ts, last_ts_in_window, current_period_start_ts + 8 * prices2.resolution_sec(), prices2.last_set_period_ts());
 
   // rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 8 * prices2.resolution_sec(), last_ts_in_window);
-  Serial.println("VARIABLE_PRICERANK_9 1");
-  time_t last_ts_in_window = min(prices2.period_start(current_hour_start_ts + 8 * SECONDS_IN_HOUR), prices2.last_set_period_ts());
-  //Serial.println(current_hour_start_ts + 8 * SECONDS_IN_HOUR);
-  //Serial.println(prices2.last_set_period_ts());
-  //prices2.debug_print(false);
+ // Serial.println("VARIABLE_PRICERANK_9 1");
+  last_ts_in_window = min(prices2.period_start(current_hour_start_ts + 8 * SECONDS_IN_HOUR), prices2.last_set_period_ts());
+  first_ts_in_window = last_ts_in_window - 8 * SECONDS_IN_HOUR;
+  // Serial.println(current_hour_start_ts + 8 * SECONDS_IN_HOUR);
+  // Serial.println(prices2.last_set_period_ts());
+  // prices2.debug_print(false);
 
-  rank = prices2.get_period_rank_hour(current_period_start_ts, last_ts_in_window - 8 * SECONDS_IN_HOUR, last_ts_in_window);
+  rank = prices2.get_period_rank_hour(1,current_period_start_ts, first_ts_in_window, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
-
-  prices2.stats(current_period_start_ts, last_ts_in_window - 8 * SECONDS_IN_HOUR, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  // Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
-
-  vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
-  vars.set(VARIABLE_PRICEDIFF_9, (long)round_divide(price_differs_avg, 100));
-  vars.set(VARIABLE_PRICERATIO_9, (long)price_ratio_avg);
   yield();
 
   // MTU15M
-  Serial.println("VARIABLE_PRICERANK_15_9");
   last_ts_in_window = min(prices2.period_start(current_period_start_ts + 9 * SECONDS_IN_HOUR - 1), prices2.last_set_period_ts());
-  rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 9 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window);
+  first_ts_in_window = last_ts_in_window - 9 * SECONDS_IN_HOUR + prices2.resolution_sec();
+  rank = prices2.get_period_rank(VARIABLE_PRICERANK_15_9,current_period_start_ts, first_ts_in_window, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_15_9, (long)rank);
+
+  //prices2.stats(current_period_start_ts, last_ts_in_window - 8 * SECONDS_IN_HOUR, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  prices2.stats(current_period_start_ts, first_ts_in_window, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  // Serial.printf("9 h current_period_start_ts  %ld, rank %ld, avg %ld, diff %ld, ratio %ld\n", current_period_start_ts, (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  vars.set(VARIABLE_PRICEAVG_9, (long)round_divide(window_price_avg, 100));
+  vars.set(VARIABLE_PRICEDIFF_9, (long)round_divide(price_differs_avg, 100));
+  vars.set(VARIABLE_PRICERATIO_9, (long)price_ratio_avg);
 
   // 24 h sliding
   last_ts_in_window = min(prices2.period_start(current_period_start_ts + 24 * SECONDS_IN_HOUR - 1), prices2.last_set_period_ts());
-
+  first_ts_in_window = last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec();
   // rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
-  Serial.println("VARIABLE_PRICERANK_24");
-  rank = prices2.get_period_rank_hour(current_period_start_ts, last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window);
+  rank = prices2.get_period_rank_hour(VARIABLE_PRICERANK_24,current_period_start_ts, first_ts_in_window, last_ts_in_window);
 
-  prices2.stats(current_period_start_ts, last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  prices2.stats(current_period_start_ts, first_ts_in_window, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   // Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
   vars.set(VARIABLE_PRICERANK_24, (long)rank);
 
   // MTU15M
   // käykö edellinen last_ts_in_window = min(current_period_start_ts + 24 * SECONDS_IN_HOUR-1, prices2.last_set_period_ts());
-  Serial.println("VARIABLE_PRICERANK_15_24");
-  rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window);
+  rank = prices2.get_period_rank(VARIABLE_PRICERANK_15_24,current_period_start_ts, last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec(), last_ts_in_window);
 
   vars.set(VARIABLE_PRICERANK_15_24, (long)rank);
 
@@ -4912,20 +4914,21 @@ void calculate_price_rank_variables()
   // 24 h fixed nychthemeron
 
   // 24 h fixed new,
-  time_t first_ts_in_window = current_period_start_ts - tm_struct_l.tm_hour * SECONDS_IN_HOUR;
+  first_ts_in_window = current_period_start_ts - tm_struct_l.tm_hour * SECONDS_IN_HOUR;
   last_ts_in_window = first_ts_in_window + SECONDS_IN_HOUR * 24 - prices2.resolution_sec();
 
   // rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
-  Serial.println("VARIABLE_PRICERANK_FIXED_24");
-  rank = prices2.get_period_rank_hour(current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window);
+ // Serial.println("VARIABLE_PRICERANK_FIXED_24");
+  rank = prices2.get_period_rank_hour(3,current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
 
-  Serial.println("VARIABLE_PRICERANK_FIXED_15_24");
-  last_ts_in_window = first_ts_in_window + SECONDS_IN_HOUR * 24 - prices2.resolution_sec();
-  rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window);
+ // Serial.println("VARIABLE_PRICERANK_FIXED_15_24");
+ // last_ts_in_window = first_ts_in_window + SECONDS_IN_HOUR * 24 - prices2.resolution_sec();
+ // first_ts_in_window = last_ts_in_window - 23 * SECONDS_IN_HOUR;
+  rank = prices2.get_period_rank(VARIABLE_PRICERANK_FIXED_15_24,current_period_start_ts, first_ts_in_window, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_FIXED_15_24, (long)rank);
 
-  prices2.stats(current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
+  prices2.stats(current_period_start_ts, first_ts_in_window, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   // Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
@@ -4940,21 +4943,21 @@ void calculate_price_rank_variables()
   first_ts_in_window = current_hour_start_ts - SECONDS_IN_HOUR * block_start_before_this_idx;
   last_ts_in_window = prices2.period_start(first_ts_in_window + 8 * SECONDS_IN_HOUR - 1);
 
-  Serial.println("VARIABLE_PRICERANK_FIXED_8");
-  rank = prices2.get_period_rank_hour(current_period_start_ts, first_ts_in_window, last_ts_in_window);
+ // Serial.println("VARIABLE_PRICERANK_FIXED_8");
+  rank = prices2.get_period_rank_hour(4,current_period_start_ts, first_ts_in_window, last_ts_in_window);
 
   // Serial.printf("New way 8 h block rank %ld\n", (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8, (long)rank);
   vars.set(VARIABLE_PRICERANK_FIXED_8_BLOCKID, (long)block_idx + 1);
 
   // MTU15M
-  Serial.println("VARIABLE_PRICERANK_FIXED_15_8");
-  rank = prices2.get_period_rank(current_period_start_ts, first_ts_in_window, last_ts_in_window);
+  //Serial.println("VARIABLE_PRICERANK_FIXED_15_8");
+  rank = prices2.get_period_rank(54,current_period_start_ts, first_ts_in_window, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_FIXED_15_8, (long)rank);
 
   // period within current hour
   first_ts_in_window = current_hour_start_ts - SECONDS_IN_HOUR * block_start_before_this_idx;
-  rank = prices2.get_period_rank(current_period_start_ts, current_hour_start_ts, current_hour_start_ts + 3599);
+  rank = prices2.get_period_rank(VARIABLE_PRICERANK_15_HOUR,current_period_start_ts, current_hour_start_ts, current_hour_start_ts + 3599);
   vars.set(VARIABLE_PRICERANK_15_HOUR, (long)rank);
 
   yield();
@@ -4975,13 +4978,6 @@ void calculate_price_rank_variables()
  * @return String
  */
 
-/** Old, pior 16.11.2023
-String getElementValue(String outerXML)
-{
-  int s1 = outerXML.indexOf(">", 0);
-  int s2 = outerXML.substring(s1 + 1).indexOf("<");
-  return outerXML.substring(s1 + 1, s1 + s2 + 1);
-}*/
 
 String getElementValue(String outerXML)
 {
@@ -5590,6 +5586,7 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
  * @return true
  * @return false
  */
+#define ENTSOE_HEADER_TIMEOUT 15000
 bool get_price_data_entsoe()
 {
   Serial.printf("get_price_data_entsoe start\n");
@@ -5617,22 +5614,22 @@ bool get_price_data_entsoe()
 
   time_t start_ts, end_ts; // this is the epoch
   tm tm_struct;
-  time_t now_infunc = time(nullptr);
-  start_ts = now_infunc - (SECONDS_IN_HOUR * 22); // no previous day after 22h, assume we have data ready for next day
+  //time_t now_infunc = time(nullptr);
+  start_ts = time(nullptr) - (SECONDS_IN_HOUR * 24); // (no previous day after 22h), assume we have data ready for next day
 
   // #pragma message("Testing with special date setting, REMOVE")
   // start_ts = 1732695512;
 
   //    start_ts = start_ts - 14 * 3600;
 
-  end_ts = start_ts + SECONDS_IN_DAY * 2;
+  end_ts = start_ts + SECONDS_IN_DAY * 3;
 
   int pos = -1; //, last_pos = -1;
   long price = VARIABLE_LONG_UNKNOWN;
 
   // initiate prices
   localtime_r(&start_ts, &tm_struct);
-  Serial.println(start_ts);
+  Serial.printf("start_ts %lu\n",start_ts);
 
   snprintf(date_str_start, sizeof(date_str_start), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
   localtime_r(&end_ts, &tm_struct);
@@ -5678,7 +5675,7 @@ bool get_price_data_entsoe()
       Serial.println("headers received");
       break;
     }
-    if (millis() - task_started > 10000)
+    if (millis() - task_started > ENTSOE_HEADER_TIMEOUT)
     {
       Serial.println(PSTR("Timeout in receiving headers"));
       client_https.stop();
@@ -5838,14 +5835,14 @@ bool get_price_data_entsoe()
   // if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
   if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= MAX_PRICE_HOURS))
   {
-    now_infunc = time(nullptr);
+   // now_infunc = time(nullptr);
 
     prices_record_start = record_start;
 
     if (contains_suspicious_prices)
     { // potential problem in the latest fetch, give shorter validity time
       Serial.println("Contains suspicious prices. Could be still ok. Retry in 4 hours.");
-      prices_expires_ts = now_infunc + (4 * SECONDS_IN_HOUR);
+      prices_expires_ts = time(nullptr) + (4 * SECONDS_IN_HOUR);
     }
     else
     {
@@ -6295,8 +6292,6 @@ bool ch_is_profile_based(int channel_idx)
   }
 }
 
-
-
 // battery is consuming only if charging, -1 if discharging, 0 if passive or no control
 int8_t ch_consuming_profile(uint8_t profile)
 {
@@ -6309,7 +6304,6 @@ int8_t ch_consuming_profile(uint8_t profile)
   else
     return 0;
 }
-
 
 bool ch_in_wannabe_state(int channel_idx)
 {
@@ -6454,7 +6448,7 @@ int get_channel_to_switch_prio(bool is_rise)
     //     Serial.printf("get_channel_to_switch_prio ch %d,  ch_is_active %s, ch_in_wannabe_state %s \n", channel_idx, ch_is_active(channel_idx) ? "true" : "false", ch_in_wannabe_state(channel_idx) ? "true" : "false");
     // select channels to switch on or change profile, select first channel with lowest priority value ie best priority
     if (is_rise && ((ch_is_profile_based(channel_idx) && !ch_in_wannabe_state(channel_idx)) || ((!s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up))))
-    { 
+    {
       //   Serial.printf("get_channel_to_switch_prio ch %d wanna to be up \n", channel_idx);
       if (matching_prio_channel == -1 || matching_prio > s.ch[channel_idx].priority)
       {
@@ -6464,7 +6458,7 @@ int get_channel_to_switch_prio(bool is_rise)
     }
     // select channels to switch off,  select first channel (up) with highest priority value i.e. lowest priority
     if (!is_rise && !ch_is_profile_based(channel_idx) && s.ch[channel_idx].is_up && !s.ch[channel_idx].wannabe_up)
-    { 
+    {
       //    Serial.printf("get_channel_to_switch_prio ch %d wanna be down , matching_prio %d, priority %d\n", channel_idx, (int)matching_prio, s.ch[channel_idx].priority);
       if (matching_prio_channel == -1 || matching_prio < s.ch[channel_idx].priority)
       {
@@ -6474,7 +6468,7 @@ int get_channel_to_switch_prio(bool is_rise)
     }
   }
 #else
-   //old branch, not supporting profiles
+  // old branch, not supporting profiles
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     if (is_rise && !s.ch[channel_idx].is_up && s.ch[channel_idx].wannabe_up)
