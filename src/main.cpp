@@ -5587,7 +5587,7 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
  * @return true
  * @return false
  */
-#define ENTSOE_HEADER_TIMEOUT 20000
+#define ENTSOE_HEADER_TIMEOUT 25000
 bool get_price_data_entsoe()
 {
   Serial.printf("get_price_data_entsoe start\n");
@@ -5623,7 +5623,7 @@ bool get_price_data_entsoe()
 
   //    start_ts = start_ts - 14 * 3600;
 
-  end_ts = start_ts + SECONDS_IN_DAY * 3;
+  end_ts = start_ts + SECONDS_IN_DAY * 2;
 
   int pos = -1; //, last_pos = -1;
   long price = VARIABLE_LONG_UNKNOWN;
@@ -5636,7 +5636,18 @@ bool get_price_data_entsoe()
   localtime_r(&end_ts, &tm_struct);
   snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
 
-  Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
+/*
+  time_t max_ts_incl= (time(nullptr)/SECONDS_IN_DAY+1)*SECONDS_IN_DAY-SECONDS_IN_HOUR-SECONDS_IN_PT15M; //WiP, 
+  if (tm_struct.tm_isdst > 0) {
+  Serial.println("DST is currently in effect.");
+  max_ts_incl -= SECONDS_IN_HOUR;
+  }
+  else
+  {
+    Serial.println("DST is NOT in effect.");
+  }*/
+  Serial.printf("Query period: %s (%d) - %s (%d)\n", date_str_start,start_ts, date_str_end,end_ts);
+
 
   if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E", s.disable_ca_checks))
     return false;
