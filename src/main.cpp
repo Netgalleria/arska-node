@@ -3137,6 +3137,98 @@ int network_count = 0;
 wifi_st wifis[WIFI_LIST_COUNT];
 #define WIFI_OPTION_NOWIFI_SERIAL 1 // 1 if no wifi option in serial console input, else 0
 
+#define CONSOLE_SETTINGS_EDITABLE_SECS 120
+// Handle (wifi) settings from serial console
+void process_settings_serial()
+{
+  //  handle initial wifi setting from the serial console command line, first 2 minutes only
+  // if (!wifi_sta_connected && Serial.available() && millis() < 1000 * 120)
+  if (serial_command_state <= 2 & !wifi_sta_connected)
+  {
+    if (Serial.available())
+    {
+      serial_command = Serial.readStringUntil('\n');
+      if (serial_command_state == 0) // waiting for wifi number or setup string /SSID/PASSWORD/
+      {
+        /* if (serial_command.c_str()[0] == 's')
+         {
+           scan_and_store_wifis(true, false);
+           delay(10);
+           return;
+         }*/
+        if (isdigit(serial_command[0]))
+        {
+          int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
+          if (wifi_idx < network_count && wifi_idx >= 0)
+          {
+            strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
+            Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
+            Serial.println();
+            if (Serial)
+              Serial.flush();
+
+            serial_command_state = 1;
+          }
+          else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
+          {
+            s.wifi_ssid[0] = 0;
+            writeToEEPROM();
+            log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
+            serial_command_state = 99;
+          }
+          else
+          {
+            Serial.println("SERIAL");
+            Serial.println(wifi_idx);
+          }
+        }
+#define SERIAL_CONSOLE_CONFIG_WIP //WiP
+#ifdef SERIAL_CONSOLE_CONFIG
+        else if (serial_command.length() > 5 && serial_command[0] == '/' && serial_command.charAt(serial_command.length() - 1) == '/')
+        {
+          int slash_pos = -1;
+          for (int i = 1; i < serial_command.length() - 1; i++)
+          {
+            if (serial_command.charAt(i) == '/')
+            {
+              slash_pos = i;
+            }
+          }
+          if (slash_pos > -1)
+          {
+            Serial.println("GOTSETTINGS");
+            snprintf(error_msg_buf, sizeof(error_msg_buf), "Got new wifi settings [%s] [%s], restarting...",serial_command.substring(1, slash_pos).c_str(),serial_command.substring(slash_pos + 1,serial_command.length() - 1).c_str());
+        log_msg(MSG_TYPE_ERROR, error_msg_buf,true,false);
+                strncpy(s.wifi_ssid, serial_command.substring(1, slash_pos).c_str(), 30);
+                strncpy(s.wifi_password, serial_command.substring(slash_pos + 1,serial_command.length() - 1).c_str(), 30);
+                writeToEEPROM();
+                delay(2000);
+                ESP.restart();
+          }
+        }
+#endif
+      }
+      else if (serial_command_state == 1) // waiting for wifi password
+      {
+        strncpy(s.wifi_password, serial_command.c_str(), 30);
+        for (int j = 0; j < strlen(s.wifi_password); j++)
+          if (s.wifi_password[j] < 32) // cleanup, line feed
+            s.wifi_password[j] = 0;
+
+        Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
+        Serial.println();
+        if (Serial)
+          Serial.flush();
+        writeToEEPROM();
+        log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
+
+        delay(2000);
+        ESP.restart();
+      }
+    }
+  }
+};
+
 /**
  * @brief Scans wireless networks on the area and stores list to a file.
  * @details description Started from loop-function. Do not run interactively (from a http call).
@@ -9231,6 +9323,7 @@ bool connect_wifi()
     {
       Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi number (see the list below) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
       scan_and_store_wifis(true, false);
+      Serial.println("ENTERWIFISETTINGS"); // for browser app
 
       if (Serial)
         Serial.flush();
@@ -9714,15 +9807,19 @@ void setup()
   if (wifi_sta_connected)
   {
     Serial.printf("\nArska dashboard url: http://%s/ in WiFi: %s\n", WiFi.localIP().toString().c_str(), WiFi.SSID().c_str());
+#ifdef SERIAL_CONSOLE_CONFIG
+  Serial.printf(PSTR("/WIFI/%s/%s/\n\n"),WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+#endif
+
   }
   else
   {
     Serial.printf("\nArska dashboard url: http://%s/ in Arska private WiFi: %s\n", WiFi.softAPIP().toString().c_str(), WiFi.softAPSSID().c_str());
-    // Serial.printf("Select wifi from the list below, if you want to connect existing wifi.\n\n");
+#ifdef SERIAL_CONSOLE_CONFIG
+  Serial.printf(PSTR("/WIFI/%s/%s/\n\n"),WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+#endif
   }
-
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
-
   Serial.println(F("setup() ended."));
 
 #ifdef LOOP_WATCHDOG_ENABLED
@@ -9748,73 +9845,8 @@ void loop()
   bool got_price_ok = false;
 
   io_tasks();
-
-  //  handle initial wifi setting from the serial console command line, first 2 minutes only
-  // if (!wifi_sta_connected && Serial.available() && millis() < 1000 * 120)
-  if (serial_command_state <= 2 & !wifi_sta_connected)
-  {
-    if (millis() > 1000 * 120)
-    {
-      Serial.printf(PSTR("Wifi serial config expired. Restart to give wifi setup from console.\n\n"));
-      serial_command_state = 98;
-    }
-    else if (Serial.available())
-    {
-      serial_command = Serial.readStringUntil('\n');
-      if (serial_command_state == 0) // waiting for wifi number
-      {
-        /* if (serial_command.c_str()[0] == 's')
-         {
-           scan_and_store_wifis(true, false);
-           delay(10);
-           return;
-         }*/
-        if (isdigit(serial_command[0]))
-        {
-          int wifi_idx = serial_command.toInt() - WIFI_OPTION_NOWIFI_SERIAL;
-          if (wifi_idx < network_count && wifi_idx >= 0)
-          {
-            strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
-            Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
-            Serial.println();
-            if (Serial)
-              Serial.flush();
-
-            serial_command_state = 1;
-          }
-          else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
-          {
-            s.wifi_ssid[0] = 0;
-            writeToEEPROM();
-            log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
-            serial_command_state = 99;
-          }
-          else
-          {
-            Serial.println("SERIAL");
-            Serial.println(wifi_idx);
-          }
-        }
-      }
-      else if (serial_command_state == 1) // waiting for wifi password
-      {
-        strncpy(s.wifi_password, serial_command.c_str(), 30);
-        for (int j = 0; j < strlen(s.wifi_password); j++)
-          if (s.wifi_password[j] < 32) // cleanup, line feed
-            s.wifi_password[j] = 0;
-
-        Serial.printf(PSTR("Restarting with the new WiFI settings (SSID: %s, password: %s). Wait...\n\n\n"), s.wifi_ssid, s.wifi_password);
-        Serial.println();
-        if (Serial)
-          Serial.flush();
-        writeToEEPROM();
-        log_msg(MSG_TYPE_FATAL, PSTR("Restarting with the new WiFI settings."), true);
-
-        delay(2000);
-        ESP.restart();
-      }
-    }
-  }
+  if (millis() < 1000 * CONSOLE_SETTINGS_EDITABLE_SECS)
+    process_settings_serial();
 
   if (todo_in_loop_write_to_eeprom)
   {
