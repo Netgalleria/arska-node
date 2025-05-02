@@ -4891,14 +4891,15 @@ void calculate_price_rank_variables()
   vars.set(VARIABLE_PRICERATIO_9, (long)price_ratio_avg);
 
   // 24 h sliding
+  time_t last_hour_ts_in_window = min(current_hour_start_ts + 23 * SECONDS_IN_HOUR, prices2.last_hour_ts());
   last_ts_in_window = min(prices2.period_start(current_period_start_ts + 24 * SECONDS_IN_HOUR - 1), prices2.last_set_period_ts());
   first_ts_in_window = last_ts_in_window - 24 * SECONDS_IN_HOUR + prices2.resolution_sec();
   // rank = prices2.get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices2.resolution_sec(), last_ts_in_window);
-  rank = prices2.get_period_rank_hour(VARIABLE_PRICERANK_24,current_period_start_ts, first_ts_in_window, last_ts_in_window);
+  rank = prices2.get_period_rank_hour(VARIABLE_PRICERANK_24,current_period_start_ts, last_hour_ts_in_window-23*SECONDS_IN_HOUR, last_hour_ts_in_window);
+  vars.set(VARIABLE_PRICERANK_24, (long)rank);
 
   prices2.stats(current_period_start_ts, first_ts_in_window, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
   // Serial.printf("New way 24 h rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
-  vars.set(VARIABLE_PRICERANK_24, (long)rank);
 
   // MTU15M
   // käykö edellinen last_ts_in_window = min(current_period_start_ts + 24 * SECONDS_IN_HOUR-1, prices2.last_set_period_ts());
@@ -5586,7 +5587,7 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
  * @return true
  * @return false
  */
-#define ENTSOE_HEADER_TIMEOUT 15000
+#define ENTSOE_HEADER_TIMEOUT 20000
 bool get_price_data_entsoe()
 {
   Serial.printf("get_price_data_entsoe start\n");
