@@ -15,6 +15,7 @@ var isp_label; //imbalance setting period
 var day_ahead_chart_obj;
 
 const VARIABLE_LONG_UNKNOWN = -2147483648;
+const VARIABLE_LONG_MISSING = -2147483647;
 const MAX_HISTORY_PERIODS = (24 * 4);
 const HOURS_IN_DAY = 24
 const SECONDS_IN_HOUR = 3600
@@ -1282,7 +1283,7 @@ function create_dashboard_chart() {
     if (price_data_exists) {
         idx = 0;
         for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_data.resolution_sec) {
-            if (price_data.prices[idx] != VARIABLE_LONG_UNKNOWN) {
+            if (price_data.prices[idx] >VARIABLE_LONG_MISSING ) { // VARIABLE_LONG_UNKNOWN , VARIABLE_LONG_MISSING
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts)
                     prices_out.push({ x: ts * 1000, y: Math.round(price_data.prices[idx] / 100) / 10 });
             }
