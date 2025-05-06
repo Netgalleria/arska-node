@@ -29,7 +29,7 @@
     "4": {
         "code": "hour avg rank in 8 h block",
         "desc": "Hour average price rank in fixed 8 hour block",
-        "desc_fi": "Tuntukeskiarvon hintasijoitus kiinteän 8 tunnin jakson aikana",
+        "desc_fi": "Tuntikeskiarvon hintasijoitus kiinteän 8 tunnin jakson aikana",
         "min": 1,
         "max": 8
     },
