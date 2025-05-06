@@ -9327,6 +9327,9 @@ bool connect_wifi()
   {
     if (wifi_sta_connection_required)
     {
+
+      wifi_sta_connection_required = false; // cannot connect, do no try any more with the same settings
+
       Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi number (see the list below) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
       scan_and_store_wifis(true, false);
       Serial.println("ENTERWIFISETTINGS"); // for browser app
