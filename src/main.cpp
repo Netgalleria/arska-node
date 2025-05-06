@@ -284,6 +284,9 @@ const char *elering_ca_filename PROGMEM = "/data/GTS_Root_R4.pem";
 
 const char *host_releases PROGMEM = "iot.netgalleria.fi";
 
+const char *timezone_info_eet PROGMEM = "EET-2EEST,M3.5.0/3,M10.5.0/4";
+const char *timezone_info_cet PROGMEM = "CET-1CEST,M3.5.0/02,M10.5.0/03";
+
 // #define OTA_BOOTLOADER "d2ccd8b68260859296c923437d702786"
 #define RELEASES_HOST "iot.netgalleria.fi"
 #define RELEASES_URL_BASE "/arska-install/releases.php?pre_releases=true"
@@ -1130,6 +1133,11 @@ const char *debug_filename PROGMEM = "/data/log.txt";
 msg_st last_msg; //!< last system message
 tm tm_struct_g;  //!< time structure variables for splitting time stamp
 tm tm_struct_l;
+
+time_t get_hour_start_ts(time_t ts)
+{
+  return ((int)(ts / SECONDS_IN_HOUR)) * SECONDS_IN_HOUR;
+}
 
 /**
  * @brief Utility, writes date string generated from a time stamp to memory buffer
@@ -5580,6 +5588,38 @@ bool get_solar_forecast_experimental(timeSeries *time_series)
 }
 */
 
+// WiP
+void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *future_wanted_max_ts, char *query_period_start_cet_str, char *query_period_end_cet_str)
+{
+  time_t current_day_started_cet_ts;
+  // use cet in this part, back to eet (if used) asap
+  setenv("TZ", timezone_info_cet, 1);
+  localtime_r(&ts, &tm_struct);
+  current_day_started_cet_ts = get_hour_start_ts(ts - tm_struct.tm_hour * SECONDS_IN_HOUR);
+
+  *history_wanted_min_ts = current_day_started_cet_ts - SECONDS_IN_DAY;
+  if (tm_struct.tm_hour >= 12)
+  { // new prices for tomorrow could be available
+    *future_wanted_max_ts = current_day_started_cet_ts + SECONDS_IN_DAY * 2 - SECONDS_IN_PT15M;
+  }
+  else
+  {
+    *future_wanted_max_ts = current_day_started_cet_ts + SECONDS_IN_DAY - SECONDS_IN_PT15M;
+  }
+
+  // string values for Entso-E
+  if (query_period_start_cet_str != nullptr && query_period_end_cet_str != nullptr)
+  {
+    localtime_r(history_wanted_min_ts, &tm_struct);
+    sprintf(query_period_start_cet_str, "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
+    localtime_r(future_wanted_max_ts, &tm_struct);
+    sprintf(query_period_end_cet_str, "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
+  }
+  // back to normal tz if eet
+  if (strcmp("EET", s.timezone) == 0)
+    setenv("TZ", timezone_info_eet, 1);
+}
+
 /**
  * @brief Gets SPOT-prices from Entso-E to a json file  (price_data_file_name)
  * @details If existing price data file is not expired use it and return immediately
@@ -5601,53 +5641,32 @@ bool get_price_data_entsoe()
     log_msg(MSG_TYPE_WARN, PSTR("Check Entso-E parameters (API key and price area) for price updates."));
     return false;
   }
+
   int16_t resolution = 3600;
   time_t period_start = 0, period_end = 0;
   time_t period_start_min = LONG_MAX, period_end_max = 0;
 
   time_t record_start = 0, record_end_excl = 0;
-  char date_str_start[13];
-  char date_str_end[13];
+  char query_period_start_cet_str[13];
+  char query_period_end_cet_str[13];
   WiFiClientSecure client_https;
 
   bool end_reached = false;
   int price_rows = 0;
 
-  time_t start_ts, end_ts; // this is the epoch
-  tm tm_struct;
-  //time_t now_infunc = time(nullptr);
-  start_ts = time(nullptr) - (SECONDS_IN_HOUR * 24); // (no previous day after 22h), assume we have data ready for next day
+  time_t history_wanted_min_ts, future_wanted_max_ts; // we do not need prices out of this range
 
-  // #pragma message("Testing with special date setting, REMOVE")
-  // start_ts = 1732695512;
 
-  //    start_ts = start_ts - 14 * 3600;
+  time_t now_ts = time(nullptr);
+  //#pragma message("Testing with special date setting, REMOVE IN PRODUCTION")
+  //now_ts += 2 * SECONDS_IN_HOUR;
 
-  end_ts = start_ts + SECONDS_IN_DAY * 2;
+  get_price_query_range(now_ts, &history_wanted_min_ts, &future_wanted_max_ts, query_period_start_cet_str, query_period_end_cet_str);
 
   int pos = -1; //, last_pos = -1;
   long price = VARIABLE_LONG_UNKNOWN;
 
-  // initiate prices
-  localtime_r(&start_ts, &tm_struct);
-  Serial.printf("start_ts %lu\n",start_ts);
-
-  snprintf(date_str_start, sizeof(date_str_start), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
-  localtime_r(&end_ts, &tm_struct);
-  snprintf(date_str_end, sizeof(date_str_end), "%04d%02d%02d0000", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
-
-/*
-  time_t max_ts_incl= (time(nullptr)/SECONDS_IN_DAY+1)*SECONDS_IN_DAY-SECONDS_IN_HOUR-SECONDS_IN_PT15M; //WiP, 
-  if (tm_struct.tm_isdst > 0) {
-  Serial.println("DST is currently in effect.");
-  max_ts_incl -= SECONDS_IN_HOUR;
-  }
-  else
-  {
-    Serial.println("DST is NOT in effect.");
-  }*/
-  Serial.printf("Query period: %s (%d) - %s (%d)\n", date_str_start,start_ts, date_str_end,end_ts);
-
+  Serial.printf("Query period: %s (%d) - %s (%d)\n", query_period_start_cet_str, history_wanted_min_ts, query_period_end_cet_str, future_wanted_max_ts);
 
   if (!setCACertificate(&client_https, nullptr, entsoe_ca_filename, "Entso-E", s.disable_ca_checks))
     return false;
@@ -5659,7 +5678,7 @@ bool get_price_data_entsoe()
   if (!connect_https_with_check(&client_https, host_prices, httpsPort, "Entso-E"))
     return false;
   char url[220];
-  snprintf(url, sizeof(url), "%s&securityToken=%s&In_Domain=%s&Out_Domain=%s&periodStart=%s&periodEnd=%s", url_base, s.entsoe_api_key, s.entsoe_area_code, s.entsoe_area_code, date_str_start, date_str_end);
+  snprintf(url, sizeof(url), "%s&securityToken=%s&In_Domain=%s&Out_Domain=%s&periodStart=%s&periodEnd=%s", url_base, s.entsoe_api_key, s.entsoe_area_code, s.entsoe_area_code, query_period_start_cet_str, query_period_end_cet_str);
   Serial.print("requesting URL: ");
 
   Serial.println(url);
@@ -5706,9 +5725,6 @@ bool get_price_data_entsoe()
   {
     line = read_http11_line(&client_https);
     // Serial.printf("[%s]\n", line.c_str());
-    // Serial.print("[");
-    // Serial.print(line);
-    // Serial.println("]");
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
@@ -5719,17 +5735,16 @@ bool get_price_data_entsoe()
     }
 
     if (line.endsWith(F("</period.timeInterval>"))) // We got  start of response
-    // if (line.indexOf(F("</period.timeInterval>"))>-1)
-    { // header dates
+    {                                               // header dates
       record_end_excl = period_end;
       Serial.printf("Debug before get_price_data_entsoe %lu, %d", period_end, prices2.n());
-
-      prices2.set_store_start(period_end - prices2.n() * prices2.resolution_sec());
+      // skip prices too far in the future
+      prices2.set_store_start(min(future_wanted_max_ts, period_end - prices2.n() * prices2.resolution_sec()));
 
       // prepare for Entso-E missing data points
       for (int i = 0; i < prices2.n(); i++)
       {
-        // prices2.set(period_start + i * PRICE_RESOLUTION_SEC, VARIABLE_LONG_MISSING);
+        // TODO: could we not to reset existin values?
         prices2.set_by_pos(i, VARIABLE_LONG_MISSING);
       }
 
@@ -5782,10 +5797,14 @@ bool get_price_data_entsoe()
     {
       //  prices2.set(period_start + (pos - 1) * PRICE_RESOLUTION_SEC, price);
       // MTU15M
+
+      if (period_start + (pos - 1) * resolution <= future_wanted_max_ts)
+      { // skip prices too far in the future
       prices2.set(period_start + (pos - 1) * resolution, price);
+      }
+
       /*
       #pragma message("REMOVE SPECIAL MTU15 test, generates variation within hour before the change.")
-
       Serial.println("REMOVE SPECIAL MTU15 test");
       prices2.set(period_start + (pos - 1)*resolution+900, price+100);
       prices2.set(period_start + (pos - 1)*resolution+1800, price+200);
@@ -5801,23 +5820,8 @@ bool get_price_data_entsoe()
     { // this signals the end of the response from XML API
       // fill potentially missing points - Entso-E new data format
       // MTU15M
-
       prices2.fill_gaps();
       prices2.debug_print();
-      /*
-      for (int i = 0; i < prices2.n(); i++)
-      {
-        if (prices2.get_by_pos(i) == VARIABLE_LONG_MISSING && price_last > VARIABLE_LONG_MISSING)
-        {
-          prices2.set_by_pos(i, price_last);
-          Serial.printf("Filling missing value of index %d, with ", i);
-          Serial.println(price_last);
-          price_rows++;
-        }
-        else
-          price_last = prices2.get_by_pos(i);
-      }
-      */
 
       end_reached = true;
       save_on = false;
@@ -5847,8 +5851,6 @@ bool get_price_data_entsoe()
   // if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
   if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= MAX_PRICE_HOURS))
   {
-   // now_infunc = time(nullptr);
-
     prices_record_start = record_start;
 
     if (contains_suspicious_prices)
@@ -7238,16 +7240,17 @@ bool get_price_data_elering(char *country_code)
   WiFiClientSecure client_https;
   char url[120];
   Serial.printf("Elering country code: %s\n", country_code);
+  time_t history_wanted_min_ts, future_wanted_max_ts; // we do not need prices out of this range
 
-  time_t start_ts, end_ts; // this is the epoch
+
   tm tm_struct;
   String line;
   int sep1, sep2;
   String ts_string, val_string;
   time_t ts;
   float price;
-  char date_str_start[30];
-  char date_str_end[30];
+  char query_period_start_str[30];
+  char query_period_end_str[30];
   int price_rows = 0, price_idx;
   time_t ts_min = 4102444800;
   time_t ts_max = 0; // in the future
@@ -7268,23 +7271,20 @@ bool get_price_data_elering(char *country_code)
 
   yield();
 
-  start_ts = time(nullptr) - (SECONDS_IN_HOUR * (22 + 24)); // no previous day after 22h, assume we have data ready for next day
-  end_ts = start_ts + SECONDS_IN_DAY * 3;
+  get_price_query_range(time(nullptr), &history_wanted_min_ts, &future_wanted_max_ts, nullptr, nullptr);
 
-  localtime_r(&start_ts, &tm_struct);
-  Serial.println(start_ts);
-  snprintf(date_str_start, sizeof(date_str_start), "%04d-%02d-%02dT21%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
-  localtime_r(&end_ts, &tm_struct);
-  // hour 21-> 22 to get all wintertime
-  snprintf(date_str_end, sizeof(date_str_end), "%04d-%02d-%02dT22%%3A00%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday);
+  gmtime_r(&history_wanted_min_ts, &tm_struct);
+  snprintf(query_period_start_str, sizeof(query_period_start_str), "%04d-%02d-%02dT%02d%%3A%02d%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday,tm_struct.tm_hour, tm_struct.tm_min);
+  gmtime_r(&future_wanted_max_ts, &tm_struct);
+  snprintf(query_period_end_str, sizeof(query_period_end_str), "%04d-%02d-%02dT%02d%%3A%02d%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday,tm_struct.tm_hour, tm_struct.tm_min);
 
-  Serial.printf("Query period: %s - %s\n", date_str_start, date_str_end);
+  Serial.printf("Query period: %s - %s\n", query_period_start_str, query_period_end_str);
 
   client_https.setTimeout(15); // was 15 Seconds
   delay(1000);
 
   /// api/nps/price/csv?start=2020-05-31T20%3A59%3A59.999Z&end=2020-06-30T20%3A59%3A59.999Z&fields=fi
-  snprintf(url, sizeof(url), "/api/nps/price/csv?start=%s&end=%s&fields=%s", date_str_start, date_str_end, country_code);
+  snprintf(url, sizeof(url), "/api/nps/price/csv?start=%s&end=%s&fields=%s", query_period_start_str, query_period_end_str, country_code);
 
   Serial.printf("Requesting URL: %s\n", url);
 
@@ -7355,7 +7355,8 @@ bool get_price_data_elering(char *country_code)
       val_string.trim(); // remove?
       val_string.replace(",", ".");
       ts = ts_string.toInt();
-      if (ts > ACCEPTED_TIMESTAMP_MINIMUM)
+   //   if (ts > ACCEPTED_TIMESTAMP_MINIMUM )
+      if (ts >= history_wanted_min_ts && ts <= future_wanted_max_ts) //handle only values in range, there should be no extra from Elering anyway
       {
         price = val_string.toFloat();
         // Serial.printf("-> |%s],  |%s| -> ",  ts_string.c_str(), val_string.c_str());
@@ -7366,8 +7367,7 @@ bool get_price_data_elering(char *country_code)
         ts_min = min(ts_min, ts);
         ts_max = max(ts_max, ts);
 #ifdef MTU15M_ENABLED
-        // ts_min_stored = SECONDS_IN_HOUR * (int)((ts_max - (MAX_PRICE_PERIODS) * PRICE_RESOLUTION_SEC) / SECONDS_IN_HOUR-1)+SECONDS_IN_HOUR;
-        ts_min_stored = ((int)(ts_max / SECONDS_IN_HOUR)) * SECONDS_IN_HOUR - MAX_PRICE_PERIODS * PRICE_RESOLUTION_SEC + SECONDS_IN_HOUR;
+        ts_min_stored = get_hour_start_ts(ts_max) - MAX_PRICE_PERIODS * PRICE_RESOLUTION_SEC + SECONDS_IN_HOUR;
 
         SECONDS_IN_HOUR *(int)((ts_max - (MAX_PRICE_PERIODS)*PRICE_RESOLUTION_SEC) / SECONDS_IN_HOUR - 1) + SECONDS_IN_HOUR;
 
@@ -9172,9 +9172,9 @@ void set_timezone_ntp_settings(bool set_ntp)
   //   Set timezone info
   char timezone_info[35];
   if (strcmp("EET", s.timezone) == 0)
-    strcpy(timezone_info, "EET-2EEST,M3.5.0/3,M10.5.0/4");
+    strcpy(timezone_info, timezone_info_eet);
   else // CET default
-    strcpy(timezone_info, "CET-1CEST,M3.5.0/02,M10.5.0/03");
+    strcpy(timezone_info, timezone_info_cet);
 
   setenv("TZ", timezone_info, 1);
   Serial.printf(PSTR("timezone_info: %s, %s\n"), timezone_info, s.timezone);
