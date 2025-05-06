@@ -30,7 +30,7 @@ DEVEL BRANCH
 #define METER_SHELLY3EM_ENABLED           //!< Shelly 3EM functionality enabled
 #define INVERTER_FRONIUS_SOLARAPI_ENABLED // can read Fronius inverter solarapi
 #define MODBUS_ENABLED
-#define INVERTER_SMA_MODBUS_ENABLED_NOT // can read SMA inverter Modbus TCP, disable in battery version
+#define INVERTER_SMA_MODBUS_ENABLED // can read SMA inverter Modbus TCP, disable in battery version
 #define METER_HAN_ENABLED
 #define METER_HAN_DIRECT_ENABLED
 #define LOAD_MGMT_ENABLED
