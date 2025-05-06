@@ -897,9 +897,10 @@ function update_status(repeat) {
             if (!isNaN(data.variables[VARIABLE_PRODUCTION_POWER])) {
                 document.getElementById("db:production_v").innerHTML = data.variables[VARIABLE_PRODUCTION_ENERGY] + " Wh";;
             }
-            price = isNaN(data.variables["0"]) ? '-' : data.variables["0"] + ' ¢/kWh ';
+            price = isNaN(data.variables["0"] && data.variables["0"] > -2147483) ? '-' : data.variables["0"] + ' ¢/kWh ';
 
-            document.getElementById("db:price_v").innerHTML = price;
+            document.getElementById("db:price_v").innerHTML =  price;
+
 
             //sensor values
             for (s_idx = 201; s_idx <= 203; s_idx++) {
