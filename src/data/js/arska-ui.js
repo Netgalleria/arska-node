@@ -3700,7 +3700,7 @@ function save_card_ev(ev) {
         dataType: "json",
         success: function (data) {
             document.getElementById(card + ":save").disabled = true;
-            if (["admin", "metering", "production", "network"].includes(card)) {
+            if (["admin", "metering", "production", "network", "price_data"].includes(card)) {
                 let do_restart = confirm("Settings updated. Do you want to restart?");
                 if (do_restart) {
                     launch_action("restart", card, {});
