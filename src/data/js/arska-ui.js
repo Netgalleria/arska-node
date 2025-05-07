@@ -900,7 +900,7 @@ function update_status(repeat) {
             price = isNaN(data.variables["0"] && data.variables["0"] > -2147483) ? '-' : data.variables["0"] + ' ¢/kWh ';
 
             document.getElementById("db:price_v").innerHTML =  price;
-
+            
 
             //sensor values
             for (s_idx = 201; s_idx <= 203; s_idx++) {
@@ -1284,7 +1284,7 @@ function create_dashboard_chart() {
     if (price_data_exists) {
         idx = 0;
         for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_data.resolution_sec) {
-            if (price_data.prices[idx] >VARIABLE_LONG_MISSING ) { // VARIABLE_LONG_UNKNOWN , VARIABLE_LONG_MISSING
+            if (price_data.prices[idx] > VARIABLE_LONG_MISSING ) { // VARIABLE_LONG_UNKNOWN , VARIABLE_LONG_MISSING
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts)
                     prices_out.push({ x: ts * 1000, y: Math.round(price_data.prices[idx] / 100) / 10 });
             }
@@ -1539,17 +1539,7 @@ function create_dashboard_chart() {
                         lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
                 },
-                /*    line_nextd: {
-                         beginAtZero: true,
-                         ticks: {
-                             display: false
-                         },
-                         position: { x: (parseInt(Date.now() / 86400000+1)*86400000+600000) }, 
-                         grid: {
-                             display: false,
-                             lineWidth: 6, color: "black", borderWidth: 2, borderColor: 'black'
-                         }
-                     },*/
+             
                 y_prices: {
                     beginAtZero: true,
                     ticks: {
@@ -1621,17 +1611,6 @@ function create_dashboard_chart() {
                         }
                     }
                 },
-                /*    x_day: {
-                        beginAtZero:true,
-                        grid: { display: true, lineWidth: 10, ticks:false ,z:5},
-                    
-                        type: 'time',
-                        time: {
-                            minUnit:'day',stepSize:1,
-                            unit: 'day',
-                            locale: 'fi_FI', //           tooltipFormat:'MM/DD/YYYY', 
-                        }
-                    },*/
             },
             interaction: {
                 intersect: false,
@@ -1772,27 +1751,7 @@ function get_time_string_from_ts(ts, show_secs = true, show_day_diff = false) {
     return tmpStr;
 }
 
-/*
-function get_time_label(ts) {
-    tmpDate = new Date(ts * 1000);
-    tmpStr = pad_to_2digits(tmpDate.getHours()) + ":" + pad_to_2digits(tmpDate.getMinutes());
-    tz_offset_minutes = tmpDate.getTimezoneOffset();
-    now_ts_loc = (Date.now() / 1000) - tz_offset_minutes * 60;
-    ts_loc = ts - tz_offset_minutes * 60;
-    now_day = parseInt(now_ts_loc / 86400);
-    ts_day = parseInt(ts_loc / 86400);
 
-    day_diff = ts_day - now_day;
-    if (day_diff < 0)
-        day_indicator = "(-" + Math.abs(day_diff) + ")"; // "<"+Math.abs(day_diff);
-    else if (day_diff == 0)
-        day_indicator = "  "; //" ";
-    else
-        day_indicator = "(+" + day_diff + ")"; //">"+day_diff;
-
-    return (tmpStr + " " + day_indicator).trim();
-}
-*/
 function populate_wifi_ssid_list_2() {
     console.log("populate_wifi_ssid_list_2");
     $.ajax({
@@ -2095,31 +2054,7 @@ function load_application_config() {
         }
     });
 
-    //Add UI price area fields to enable Elering price query
-    /* Deprecated, Elering will be backup for EE,FI,LV,LT
-    if (g_price_elering_enabled) {
-        var price_area_ctrl = document.getElementById("entsoe_area_code");
-        price_area_ctrl.options.add(new Option("Price source ENTSO-E", "entsoe"), price_area_ctrl.options[1]);
-        price_area_ctrl.options[1].disabled = true;
-        price_area_ctrl.options.add(new Option("Latvia, AST 🇱🇻", "elering:lv"), price_area_ctrl.options[1]);
-        price_area_ctrl.options.add(new Option("Lithuania, Litgrid 🇱🇹", "elering:lt"), price_area_ctrl.options[1]);
-        price_area_ctrl.options.add(new Option("Finland, Fingrid 🇫🇮", "elering:fi"), price_area_ctrl.options[1]);
-        price_area_ctrl.options.add(new Option("Estonia, Elering 🇪🇪", "elering:ee"), price_area_ctrl.options[1]);
-        price_area_ctrl.options.add(new Option("Price source Elering", "elering"), price_area_ctrl.options[1]);
-        price_area_ctrl.options[1].disabled = true;
-
-        // Elering does not need an API key
-        price_area_ctrl.addEventListener(
-            "change",
-            function () {
-                set_field_editability_ev();
-            },
-            false
-        );
-        var info_span = document.getElementById("price_data:info");
-        info_span.innerHTML = info_span.innerHTML + " Elering provides price data for Estonia, Finland, Lithuania and Latvia without an API key."
-    }
-    */
+ 
 
     document.getElementById("energy_meter_type").addEventListener(
         "change",
