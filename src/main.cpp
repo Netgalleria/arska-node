@@ -135,6 +135,9 @@ RTC_PCF8563 rtc;
 #define REMOTE_ENABLED_NOT
 #define MDNS_ENABLED_NOT
 
+#define SERIAL_CONSOLE_CONFIG_WIP // WiP
+
+
 #ifdef REMOTE_ENABLED
 #define MAX_WG_KEY_LENGTH 45
 #define MAX_WG_HOST_LENGTH 20
@@ -813,6 +816,7 @@ public:
 private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
 };
+
 
 typedef int32_t T; // timeSeries data type
 /**
@@ -2382,6 +2386,7 @@ void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl, bool print_row
 {
   Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d ,idx: %d - %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1, store.min_value_idx, store.max_value_idx);
 
+
   yield();
   if (print_rows)
   {
@@ -2539,6 +2544,10 @@ void timeSeries::apply_pricemodifier(bool debug=false)
 
   time_t start_ts;
   bool hour_modified;
+  if (s.pricemod ==0){ //
+    return;
+  }
+
   for (int i = 0; i < store.n; i++)
   {
     start_ts = store.start + i * store.resolution_sec;
@@ -2546,8 +2555,9 @@ void timeSeries::apply_pricemodifier(bool debug=false)
     //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
 
     hour_modified = s.pricemod_hours & (1 << tm_struct.tm_hour);
-    if (hour_modified)
+    if (hour_modified && store.arr[i] >VARIABLE_LONG_MISSING ) { // skip special values
       store.arr[i] += s.pricemod * 100;
+    }
     if (debug) {
     Serial.printf("%d, %lu  hour %d  %s", i, start_ts, tm_struct.tm_hour, hour_modified ? "M" : " ");
     Serial.println(store.arr[i]);
@@ -3192,31 +3202,7 @@ void process_settings_serial()
             Serial.println(wifi_idx);
           }
         }
-#define SERIAL_CONSOLE_CONFIG_WIP // WiP
-#ifdef SERIAL_CONSOLE_CONFIG
-        else if (serial_command.length() > 5 && serial_command[0] == '/' && serial_command.charAt(serial_command.length() - 1) == '/')
-        {
-          int slash_pos = -1;
-          for (int i = 1; i < serial_command.length() - 1; i++)
-          {
-            if (serial_command.charAt(i) == '/')
-            {
-              slash_pos = i;
-            }
-          }
-          if (slash_pos > -1)
-          {
-            Serial.println("GOTSETTINGS");
-            snprintf(error_msg_buf, sizeof(error_msg_buf), "Got new wifi settings [%s] [%s], restarting...", serial_command.substring(1, slash_pos).c_str(), serial_command.substring(slash_pos + 1, serial_command.length() - 1).c_str());
-            log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
-            strncpy(s.wifi_ssid, serial_command.substring(1, slash_pos).c_str(), 30);
-            strncpy(s.wifi_password, serial_command.substring(slash_pos + 1, serial_command.length() - 1).c_str(), 30);
-            writeToEEPROM();
-            delay(2000);
-            ESP.restart();
-          }
-        }
-#endif
+
       }
       else if (serial_command_state == 1) // waiting for wifi password
       {
@@ -7393,7 +7379,6 @@ bool get_price_data_elering(char *country_code)
 
 #ifdef MTU15M_ENABLED
   // maybe check for success...
-  //  prices2.debug_print();
   prices2.fill_gaps();
   prices_expires_ts = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
   Serial.printf("prices_expires_ts %lu\n", prices_expires_ts);
@@ -7435,7 +7420,6 @@ bool get_price_data_elering(char *country_code)
     Serial.println(F("Finished succesfully get_price_data_elering."));
 
     prices2.apply_pricemodifier();
-    // prices2.debug_print();
 
 #ifdef NVS_CACHE_ENABLED
     prices2.save_to_cache(prices_expires_ts);
@@ -8829,6 +8813,7 @@ void onWebPricesGet(AsyncWebServerRequest *request)
     for (int i = 0; i < MAX_PRICE_PERIODS; i++)
     {
       prices_a[i] = prices2.get(prices2.start() + prices2.resolution_sec() * i);
+   //   Serial.print(prices2.get(prices2.start() + prices2.resolution_sec() * i));
     }
   }
 
@@ -9334,7 +9319,7 @@ bool connect_wifi()
 
       Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi number (see the list below) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
       scan_and_store_wifis(true, false);
-      Serial.println("ENTERWIFISETTINGS"); // for browser app
+     
 
       if (Serial)
         Serial.flush();
@@ -9399,6 +9384,64 @@ const uint8_t guruCauses[] = {
 SET_LOOP_TASK_STACK_SIZE(12 * 1024); // affect loop initiated tasks, not onreceive (etc interrupt)
 // #define ARDUINO_SERIAL_EVENT_TASK_STACK_SIZE (3*1024) // no effect
 
+
+#ifdef SERIAL_CONSOLE_CONFIG
+void read_wifisettings(unsigned long timeoutMillis) {
+  unsigned long startTime = millis();
+  String inputLine = "";
+
+  Serial.println("Waiting for serial input...");
+
+  while (millis() - startTime < timeoutMillis) {
+    if (Serial.available()) {
+      char c = Serial.read();
+
+      // Detect newline or carriage return as end of line
+      if (c == '\n' || c == '\r') {
+        if (inputLine.length() > 0) {
+    if (strncmp("/WIFI/",inputLine.c_str(),6) == 0 )
+        {
+          int slash_pos = -1;
+          for (int i = 6; i < inputLine.length() - 1; i++)
+          {
+            if (inputLine.charAt(i) == '/')
+            {
+              slash_pos = i;
+              break;
+            }
+          }
+          if (slash_pos > -1)
+          {
+            Serial.println("GOTSETTINGS");
+            strncpy(s.wifi_ssid, inputLine.substring(6, slash_pos).c_str(), 30);
+            strncpy(s.wifi_password, inputLine.substring(slash_pos + 1, inputLine.length() - 1).c_str(), 30);
+            snprintf(error_msg_buf, sizeof(error_msg_buf), "Got new wifi settings %d [%s] [%s], restarting...", slash_pos, s.wifi_ssid, s.wifi_password);
+            log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
+
+                        log_msg(MSG_TYPE_ERROR, inputLine.c_str(), true, false);
+
+          
+            writeToEEPROM();
+            delay(2000);
+            ESP.restart();
+          }
+        }
+        }
+      } else {
+        inputLine += c;
+      }
+
+      // Reset timeout on new data
+    //  startTime = millis();
+    }
+  }
+
+  Serial.println("Timeout reached. Stopping read.");
+}
+#endif
+
+
+
 void setup()
 {
   // esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
@@ -9415,6 +9458,8 @@ void setup()
   };
 
   delay(2000); // wait for console to settle - only needed when debugging
+  
+
 
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
@@ -9429,11 +9474,7 @@ void setup()
   else
   {
     rtc_found = true;
-    Serial.println(F("RTC found"));
-    Serial.print("isrunning:");
-    Serial.println(rtc.isrunning());
-    Serial.print("lostPower:");
-    Serial.println(rtc.lostPower());
+    Serial.println(PSTR("RTC found"));
     if (rtc.lostPower())
     {
       Serial.println("RTC is NOT initialized, let's set the time!");
@@ -9454,8 +9495,9 @@ void setup()
 #endif                                                  // RTC - Work in Progress
 
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
-  Serial.printf(PSTR("ARSKA VERSION_BASE %s, Version: %s, compile_date: %s\n"), VERSION_BASE, VERSION, compile_date);
-  Serial.println(CHIP_FAMILY);
+
+  Serial.printf(PSTR("/VERSION/%s/%s/%s/%s/\n"), CHIP_FAMILY,VERSION_BASE, VERSION, compile_date);
+ 
 
   // String
   wifi_mac_short = WiFi.macAddress();
@@ -9523,6 +9565,14 @@ void setup()
   todo_in_loop_update_firmware_partition = fs_mounted ? !(check_filesystem_version()) : true;
 
   readFromEEPROM();
+
+#ifdef SERIAL_CONSOLE_CONFIG
+  Serial.printf(PSTR("/WIFI/%s/%s/\n"), s.wifi_ssid,s.wifi_password);
+  Serial.println("ENTERWIFI"); // for browser app
+  read_wifisettings(2000);
+
+#endif
+
 
   // tweak for Lilygo esp32s3 6ch rev 1.1
   // #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
@@ -9820,14 +9870,14 @@ void setup()
   {
     Serial.printf("\nArska dashboard url: http://%s/ in WiFi: %s\n", WiFi.localIP().toString().c_str(), WiFi.SSID().c_str());
 #ifdef SERIAL_CONSOLE_CONFIG
-    Serial.printf(PSTR("/WIFI/%s/%s/\n\n"), WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+    Serial.printf(PSTR("/WIFISTATUS/%s/%s/\n\n"), WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
 #endif
   }
   else
   {
     Serial.printf("\nArska dashboard url: http://%s/ in Arska private WiFi: %s\n", WiFi.softAPIP().toString().c_str(), WiFi.softAPSSID().c_str());
 #ifdef SERIAL_CONSOLE_CONFIG
-    Serial.printf(PSTR("/WIFI/%s/%s/\n\n"), WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
+    Serial.printf(PSTR("/WIFISTATUS/%s/%s/\n\n"), WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
 #endif
   }
   Serial.printf(PSTR("Web admin: [%s], password: [%s]\n\n"), s.http_username, s.http_password);
