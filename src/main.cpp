@@ -137,7 +137,6 @@ RTC_PCF8563 rtc;
 
 #define SERIAL_CONSOLE_CONFIG_WIP // WiP
 
-
 #ifdef REMOTE_ENABLED
 #define MAX_WG_KEY_LENGTH 45
 #define MAX_WG_HOST_LENGTH 20
@@ -272,6 +271,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 
 #define WIFI_FAILED_RECONNECT_INTERVAL_SEC 300
 #define WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC 3600
+
 #define ERROR_MSG_LEN 100
 
 // API
@@ -817,7 +817,6 @@ private:
   channel_log_struct channel_logs[CHANNEL_COUNT];
 };
 
-
 typedef int32_t T; // timeSeries data type
 /**
  * @brief time series support class proving cached store, statistics etc.
@@ -1123,8 +1122,8 @@ tm tm_struct;
 
 bool wifi_sta_connection_required = false;
 bool wifi_sta_connected = false;
-uint32_t wifi_sta_disconnected_ms = 0;   //!< restart if enough time since first try
-uint32_t wifi_connect_tried_last_ms = 0; //!< reconnect if enough time since first try
+uint32_t wifi_sta_connection_ended_ms = 0; //!< disconnected (after succesfull connection), restart if enough time since first try
+uint32_t wifi_connect_tried_last_ms = 0;   //!< reconnect if enough time since first try
 
 bool config_resetted = false; // true if configuration cleared when version upgraded
 bool fs_mounted = false;      // true
@@ -1197,6 +1196,7 @@ void log_msg(uint8_t type, const char *msg, bool write_to_file = false, bool upd
 }
 
 AsyncWebServer server_web(80);
+bool server_web_running = false;
 
 // Clock functions, supports optional DS3231 RTC
 bool rtc_found = false;
@@ -2386,7 +2386,6 @@ void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl, bool print_row
 {
   Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d ,idx: %d - %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1, store.min_value_idx, store.max_value_idx);
 
-
   yield();
   if (print_rows)
   {
@@ -2539,12 +2538,13 @@ int timeSeries::get_period_rank_hour(const int id, time_t period_ts, time_t star
   return rank;
 }
 
-void timeSeries::apply_pricemodifier(bool debug=false)
+void timeSeries::apply_pricemodifier(bool debug = false)
 {
 
   time_t start_ts;
   bool hour_modified;
-  if (s.pricemod ==0){ //
+  if (s.pricemod == 0)
+  { //
     return;
   }
 
@@ -2555,12 +2555,14 @@ void timeSeries::apply_pricemodifier(bool debug=false)
     //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
 
     hour_modified = s.pricemod_hours & (1 << tm_struct.tm_hour);
-    if (hour_modified && store.arr[i] >VARIABLE_LONG_MISSING ) { // skip special values
+    if (hour_modified && store.arr[i] > VARIABLE_LONG_MISSING)
+    { // skip special values
       store.arr[i] += s.pricemod * 100;
     }
-    if (debug) {
-    Serial.printf("%d, %lu  hour %d  %s", i, start_ts, tm_struct.tm_hour, hour_modified ? "M" : " ");
-    Serial.println(store.arr[i]);
+    if (debug)
+    {
+      Serial.printf("%d, %lu  hour %d  %s", i, start_ts, tm_struct.tm_hour, hour_modified ? "M" : " ");
+      Serial.println(store.arr[i]);
     }
   }
 };
@@ -3202,7 +3204,6 @@ void process_settings_serial()
             Serial.println(wifi_idx);
           }
         }
-
       }
       else if (serial_command_state == 1) // waiting for wifi password
       {
@@ -5642,10 +5643,9 @@ bool get_price_data_entsoe()
 
   time_t history_wanted_min_ts, future_wanted_max_ts; // we do not need prices out of this range
 
-  
   time_t now_ts = time(nullptr);
-  //#pragma message("Testing with special date setting, REMOVE IN PRODUCTION")
-  //now_ts += 2 * SECONDS_IN_HOUR;
+  // #pragma message("Testing with special date setting, REMOVE IN PRODUCTION")
+  // now_ts += 2 * SECONDS_IN_HOUR;
 
   get_price_query_range(now_ts, &history_wanted_min_ts, &future_wanted_max_ts, query_period_start_cet_str, query_period_end_cet_str);
 
@@ -5808,7 +5808,7 @@ bool get_price_data_entsoe()
       // MTU15M
       prices2.fill_gaps();
       prices2.debug_print();
-   
+
       end_reached = true;
       save_on = false;
       read_ok = true;
@@ -5851,7 +5851,7 @@ bool get_price_data_entsoe()
     }
 
     Serial.println(F("Finished succesfully get_price_data_entsoe."));
-    prices2.apply_pricemodifier(); // modify prices for defined hours 
+    prices2.apply_pricemodifier(); // modify prices for defined hours
     prices2.debug_print();
 
 #ifdef INFLUX_REPORT_ENABLED
@@ -7230,7 +7230,6 @@ bool get_price_data_elering(char *country_code)
   Serial.printf("Elering country code: %s\n", country_code);
   time_t history_wanted_min_ts, future_wanted_max_ts; // we do not need prices out of this range
 
-
   tm tm_struct;
   String line;
   int sep1, sep2;
@@ -7262,9 +7261,9 @@ bool get_price_data_elering(char *country_code)
   get_price_query_range(time(nullptr), &history_wanted_min_ts, &future_wanted_max_ts, nullptr, nullptr);
 
   gmtime_r(&history_wanted_min_ts, &tm_struct);
-  snprintf(query_period_start_str, sizeof(query_period_start_str), "%04d-%02d-%02dT%02d%%3A%02d%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday,tm_struct.tm_hour, tm_struct.tm_min);
+  snprintf(query_period_start_str, sizeof(query_period_start_str), "%04d-%02d-%02dT%02d%%3A%02d%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min);
   gmtime_r(&future_wanted_max_ts, &tm_struct);
-  snprintf(query_period_end_str, sizeof(query_period_end_str), "%04d-%02d-%02dT%02d%%3A%02d%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday,tm_struct.tm_hour, tm_struct.tm_min);
+  snprintf(query_period_end_str, sizeof(query_period_end_str), "%04d-%02d-%02dT%02d%%3A%02d%%3A00Z", tm_struct.tm_year + 1900, tm_struct.tm_mon + 1, tm_struct.tm_mday, tm_struct.tm_hour, tm_struct.tm_min);
 
   Serial.printf("Query period: %s - %s\n", query_period_start_str, query_period_end_str);
 
@@ -7343,8 +7342,8 @@ bool get_price_data_elering(char *country_code)
       val_string.trim(); // remove?
       val_string.replace(",", ".");
       ts = ts_string.toInt();
-   //   if (ts > ACCEPTED_TIMESTAMP_MINIMUM )
-      if (ts >= history_wanted_min_ts && ts <= future_wanted_max_ts) //handle only values in range, there should be no extra from Elering anyway
+      //   if (ts > ACCEPTED_TIMESTAMP_MINIMUM )
+      if (ts >= history_wanted_min_ts && ts <= future_wanted_max_ts) // handle only values in range, there should be no extra from Elering anyway
       {
         price = val_string.toFloat();
         // Serial.printf("-> |%s],  |%s| -> ",  ts_string.c_str(), val_string.c_str());
@@ -8813,7 +8812,7 @@ void onWebPricesGet(AsyncWebServerRequest *request)
     for (int i = 0; i < MAX_PRICE_PERIODS; i++)
     {
       prices_a[i] = prices2.get(prices2.start() + prices2.resolution_sec() * i);
-   //   Serial.print(prices2.get(prices2.start() + prices2.resolution_sec() * i));
+      //   Serial.print(prices2.get(prices2.start() + prices2.resolution_sec() * i));
     }
   }
 
@@ -9201,7 +9200,15 @@ void wifi_event_handler(WiFiEvent_t event)
     break;
   case SYSTEM_EVENT_STA_GOT_IP:
     wifi_sta_connected = true;
-    //  Serial.println(F("Got IP"));
+
+    if (server_web_running)
+    {
+      Serial.println(F("Restarting web service"));
+      // restart to ensure clean state
+      server_web.end();
+      server_web.begin();
+    }
+
     set_timezone_ntp_settings(true);
     // Experimental
 #ifdef MDNS_ENABLED
@@ -9211,8 +9218,12 @@ void wifi_event_handler(WiFiEvent_t event)
 
     break;
   case SYSTEM_EVENT_STA_DISCONNECTED:
-    wifi_sta_connected = false;
-    wifi_sta_disconnected_ms = millis();
+    if (wifi_sta_connected)
+    {
+      wifi_sta_connection_ended_ms = millis();
+      wifi_sta_connected = false;
+    }
+
     Serial.println(F("Disconnected from WiFi Network"));
     break;
   case SYSTEM_EVENT_AP_START:
@@ -9237,11 +9248,12 @@ bool connect_wifi()
   uint32_t connect_started;
   wifi_connect_count++;
   wifi_sta_connection_required = strlen(s.wifi_ssid) > 0; // empty SSID -> stay standalone
-
-  if (wifi_sta_disconnected_ms == 0)
-  {
-    wifi_sta_disconnected_ms = millis();
-  }
+                                                          /*
+                                                            if (wifi_sta_connection_ended_ms == 0)
+                                                            {
+                                                              wifi_sta_connection_ended_ms = millis();
+                                                            }
+                                                            */
   wifi_connect_tried_last_ms = millis();
 
   if (wifi_connect_count == 1)
@@ -9301,7 +9313,6 @@ bool connect_wifi()
   }
 
   wifi_sta_connected = false;
-  wifi_sta_disconnected_ms = millis();
   create_wifi_ap = true;
 
   // TODO: check also https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/examples/CaptivePortal/CaptivePortal.ino
@@ -9314,12 +9325,8 @@ bool connect_wifi()
   {
     if (wifi_sta_connection_required)
     {
-
-      wifi_sta_connection_required = false; // cannot connect, do no try any more with the same settings
-
       Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi number (see the list below) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
       scan_and_store_wifis(true, false);
-     
 
       if (Serial)
         Serial.flush();
@@ -9384,63 +9391,66 @@ const uint8_t guruCauses[] = {
 SET_LOOP_TASK_STACK_SIZE(12 * 1024); // affect loop initiated tasks, not onreceive (etc interrupt)
 // #define ARDUINO_SERIAL_EVENT_TASK_STACK_SIZE (3*1024) // no effect
 
-
 #ifdef SERIAL_CONSOLE_CONFIG
-void read_wifisettings(unsigned long timeoutMillis) {
+void read_wifisettings(unsigned long timeoutMillis)
+{
   unsigned long startTime = millis();
   String inputLine = "";
 
   Serial.println("Waiting for serial input...");
 
-  while (millis() - startTime < timeoutMillis) {
-    if (Serial.available()) {
+  while (millis() - startTime < timeoutMillis)
+  {
+    if (Serial.available())
+    {
       char c = Serial.read();
 
       // Detect newline or carriage return as end of line
-      if (c == '\n' || c == '\r') {
-        if (inputLine.length() > 0) {
-    if (strncmp("/WIFI/",inputLine.c_str(),6) == 0 )
+      if (c == '\n' || c == '\r')
+      {
+        if (inputLine.length() > 0)
         {
-          int slash_pos = -1;
-          for (int i = 6; i < inputLine.length() - 1; i++)
+          if (strncmp("/WIFI/", inputLine.c_str(), 6) == 0)
           {
-            if (inputLine.charAt(i) == '/')
+            int slash_pos = -1;
+            for (int i = 6; i < inputLine.length() - 1; i++)
             {
-              slash_pos = i;
-              break;
+              if (inputLine.charAt(i) == '/')
+              {
+                slash_pos = i;
+                break;
+              }
+            }
+            if (slash_pos > -1)
+            {
+              Serial.println("GOTSETTINGS");
+              strncpy(s.wifi_ssid, inputLine.substring(6, slash_pos).c_str(), 30);
+              strncpy(s.wifi_password, inputLine.substring(slash_pos + 1, inputLine.length() - 1).c_str(), 30);
+              snprintf(error_msg_buf, sizeof(error_msg_buf), "Got new wifi settings %d [%s] [%s], restarting...", slash_pos, s.wifi_ssid, s.wifi_password);
+              log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
+
+              log_msg(MSG_TYPE_ERROR, inputLine.c_str(), true, false);
+
+              writeToEEPROM();
+              delay(2000);
+              ESP.restart();
             }
           }
-          if (slash_pos > -1)
-          {
-            Serial.println("GOTSETTINGS");
-            strncpy(s.wifi_ssid, inputLine.substring(6, slash_pos).c_str(), 30);
-            strncpy(s.wifi_password, inputLine.substring(slash_pos + 1, inputLine.length() - 1).c_str(), 30);
-            snprintf(error_msg_buf, sizeof(error_msg_buf), "Got new wifi settings %d [%s] [%s], restarting...", slash_pos, s.wifi_ssid, s.wifi_password);
-            log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
-
-                        log_msg(MSG_TYPE_ERROR, inputLine.c_str(), true, false);
-
-          
-            writeToEEPROM();
-            delay(2000);
-            ESP.restart();
-          }
         }
-        }
-      } else {
+      }
+      else
+      {
         inputLine += c;
       }
 
       // Reset timeout on new data
-    //  startTime = millis();
+      //  startTime = millis();
     }
   }
 
   Serial.println("Timeout reached. Stopping read.");
 }
 #endif
-
-
 
 void setup()
 {
@@ -9458,8 +9468,6 @@ void setup()
   };
 
   delay(2000); // wait for console to settle - only needed when debugging
-  
-
 
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
@@ -9496,8 +9504,7 @@ void setup()
 
   randomSeed(analogRead(2)); // initiate random generator, 2 works with esp32 and esp32s3
 
-  Serial.printf(PSTR("/VERSION/%s/%s/%s/%s/\n"), CHIP_FAMILY,VERSION_BASE, VERSION, compile_date);
- 
+  Serial.printf(PSTR("/VERSION/%s/%s/%s/%s/\n"), CHIP_FAMILY, VERSION_BASE, VERSION, compile_date);
 
   // String
   wifi_mac_short = WiFi.macAddress();
@@ -9567,12 +9574,11 @@ void setup()
   readFromEEPROM();
 
 #ifdef SERIAL_CONSOLE_CONFIG
-  Serial.printf(PSTR("/WIFI/%s/%s/\n"), s.wifi_ssid,s.wifi_password);
+  Serial.printf(PSTR("/WIFI/%s/%s/\n"), s.wifi_ssid, s.wifi_password);
   Serial.println("ENTERWIFI"); // for browser app
   read_wifisettings(2000);
 
 #endif
-
 
   // tweak for Lilygo esp32s3 6ch rev 1.1
   // #pragma message("tweak for Lilygo esp32s3 6ch rev 1.1")
@@ -9865,6 +9871,7 @@ void setup()
   // TODO: remove force create
   // generate_ui_constants(true); // generate ui constant json if needed
   server_web.begin();
+  server_web_running = true;
 
   if (wifi_sta_connected)
   {
@@ -9974,16 +9981,13 @@ void loop()
   }
 #endif
 
-  // uint32_t wifi_sta_disconnected_ms = 0    //!< restart if enough time since first try
-  //     uint32_t wifi_connect_tried_last_ms = 0 //!< reconnect if enough time since first try
-
-  if (!wifi_sta_connected && wifi_sta_connection_required && millis() - wifi_connect_tried_last_ms > WIFI_FAILED_RECONNECT_INTERVAL_SEC * 1000)
+  if (!wifi_sta_connected && wifi_sta_connection_required && (millis() - wifi_connect_tried_last_ms > WIFI_FAILED_RECONNECT_INTERVAL_SEC * 1000))
   {
     Serial.println(PSTR("Trying to reconnect wifi"));
     connect_wifi();
   }
 
-  if (!wifi_sta_connected && wifi_sta_connection_required && ((millis() - wifi_sta_disconnected_ms) > (WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC * 1000)))
+  if (!wifi_sta_connected && wifi_sta_connection_required && ((millis() - wifi_sta_connection_ended_ms) > (WIFI_FAILED_RESTART_RECONNECT_INTERVAL_SEC * 1000)))
   {
     WiFi.disconnect();
     log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to missing wifi connection."), true);
@@ -10091,26 +10095,6 @@ void loop()
     set_relays(false);
   }
 
-  /*
-    // just in case check the wifi and reconnect/restart if needed
-    if ((WiFi.waitForConnectResult(10000) != WL_CONNECTED) && wifi_sta_connected)
-    {
-      // Wait for the wifi to come up again
-      for (int wait_loop = 0; wait_loop < 20; wait_loop++)
-      {
-        delay(1000);
-        Serial.print('w');
-        if (WiFi.waitForConnectResult(10000) == WL_CONNECTED)
-          break;
-      }
-      if (WiFi.waitForConnectResult(10000) != WL_CONNECTED)
-      {
-        log_msg(MSG_TYPE_FATAL, PSTR("Restarting due to wifi error."), true);
-        delay(2000);
-        ESP.restart(); // boot if cannot recover wifi in time
-      }
-    }
-    */
 
   if ((next_query_price_data_ts <= time(nullptr)) && (prices_expires_ts <= time(nullptr)) && wifi_sta_connected)
   {
