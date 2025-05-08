@@ -17,6 +17,7 @@
 ### Bug Fixes
   * A memory corruption error fixed (22.4.2025)
   * Loads better from AP-mode wifi, 192.168.4.1 (30.4.2025)
+  * Tuned recovery from wifi disconnect (8.5.2025)
   * several other fixes and tunings
 
 ### Known open issuess
