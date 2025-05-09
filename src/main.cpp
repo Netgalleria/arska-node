@@ -138,6 +138,8 @@ RTC_PCF8563 rtc;
 #define SERIAL_CONSOLE_CONFIG_WIP // WiP
 
 #ifdef REMOTE_ENABLED
+#pragma message("REMOTE_ENABLED")
+
 #define MAX_WG_KEY_LENGTH 45
 #define MAX_WG_HOST_LENGTH 20
 
@@ -3159,6 +3161,13 @@ int network_count = 0;
 wifi_st wifis[WIFI_LIST_COUNT];
 #define WIFI_OPTION_NOWIFI_SERIAL 1 // 1 if no wifi option in serial console input, else 0
 
+void clear_serial_input_buffer()
+{
+  while (Serial.available())
+  {
+    Serial.read();
+  }
+}
 #define CONSOLE_SETTINGS_EDITABLE_SECS 120
 // Handle (wifi) settings from serial console
 void process_settings_serial()
@@ -3187,7 +3196,7 @@ void process_settings_serial()
             Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
             Serial.println();
             if (Serial)
-              Serial.flush();
+              clear_serial_input_buffer();
 
             serial_command_state = 1;
           }
@@ -7750,6 +7759,7 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
       Serial.println("Update complete");
       if (Serial)
         Serial.flush();
+
       WiFi.disconnect();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."), true);
       create_shadow_settings();
@@ -9329,7 +9339,9 @@ bool connect_wifi()
       scan_and_store_wifis(true, false);
 
       if (Serial)
-        Serial.flush();
+      {
+        clear_serial_input_buffer();
+      }
     }
   }
   else
@@ -10094,7 +10106,6 @@ void loop()
     calculate_channel_states();
     set_relays(false);
   }
-
 
   if ((next_query_price_data_ts <= time(nullptr)) && (prices_expires_ts <= time(nullptr)) && wifi_sta_connected)
   {
