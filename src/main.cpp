@@ -535,7 +535,6 @@ type = 1  10**1 stored to long  , ie. 1.5 -> 15
 #define SERIAL_COMMAND_STATE_WAITWIFIPWD 1
 #define SERIAL_COMMAND_STATE_NOPROCESS 100
 
-
 #define OPER_COUNT 11
 // #pragma message("Testing with selected oper")
 
@@ -2234,7 +2233,7 @@ bool timeSeries::save_to_cache(time_t expires) // save to nvs,true if successful
   // Close
 
   nvs_close(my_handle);
-  // Serial.printf("save_to_cache, wrote time series %d, expiration %lu\n", (int)id_, expires);
+  Serial.printf("save_to_cache, wrote time series %d, %d - %d,  expiration %lu\n", (int)id_, start(), end(), expires);
   //  if (id_==0) Serial.printf("save_to_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
 
   return true;
@@ -2256,7 +2255,7 @@ bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressi
   // Open
   err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &my_handle);
   if (err != ESP_OK)
-    return err;
+    return false;
 
   // Read run time blob
   size_t required_size = 0; // value will default to 0, if not set yet in NVS
@@ -2279,8 +2278,10 @@ bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressi
   }
   // Close
   nvs_close(my_handle);
+  Serial.printf("read_from_cache, read time series %d, %d - %d,  expiration %lu\n", (int)id_, start(), end(), expires);
   return (store.expires > expires); // check expiration
 };
+
 void timeSeries::set(time_t ts, T new_value)
 {
   int idx = get_idx(ts);
@@ -3049,6 +3050,7 @@ bool update_prices_to_influx()
     //  Serial.println(F("write_buffer_to_influx: invalid or missing parameters."));
     return false;
   }
+  yield();
 
   String query = "from(bucket: \"" + String(s.influx_bucket) + "\") |> range(start: -1d, stop: 2d) |> filter(fn: (r) => r._measurement == \"period_price\" )|> filter(fn: (r) => r[\"_field\"] == \"price\") ";
   query += "  |> keep(columns: [\"_time\"]) |> last(column: \"_time\")";
@@ -3110,6 +3112,7 @@ bool update_prices_to_influx()
 
   for (time_t current_period_start_ts = prices2.start(); current_period_start_ts <= prices2.end(); current_period_start_ts += prices2.resolution_sec())
   {
+    yield();
     //  Serial.printf("DEBUG current_period_start_ts %lu \n",current_period_start_ts);
 
     ts_to_date_str(&current_period_start_ts, datebuff);
@@ -3117,12 +3120,8 @@ bool update_prices_to_influx()
     if (!(last_price_in_db < String(datebuff))) // already in the influxDb
       continue;
 
-#ifdef PRICE_SERIES_OLD
-    current_price = (long)prices[i];
-#else
     current_price = (long)prices2.get(current_period_start_ts);
 
-#endif
     Serial.println(current_price);
     if (current_price != VARIABLE_LONG_UNKNOWN) // do not write undefined values
     {
@@ -3158,7 +3157,7 @@ bool update_prices_to_influx()
 
 // Serial command interface
 String serial_command;
-uint8_t serial_command_state = SERIAL_COMMAND_STATE_NOPROCESS; //skip in the beginning, until <2
+uint8_t serial_command_state = SERIAL_COMMAND_STATE_NOPROCESS; // skip in the beginning, until <2
 int network_count = 0;
 
 #define WIFI_LIST_COUNT 6
@@ -3179,7 +3178,7 @@ void process_settings_serial()
 {
   //  handle initial wifi setting from the serial console command line, first 2 minutes only
   // if (!wifi_sta_connected && Serial.available() && millis() < 1000 * 120)
-  if (serial_command_state <= SERIAL_COMMAND_STATE_WAITWIFIPWD  & !wifi_sta_connected)
+  if (serial_command_state <= SERIAL_COMMAND_STATE_WAITWIFIPWD & !wifi_sta_connected)
   {
     if (Serial.available())
     {
@@ -3187,36 +3186,37 @@ void process_settings_serial()
       if (serial_command_state == SERIAL_COMMAND_STATE_WAITWIFICODE) // waiting for wifi code or setup string /SSID/PASSWORD/
       {
         // check code validity
-        for (int j = 0;j<serial_command.length();j++) {
+        for (int j = 0; j < serial_command.length(); j++)
+        {
           Serial.printf("%d ", (int)serial_command[j]);
         }
 
-          if (serial_command.startsWith("WIFI") && isdigit(serial_command[4]) && serial_command.length() <= 6)
+        if (serial_command.startsWith("WIFI") && isdigit(serial_command[4]) && serial_command.length() <= 6)
+        {
+          int wifi_idx = serial_command.substring(4).toInt() - WIFI_OPTION_NOWIFI_SERIAL;
+          if (wifi_idx < network_count && wifi_idx >= 0)
           {
-            int wifi_idx = serial_command.substring(4).toInt() - WIFI_OPTION_NOWIFI_SERIAL;
-            if (wifi_idx < network_count && wifi_idx >= 0)
-            {
-              strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
-              Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
-              Serial.println();
-              if (Serial)
-                clear_serial_input_buffer();
+            strncpy(s.wifi_ssid, WiFi.SSID(wifi_idx).c_str(), 30);
+            Serial.printf(PSTR("Enter password for network %s\n"), WiFi.SSID(wifi_idx).c_str());
+            Serial.println();
+            if (Serial)
+              clear_serial_input_buffer();
 
-              serial_command_state = SERIAL_COMMAND_STATE_WAITWIFIPWD;
-            }
-            else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
-            {
-              s.wifi_ssid[0] = 0;
-              writeToEEPROM();
-              log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
-              serial_command_state = SERIAL_COMMAND_STATE_NOPROCESS;
-            }
-            else
-            {
-              Serial.println("SERIAL");
-              Serial.println(wifi_idx);
-            }
+            serial_command_state = SERIAL_COMMAND_STATE_WAITWIFIPWD;
           }
+          else if (wifi_idx == -1) // no wifi selected, WIFI_OPTION_NOWIFI_SERIAL must be 1
+          {
+            s.wifi_ssid[0] = 0;
+            writeToEEPROM();
+            log_msg(MSG_TYPE_FATAL, PSTR("Continue with disabled WiFI."), true);
+            serial_command_state = SERIAL_COMMAND_STATE_NOPROCESS;
+          }
+          else
+          {
+            Serial.println("SERIAL");
+            Serial.println(wifi_idx);
+          }
+        }
       }
       else if (serial_command_state == SERIAL_COMMAND_STATE_WAITWIFIPWD) // waiting for wifi password
       {
@@ -3252,11 +3252,12 @@ void scan_and_store_wifis(bool print_out, bool store)
     memset(wifis, 0, sizeof(wifis));
 
   if (print_out)
-    Serial.println("Available WiFi networks:\n");
-
-  if (WIFI_OPTION_NOWIFI_SERIAL == 1)
   {
-    Serial.println(PSTR("0 - WiFi disabled"));
+    Serial.println("Available WiFi networks:\n");
+    if (WIFI_OPTION_NOWIFI_SERIAL == 1)
+    {
+      Serial.println(PSTR("WIFI0 - WiFi disabled"));
+    }
   }
 
   for (int i = 0; i < network_count; ++i)
@@ -5631,6 +5632,17 @@ void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *fut
 bool get_price_data_entsoe()
 {
   Serial.printf("get_price_data_entsoe start\n");
+  /*
+  #ifdef NVS_CACHE_ENABLED
+    if (prices2.read_from_cache(time(nullptr)))
+    {
+      Serial.println("Got from prices from cache");
+      prices_expires_ts = prices2.expires();
+      return true;
+    }
+  #endif
+  */
+
   if (prices_expires_ts > time(nullptr))
   {
     Serial.println(F("Price data not expired, returning"));
@@ -5802,13 +5814,6 @@ bool get_price_data_entsoe()
         prices2.set(period_start + (pos - 1) * resolution, price);
       }
 
-      /*
-      #pragma message("REMOVE SPECIAL MTU15 test, generates variation within hour before the change.")
-      Serial.println("REMOVE SPECIAL MTU15 test");
-      prices2.set(period_start + (pos - 1)*resolution+900, price+100);
-      prices2.set(period_start + (pos - 1)*resolution+1800, price+200);
-      prices2.set(period_start + (pos - 1)*resolution+2700, price+300);
-      */
       pos = -1;
       price = VARIABLE_LONG_UNKNOWN;
     }
@@ -5867,10 +5872,11 @@ bool get_price_data_entsoe()
     prices2.apply_pricemodifier(); // modify prices for defined hours
     prices2.debug_print();
 
-#ifdef INFLUX_REPORT_ENABLED
-    // update to Influx if defined
-    update_prices_to_influx();
-#endif
+    /*
+    #ifdef NVS_CACHE_ENABLED
+        prices2.save_to_cache(prices_expires_ts);
+    #endif
+    */
 
     Serial.printf("get_price_data_entsoe end.\n");
     return true;
@@ -7228,15 +7234,16 @@ bool get_price_data_elering(char *country_code)
   Serial.printf("get_price_data_elering \n");
 #pragma message("Cache disabled for testing, get_price_data_elering.")
 
-#ifdef NVS_CACHE_ENABLED_DISABLED_FOR_TESTING
-
-  if (prices2.read_from_cache(time(nullptr)))
-  {
-    Serial.println("Got from prices from cache");
-    prices_expires_ts = prices2.expires();
-    return true;
-  }
-#endif
+  /*
+  #ifdef NVS_CACHE_ENABLED
+    if (prices2.read_from_cache(time(nullptr)))
+    {
+      Serial.println("Got from prices from cache");
+      prices_expires_ts = prices2.expires();
+      return true;
+    }
+  #endif
+  */
 
   WiFiClientSecure client_https;
   char url[120];
@@ -7374,10 +7381,6 @@ bool get_price_data_elering(char *country_code)
         // ts_min_stored = ts_max - (MAX_PRICE_PERIODS-1) * PRICE_RESOLUTION_SEC;
         if (prices2.start() != ts_min_stored)
         {
-
-          //   Serial.printf(PSTR("DEBUG get_price_data_elering prices2.start:  %d -> %d\n"), prices2.start(), ts_min_stored);
-          //   Serial.printf(PSTR("ts %d index is %d  bigger that new  start %d\n"), ts, (ts - ts_min_stored) / PRICE_RESOLUTION_SEC);
-
           prices2.set_store_start(ts_min_stored);
         }
         prices2.set(ts, (long)(price * 100 + 0.5));
@@ -7399,19 +7402,16 @@ bool get_price_data_elering(char *country_code)
   prices2.apply_pricemodifier(false);
   prices2.debug_print();
 
-#ifdef NVS_CACHE_ENABLED
-  prices2.save_to_cache(prices_expires_ts);
-#endif
-
-#ifdef INFLUX_REPORT_ENABLED
-  // update to Influx if defined
-  update_prices_to_influx();
-#endif
+  /*
+  #ifdef NVS_CACHE_ENABLED
+    prices2.save_to_cache(prices_expires_ts);
+  #endif
+  */
 
   Serial.printf("MTU15M_ENABLED get_price_data_elering end ok.\n");
   return true;
 
-#else
+#else // TODO: remove this branch
   Serial.printf("price_rows %d, price_idx %d\n", price_rows, price_idx);
 
   if (price_rows >= MAX_PRICE_PERIODS)
@@ -7432,15 +7432,11 @@ bool get_price_data_elering(char *country_code)
     Serial.println(F("Finished succesfully get_price_data_elering."));
 
     prices2.apply_pricemodifier();
-
-#ifdef NVS_CACHE_ENABLED
-    prices2.save_to_cache(prices_expires_ts);
-#endif
-
-#ifdef INFLUX_REPORT_ENABLED
-    // update to Influx if defined
-    update_prices_to_influx();
-#endif
+    /*
+    #ifdef NVS_CACHE_ENABLED
+        prices2.save_to_cache(prices_expires_ts);
+    #endif
+    */
 
     Serial.printf("get_price_data_elering end ok.\n");
     return true;
@@ -8718,9 +8714,7 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
       todo_in_loop_restart_local = true;
       // expire caches
       prices2.clear_store();
-      // prices2.save_to_cache(0);
-      // solar_forecast.save_to_cache(0);
-      // wind_forecast.save_to_cache(0);
+
     }
     if (doc["action"] == "scan_sensors")
     {
@@ -9339,9 +9333,7 @@ bool connect_wifi()
   {
     if (wifi_sta_connection_required)
     {
-      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi code (see the list below, e.g. WIFI1<enter>) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
-      scan_and_store_wifis(true, false);
-
+      Serial.printf(PSTR("\nEnter valid WiFi SSID and password:, two methods:\n 1) Connect to WiFi %s and go to url http://%s to update your WiFi info.\n 2) Give WiFi code (see the list above, e.g. WIFI1<enter>) and give WiFi password <enter>.\n\n "), APSSID.c_str(), WiFi.softAPIP().toString());
       if (Serial)
       {
         clear_serial_input_buffer();
@@ -9929,9 +9921,11 @@ void loop()
 
   bool got_forecast_ok = false;
   bool got_price_ok = false;
+  bool got_data_from_cache = false;
 
   io_tasks();
-  if (millis() < 1000 * CONSOLE_SETTINGS_EDITABLE_SECS) { //after startup process potential wifi settings from console
+  if (millis() < 1000 * CONSOLE_SETTINGS_EDITABLE_SECS)
+  { // after startup process potential wifi settings from console
     process_settings_serial();
   }
 
@@ -10117,16 +10111,23 @@ void loop()
   if ((next_query_price_data_ts <= time(nullptr)) && (prices_expires_ts <= time(nullptr)) && wifi_sta_connected)
   {
     io_tasks(STATE_PROCESSING);
+    got_price_ok = false;
 
-    if (strncmp(s.entsoe_area_code, "#", 1) == 0)
+    if (strncmp(s.entsoe_area_code, "#", 1) != 0) // if no area code, not price query
     {
-      got_price_ok = false; // no area code, not price query
-    }
-    else
-    {
-
-      // NEW WAY
-      got_price_ok = get_price_data_entsoe();
+#ifdef NVS_CACHE_ENABLED
+      got_data_from_cache = prices2.read_from_cache(time(nullptr));
+      if (got_data_from_cache)
+      {
+        Serial.println("Got from prices from cache");
+        prices_expires_ts = prices2.expires();
+        got_price_ok = true;
+      }
+#endif
+      if (!got_price_ok)
+      {
+        got_price_ok = get_price_data_entsoe();
+      }
 
 #ifdef PRICE_ELERING_ENABLED
       char backup_country_code[3];
@@ -10147,7 +10148,20 @@ void loop()
     // todo_in_loop_update_price_rank_variables = got_price_ok;
     if (got_price_ok)
     {
+#ifdef NVS_CACHE_ENABLED
+      if (!got_data_from_cache)
+      {
+        prices2.save_to_cache(prices_expires_ts);
+      }
+#endif
       todo_calculate_ranks_period_variables = true;
+
+#ifdef INFLUX_REPORT_ENABLED
+      if (!got_data_from_cache)
+      {
+        update_prices_to_influx();
+      }
+#endif
     }
     next_query_price_data_ts = (got_price_ok ? (max(prices_expires_ts, time(nullptr)) + 900 + random(0, 900)) : (time(nullptr) + 600 + random(0, 60))); // random, to prevent query peak
     Serial.printf("next_query_price_data_ts: %ld %s\n", next_query_price_data_ts, got_price_ok ? "ok" : "failed");
@@ -10155,7 +10169,6 @@ void loop()
 
   if (next_query_fcst_data_ts <= time(nullptr) && wifi_sta_connected) // got solar & wind fcsts
   {
-
     io_tasks(STATE_PROCESSING);
     got_forecast_ok = get_renewable_forecast(FORECAST_TYPE_FI_LOCAL_SOLAR, &solar_forecast);
     // got_forecast_ok = get_solar_forecast_experimental(&solar_forecast);
