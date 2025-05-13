@@ -1249,8 +1249,12 @@ function create_dashboard_chart() {
         return;
     }
  
-    g_graph_show_power = document.getElementById('dashboard:graph_unit_p').checked;
-    set_cookien("graph_unit", g_graph_show_power?"p":"e", 100);
+    if (g_mtu15m_enabled) {
+        g_graph_show_power = document.getElementById('dashboard:graph_unit_p').checked;
+        set_cookien("graph_unit", g_graph_show_power ? "p" : "e", 100);
+    }
+    else
+        g_graph_show_power = false;
    
 
     let prices_out = [];
@@ -2054,8 +2058,12 @@ function load_application_config() {
                 document.getElementById(`remote_accordion`).classList.remove("collapse");
             
             g_mtu15m_enabled = g_application.hasOwnProperty("MTU15M_ENABLED") ? g_application.MTU15M_ENABLED : false;
-            if (!g_mtu15m_enabled)
-                document.getElementById(`isp_div`).classList.add("d-none"); 
+            if (!g_mtu15m_enabled) {
+                document.getElementById(`isp_div`).classList.add("d-none");
+            }
+            else {
+                document.getElementById(`graph_unit_div`).classList.remove("collapse");
+            }
 
             g_mdns_enabled = g_application.hasOwnProperty("MDNS_ENABLED") ? g_application.MDNS_ENABLED : false;
             if (g_mdns_enabled)
@@ -3236,13 +3244,19 @@ function save_hide_multiselect_popover(stmt_id) {
 
 
 
-// triggred from window onload
+// triggered from window onload
 function init_ui() {
     console.log("Init ui");
 
-    document.getElementById(`dashboard:graph_unit_e`).checked = get_cookie("graph_unit") == "e";
-    
+
     load_application_config();
+
+    if (g_mtu15m_enabled) {
+        document.getElementById(`dashboard:graph_unit_e`).checked = get_cookie("graph_unit") == "e";
+    }
+    else {
+        graph_unit_div
+    }
 
     //   hw templates from the app 
     hw_template_ctrl = document.getElementById(`hw_template_id`);

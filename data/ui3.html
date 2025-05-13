@@ -382,20 +382,21 @@
                   <div class="card-body" id="chart_container:card">
 
                     <div class="d-flex align-items-center">
-
-                      <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="graph_unit" id="dashboard:graph_unit_p"
-                          value="p" checked>
-                        <label class="form-check-label text-muted" for="dashboard:graph_unit_p">
-                          Power
-                        </label>
-                      </div>
-                      <div class="form-check form-check-inline">
-                        <input class="form-check-input" type="radio" name="graph_unit" id="dashboard:graph_unit_e"
-                          value="e">
-                        <label class="form-check-label text-muted" for="dashboard:graph_unit_e">
-                          Energy
-                        </label>
+                      <div id="graph_unit_div" class="collapse">
+                        <div class="form-check form-check-inline">
+                          <input class="form-check-input" type="radio" name="graph_unit" id="dashboard:graph_unit_p"
+                            value="p" checked>
+                          <label class="form-check-label text-muted" for="dashboard:graph_unit_p">
+                            Power
+                          </label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                          <input class="form-check-input" type="radio" name="graph_unit" id="dashboard:graph_unit_e"
+                            value="e">
+                          <label class="form-check-label text-muted" for="dashboard:graph_unit_e">
+                            Energy / 15 min
+                          </label>
+                        </div>
                       </div>
 
                       <button id="dashboard:refresh" type="button" class="btn btn-primary d-none"
