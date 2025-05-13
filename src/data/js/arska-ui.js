@@ -7,6 +7,7 @@ var g_remote_enabled;
 var g_mdns_enabled;
 var g_influx_report_enabled;
 var g_mtu15m_enabled;
+var g_graph_show_power = true;
 
 var g_open_popover = null;
 
@@ -1247,6 +1248,10 @@ function create_dashboard_chart() {
         //  console.log("create_dashboard_chart delayed");
         return;
     }
+ 
+    g_graph_show_power = document.getElementById('dashboard:graph_unit_p').checked;
+    set_cookien("graph_unit", g_graph_show_power?"p":"e", 100);
+   
 
     let prices_out = [];
     now_ts = (Date.now() / 1000);
@@ -1316,13 +1321,25 @@ function create_dashboard_chart() {
     var import_ds = [];
 
     // iterate
-    var period_label = 'h';
+    var period_label = '/ h';
     if (g_settings.netting_period_sec == SECONDS_IN_HOUR) {
         period_factor = 1;
     }
     else {
-        period_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
+        period_label = "/ " + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
         period_factor = g_settings.netting_period_sec / SECONDS_IN_HOUR;
+    }
+
+    unit_factor = 1;
+    if (g_graph_show_power) {
+        unit = 'W';
+        period_label = '';
+        if (g_mtu15m_enabled) {
+            unit_factor = 4;
+        }
+    }
+    else {
+        unit = 'Wh';
     }
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
@@ -1333,7 +1350,7 @@ function create_dashboard_chart() {
                 dataset_started = true;
                 if (dataset_started) {
                     if (chart_start_ts <= ts && ts < chart_end_excl_ts)
-                        import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
+                        import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx]*unit_factor });
                 }
             }
             ts += g_settings.netting_period_sec;
@@ -1341,12 +1358,13 @@ function create_dashboard_chart() {
 
       //  console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
 
+     
         if (dataset_started)
             datasets.push(
                 {
                     data: import_ds,
                     yAxisID: 'y_energy',
-                    label: 'import Wh/' + period_label,
+                    label: `import ${unit} ${period_label}`,
                     cubicInterpolationMode: 'monotone',
                     borderColor: ['#0eb03c'
                     ],
@@ -1372,13 +1390,13 @@ function create_dashboard_chart() {
                 dataset_started = true;
 
             if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
-                production_ds.push({ x: ts * 1000, y: variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx] });
+                production_ds.push({ x: ts * 1000, y: variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]*unit_factor });
         }// chart_resolution_sec
 
         if (dataset_started)
             datasets.push(
                 {
-                    label: 'production Wh/' + period_label,
+                    label: `production ${unit} ${period_label}`,
                     data: production_ds,
                     yAxisID: 'y_energy',
                     cubicInterpolationMode: 'monotone',
@@ -1406,7 +1424,7 @@ function create_dashboard_chart() {
                     dataset_started = true;
 
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
-                    ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] });
+                    ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] *unit_factor});
             }// chart_resolution_sec
 
             if (dataset_started)
@@ -1455,18 +1473,18 @@ function create_dashboard_chart() {
                 if (solar_fcst[idx] > 0)
                     series_started = true;
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
-                    fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx] }); // use period factor (0.25 for 15 min periods)
+                    fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx]*unit_factor }); // use period factor (0.25 for 15 min periods)
             }
             if (fcst_ds.length) {
                 datasets.push(
                     {
-                        label: 'solar fcst Wh/' + period_label,
+                        label: `solar fcst ${unit} ${period_label}`,
                         data: fcst_ds,
                         yAxisID: 'y_energy',
                         cubicInterpolationMode: 'monotone',
-                        borderColor: ['#ffff00'
+                        borderColor: ['#ffea00'
                         ],
-                        backgroundColor: '#ffff00',
+                        backgroundColor: '#ffea00',
                         pointStyle: 'circle',
                         pointRadius: 1,
                         pointHoverRadius: 5,
@@ -1575,7 +1593,7 @@ function create_dashboard_chart() {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
-                            return value + ' Wh';
+                            return value + ' '+unit;
                         }
                     }
                 },
@@ -3222,6 +3240,8 @@ function save_hide_multiselect_popover(stmt_id) {
 function init_ui() {
     console.log("Init ui");
 
+    document.getElementById(`dashboard:graph_unit_e`).checked = get_cookie("graph_unit") == "e";
+    
     load_application_config();
 
     //   hw templates from the app 
