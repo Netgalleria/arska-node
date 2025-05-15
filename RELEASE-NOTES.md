@@ -13,11 +13,14 @@
   * SoC (State of Charge) visible on the dashboard graph
 * Optional price modifier (Settings/Price data) allows to modify prices on selected hours. You can for example add negative price modifier to night hours to indicate cheaper transfer cost. Price modifier takes effect after updating price data from Entso-E/Elering.
 * Dashboard history values are saved in soft boots
+* You can select power (W) or energy (Wh) for dashboard graph.
+* With HAN P1 Serial energy meter HAN P1 message (telegram) is published at /api/v1/telegram endpoint (equal to HomeWizard P1 meter). You can read this telegram from another Arska installation (in the same wifi) using "HAN P1 Proxy" energy metering setting.
 
 ### Bug Fixes
   * A memory corruption error fixed (22.4.2025)
   * Loads better from AP-mode wifi, 192.168.4.1 (30.4.2025)
-  * Tuned recovery from wifi disconnect (8.5.2025)
+  * Tuned recovery from wifi disconnect, typical in firmware updates (14.5.2025)
+  * Restructured HAN P1 message handling for better stability  (14.5.2025)
   * several other fixes and tunings
 
 ### Known open issuess

@@ -7,7 +7,7 @@ FILENAME_VERSION_H = 'include/version.h'
 # e.g. 0.93.0-alpha1,  0.93.0-beta1,  0.93.0-rc1,  0.93.0-stable, 0.93.1-stable  
 
 #version = '1.3.0-alfa1'
-version = '1.3.0-beta2'
+version = '1.3.0-beta3'
 esp_idf_version_custom = "4.4.5" #use to approximate bootloader version 
 #version = '1.1.0-rc2'
 #version = '0.92.0-stable'
