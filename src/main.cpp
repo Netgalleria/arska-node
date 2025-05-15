@@ -10162,7 +10162,7 @@ void loop()
     if (got_price_ok)
     {
 #ifdef NVS_CACHE_ENABLED
-      if (!got_data_from_cache)
+      if (!got_data_from_cache && got_price_ok)
       {
         prices2.save_to_cache(prices_expires_ts);
       }
@@ -10170,7 +10170,7 @@ void loop()
       todo_calculate_ranks_period_variables = true;
 
 #ifdef INFLUX_REPORT_ENABLED
-      if (!got_data_from_cache)
+      if (!got_data_from_cache & got_price_ok)
       {
         update_prices_to_influx();
       }
