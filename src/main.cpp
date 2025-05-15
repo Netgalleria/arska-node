@@ -1412,7 +1412,6 @@ bool todo_in_loop_update_firmware_partition = false;
 bool todo_in_loop_reapply_relay_states = false;
 bool relay_state_reapply_required[CHANNEL_COUNT]; // if true channel parameters have been changed and r
 
-volatile bool todo_in_loop_process_energy_meter_readings = false; //!< do rest of the energy meter processing in the loop
 bool todo_in_loop_save_time_to_rtc = false;
 
 #ifdef BATTERY_ENABLED
@@ -3187,11 +3186,6 @@ void process_settings_serial()
       if (serial_command_state == SERIAL_COMMAND_STATE_WAITWIFICODE) // waiting for wifi code or setup string /SSID/PASSWORD/
       {
         // check code validity
-        for (int j = 0; j < serial_command.length(); j++)
-        {
-          Serial.printf("%d ", (int)serial_command[j]);
-        }
-
         if (serial_command.startsWith("WIFI") && isdigit(serial_command[4]) && serial_command.length() <= 6)
         {
           int wifi_idx = serial_command.substring(4).toInt() - WIFI_OPTION_NOWIFI_SERIAL;
@@ -3795,40 +3789,26 @@ float check_current_load()
 
 // update variable etc...
 // postprocessing after succesfully received measure date
-SemaphoreHandle_t xHAN_P1_Semaphore = NULL;
 
-void process_energy_meter_readings(bool exclusive)
+void process_energy_meter_readings()
 {
-  // Semaphore could be required because double read operations are not atomic (HAN direct)
-  if (exclusive)
-  {
-    if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)100) == pdFALSE)
-    {
-      Serial.println(PSTR("process_energy_meter_readings - cannot get semaphore"));
-      log_msg(MSG_TYPE_ERROR, PSTR("process_energy_meter_readings - cannot get semaphore"));
-      return;
-    }
-    // delay((int)random(3000, 15000));
-    //  Serial.println("TESTING WITH RANDOM DELAY");
-  }
-
   bool period_changed_since_last_read = ((energy_meter_period_first_read_ts / NETTING_PERIOD_SEC) != (time(nullptr) / NETTING_PERIOD_SEC));
   energy_meter_read_ok_count++; // global
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
-
+  yield();
   //  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in_vol %f Wh, energy_meter_cumulative_latest_out_vol %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in_vol, energy_meter_cumulative_latest_out_vol, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
 
   // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
   {
+    Serial.println("DEBUG first succesful measurement since boot, record only initial values");
+    Serial.println(energy_meter_cumulative_latest_in_vol);
+
     energy_meter_period_first_read_ts = time(nullptr);
     energy_meter_cumulative_periodstart_in = energy_meter_cumulative_latest_in_vol;
     energy_meter_cumulative_periodstart_out = energy_meter_cumulative_latest_out_vol;
-    if (exclusive)
-    {
-      xSemaphoreGive(xHAN_P1_Semaphore);
-    }
+
     return; // skip other processing in the first measurement
   }
 
@@ -3840,8 +3820,6 @@ void process_energy_meter_readings(bool exclusive)
   }
 
   yield();
-
-  // Serial.printf("DEBUG: calculate_energy_meter_period_values energy_meter_read_ok_count %d, energy_meter_period_power_netin %f \n", energy_meter_read_ok_count, (float)energy_meter_period_power_netin);
 
   energy_meter_period_netin = (energy_meter_cumulative_latest_in_vol - energy_meter_cumulative_latest_out_vol - energy_meter_cumulative_periodstart_in + energy_meter_cumulative_periodstart_out);
 
@@ -3870,7 +3848,7 @@ void process_energy_meter_readings(bool exclusive)
   }
 
 #endif
-
+  yield();
   vars.set(VARIABLE_OVERPRODUCTION, (long)(energy_meter_period_netin < 0) ? 1L : 0L);
   vars.set(VARIABLE_SELLING_POWER, (long)round(-energy_meter_period_power_netin));
   vars.set(VARIABLE_SELLING_ENERGY, (long)round(-energy_meter_period_netin));
@@ -3879,11 +3857,6 @@ void process_energy_meter_readings(bool exclusive)
 
   energy_meter_value_previous_in = energy_meter_cumulative_latest_in_vol;
   energy_meter_value_previous_out = energy_meter_cumulative_latest_out_vol;
-
-  if (exclusive)
-  {
-    xSemaphoreGive(xHAN_P1_Semaphore);
-  }
 }
 
 #ifdef METER_HAN_ENABLED
@@ -4057,7 +4030,8 @@ size_t han_available_bytes;
  * @return true , successful if there were enough values in the buffer
  * @return false , unsuccessful, not enough data or too few values
  */
-bool receive_energy_meter_han_direct() // direct
+/*
+bool IRAM_ATTR receive_energy_meter_han_direct() // direct
 {
   han_value_count = 0;
   bool message_error;
@@ -4105,6 +4079,7 @@ bool receive_energy_meter_han_direct() // direct
       memset(row_buffer, 0, sizeof(row_buffer));
 
       han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
+
       if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
         continue;
 
@@ -4126,13 +4101,7 @@ bool receive_energy_meter_han_direct() // direct
     }
 
     energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-    // yield();
 
-    // led down
-    // if (!hw_templates[hw_template_idx].hw_io.shiftreg_relay_output && hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
-    //{
-    //  digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[RGB_IDX_GREEN], HIGH);
-    //}
     xSemaphoreGive(xHAN_P1_Semaphore);
     // read done
     todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
@@ -4149,6 +4118,102 @@ bool receive_energy_meter_han_direct() // direct
     return false;
   }
 }
+*/
+#define HAN_BUFFER_SIZE 1024
+volatile size_t hanIndex = 0;
+char han_message_buffer[HAN_BUFFER_SIZE];  // write in isr, process  in parse_han_message()
+volatile bool todo_in_loop_parse_han_message = false;
+volatile bool han_read_busy = false; //lock writing in isr if busy
+
+
+void IRAM_ATTR receive_energy_meter_han_direct_2()
+{
+  delay(100); // there should be some delay to fill the buffer...
+  han_available_bytes = HAN_P1_SERIAL.available();
+
+  if (han_available_bytes < 200 || han_read_busy)
+  {
+    while (HAN_P1_SERIAL.available()) // skip the message and empty the UART buffer to get next irq
+    {
+      HAN_P1_SERIAL.read();
+    }
+    return;
+  }
+  hanIndex = 0;
+  while (HAN_P1_SERIAL.available())
+  {
+    char c = HAN_P1_SERIAL.read();
+
+    if (hanIndex < HAN_BUFFER_SIZE - 2)
+    {
+      han_message_buffer[hanIndex++] = c;
+    }
+
+    todo_in_loop_parse_han_message = true;
+  }
+  han_message_buffer[hanIndex] = '\0'; // Null-terminate safely
+}
+// Utility, experimental
+class CharArrayStream
+{
+public:
+  CharArrayStream(const char *buffer, size_t length)
+      : _buffer(buffer), _length(length), _pos(0) {}
+  bool available() { return _pos < _length; }
+
+  size_t readBytesUntil(char terminator, char *dest, size_t maxLen)
+  {
+    size_t count = 0;
+    while (_pos < _length && count < maxLen)
+    {
+      char c = _buffer[_pos++];
+      if (c == terminator)
+        break;
+      dest[count++] = c;
+    }
+    return count;
+  }
+
+private:
+  const char *_buffer;
+  size_t _length;
+  size_t _pos;
+};
+
+bool parse_han_message() // direct
+{
+  han_value_count = 0;
+  bool message_error;
+  yield();
+  CharArrayStream han_msg_stream(han_message_buffer, strlen(han_message_buffer));
+
+  han_read_busy = true; // skip writing from ISR to the buffer
+
+  while (han_msg_stream.available())
+  {
+    han_received_chars = han_msg_stream.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH - 1);
+    row_buffer[han_received_chars] = '\0';
+    if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
+      continue;
+
+    if (parse_han_row(row_buffer, &message_error))
+    {
+      han_value_count++;
+    }
+    yield();
+  }
+  if (han_value_count < 5 || message_error) // 3 phase should have < 7
+  {
+    return false;
+  }
+
+  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
+
+  han_read_busy = false; // now ISR can write to the buffer again
+
+  // read done
+  return true;
+}
 
 #endif
 /**
@@ -4161,50 +4226,16 @@ bool read_energy_meter_han_wifi()
 {
   char url[90];
   snprintf(url, sizeof(url), "http://%s:%d/api/v1/telegram", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
-  Serial.println(url);
-  bool message_error;
-
   yield();
   String telegram = httpGETRequest(url, CONNECT_TIMEOUT_INTERNAL);
   yield();
 
-  int s_idx = 0, e_idx;
-  int len = telegram.length();
-  Serial.printf("Length of telegram: %i\n", len);
-
-  // read
-  energy_meter_cumulative_latest_in_vol = 0;
-  energy_meter_cumulative_latest_out_vol = 0;
-  int value_count = 0;
-
-  // new
-  String row_in;
-  while (s_idx <= len)
-  {
-    e_idx = telegram.indexOf('\n', s_idx);
-    if (e_idx == -1) // end of message reached
-      break;
-
-    row_in = telegram.substring(s_idx, e_idx);
-    //  Serial.println(row_in);
-
-    if (parse_han_row(row_in.c_str(), &message_error))
-      value_count++;
-    s_idx = e_idx + 1;
-  }
-
-  if (value_count < 5)
-  {
-    Serial.printf("Cannot read all HAN P1 port values ( %d )\n", (int)value_count);
-    return false;
-  }
-
-  yield();
-  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-  // read done
-  process_energy_meter_readings(false);
-
-  yield();
+  // int len = telegram.length();
+  //  Serial.printf("Length of telegram: %i\n", len);
+  //   copies data to the shared buffer and loop() initiated parse_han_message()  parses and process it further
+  strncpy(han_message_buffer, telegram.c_str(), sizeof(han_message_buffer) - 1);
+  han_message_buffer[sizeof(han_message_buffer) - 1] = '\0';
+  // todo_in_loop_parse_han_message = true;
   return true;
 }
 
@@ -4281,13 +4312,9 @@ bool read_energy_meter_shelly3em()
     energy_meter_cumulative_latest_in_vol = (float)doc["total_act"];
     energy_meter_cumulative_latest_out_vol = (float)doc["total_act_ret"];
   }
-
   energy_meter_power_netin = power_tot;
 
   // read done
-
-  process_energy_meter_readings(false);
-
   yield();
   return true;
 }
@@ -4447,7 +4474,7 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
   mb.task();
   return combined;
 }
-
+/*
 void onDumpModbus(AsyncWebServerRequest *request)
 {
   if (!request->authenticate(s.http_username, s.http_password))
@@ -4507,7 +4534,7 @@ void onDumpModbus(AsyncWebServerRequest *request)
     request->send(200, "application/json", output);
   }
 }
-
+*/
 bool set_mbus_register_value(IPAddress remote, uint8_t modbusip_unit, const int reg_offset, long value)
 {
   uint16_t trans = mb.writeHreg(remote, reg_offset, value, modbus_callback, modbusip_unit);
@@ -4868,7 +4895,8 @@ void calculate_price_rank_variables()
 
   localtime_r(&current_period_start_ts, &tm_struct_l);
 
-  vars.set(VARIABLE_PRICE, (long)((prices2.get(now_infunc) + 50) / 100));
+  long price_now_raw = (long)prices2.get(now_infunc);
+  vars.set(VARIABLE_PRICE, (long)(price_now_raw + (price_now_raw < 0 ? -50 : 50)) / 100);
   // Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
   yield();
 
@@ -6171,12 +6199,24 @@ void read_energy_meter()
   {
 #ifdef METER_SHELLY3EM_ENABLED
     read_ok = read_energy_meter_shelly3em();
+    if (read_ok)
+    {
+      process_energy_meter_readings();
+    }
+
 #endif
   }
   else if (s.energy_meter_type == ENERGYM_HAN_WIFI)
   {
 #ifdef METER_HAN_ENABLED
     read_ok = read_energy_meter_han_wifi();
+    if (read_ok)
+    {
+      if (parse_han_message())
+      {
+        process_energy_meter_readings();
+      }
+    }
 #endif
   }
   // NO ENERGY METER DEFINED, function should not be called
@@ -6208,7 +6248,7 @@ void read_energy_meter()
         log_msg(MSG_TYPE_ERROR, PSTR("Failed to read energy meter. Check Wifi, internet connection and the meter."));
     }
   }
-  Serial.printf("read_energy_meter took %lu, ok %lu, failed %lu\n", millis() - energy_meter_last_read_started_ms, energy_meter_read_ok_count, energy_meter_read_all_count - energy_meter_read_ok_count);
+  Serial.printf("read_energy_meter %s, took %lu ms, ok %lu, failed %lu\n", read_ok ? "ok" : "failed", millis() - energy_meter_last_read_started_ms, energy_meter_read_ok_count, energy_meter_read_all_count - energy_meter_read_ok_count);
 }
 //
 
@@ -7233,18 +7273,6 @@ bool get_entsoe_country_code(const char *backup_country_code, char *entsoe_count
 bool get_price_data_elering(char *country_code)
 {
   Serial.printf("get_price_data_elering \n");
-#pragma message("Cache disabled for testing, get_price_data_elering.")
-
-  /*
-  #ifdef NVS_CACHE_ENABLED
-    if (prices2.read_from_cache(time(nullptr)))
-    {
-      Serial.println("Got from prices from cache");
-      prices_expires_ts = prices2.expires();
-      return true;
-    }
-  #endif
-  */
 
   WiFiClientSecure client_https;
   char url[120];
@@ -7403,15 +7431,9 @@ bool get_price_data_elering(char *country_code)
   prices2.apply_pricemodifier(false);
   prices2.debug_print();
 
-  /*
-  #ifdef NVS_CACHE_ENABLED
-    prices2.save_to_cache(prices_expires_ts);
-  #endif
-  */
-
   Serial.printf("MTU15M_ENABLED get_price_data_elering end ok.\n");
   return true;
-
+/*
 #else // TODO: remove this branch
   Serial.printf("price_rows %d, price_idx %d\n", price_rows, price_idx);
 
@@ -7433,16 +7455,11 @@ bool get_price_data_elering(char *country_code)
     Serial.println(F("Finished succesfully get_price_data_elering."));
 
     prices2.apply_pricemodifier();
-    /*
-    #ifdef NVS_CACHE_ENABLED
-        prices2.save_to_cache(prices_expires_ts);
-    #endif
-    */
 
     Serial.printf("get_price_data_elering end ok.\n");
     return true;
   }
-
+*/
 #endif
 
   return false;
@@ -9480,6 +9497,10 @@ void setup()
 
   delay(2000); // wait for console to settle - only needed when debugging
 
+// #pragma message("JUST TESTING")
+//   strcpy(han_message_buffer, "/ADN9 6511\n\n0-0:1.0.0(250514153210S)\n1-0:1.8.0(00001809.865*kWh)\n1-0:2.8.0(00000000.000*kWh)\n1-0:3.8.0(00000002.219*kVArh)\n1-0:4.8.0(00001067.034*kVArh)\n1-0:1.7.0(0000.140*kW)\n1-0:2.7.0(0000.000*kW)\n1-0:3.7.0(0000.000*kVAr)\n1-0:4.7.0(0000.066*kVAr)\n1-0:21.7.0(0000.142*kW)\n1-0:22.7.0(0000.000*kW)\n1-0:23.7.0(0000.000*kVAr)\n1-0:24.7.0(0000.066*kVAr)\n1-0:32.7.0(233.9*V)\n1-0:31.7.0(000.7*A)\n!8281");
+//   parse_han_message();
+
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
 
@@ -9619,6 +9640,7 @@ void setup()
 
 #ifdef METER_HAN_DIRECT_ENABLED
 #define HAN_P1_SERIAL_SIZE_RX 1024 // Big enough for HAN P1 message
+
   int8_t uart_tx_gpio_unused = hw_templates[hw_template_idx].uart_tx_gpio_unused;
   if (!GPIO_IS_VALID_OUTPUT_GPIO(uart_tx_gpio_unused))
     uart_tx_gpio_unused = -1;
@@ -9626,13 +9648,14 @@ void setup()
   {
     Serial.printf("Initializing HAN P1 Serial for HAN P1 read. GPIO: %d\n", (int)s.energy_meter_gpio);
 
-    xHAN_P1_Semaphore = xSemaphoreCreateMutex();
     // uart_set_rx_full_threshold();
     // HAN_P1_SERIAL.setRxFIFOFull();//default 120
     HAN_P1_SERIAL.setRxBufferSize(HAN_P1_SERIAL_SIZE_RX);
     HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, uart_tx_gpio_unused); // Hardware Serial of ESP32, was -1 now 34
     HAN_P1_SERIAL.flush();
-    HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
+    // HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
+    // New version adopted 14.5.2025
+    HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct_2, false); // sets a RX callback function for Serial 2
   }
 #endif
   Serial.printf("Arduino Stack was set to %d bytes.\n", getArduinoLoopTaskStackSize());
@@ -9799,9 +9822,9 @@ void setup()
   server_web.on("/wifis", HTTP_GET, onWebWifisGet);
 
   /*
-#ifdef MODBUS_ENABLED
-  server_web.on("/modbusdump", HTTP_GET, onDumpModbus);
-#endif
+  #ifdef MODBUS_ENABLED
+    server_web.on("/modbusdump", HTTP_GET, onDumpModbus);
+  #endif
   */
 
 #ifdef HANP1_PROXY_ENABLED
@@ -9837,24 +9860,10 @@ void setup()
                   if (!request->authenticate(s.http_username, s.http_password))
     return request->requestAuthentication(); 
     if (!first_loop_ended && WiFi.getMode() == WIFI_STA )  {
-      request->send(200, "text/html", PSTR("<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"10\"></head><body><p>Arska is waking up, wait a while...</p></body></html>"));
+      request->send(200, "text/html", PSTR("<!DOCTYPE html><html><head><meta http-equiv=\"refresh\" content=\"10\"></head><body><p>&#127774; Arska is waking up... just a moment!</p></body></html>"));
     }
     else {
-      request->send(FILESYSTEM, "/ui3.html", "text/html");
-/*
-      File info_file = FILESYSTEM.open("/ui3.html", "r");
-        std::shared_ptr<File> sfile = std::make_shared<File>(info_file);;
-
-
-       // std::shared_ptr<uint16_t> sind = std::make_shared<uint16_t>(0);
-        AsyncWebServerResponse *response = request->beginChunkedResponse("text/html", [sfile](uint8_t *buffer, size_t maxLen, size_t index)                                                                 {
-			return sfile->read( buffer,(int)HTTP_CHUNKSIZE);
-      
-		 });
-        request->send(response);
-        */
-
-       
+      request->send(FILESYSTEM, "/ui3.html", "text/html");    
     } });
 
   // Testing update form from filesystem
@@ -10079,12 +10088,14 @@ void loop()
 
   // Below business logic actions that require mcu clock in time -->
   // process measurements
-  if (todo_in_loop_process_energy_meter_readings)
+  if (todo_in_loop_parse_han_message)
   {
-    todo_in_loop_process_energy_meter_readings = false;
-    process_energy_meter_readings(true); // skip semaphore with false
+    todo_in_loop_parse_han_message = false;
+    if (parse_han_message())
+    {
+      process_energy_meter_readings(); //
+    }
   }
-
   // experimental , save internal time to rtc
 
   if (todo_in_loop_save_time_to_rtc)
