@@ -33,6 +33,7 @@ DEVEL BRANCH
 #define INVERTER_SMA_MODBUS_ENABLED // can read SMA inverter Modbus TCP, disable in battery version
 #define METER_HAN_ENABLED
 #define METER_HAN_DIRECT_ENABLED
+#define HANP1_PROXY_ENABLED // experimental, allow http access to the latest han p1 message
 #define LOAD_MGMT_ENABLED
 #define PING_ENABLED          // for testing if internet connection etc ok
 #define PRICE_ELERING_ENABLED // Experimental price query from Elering
@@ -9797,9 +9798,21 @@ void setup()
   server_web.on("/settings", HTTP_GET, onWebSettingsGet);
   server_web.on("/wifis", HTTP_GET, onWebWifisGet);
 
+  /*
 #ifdef MODBUS_ENABLED
   server_web.on("/modbusdump", HTTP_GET, onDumpModbus);
 #endif
+  */
+
+#ifdef HANP1_PROXY_ENABLED
+  server_web.on("/api/v1/telegram", HTTP_GET, [](AsyncWebServerRequest *request) { // TODO: control what appens if now writing
+    han_read_busy = true; // skip writing from ISR to the buffer
+    request->send(200, "text/plain", han_message_buffer);
+    han_read_busy = false;
+
+  });
+#endif
+
   server_web.on(
       "/settings", HTTP_POST,
       [](AsyncWebServerRequest *request) {},
