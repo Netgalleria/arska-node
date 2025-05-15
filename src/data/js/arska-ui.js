@@ -1976,25 +1976,32 @@ function load_and_update_settings() {
         success: function (data) {
             g_settings = data;
             // iterate
-            if (g_settings.netting_period_sec == SECONDS_IN_HOUR) {
-                isp_label = 'h';
-            }
-            else {
-                isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
-            }
+         
             console.log("/settings took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
-
-
-
             return true;
         },
         error: function (jqXHR, textStatus, errorThrown) {
             console.log("Cannot get g_settings", textStatus, jqXHR.status, errorThrown);
-            return false;
+            // Remove control characters except newline, carriage return, tab
+            let cleaned = jqXHR.responseText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+            try {
+              g_settings = JSON.parse(cleaned);
+                console.log("Recovered JSON:", g_settings);
+                return true;
+            } catch (e) {
+              console.error("Still invalid after cleaning:", e.message);
+                return false;
+            }
         }
     });
 
-
+    if (g_settings.netting_period_sec == SECONDS_IN_HOUR) {
+        isp_label = 'h';
+    }
+    else {
+        isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
+    }
+    
     if (g_settings.hasOwnProperty("wg_expires")) {
         var expire_text = '';
         if (g_settings.wg_expires == 0)
