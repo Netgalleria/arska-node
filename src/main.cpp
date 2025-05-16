@@ -2246,7 +2246,7 @@ bool timeSeries::save_to_cache(time_t expires) // save to nvs,true if successful
  * @return true if found and not expired
  * @return false
  */
-bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
+bool timeSeries::read_from_cache(time_t expire_not_before) //  https://github.com/espressif/esp-idf/blob/b4268c874a4cf8fcf7c0c4153cffb76ad2ddda4e/examples/storage/nvs_rw_blob/main/nvs_blob_example_main.c
 {
   nvs_handle_t my_handle;
   char key[6];
@@ -2278,8 +2278,8 @@ bool timeSeries::read_from_cache(time_t expires) //  https://github.com/espressi
   }
   // Close
   nvs_close(my_handle);
-  Serial.printf("read_from_cache, read time series %d, %d - %d,  expiration %lu\n", (int)id_, start(), end(), expires);
-  return (store.expires > expires); // check expiration
+  Serial.printf("read_from_cache, read time series %d, %d - %d,  expiration %lu\n", (int)id_, start(), end(), store.expires);
+  return (store.expires > expire_not_before); // check expiration
 };
 
 void timeSeries::set(time_t ts, T new_value)
@@ -4121,10 +4121,9 @@ bool IRAM_ATTR receive_energy_meter_han_direct() // direct
 */
 #define HAN_BUFFER_SIZE 1024
 volatile size_t hanIndex = 0;
-char han_message_buffer[HAN_BUFFER_SIZE];  // write in isr, process  in parse_han_message()
+char han_message_buffer[HAN_BUFFER_SIZE]; // write in isr, process  in parse_han_message()
 volatile bool todo_in_loop_parse_han_message = false;
-volatile bool han_read_busy = false; //lock writing in isr if busy
-
+volatile bool han_read_busy = false; // lock writing in isr if busy
 
 void IRAM_ATTR receive_energy_meter_han_direct_2()
 {
@@ -4854,7 +4853,7 @@ void calculate_price_rank_variables()
   time_t first_ts_in_window, last_ts_in_window;
 
   Serial.printf("calculate_price_rank_variables start: %ld, end: %ld, current_period_start_ts: %lu\n", prices_record_start, prices2.end() + PRICE_RESOLUTION_SEC, current_period_start_ts);
-  if (prices2.get(now_infunc, VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
+  if (prices2.get(time(nullptr), VARIABLE_LONG_UNKNOWN) == VARIABLE_LONG_UNKNOWN)
   {
     if (use_prices)
     {
@@ -4886,7 +4885,7 @@ void calculate_price_rank_variables()
 
     return;
   }
-  else if (prices_expires_ts + SECONDS_IN_HOUR * 1 < now_infunc)
+  else if (prices_expires_ts + SECONDS_IN_HOUR * 1 < time(nullptr))
   {
     //  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
     //    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
@@ -4896,7 +4895,7 @@ void calculate_price_rank_variables()
 
   localtime_r(&current_period_start_ts, &tm_struct_l);
 
-  long price_now_raw = (long)prices2.get(now_infunc);
+  long price_now_raw = (long)prices2.get(time(nullptr));
   vars.set(VARIABLE_PRICE, (long)(price_now_raw + (price_now_raw < 0 ? -50 : 50)) / 100);
   // Serial.printf("\n\n current_period_start_ts: %lu, %04d-%02d-%02d %02d:00, \n", current_period_start_ts, tm_struct_l.tm_year + 1900, tm_struct_l.tm_mon + 1, tm_struct_l.tm_mday, tm_struct_l.tm_hour);
   yield();
@@ -5662,22 +5661,14 @@ void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *fut
 bool get_price_data_entsoe()
 {
   Serial.printf("get_price_data_entsoe start\n");
-  /*
-  #ifdef NVS_CACHE_ENABLED
-    if (prices2.read_from_cache(time(nullptr)))
-    {
-      Serial.println("Got from prices from cache");
-      prices_expires_ts = prices2.expires();
-      return true;
-    }
-  #endif
-  */
 
-  if (prices_expires_ts > time(nullptr))
-  {
-    Serial.println(F("Price data not expired, returning"));
-    return false;
-  }
+  /*checked  alread
+    if (prices_expires_ts > time(nullptr))
+    {
+      Serial.println(F("Price data not expired, returning"));
+      return false;
+    }
+    */
   if (strlen(s.entsoe_api_key) < 36 || strlen(s.entsoe_area_code) < 5)
   {
     log_msg(MSG_TYPE_WARN, PSTR("Check Entso-E parameters (API key and price area) for price updates."));
@@ -5901,12 +5892,6 @@ bool get_price_data_entsoe()
     Serial.println(F("Finished succesfully get_price_data_entsoe."));
     prices2.apply_pricemodifier(); // modify prices for defined hours
     prices2.debug_print();
-
-    /*
-    #ifdef NVS_CACHE_ENABLED
-        prices2.save_to_cache(prices_expires_ts);
-    #endif
-    */
 
     Serial.printf("get_price_data_entsoe end.\n");
     return true;
@@ -7782,6 +7767,7 @@ void handleFirmwareUpdate(AsyncWebServerRequest *request, const String &filename
       WiFi.disconnect();
       log_msg(MSG_TYPE_FATAL, PSTR("Restarting after firmware update."), true);
       create_shadow_settings();
+      prices2.clear_store(true);
       delay(2000);
       ESP.restart();
     }
@@ -8745,6 +8731,7 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     if (doc["action"] == "reset")
     {
       reset_config();
+      prices2.clear_store();
       todo_in_loop_restart_local = true;
       writeToEEPROM();
     }
@@ -9457,7 +9444,6 @@ void read_wifisettings(unsigned long timeoutMillis)
               strncpy(s.wifi_password, inputLine.substring(slash_pos + 1, inputLine.length() - 1).c_str(), 30);
               snprintf(error_msg_buf, sizeof(error_msg_buf), "Got new wifi settings %d [%s] [%s], restarting...", slash_pos, s.wifi_ssid, s.wifi_password);
               log_msg(MSG_TYPE_ERROR, error_msg_buf, true, false);
-
               log_msg(MSG_TYPE_ERROR, inputLine.c_str(), true, false);
 
               writeToEEPROM();
@@ -9830,7 +9816,7 @@ void setup()
 
 #ifdef HANP1_PROXY_ENABLED
   server_web.on("/api/v1/telegram", HTTP_GET, [](AsyncWebServerRequest *request) { // TODO: control what appens if now writing
-    han_read_busy = true; // skip writing from ISR to the buffer
+    han_read_busy = true;                                                          // skip writing from ISR to the buffer
     request->send(200, "text/plain", han_message_buffer);
     han_read_busy = false;
 
@@ -10207,7 +10193,8 @@ void loop()
   }
 
 // new period coming, record last minute, launch only once in period end, EXPERIMENTAL
-#define ESTIMATED_LOOP_PROCESSING_TIME_A_SEC 10                                                                                                                                                                                                                                                                       // estimated time for (optional) meter polling + variable processing
+#define ESTIMATED_LOOP_PROCESSING_TIME_A_SEC 10
+  // estimated time for (optional) meter polling + variable processing
   if (get_netting_period_start_time(time(nullptr)) < get_netting_period_start_time(time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) && (millis() - energy_meter_last_read_started_ms > (ESTIMATED_LOOP_PROCESSING_TIME_A_SEC * 1000)) && next_process_ts < time(nullptr) + ESTIMATED_LOOP_PROCESSING_TIME_A_SEC) // second last cond could be removed?
   {
     Serial.printf("\nForcing processing before period change %ld\n", time(nullptr));
@@ -10218,10 +10205,9 @@ void loop()
   // new period
   if (previous_period_start_ts != get_netting_period_start_time(time(nullptr)))
   {
-
     period_changed = true;
-    next_energy_meter_read_ts = time(nullptr); // tämä lisätty 28.10.2023 tai jotain..., debug info,
-    next_process_ts = time(nullptr);           // process now if new period
+    next_energy_meter_read_ts = time(nullptr);
+    next_process_ts = time(nullptr); // process now if new period
 
     // update period info
     current_period_start_ts = get_netting_period_start_time(time(nullptr));
