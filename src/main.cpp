@@ -4202,14 +4202,15 @@ bool parse_han_message() // direct
     }
     yield();
   }
+
+  han_read_busy = false; // now ISR can write to the buffer again
+
   if (han_value_count < 5 || message_error) // 3 phase should have < 7
   {
     return false;
   }
 
   energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-
-  han_read_busy = false; // now ISR can write to the buffer again
 
   // read done
   return true;
