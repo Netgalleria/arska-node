@@ -753,6 +753,7 @@ function update_status(repeat) {
                   //  console.log("variable_code", variable_code, variable_history[variable_code], variable_history[variable_code].length);
 
                     for (i = 0; i < variable_history[variable_code].length; i++) {
+                        has_history_values[variable_code] = false;
                         if (Math.abs(variable_history[variable_code][i]) > 1) {
                             has_history_values[variable_code] = true;
                             break;
