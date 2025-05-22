@@ -867,12 +867,13 @@ public:
 
 private:
   uint8_t id_;
+  T init_value_; //use this, not one in the store
   struct
   {
     time_t start;
     int n;
     uint16_t resolution_sec;
-    T init_value;
+   // T init_value;
     T arr[TIMESERIES_ELEMENT_MAX];
     time_t expires;
     int min_value_idx;
@@ -2158,17 +2159,18 @@ int Variables::get_variable_by_id(int id, variable_st *variable)
 timeSeries::timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value)
 {
   id_ = id;
+  init_value_ = init_value;
   store.start = start;
   store.n = n;
   store.resolution_sec = resolution_sec;
-  store.init_value = init_value;
+ // store.init_value = init_value;
   clear_store(false);
 }
 void timeSeries::fill_gaps()
 {
   // Fill potentially missing points with revious data point value
   T last_defined_value = VARIABLE_LONG_UNKNOWN; // VARIABLE_LONG_MISSING;
-  // Serial.printf(PSTR("DEBUG timeSeries::fill_gaps starting\n"));
+  Serial.printf(PSTR("DEBUG timeSeries::fill_gaps starting\n"));
 
   for (int i = 0; i < store.n; i++)
   {
@@ -2178,8 +2180,9 @@ void timeSeries::fill_gaps()
       //   Serial.printf(PSTR("DEBUG timeSeries::fill_gaps %d -> %d\n"), i, last_defined_value);
       store.arr[i] = last_defined_value;
     }
-    else
+    else {
       last_defined_value = store.arr[i];
+    }
   }
 }
 
@@ -2192,7 +2195,7 @@ void timeSeries::clear_store(bool reset_cache)
   Serial.println(store.n);
   for (int i = 0; i < store.n; i++)
   {
-    store.arr[i] = store.init_value;
+    store.arr[i] = init_value_ ;
   }
   store.last_update_ts = 0;
   if (reset_cache)
@@ -2232,7 +2235,7 @@ bool timeSeries::save_to_cache(time_t expires) // save to nvs,true if successful
   // Close
 
   nvs_close(my_handle);
-  Serial.printf("save_to_cache, wrote time series %d, %d - %d,  expiration %lu\n", (int)id_, start(), end(), expires);
+  Serial.printf("save_to_cache, wrote time series %d, %d - %d,  expiration %lu, size %lu\n", (int)id_, start(), end(), expires, sizeof(store));
   //  if (id_==0) Serial.printf("save_to_cache, got time series %d, expiration %lu,  store.min_value_idx %d, store.max_value_idx %d\n", (int)id_, store.expires, store.min_value_idx, store.max_value_idx);
 
   return true;
@@ -2262,9 +2265,9 @@ bool timeSeries::read_from_cache(time_t expire_not_before) //  https://github.co
   err = nvs_get_blob(my_handle, key, NULL, &required_size);
   if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
     return false;
-  if (required_size == 0)
+  if (required_size != sizeof(store))
   {
-    printf("Nothing saved yet!\n");
+    printf("Not matching store data!\n");
     return false;
   }
   else
@@ -2277,7 +2280,7 @@ bool timeSeries::read_from_cache(time_t expire_not_before) //  https://github.co
   }
   // Close
   nvs_close(my_handle);
-  Serial.printf("read_from_cache, read time series %d, %d - %d,  expiration %lu\n", (int)id_, start(), end(), store.expires);
+  Serial.printf("read_from_cache, read time series %d, %d - %d,  expiration %lu, size: %lu\n", (int)id_, start(), end(), store.expires,required_size);
   return (store.expires > expire_not_before); // check expiration
 };
 
@@ -2330,14 +2333,14 @@ T timeSeries::get(time_t ts = time(nullptr))
 {
   int idx = get_idx(ts);
   if (idx == -1)
-    return store.init_value;
+    return init_value_ ;
   else
     return store.arr[idx];
 }
 T timeSeries::get_by_pos(int idx)
 {
   if (idx < 0 || idx >= store.n)
-    return store.init_value;
+    return init_value_ ;
   else
     return store.arr[idx];
 }
@@ -2391,7 +2394,7 @@ int32_t timeSeries::sum()
 
 void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl, bool print_rows = true)
 {
-  Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d ,idx: %d - %d \n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1, store.min_value_idx, store.max_value_idx);
+  Serial.printf("Debug print store.start %lu -> %lu, store.resolution_sec %d, store.n: %d ,idx: %d - %d , init_value %d\n", start_ts, end_ts_incl, store.resolution_sec, (end_ts_incl - start_ts) / store.resolution_sec + 1, store.min_value_idx, store.max_value_idx, init_value_ );
 
   yield();
   if (print_rows)
@@ -2417,7 +2420,7 @@ void timeSeries::debug_print(bool rows = true)
 void timeSeries::set_store_start(time_t new_start)
 {
   int index_delta = (int)((store.start - new_start) / store.resolution_sec);
-  //   Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
+  //Serial.printf("DEBUG set_store_start  %lu -> %lu, index_delta %d\n", store.start, new_start, index_delta);
   if (index_delta == 0)
     return;
 
@@ -2443,7 +2446,7 @@ void timeSeries::set_store_start(time_t new_start)
       if ((i - index_delta >= 0) && (i - index_delta < store.n))
         store.arr[i] = store.arr[i - index_delta];
       else
-        store.arr[i] = store.init_value;
+        store.arr[i] = init_value_ ;
     }
   }
   else if (index_delta > 0)
@@ -2459,7 +2462,7 @@ void timeSeries::set_store_start(time_t new_start)
       if (i - index_delta >= 0 && i - index_delta < store.n)
         store.arr[i] = store.arr[i - index_delta];
       else
-        store.arr[i] = store.init_value;
+        store.arr[i] = init_value_ ;
     }
   }
   //    Serial.println(PSTR("DEBUG set_store_start ended"));
@@ -5863,6 +5866,7 @@ bool get_price_data_entsoe()
     { // this signals the end of the response from XML API
       // fill potentially missing points - Entso-E new data format
       // MTU15M
+      
       prices_in->fill_gaps();
       prices_in->debug_print();
 
@@ -7292,12 +7296,12 @@ bool get_price_data_elering(char *country_code)
   float price;
   char query_period_start_str[30];
   char query_period_end_str[30];
-  int price_rows = 0, price_idx;
+  int price_rows = 0;
   time_t ts_min = 4102444800;
   time_t ts_max = 0; // in the future
   time_t ts_min_stored;
   // time_t ts_window_start = -1;
-  long prices_local[MAX_PRICE_PERIODS];
+ // long prices_local[MAX_PRICE_PERIODS];
 
   if (!setCACertificate(&client_https, nullptr, elering_ca_filename, "Elering", s.disable_ca_checks))
     return false;
@@ -7377,6 +7381,7 @@ bool get_price_data_elering(char *country_code)
         prices_in->set_by_pos(i, VARIABLE_LONG_UNKNOWN); // VARIABLE_LONG_MISSING
       }
       missing_initiated = true;
+
     }
 
     // #pragma message("REMOVE THIS, simulates failing connection before all prices are received")
@@ -7406,8 +7411,8 @@ bool get_price_data_elering(char *country_code)
         price = val_string.toFloat();
         // Serial.printf("-> |%s],  |%s| -> ",  ts_string.c_str(), val_string.c_str());
         Serial.printf("%lu,  %f\n", ts, price);
-        price_idx = price_rows % MAX_PRICE_PERIODS;
-        prices_local[price_idx] = (long)(price * 100 + 0.5);
+     //   price_idx = price_rows % MAX_PRICE_PERIODS;
+     //   prices_local[price_idx] = (long)(price * 100 + 0.5);
         price_rows++;
         ts_min = min(ts_min, ts);
         ts_max = max(ts_max, ts);
@@ -7421,7 +7426,10 @@ bool get_price_data_elering(char *country_code)
         {
           prices_in->set_store_start(ts_min_stored);
         }
+          
         prices_in->set(ts, (long)(price * 100 + 0.5));
+
+        
 #endif
       }
     }
@@ -7438,6 +7446,7 @@ bool get_price_data_elering(char *country_code)
 
 #ifdef MTU15M_ENABLED
   // maybe check for success...
+  //prices_in->debug_print();
   prices_in->fill_gaps();
   prices_expires_ts = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
   Serial.printf("prices_expires_ts %lu\n", prices_expires_ts);
