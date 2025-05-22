@@ -385,7 +385,7 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 /* Application variable constants */
 #define VARIABLE_COUNT 55
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
-#define VARIABLE_LONG_MISSING -2147483647 //!< variable with this value is undefined
+//#define VARIABLE_LONG_MISSING -2147483647 //!< variable with this value is undefined, replaced with VARIABLE_LONG_UNKNOWN
 // do not change variable id:s (will broke statements)
 
 #define VARIABLE_PRICE 0                     //!< price of current period, 1 decimal
@@ -829,12 +829,11 @@ typedef int32_t T; // timeSeries data type
  * @brief time series support class proving cached store, statistics etc.
  *
  */
+#define STORAGE_NAMESPACE "cache"
 class timeSeries
 {
 public:
   timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value);
-
-#define STORAGE_NAMESPACE "cache"
   void fill_gaps();
   time_t expires() { return store.expires; }
   bool save_to_cache(time_t expires);
@@ -2169,12 +2168,13 @@ timeSeries::timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec,
 void timeSeries::fill_gaps()
 {
   // Fill potentially missing points with revious data point value
-  T last_defined_value = VARIABLE_LONG_MISSING;
+  T last_defined_value = VARIABLE_LONG_UNKNOWN; //VARIABLE_LONG_MISSING; 
   // Serial.printf(PSTR("DEBUG timeSeries::fill_gaps starting\n"));
 
   for (int i = 0; i < store.n; i++)
   {
-    if (store.arr[i] == VARIABLE_LONG_MISSING && last_defined_value > VARIABLE_LONG_MISSING)
+   // if (store.arr[i] == VARIABLE_LONG_MISSING && last_defined_value > VARIABLE_LONG_MISSING)
+    if (store.arr[i] == VARIABLE_LONG_UNKNOWN && last_defined_value > VARIABLE_LONG_UNKNOWN)
     {
       //   Serial.printf(PSTR("DEBUG timeSeries::fill_gaps %d -> %d\n"), i, last_defined_value);
       store.arr[i] = last_defined_value;
@@ -2185,7 +2185,7 @@ void timeSeries::fill_gaps()
 }
 
 // T operator [](int i) const    {return registers[i];}
-void timeSeries::clear_store(bool reset_cache = true)
+void timeSeries::clear_store(bool reset_cache)
 {
   store.min_value_idx = store.n;
   store.max_value_idx = -1;
@@ -2563,7 +2563,7 @@ void timeSeries::apply_pricemodifier(bool debug = false)
     //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
 
     hour_modified = s.pricemod_hours & (1 << tm_struct.tm_hour);
-    if (hour_modified && store.arr[i] > VARIABLE_LONG_MISSING)
+    if (hour_modified && store.arr[i] > VARIABLE_LONG_UNKNOWN) //VARIABLE_LONG_MISSING)
     { // skip special values
       store.arr[i] += s.pricemod * 100;
     }
@@ -2576,7 +2576,7 @@ void timeSeries::apply_pricemodifier(bool debug = false)
 };
 
 // Time series globals
-timeSeries prices2(0, 0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, VARIABLE_LONG_MISSING);
+timeSeries prices2(0, 0, MAX_PRICE_PERIODS, PRICE_RESOLUTION_SEC, VARIABLE_LONG_UNKNOWN);// VARIABLE_LONG_MISSING);
 timeSeries solar_forecast(1, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 timeSeries wind_forecast(2, 0, 72, SOLAR_FORECAST_RESOLUTION_SEC, 0);
 
@@ -3913,6 +3913,8 @@ bool get_han_ts(const char *strp, time_t *returned)
 }
 
 //  Char array based replacing String input version
+//  TODO: would sscanf make this simpler, e.g. sscanf(line, "1-0:1.7.0(%lf", returned); // lisäksi kW/kVAr -tunnistus - joutuis konkatenoimaan stringin eli ei välttöämättä parempi
+
 bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 {
   int factor_w;
@@ -4640,6 +4642,8 @@ void calculate_time_based_variables()
   time_t now_ts = time(nullptr);
   localtime_r(&now_ts, &tm_struct);
   Serial.println("DEBUG start calculate_time_based_variables");
+  Serial.println("Free DRAM: " + String(heap_caps_get_free_size(MALLOC_CAP_8BIT)) + " bytes");
+
 
   yield();
   // update globals
@@ -5777,12 +5781,13 @@ bool get_price_data_entsoe()
       for (int i = 0; i < prices2.n(); i++)
       {
         // TODO: could we not to reset existin values?
-        prices2.set_by_pos(i, VARIABLE_LONG_MISSING);
+        prices2.set_by_pos(i, VARIABLE_LONG_UNKNOWN);// VARIABLE_LONG_MISSING);
       }
 
       record_start = record_end_excl - (PRICE_RESOLUTION_SEC * MAX_PRICE_PERIODS);
       prices_first_period = record_start;
       Serial.printf("period_start: %ld record_start: %ld - period_end: %ld\n", period_start, record_start, period_end);
+   
     }
 
     if (line.endsWith(F("</start>")))
@@ -7355,10 +7360,18 @@ bool get_price_data_elering(char *country_code)
     {
       for (int i = 0; i < prices2.n(); i++)
       {
-        prices2.set_by_pos(i, VARIABLE_LONG_MISSING);
+        prices2.set_by_pos(i, VARIABLE_LONG_UNKNOWN); //VARIABLE_LONG_MISSING
       }
       missing_initiated = true;
     }
+
+
+
+#pragma message("REMOVE THIS, simulates failing connection before all prices are received")
+    Serial.println(" REMOVE THIS, simulates failing connection before all prices are received ");
+    break;
+
+ 
 
     line = read_http11_line(&client_https);
     Serial.println(line);
@@ -7402,10 +7415,15 @@ bool get_price_data_elering(char *country_code)
 #endif
       }
     }
-  }
+  } //while
 
   client_https.stop();
   yield();
+
+  if (price_rows<47) {
+    Serial.println(F("Incomplete price data from Elering"));
+    return false;
+  }
 
 #ifdef MTU15M_ENABLED
   // maybe check for success...
@@ -7449,7 +7467,7 @@ bool get_price_data_elering(char *country_code)
 #endif
 
   return false;
-}
+} 
 #endif
 
 #ifdef OTA_DOWNLOAD_ENABLED
@@ -8718,7 +8736,7 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     {
       todo_in_loop_restart_local = true;
       // expire caches
-      prices2.clear_store();
+      prices2.clear_store(true);
 
     }
     if (doc["action"] == "scan_sensors")
@@ -8731,7 +8749,7 @@ AsyncCallbackJsonWebHandler *ActionsPostHandler = new AsyncCallbackJsonWebHandle
     if (doc["action"] == "reset")
     {
       reset_config();
-      prices2.clear_store();
+      prices2.clear_store(true);
       todo_in_loop_restart_local = true;
       writeToEEPROM();
     }
