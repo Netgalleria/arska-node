@@ -7,7 +7,7 @@ var g_remote_enabled;
 var g_mdns_enabled;
 var g_influx_report_enabled;
 var g_mtu15m_enabled;
-var g_graph_show_power = true;
+var g_graph_resolution;
 
 var g_open_popover = null;
 
@@ -88,7 +88,7 @@ const CH_PROFILE_BATT_CHARGE_EXCESS = 142;
 const CH_PROFILE_BATT_DISCHARGE_EXCESS = 143;
 
 
-const channel_profiles = [CH_PROFILE_BATT_CHARGE_100, CH_PROFILE_BATT_CHARGE_75,CH_PROFILE_BATT_CHARGE_50,CH_PROFILE_BATT_CHARGE_25, CH_PROFILE_BATT_CHARGE_0, CH_PROFILE_BATT_DISCHARGE_25, CH_PROFILE_BATT_DISCHARGE_50, CH_PROFILE_BATT_DISCHARGE_75,CH_PROFILE_BATT_DISCHARGE_100, CH_PROFILE_BATT_NO_CTRL,CH_PROFILE_BATT_CHARGE_EXCESS,CH_PROFILE_BATT_DISCHARGE_EXCESS];
+const channel_profiles = [CH_PROFILE_BATT_CHARGE_100, CH_PROFILE_BATT_CHARGE_75, CH_PROFILE_BATT_CHARGE_50, CH_PROFILE_BATT_CHARGE_25, CH_PROFILE_BATT_CHARGE_0, CH_PROFILE_BATT_DISCHARGE_25, CH_PROFILE_BATT_DISCHARGE_50, CH_PROFILE_BATT_DISCHARGE_75, CH_PROFILE_BATT_DISCHARGE_100, CH_PROFILE_BATT_NO_CTRL, CH_PROFILE_BATT_CHARGE_EXCESS, CH_PROFILE_BATT_DISCHARGE_EXCESS];
 
 let variable_list = {}; // populate later from json
 
@@ -104,22 +104,22 @@ function goodbye(e) {
 
 async function isTypekitReachable() {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
-  
-      await fetch("https://use.typekit.net/favicon.ico", {
-        method: "HEAD",
-        mode: "no-cors",       // allow CORS-safe request
-        signal: controller.signal
-      });
-  
-      clearTimeout(timeoutId);
-      return true;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout
+
+        await fetch("https://use.typekit.net/favicon.ico", {
+            method: "HEAD",
+            mode: "no-cors",       // allow CORS-safe request
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        return true;
     } catch (e) {
-      return false;
+        return false;
     }
-  }
-  
+}
+
 
 
 window.onload = function () {
@@ -127,15 +127,15 @@ window.onload = function () {
 
     isTypekitReachable().then(reachable => {
         if (reachable) {
-          const link = document.createElement("link");
-          link.rel = "stylesheet";
-          link.href = "css/uwx3oza.css";
-          document.head.appendChild(link);
-          console.log("Typekit loaded.");
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = "css/uwx3oza.css";
+            document.head.appendChild(link);
+            console.log("Typekit loaded.");
         } else {
-          console.warn("Typekit host not reachable. Skipping font load.");
+            console.warn("Typekit host not reachable. Skipping font load.");
         }
-      });
+    });
 
     //ch_0:save
 
@@ -170,8 +170,8 @@ window.onload = function () {
                     g_open_popover = null;
                     console.log("Hiding abandoned multiselect popover.");
                 }
-                
-               
+
+
                 // User clicked OK
             } else {
                 // User clicked Cancel
@@ -716,7 +716,7 @@ var prices_expires = 0;
 
 // update variables and channels statuses to channels form
 function update_status(repeat) {
-   // console.log("update_status starting");
+    // console.log("update_status starting");
     if (!(typeof Chart === 'function')) { //wait for chartJs script loading, but should we?
         setTimeout(function () { update_status(repeat); }, 1000);
         return;
@@ -735,7 +735,7 @@ function update_status(repeat) {
     const interval_s = 60;
     const process_time_s = 15;
     let next_query_in = interval_s;
-     
+
     if (parseInt(variable_history_ts / 900000) != parseInt(new Date().getTime() / 900000)) {
         console.log("Get variable history, last", variable_history_ts)
         var jqxhr_obj = $.ajax({
@@ -743,13 +743,13 @@ function update_status(repeat) {
             cache: false,
             dataType: 'json',
             async: false,
-            success: function (data, textStatus, jqXHR) { 
+            success: function (data, textStatus, jqXHR) {
                 variable_history = data.variable_history;
-                variable_history_ts = new Date().getTime();   
-               // console.log("variable_history", variable_history);
+                variable_history_ts = new Date().getTime();
+                // console.log("variable_history", variable_history);
                 for (const variable_code in variable_history) {
 
-                  //  console.log("variable_code", variable_code, variable_history[variable_code], variable_history[variable_code].length);
+                    //  console.log("variable_code", variable_code, variable_history[variable_code], variable_history[variable_code].length);
 
                     for (i = 0; i < variable_history[variable_code].length; i++) {
                         has_history_values[variable_code] = false;
@@ -758,12 +758,12 @@ function update_status(repeat) {
                             break;
                         }
                     }
-                //    console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
+                    //    console.log(variable_code, " has_history_values ", has_history_values[variable_code]);
                 }
             }
         })
     }
-  
+
 
     if (parseInt(channel_history_ts / 900000) != parseInt(new Date().getTime() / 900000)) {
         console.log("Get channel history, last", channel_history_ts)
@@ -772,13 +772,13 @@ function update_status(repeat) {
             cache: false,
             dataType: 'json',
             async: false,
-            success: function (data, textStatus, jqXHR) { 
+            success: function (data, textStatus, jqXHR) {
                 channel_history = data.channel_history;
-                channel_history_ts = new Date().getTime();   
+                channel_history_ts = new Date().getTime();
             }
         })
     }
-  
+
     var start = new Date().getTime();
     var jqxhr_obj = $.ajax({
         url: '/status',
@@ -787,13 +787,13 @@ function update_status(repeat) {
         async: false,
         success: function (data, textStatus, jqXHR) {
             console.log("/status took " + (new Date().getTime() - start) / 1000 + "s to load", textStatus); //var start = new Date().getTime();
-           // console.log("got status data", textStatus, jqXHR.status);
-       
+            // console.log("got status data", textStatus, jqXHR.status);
+
             variable_values = data.variables;
 
             // current value to data series
             for (const variable_code in variable_history) {
-         //       console.log("current value",variable_code, variable_history[variable_code].length - 1, variable_values[variable_code]);
+                //       console.log("current value",variable_code, variable_history[variable_code].length - 1, variable_values[variable_code]);
 
                 variable_history[variable_code][variable_history[variable_code].length - 1] = variable_values[variable_code];
             }
@@ -900,8 +900,8 @@ function update_status(repeat) {
             }
             price = isNaN(data.variables["0"] && data.variables["0"] > -2147483) ? '-' : data.variables["0"] + ' ¢/kWh ';
 
-            document.getElementById("db:price_v").innerHTML =  price;
-            
+            document.getElementById("db:price_v").innerHTML = price;
+
 
             //sensor values
             for (s_idx = 201; s_idx <= 203; s_idx++) {
@@ -948,13 +948,13 @@ function update_status(repeat) {
                         else {
                             var_code = '';
                         }
-                          ///double work...
-                        variable_desc = get_variable_desc(id, false);    
+                        ///double work...
+                        variable_desc = get_variable_desc(id, false);
                     }
-                    else{}
-                        
-                    
-                  //  newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
+                    else { }
+
+
+                    //  newRow = '<tr><th scope="row">' + var_this[VAR_IDX_ID] + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
                     newRow = '<tr><th scope="row">' + id + '</th><td>' + var_code + '</td><td>' + value_txt + '</td><td>' + variable_desc + '</td></tr>';
 
                     $(newRow).appendTo($("#tblVariables_tb"));
@@ -1070,10 +1070,10 @@ function get_profile_info_by_id(profile_id) {
     }
     else if (profile_id == CH_PROFILE_BATT_DISCHARGE_EXCESS) {
         color = "text-bg-primary";
-        label =  "Discharge 0-100%";
+        label = "Discharge 0-100%";
     }
 
-    return   {
+    return {
         label: label,
         color: color,
     };
@@ -1157,7 +1157,7 @@ function populate_channel_status(channel_idx, ch) {
         sch_status_label.classList.remove("text-bg-danger");
         sch_status_label.classList.remove("text-bg-success");
     }
-    else if (ch.profile > 99 && is_relay_profile_used(g_settings.ch[channel_idx]["type"])) { 
+    else if (ch.profile > 99 && is_relay_profile_used(g_settings.ch[channel_idx]["type"])) {
         info_text += get_profile_info_by_id(ch.profile).label;
     }
     else if (ch.is_up) {
@@ -1176,7 +1176,7 @@ function populate_channel_status(channel_idx, ch) {
     }
 
     if (g_settings.ch[channel_idx]["type"] != 0) {
-        let transit_reason = ch.transit  & ~CH_STATE_MINIMUM_UPTIME; 
+        let transit_reason = ch.transit & ~CH_STATE_MINIMUM_UPTIME;
         if (transit_reason == CH_STATE_NONE)
             transit_txt = "";
         else if (transit_reason == CH_STATE_BYRULE)
@@ -1248,14 +1248,15 @@ function create_dashboard_chart() {
         //  console.log("create_dashboard_chart delayed");
         return;
     }
- 
+
     if (g_mtu15m_enabled) {
-        g_graph_show_power = document.getElementById('dashboard:graph_unit_p').checked;
-        set_cookien("graph_unit", g_graph_show_power ? "p" : "e", 100);
+        g_graph_resolution = document.getElementById('dashboard:graph_60min').checked ? 60 * 60 : 15 * 60;
+        set_cookien("graph_resolution", g_graph_resolution, 100);
     }
-    else
-        g_graph_show_power = false;
-   
+    else {
+        g_graph_resolution = 3600;
+    }
+
 
     let prices_out = [];
     now_ts = (Date.now() / 1000);
@@ -1293,7 +1294,7 @@ function create_dashboard_chart() {
     if (price_data_exists) {
         idx = 0;
         for (ts = price_data.record_start; ts < price_data.record_end_excl; ts += price_data.resolution_sec) {
-            if (price_data.prices[idx] > VARIABLE_LONG_UNKNOWN ) { 
+            if (price_data.prices[idx] > VARIABLE_LONG_UNKNOWN) {
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts)
                     prices_out.push({ x: ts * 1000, y: Math.round(price_data.prices[idx] / 100) / 10 });
             }
@@ -1334,35 +1335,45 @@ function create_dashboard_chart() {
         period_factor = g_settings.netting_period_sec / SECONDS_IN_HOUR;
     }
 
-    unit_factor = 1;
-    if (g_graph_show_power) {
-        unit = 'W';
-        period_label = '';
-        if (g_mtu15m_enabled) {
-            unit_factor = 4;
-        }
+    unit = 'Wh';
+    if (g_graph_resolution == 3600) {
+        period_label = "/ h";
     }
-    else {
-        unit = 'Wh';
+    else if (g_graph_resolution == 900) {
+        period_label = "/ 15 min";
     }
+
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
         dataset_started = false;
+        hour_value = 0;
         ts = now_period_ts - (g_settings.netting_period_sec * (variable_history[VARIABLE_SELLING_ENERGY].length - 1));
         for (h_idx = 0; h_idx < variable_history[VARIABLE_SELLING_ENERGY].length; h_idx++) {
             if (Math.abs(variable_history[VARIABLE_SELLING_ENERGY][h_idx]) > 0) {
                 dataset_started = true;
-                if (dataset_started) {
-                    if (chart_start_ts <= ts && ts < chart_end_excl_ts)
-                        import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx]*unit_factor });
+            }
+            if (dataset_started) {
+                if (chart_start_ts <= ts && ts < chart_end_excl_ts) {
+                    if (g_graph_resolution == 900) { //assume 15min mtu
+                        import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
+                    }
+                    else if (g_graph_resolution == 3600) { //proto for hour based values
+                        hour_value += variable_history[VARIABLE_SELLING_ENERGY][h_idx];
+                        ts_hour = parseInt(ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
+                        if (ts == ts_hour + 2700) {
+                            import_ds.push({ x: ts_hour * 1000, y: -hour_value });
+                            hour_value = 0;
+                        }
+                    }
                 }
             }
+
             ts += g_settings.netting_period_sec;
+
+
         }
+        //  console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
 
-      //  console.log("import_ds ", VARIABLE_SELLING_ENERGY, import_ds);
-
-     
         if (dataset_started)
             datasets.push(
                 {
@@ -1387,14 +1398,30 @@ function create_dashboard_chart() {
     if (has_history_values[VARIABLE_PRODUCTION_ENERGY]) {
         dataset_started = false;
         let production_ds = [];
+        hour_value = 0;
+
         for (h_idx = 0; h_idx < variable_history[VARIABLE_PRODUCTION_ENERGY].length; h_idx++) {
             //probably 1 resolutions unit too small, fixed 10.4.2024
             ts = now_period_ts - (variable_history[VARIABLE_PRODUCTION_ENERGY].length - h_idx - 1) * chart_resolution_sec;
-            if (Math.abs(variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]) > 1)
+            if (Math.abs(variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]) > 1) {
                 dataset_started = true;
+            }
 
-            if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
-                production_ds.push({ x: ts * 1000, y: variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx]*unit_factor });
+            if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started) {
+                if (g_graph_resolution == 900) { //assume 15min mtu
+                    production_ds.push({ x: ts * 1000, y: variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx] });
+                }
+                else if (g_graph_resolution == 3600) { //proto for hour based values
+                    hour_value += variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx];
+                    ts_hour = parseInt(ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
+                    if (ts == ts_hour + 2700) {
+                        production_ds.push({ x: ts_hour * 1000, y: hour_value });
+                        hour_value = 0;
+                    }
+                }
+
+
+            }
         }// chart_resolution_sec
 
         if (dataset_started)
@@ -1428,7 +1455,7 @@ function create_dashboard_chart() {
                     dataset_started = true;
 
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
-                    ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] *unit_factor});
+                    ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] });
             }// chart_resolution_sec
 
             if (dataset_started)
@@ -1477,7 +1504,7 @@ function create_dashboard_chart() {
                 if (solar_fcst[idx] > 0)
                     series_started = true;
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
-                    fcst_ds.push({ x: ts * 1000, y: period_factor * solar_fcst[idx]*unit_factor }); // use period factor (0.25 for 15 min periods)
+                    fcst_ds.push({ x: ts * 1000, y:  solar_fcst[idx] * g_graph_resolution/3600 }); // use period factor (0.25 for 15 min periods)
             }
             if (fcst_ds.length) {
                 datasets.push(
@@ -1516,8 +1543,9 @@ function create_dashboard_chart() {
 
         for (chh_idx = 0; chh_idx < MAX_HISTORY_PERIODS; chh_idx++) {
             ts = now_period_start + (chh_idx + 1 - MAX_HISTORY_PERIODS) * g_settings.netting_period_sec;
-            if (Math.abs(channel_history[channel_idx][chh_idx]) >= 1)
+            if (Math.abs(channel_history[channel_idx][chh_idx]) >= 1) {
                 dataset_started = true;
+            }
             if (dataset_started) {
                 if (chart_start_ts <= ts)
                     channel_dataset.push({ x: ts * 1000, y: channel_history[channel_idx][chh_idx] });
@@ -1561,7 +1589,7 @@ function create_dashboard_chart() {
                         lineWidth: 6, color: "#fabe0a", borderWidth: 2, borderColor: '#fabe0a'
                     }
                 },
-             
+
                 y_prices: {
                     beginAtZero: true,
                     ticks: {
@@ -1597,7 +1625,7 @@ function create_dashboard_chart() {
                         color: '#4f4f42',
                         font: { size: 12 },
                         callback: function (value, index, values) {
-                            return value + ' '+unit;
+                            return value + ' ' + unit;
                         }
                     }
                 },
@@ -1908,8 +1936,8 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
             cheapest_ts = start_ts;
             cheapest_index = k;
         }
-       
-        if (segment_price > exp_price && segment_price!= -VARIABLE_LONG_UNKNOWN) {
+
+        if (segment_price > exp_price && segment_price != -VARIABLE_LONG_UNKNOWN) {
             exp_price = segment_price;
             exp_ts = start_ts;
             exp_index = k;
@@ -1976,7 +2004,7 @@ function load_and_update_settings() {
         success: function (data) {
             g_settings = data;
             // iterate
-         
+
             console.log("/settings took " + (new Date().getTime() - start) / 1000 + "s to load"); //var start = new Date().getTime();
             return true;
         },
@@ -1985,11 +2013,11 @@ function load_and_update_settings() {
             // Remove control characters except newline, carriage return, tab
             let cleaned = jqXHR.responseText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
             try {
-              g_settings = JSON.parse(cleaned);
+                g_settings = JSON.parse(cleaned);
                 console.log("Recovered JSON:", g_settings);
                 return true;
             } catch (e) {
-              console.error("Still invalid after cleaning:", e.message);
+                console.error("Still invalid after cleaning:", e.message);
                 return false;
             }
         }
@@ -2001,7 +2029,7 @@ function load_and_update_settings() {
     else {
         isp_label = "" + g_settings.netting_period_sec / SECONDS_IN_MINUTE + " min";
     }
-    
+
     if (g_settings.hasOwnProperty("wg_expires")) {
         var expire_text = '';
         if (g_settings.wg_expires == 0)
@@ -2063,7 +2091,7 @@ function load_application_config() {
             g_remote_enabled = g_application.hasOwnProperty("REMOTE_ENABLED") ? g_application.REMOTE_ENABLED : false;
             if (g_remote_enabled)
                 document.getElementById(`remote_accordion`).classList.remove("collapse");
-            
+
             g_mtu15m_enabled = g_application.hasOwnProperty("MTU15M_ENABLED") ? g_application.MTU15M_ENABLED : false;
             if (!g_mtu15m_enabled) {
                 document.getElementById(`isp_div`).classList.add("d-none");
@@ -2087,7 +2115,7 @@ function load_application_config() {
         }
     });
 
- 
+
 
     document.getElementById("energy_meter_type").addEventListener(
         "change",
@@ -2173,7 +2201,7 @@ function set_relay_field_visibility(channel_idx, ch_type) {
     document.getElementById(`ch_${channel_idx}:r_ip`).disabled = (!is_relay_ip_used(ch_type));//|| locked);
     document.getElementById(`ch_${channel_idx}:r_id`).disabled = (!is_relay_id_used(ch_type));// || locked);
     document.getElementById(`ch_${channel_idx}:r_uid`).disabled = (!is_relay_uid_used(ch_type));// || locked);
-    if (is_relay_profile_used(ch_type)) { 
+    if (is_relay_profile_used(ch_type)) {
         document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Power (kW):";
     }
 
@@ -2201,7 +2229,7 @@ function channel_type_changed_ev(evt, ch_idx) {
         ch_type = document.getElementById(`ch_${ch_idx}:type`).value
 
     set_relay_field_visibility(ch_idx, ch_type);
-    
+
     for (var t = 0; t < g_application.RULE_STATEMENTS_MAX; t++) {
         $('#d_rc1_' + channel_idx + ' input').attr('disabled', (ch_type == CH_TYPE_UNDEFINED));
     }
@@ -2380,7 +2408,7 @@ function populateStmtField(channel_idx, rule_idx, stmt_idx, stmt = [-1, -1, 0, 0
 
 
 function populate_profile_select(selEl, profile_id = -1) {
-  //  console.log("populate_profile_select:" + channel_profiles.length, selEl.id);
+    //  console.log("populate_profile_select:" + channel_profiles.length, selEl.id);
     if (selEl.options && selEl.options.length <= 1) {
         if (selEl.length == 0)
             addOption(selEl, -1, "Select profile", false);
@@ -2626,7 +2654,7 @@ function populate_channel(channel_idx) {
     if ("rules" in ch_cur) {
         //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
         for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
-         //   console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
+            //   console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
 
             if (rule_idx < ch_cur["rules"].length) {
                 this_rule = ch_cur["rules"][rule_idx];
@@ -3090,7 +3118,7 @@ function jump(section_id_full) {
     //document.getElementById("mobileMenu").classList.remove("show");
     $('#mobileMenuClose').trigger('click');
 
-   // console.log("Jumping to section " + section_id);
+    // console.log("Jumping to section " + section_id);
     $('#' + section_id + '-tab').trigger('click');
     // show new section div….
     let section_divs = document.querySelectorAll("div[id^='section_']");
@@ -3259,7 +3287,10 @@ function init_ui() {
     load_application_config();
 
     if (g_mtu15m_enabled) {
-        document.getElementById(`dashboard:graph_unit_e`).checked = get_cookie("graph_unit") == "e";
+        if (get_cookie("graph_resolution") == "3600")
+            document.getElementById(`dashboard:graph_60min`).checked = true;
+        else
+            document.getElementById(`dashboard:graph_15min`).checked = true;
     }
     else {
         graph_unit_div
@@ -3563,7 +3594,7 @@ function save_channel_ev(ev) {
         dataType: "json",
         success: function (data) {
             live_alert(card, "Updated", 'success');
-          //  console.log("success, card", card, data);
+            //  console.log("success, card", card, data);
             document.getElementById(card + ":save").disabled = true;
 
             //experimental 27.12.2023, this will update new names etc everywhere
