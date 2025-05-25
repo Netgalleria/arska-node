@@ -578,7 +578,7 @@ struct statement_st
 
 struct msg_st
 {
-  uint8_t type; // 0 info, 1-warn, 2 - error, 3-fatal
+  uint8_t type; //  MSG_TYPE_ 0 info, 1-warn, 2 - error, 3-fatal ,
   time_t ts;
   char msg[ERROR_MSG_LEN];
 };
@@ -2739,6 +2739,7 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
 {
   // kelaa operaattorit läpi, jos löytyy match niin etene sen kanssa, jos ei niin palauta default
   variable_st var;
+   bool result = false;
   if (statement->variable_id == -1)
   {
     return default_value;
@@ -2754,9 +2755,10 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
     if (opers[i].id == statement->oper_id)
     {
       oper = opers[i];
+      break;
     }
   }
-  bool result = false;
+ 
 
   if (oper.multiselect)
   {
