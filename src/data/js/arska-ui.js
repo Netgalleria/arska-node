@@ -1342,7 +1342,7 @@ function create_dashboard_chart() {
     else if (g_graph_resolution == 900) {
         period_label = "/ 15 min";
     }
-
+    var now_ts = new Date().getTime()/1000;
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
         dataset_started = false;
@@ -1357,10 +1357,10 @@ function create_dashboard_chart() {
                     if (g_graph_resolution == 900) { //assume 15min mtu
                         import_ds.push({ x: ts * 1000, y: -variable_history[VARIABLE_SELLING_ENERGY][h_idx] });
                     }
-                    else if (g_graph_resolution == 3600) { //proto for hour based values
+                    else if (g_graph_resolution == 3600) { //hour based values
                         hour_value += variable_history[VARIABLE_SELLING_ENERGY][h_idx];
                         ts_hour = parseInt(ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
-                        if (ts == ts_hour + 2700) {
+                        if ((ts == ts_hour + 2700) && (ts_hour+3600<now_ts)) { // || h_idx =variable_history[VARIABLE_SELLING_ENERGY].length-1
                             import_ds.push({ x: ts_hour * 1000, y: -hour_value });
                             hour_value = 0;
                         }
@@ -1414,7 +1414,7 @@ function create_dashboard_chart() {
                 else if (g_graph_resolution == 3600) { //proto for hour based values
                     hour_value += variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx];
                     ts_hour = parseInt(ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
-                    if (ts == ts_hour + 2700) {
+                    if ((ts == ts_hour + 2700) && (ts_hour+3600<now_ts)) {
                         production_ds.push({ x: ts_hour * 1000, y: hour_value });
                         hour_value = 0;
                     }
