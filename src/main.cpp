@@ -185,7 +185,7 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #include <Update.h>
 #include "esp_idf_version.h"
 
-#define EEPROM_CHECK_VALUE 10112 //!< increment this is data structure changes
+#define EEPROM_CHECK_VALUE 10113 //!< increment this is data structure changes
 #define eepromaddr 0
 #define MAX_DS18B20_SENSORS 3         //!< max number of sensors
 #define SENSOR_VALUE_EXPIRE_TIME 1200 //!< if new value cannot read in this time (seconds), sensor value is set to 0
@@ -257,6 +257,9 @@ uint8_t wg_status = REMOTE_STATUS_UNDEFINED;
 #define ENERGYM_SHELLY_GEN2 2
 #define ENERGYM_HAN_WIFI 4
 #define ENERGYM_HAN_DIRECT 5
+
+#define ENERGYM_CHECK_NONE 0
+#define ENERGYM_CHECK_HAN_CRC16_ARC 10
 
 // Production metering (inverter) types
 #define PRODUCTIONM_NONE 0
@@ -661,7 +664,7 @@ typedef struct
   char id_str[MAX_CH_ID_STR_LENGTH];
   uint8_t relay_id;            //!< relay id, eg. gpio, number modbus server id
   uint8_t relay_unit_id;       //!<  unit id, eg. port id in a relay device
-  uint8_t relay_iface_id;      // RFU, interface, eg eth, wifi
+                               // uint8_t relay_iface_id;      // RFU, interface, eg eth, wifi
   IPAddress relay_ip;          //!< relay ip address
   bool is_up;                  //!< is channel currently up
   bool wannabe_up;             //!< should channel be switched up (when the time is right)
@@ -701,24 +704,27 @@ typedef struct
   char http_username[MAX_ID_STR_LENGTH];
   char http_password[MAX_ID_STR_LENGTH];
   channel_struct ch[CHANNEL_COUNT];
-  char variable_server[MAX_ID_STR_LENGTH]; //!< projected to be used in replica mode, RFU
-  char entsoe_api_key[37];                 //!< EntsoE API key
-  char entsoe_area_code[17];               //!< Price area code in day ahead market
-  int16_t pricemod;                        //!< Price modifier 0.1 cents, scaled
-  uint32_t pricemod_hours;                 //!< Price modifier hour mask hours 0-23, mask += Math.pow(2, i)
-  char custom_ntp_server[35];              //!< RFU, TODO:UI to set up
-  char timezone[4];                        //!< EET,CET supported
-  uint8_t ota_update_phase;                //!< Phase of curent OTA update, if updating
-  uint16_t netting_period_sec;             //!< Variable netting period in seconds, was in constant NETTING_PERIOD_SEC
-  uint8_t energy_meter_type;               //!< energy metering type, see constants: ENERGYM_
-  IPAddress energy_meter_ip;               //!< enerygy meter address string
-  uint16_t energy_meter_port;              //!< energy meter port,  tcp port if energy_meter_type in (ENERGYM_HAN_WIFI,  ENERGYM_SHELLY3EM,ENERGYM_SHELLY_GEN2)
-  uint8_t energy_meter_pollingfreq;        //!< polling based meters, frequency in secs
+  // char variable_server[MAX_ID_STR_LENGTH]; //!< projected to be used in replica mode, RFU
+  char entsoe_api_key[37];          //!< EntsoE API key
+  char entsoe_area_code[17];        //!< Price area code in day ahead market
+  int16_t pricemod;                 //!< Price modifier 0.1 cents, scaled
+  uint32_t pricemod_hours;          //!< Price modifier hour mask hours 0-23, mask += Math.pow(2, i)
+  char custom_ntp_server[35];       //!< RFU, TODO:UI to set up
+  char timezone[4];                 //!< EET,CET supported
+  uint8_t ota_update_phase;         //!< Phase of curent OTA update, if updating
+  uint16_t netting_period_sec;      //!< Variable netting period in seconds, was in constant NETTING_PERIOD_SEC
+  uint8_t energy_meter_type;        //!< energy metering type, see constants: ENERGYM_
+  IPAddress energy_meter_ip;        //!< enerygy meter address string
+  uint16_t energy_meter_port;       //!< energy meter port,  tcp port if energy_meter_type in (ENERGYM_HAN_WIFI,  ENERGYM_SHELLY3EM,ENERGYM_SHELLY_GEN2)
+  uint8_t energy_meter_pollingfreq; //!< polling based meters, frequency in secs
 #ifdef METER_HAN_DIRECT_ENABLED
   uint8_t energy_meter_gpio; //!< energy meter gpio , ENERGYM_HAN_DIRECT
 #endif
+#ifdef METER_HAN_ENABLED
+  uint8_t energy_meter_check_type; //!< e.g. ENERGYM_CHECK_HAN_CRC16_ARC
+#endif
   char energy_meter_password[MAX_PWD_STR_LENGTH];
-  uint8_t production_meter_type;
+  uint8_t production_meter_type; // PRODUCTIONM_
   IPAddress production_meter_ip;
   uint16_t production_meter_port;
   uint8_t production_meter_id;
@@ -1012,8 +1018,7 @@ long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num
 bool get_han_dbl(const char *rowp, const char *obis_code, double *returned);
 // bool get_han_ts(String *strp, time_t *returned);
 bool get_han_ts(const char *strp, time_t *returned);
-// bool parse_han_row(String *row_in_p);
-bool parse_han_row(const char *row_in_p, bool *message_error);
+bool parse_han_row(const char *row_in_p, bool *three_phase_detected);
 
 // * Json node values to memory
 bool ajson_str_to_mem(JsonVariant parent_node, char *doc_key, char *tostr, size_t buffer_length);
@@ -2739,7 +2744,7 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
 {
   // kelaa operaattorit läpi, jos löytyy match niin etene sen kanssa, jos ei niin palauta default
   variable_st var;
-   bool result = false;
+  bool result = false;
   if (statement->variable_id == -1)
   {
     return default_value;
@@ -2758,7 +2763,6 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
       break;
     }
   }
- 
 
   if (oper.multiselect)
   {
@@ -3816,7 +3820,7 @@ void process_energy_meter_readings()
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
   yield();
-  //  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in_vol %f Wh, energy_meter_cumulative_latest_out_vol %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in_vol, energy_meter_cumulative_latest_out_vol, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
+  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in_vol %f Wh, energy_meter_cumulative_latest_out_vol %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in_vol, energy_meter_cumulative_latest_out_vol, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
 
   // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
@@ -3877,6 +3881,67 @@ void process_energy_meter_readings()
   energy_meter_value_previous_in = energy_meter_cumulative_latest_in_vol;
   energy_meter_value_previous_out = energy_meter_cumulative_latest_out_vol;
 }
+
+#define METER_HAN_CRC_ENABLED // Not all telegrams have CRC and there can be different functions/implementations for CRC
+#ifdef METER_HAN_CRC_ENABLED
+#pragma message("Experimental METER_HAN_CRC_ENABLED")
+
+// CRC16-ARC, CRC-16-IBM calculation
+uint16_t calculate_crc16_arc(const uint8_t *data, size_t length)
+{
+  uint16_t crc = 0x0000; // Initial value for CRC16-ARC
+  for (size_t i = 0; i < length; i++)
+  {
+    crc ^= data[i];
+    for (uint8_t j = 0; j < 8; j++)
+    {
+      if (crc & 0x0001)
+      {
+        crc = (crc >> 1) ^ 0xA001; // CRC-16/ARC polynomial (0x8005 reversed)
+      }
+      else
+      {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
+
+bool check_telegram_crc(const char *telegram)
+{
+  const char *excl = strchr(telegram, '!');
+  if (!excl)
+  {
+    Serial.println("End '!' not found");
+    return false;
+  }
+
+  // Find position of CRC (assumes exactly 4 hex chars follow the '!')
+  const char *crcStart = excl + 1;
+  if (strlen(crcStart) < 4)
+  {
+    Serial.println("CRC not found after '!'");
+    return false;
+  }
+
+  // Parse expected CRC (4 hex digits after '!')
+  char crcHex[5] = {0};
+  strncpy(crcHex, crcStart, 4);
+  uint16_t expectedCRC = (uint16_t)strtol(crcHex, NULL, 16);
+
+  // Calculate CRC for everything up to and including '!'
+  size_t telegramLength = excl - telegram + 1;
+  uint16_t calculatedCRC = calculate_crc16_arc((const uint8_t *)telegram, telegramLength);
+  if (expectedCRC != calculatedCRC)
+  {
+    Serial.printf("Expected CRC: 0x%04X, length %d\n", expectedCRC, telegramLength);
+    Serial.printf("Calculated CRC: 0x%04X\n", calculatedCRC);
+  }
+  return expectedCRC == calculatedCRC;
+}
+
+#endif
 
 #ifdef METER_HAN_ENABLED
 
@@ -3975,65 +4040,119 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 
 //  Char array based replacing String input version
 
-bool parse_han_row(const char *row_in_p, bool *message_error)
+time_t han_buffer_ts; //-> energy_meter_ts_latest
+#define HAN_DBL_VALUECOUNT_MAX 7
+double han_buffer_value[HAN_DBL_VALUECOUNT_MAX];
+
+const char *han_dbl_obis_codes[] = {
+    "1-0:1.7.0",  // Active power import, energy_meter_power_latest_in
+    "1-0:2.7.0",  // Active power export, energy_meter_power_latest_out
+    "1-0:1.8.0",  // Active energy import, cumulative total, energy_meter_cumulative_latest_in_vol
+    "1-0:2.8.0",  // Active energy export, cumulative total, energy_meter_cumulative_latest_out_vol
+    "1-0:31.7.0", // Phase current L1, energy_meter_current_latest[0]
+    "1-0:51.7.0", // Phase current L2, energy_meter_current_latest[1]
+    "1-0:71.7.0", // Phase current L3, energy_meter_current_latest[2]
+};
+
+bool parse_han_row(const char *row_in_p, bool *three_phase_detected)
 {
   //  Serial.println(row_in_p);
   // return if time obis code found in the row
-  double value_read;
-  *message_error = false;
-  if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &energy_meter_ts_latest))
-    return true;
-  if (strncmp(row_in_p, "1-0:", 4) != 0)
+  // Date and time stamp
+  if (strncmp(row_in_p, "!", 1) == 0)
+  {
+    Serial.println(row_in_p);
     return false;
-
-  if (get_han_dbl(row_in_p, "1-0:1.7.0", &energy_meter_power_latest_in))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:1.8.0", &value_read))
+  }
+  if ((strncmp(row_in_p, "0-0:1.0.0(", 10) == 0) && get_han_ts(row_in_p, &han_buffer_ts))
   {
-    if ((value_read < 0.01) || (energy_meter_cumulative_latest_in_vol > value_read))
+    return true;
+  }
+
+  // Other rows than timestamp should start with "1-0:"
+  if (strncmp(row_in_p, "1-0:", 4) != 0)
+  {
+    Serial.println("no 1-0:");
+
+    return false;
+  }
+
+  for (int i = 0; i < 7; i++)
+  {
+  //  Serial.printf("Testing %s in %s\n", han_dbl_obis_codes[i], row_in_p);
+
+    if (get_han_dbl(row_in_p, han_dbl_obis_codes[i], &han_buffer_value[i]))
     {
-      *message_error = true;
-      Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in_vol %s \n"), time(nullptr), row_in_p);
-      // Serial.println(value_read);
-      return false;
-    }
-    else
-    {
-      energy_meter_cumulative_latest_in_vol = value_read;
+
+      if (i == 6)
+      {
+        *three_phase_detected = true;
+      }
+   //   Serial.printf("Found code %s %f\n", han_dbl_obis_codes[i], (float)han_buffer_value[i]);
       return true;
     }
   }
-
-  if (get_han_dbl(row_in_p, "1-0:2.8.0", &value_read))
-  {
-    if ((energy_meter_value_previous_out > value_read))
-    {
-      *message_error = true;
-      Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out_vol %s\n"), time(nullptr), row_in_p);
-      // Serial.println(value_read);
-      return false;
-    }
-    else
-    {
-      energy_meter_cumulative_latest_out_vol = value_read;
-      return true;
-    }
-  }
-
-  if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:51.7.0", &energy_meter_current_latest[1]))
-    return true;
-
-  if (get_han_dbl(row_in_p, "1-0:71.7.0", &energy_meter_current_latest[2]))
-    return true;
-
   return false;
+  /*
+      // Active power import
+      // 0  "1-0:1.7.0", &energy_meter_power_latest_in)) {
+
+      // Active power export
+     // if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
+
+      // Active energy import, cumulative total
+      if (get_han_dbl(row_in_p, "1-0:1.8.0", &value_read))
+      {
+        if ((value_read < 0.01) || (energy_meter_cumulative_latest_in_vol > value_read))
+        {
+          *message_error = true;
+          Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in_vol %s \n"), time(nullptr), row_in_p);
+          // Serial.println(value_read);
+          return false;
+        }
+        else
+        {
+          energy_meter_cumulative_latest_in_vol = value_read;
+          return true;
+        }
+      }
+
+      // Active energy export, cumulative total
+      if (get_han_dbl(row_in_p, "1-0:2.8.0", &value_read))
+      {
+        if ((energy_meter_value_previous_out > value_read))
+        {
+          *message_error = true;
+          Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out_vol %s\n"), time(nullptr), row_in_p);
+          // Serial.println(value_read);
+          return false;
+        }
+        else
+        {
+          energy_meter_cumulative_latest_out_vol = value_read;
+          return true;
+        }
+      }
+      // Phase current L1
+      if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
+      {
+        return true;
+      }
+
+      // Phase current L2
+      if (get_han_dbl(row_in_p, "1-0:51.7.0", &energy_meter_current_latest[1]))
+      {
+        return true;
+      }
+
+      // Phase current L3
+      if (get_han_dbl(row_in_p, "1-0:71.7.0", &energy_meter_current_latest[2]))
+      {
+        *three_phase_detected = true;
+        return true;
+      }
+        return false;
+  */
 }
 
 // global variable to save stack space, Aidon  max about 30 chars/row
@@ -4045,101 +4164,7 @@ size_t han_received_chars;
 size_t han_available_bytes;
 
 #define EXTENDED_HAN_LOGGING_NOT // extra logging
-/**
- * @brief UART callback function called when there is new data from HAN P1 Serial port. Keep lean to save stack space and processing time.
- *
- * @return true , successful if there were enough values in the buffer
- * @return false , unsuccessful, not enough data or too few values
- */
-/*
-bool IRAM_ATTR receive_energy_meter_han_direct() // direct
-{
-  han_value_count = 0;
-  bool message_error;
 
-  if (todo_in_loop_process_energy_meter_readings)
-  {
-#ifdef EXTENDED_HAN_LOGGING
-    log_msg(MSG_TYPE_ERROR, PSTR("HAN P1 - old readings unprocessed"));
-#else
-    Serial.printfintf(PSTR("HAN P1 - old readings unprocessed\n"));
-#endif
-    return false; // old readings still unprocessed
-  }
-
-  // This is a callback function that will be activated on UART RX events
-  delay(100); // there should be some delay to fill the buffer...
-
-  // OR 31.5.24, added variable init
-  // energy_meter_cumulative_latest_in_vol = 0;
-  // energy_meter_cumulative_latest_out_vol = 0;
-
-  if (xSemaphoreTake(xHAN_P1_Semaphore, (TickType_t)10) == pdTRUE)
-  {
-    han_available_bytes = HAN_P1_SERIAL.available();
-    // Serial.printf("HAN P1 %d bytes\n", (int)han_available_bytes);
-    if (han_available_bytes < 200)
-    {
-#ifdef EXTENDED_HAN_LOGGING
-      log_msg(MSG_TYPE_ERROR, PSTR("HAN P1 - message too short"));
-#else
-      Serial.printfintf(PSTR("HAN P1 - message too short\n"));
-#endif
-      while (HAN_P1_SERIAL.available()) // empty the UART buffer
-      {
-        HAN_P1_SERIAL.read();
-      }
-      xSemaphoreGive(xHAN_P1_Semaphore);
-      return false;
-    }
-    yield();
-
-    while (HAN_P1_SERIAL.available()) // SerialPort
-    {
-      // empty buffer before reading new data row
-      memset(row_buffer, 0, sizeof(row_buffer));
-
-      han_received_chars = HAN_P1_SERIAL.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH);
-
-      if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
-        continue;
-
-      if (parse_han_row(row_buffer, &message_error))
-      {
-        han_value_count++;
-      }
-    }
-    if (han_value_count < 5 || message_error) // 3 phase should have < 7
-    {
-      //
-#ifdef EXTENDED_HAN_LOGGING
-      log_msg(MSG_TYPE_ERROR, PSTR("Cannot read all HAN P1 port values"));
-#else
-      Serial.printfintf("Cannot read all HAN P1 port values\n");
-#endif
-      xSemaphoreGive(xHAN_P1_Semaphore);
-      return false;
-    }
-
-    energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
-
-    xSemaphoreGive(xHAN_P1_Semaphore);
-    // read done
-    todo_in_loop_process_energy_meter_readings = true; // do rest of the processing in the loop
-    return true;
-  }
-  else
-  {
-    // Serial.println("Cannot reserve HAN P1 port for reading (xHAN_P1_Semaphore) ");
-    log_msg(MSG_TYPE_ERROR, PSTR("Cannot reserve HAN P1 port for reading"));
-    while (HAN_P1_SERIAL.available())
-    {
-      HAN_P1_SERIAL.read(); // empty receive buffer
-    }
-    return false;
-  }
-}
-*/
 #define HAN_BUFFER_SIZE 1024
 volatile size_t hanIndex = 0;
 char han_message_buffer[HAN_BUFFER_SIZE]; // write in isr, process  in parse_han_message()
@@ -4203,8 +4228,27 @@ private:
 bool parse_han_message() // direct
 {
   han_value_count = 0;
-  bool message_error;
+  bool three_phase_detected = false;
   yield();
+
+#ifdef METER_HAN_CRC_ENABLED
+  // this should be conditional / paraetrized, because crc type varies and crc can be missing
+  if (s.energy_meter_check_type == ENERGYM_CHECK_HAN_CRC16_ARC)
+  {
+    if (check_telegram_crc(han_message_buffer))
+    {
+      //  Serial.println("✅ CRC is valid");
+      ;
+    }
+    else
+    {
+      Serial.println("❌ CRC mismatch");
+      log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
+      return false;
+    }
+  }
+#endif
+
   CharArrayStream han_msg_stream(han_message_buffer, strlen(han_message_buffer));
 
   han_read_busy = true; // skip writing from ISR to the buffer
@@ -4213,24 +4257,54 @@ bool parse_han_message() // direct
   {
     han_received_chars = han_msg_stream.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH - 1);
     row_buffer[han_received_chars] = '\0';
-    if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid
+    if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid {
       continue;
 
-    if (parse_han_row(row_buffer, &message_error))
+    if (parse_han_row(row_buffer, &three_phase_detected))
     {
       han_value_count++;
     }
-    yield();
   }
+  yield();
 
   han_read_busy = false; // now ISR can write to the buffer again
 
-  if (han_value_count < 5 || message_error) // 3 phase should have < 7
+  if (energy_meter_cumulative_latest_in_vol > han_buffer_value[2])
   {
+    Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in_vol %s \n"), time(nullptr), row_buffer);
+    return false;
+  }
+  if (energy_meter_cumulative_latest_out_vol > han_buffer_value[3])
+  {
+    Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out_vol %s \n"), time(nullptr), row_buffer);
     return false;
   }
 
-  energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
+  //Serial.printf(PSTR("DEBUG  %lu: han_value_count %d,phases %d \n"), time(nullptr), han_value_count, three_phase_detected ? 3 : 1);
+
+  // if value count ok, store to final variables
+  if (han_value_count == (three_phase_detected ? 8 : 6)) // time stamp + double values
+  {
+    energy_meter_ts_latest = han_buffer_ts;
+    energy_meter_power_latest_in = han_buffer_value[0];
+    energy_meter_power_latest_out = han_buffer_value[1];
+    energy_meter_cumulative_latest_in_vol = han_buffer_value[2];
+    energy_meter_cumulative_latest_out_vol = han_buffer_value[3];
+    energy_meter_current_latest[0] = han_buffer_value[4];
+    if (three_phase_detected)
+    {
+      energy_meter_current_latest[1] = han_buffer_value[5];
+      energy_meter_current_latest[2] = han_buffer_value[6];
+    }
+
+    energy_meter_power_netin = energy_meter_power_latest_in - energy_meter_power_latest_out;
+  }
+  else
+  {
+    log_msg(MSG_TYPE_WARN, "HAN P1 message parsing failed");
+    Serial.printf(PSTR("DEBUG  %lu: parse_han_message failed, han_value_count %d,  %d-phase\n"), time(nullptr), han_value_count, three_phase_detected ? 3 : 1);
+    return false;
+  }
 
   // read done
   return true;
@@ -4285,11 +4359,14 @@ bool read_energy_meter_shelly3em()
     auth[0] = 0;
 
   if (s.energy_meter_type == ENERGYM_SHELLY3EM)
+  {
     snprintf(url, sizeof(url), "http://%s%s:%d/status", auth, s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
+  }
   else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
+  {
     // this version doesn not support authentication
     snprintf(url, sizeof(url), "http://%s:%d/rpc/EMData.GetStatus?id=0", s.energy_meter_ip.toString().c_str(), s.energy_meter_port);
-
+  }
   Serial.println(url);
 
   yield();
@@ -6216,6 +6293,14 @@ void read_energy_meter()
       {
         process_energy_meter_readings();
       }
+      else
+      {
+        Serial.println("read_energy_meter_han_wifi read_ok, but parse_han_message failed");
+      }
+    }
+    else
+    {
+      Serial.println("read_energy_meter_han_wifi read failed");
     }
 #endif
   }
@@ -7880,6 +7965,7 @@ void reset_config()
   s.pv_power = 5000;
   s.ota_update_phase = OTA_PHASE_NONE;
   s.energy_meter_type = ENERGYM_NONE;
+  s.energy_meter_check_type = ENERGYM_CHECK_NONE;
   s.energy_meter_port = 80;
   s.netting_period_sec = 900;
   s.production_meter_type = PRODUCTIONM_NONE;
@@ -8020,6 +8106,7 @@ void create_settings_doc(DynamicJsonDocument &doc, bool include_password)
   doc["baseload"] = s.baseload;
   doc["pv_power"] = s.pv_power;
   doc["energy_meter_type"] = s.energy_meter_type;
+  doc["energy_meter_check_type"] = s.energy_meter_check_type;
   doc["netting_period_sec"] = NETTING_PERIOD_SEC;
 
   if (s.energy_meter_type != ENERGYM_NONE)
@@ -8327,6 +8414,9 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
 
   s.energy_meter_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_type", s.energy_meter_type);
   Serial.printf("s.energy_meter_type %d\n", (int)s.energy_meter_type);
+
+  s.energy_meter_check_type = (uint8_t)ajson_int_get(doc, (char *)"energy_meter_check_type", s.energy_meter_check_type);
+
   s.energy_meter_gpio = ajson_int_get(doc, (char *)"energy_meter_gpio", s.energy_meter_gpio);
 
 #ifdef REMOTE_ENABLED
