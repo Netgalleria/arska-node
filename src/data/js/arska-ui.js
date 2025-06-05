@@ -3165,6 +3165,9 @@ function set_field_editability_ev() {
     document.getElementById("energy_meter_port").disabled = p1_direct;
     document.getElementById("energy_meter_password").disabled = p1_direct;
     document.getElementById("energy_meter_pollingfreq").disabled = p1_direct;
+    document.getElementById("energy_meter_check_type").disabled = !([4,5].includes(parseInt(document.getElementById("energy_meter_type").value)));
+
+
     return;
 }
 
