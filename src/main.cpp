@@ -3933,11 +3933,23 @@ bool check_telegram_crc(const char *telegram)
   // Calculate CRC for everything up to and including '!'
   size_t telegramLength = excl - telegram + 1;
   uint16_t calculatedCRC = calculate_crc16_arc((const uint8_t *)telegram, telegramLength);
+
   if (expectedCRC != calculatedCRC)
   {
-    Serial.printf("Expected CRC: 0x%04X, length %d\n", expectedCRC, telegramLength);
+    Serial.printf("Expected CRC: 0x%04X (%s), length %u\n", expectedCRC, crcHex, telegramLength);
     Serial.printf("Calculated CRC: 0x%04X\n", calculatedCRC);
+
+#pragma message("EXTENSIVE CRC DEBUG, INFO REMOVE IN PRODUCTION")
+
+    Serial.println(telegram);
+    for (int i = 0; i < telegramLength; i++)
+    {
+      Serial.printf(" %02X", telegram[i]);
+    }
+
+    Serial.println();
   }
+  
   yield();
   return expectedCRC == calculatedCRC;
 }
@@ -4117,9 +4129,11 @@ volatile size_t hanIndex = 0;
 char han_message_buffer[HAN_BUFFER_SIZE]; // write in isr, process  in parse_han_message()
 volatile bool todo_in_loop_parse_han_message = false;
 volatile bool han_read_busy = false; // lock writing in isr if busy
+volatile unsigned han_telegram_received_ms=0;
 
 void IRAM_ATTR receive_energy_meter_han_direct_2()
 {
+  //  ets_printf("receive_energy_meter_han_direct_2 %lu\n",han_telegram_count);
   delay(100); // there should be some delay to fill the buffer...
   han_available_bytes = HAN_P1_SERIAL.available();
 
@@ -4135,15 +4149,17 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
   while (HAN_P1_SERIAL.available())
   {
     char c = HAN_P1_SERIAL.read();
-
     if (hanIndex < HAN_BUFFER_SIZE - 2)
     {
       han_message_buffer[hanIndex++] = c;
     }
-
-    todo_in_loop_parse_han_message = true;
   }
   han_message_buffer[hanIndex] = '\0'; // Null-terminate safely
+
+  han_telegram_received_ms = millis();
+  todo_in_loop_parse_han_message = true;
+
+ // ets_printf("receive_energy_meter_han_direct_2 end\n");
 }
 // Utility, experimental
 class CharArrayStream
@@ -4194,8 +4210,8 @@ bool parse_han_message() // direct
     {
       han_telegram_error_crc_count++;
       Serial.println("❌ CRC mismatch");
-      // Serial.println(han_message_buffer);
-      // Serial.println();
+      Serial.printf("rechecking result: %s" ,(check_telegram_crc(han_message_buffer) ?"OK": "FAILED"));
+
       //  log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
       return false;
     }
@@ -10154,7 +10170,9 @@ void loop()
   if (todo_in_loop_parse_han_message)
   {
     todo_in_loop_parse_han_message = false;
-    if (parse_han_message())
+    // do not process old telegrams
+  //  Serial.printf("Processing telegram, age %lu ms\n", millis() - han_telegram_received_ms);
+    if ((millis() - han_telegram_received_ms < 5000) && parse_han_message())
     {
       process_energy_meter_readings(); //
     }
