@@ -4167,8 +4167,9 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
   {
     han_message_buffer[random(1, hanIndex)] = random(32, 64);
   };
+  */
 }
-*/
+
 // Utility for reading buffer char array as Stream
 class CharArrayStream
 {
