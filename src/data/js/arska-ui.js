@@ -802,9 +802,18 @@ function update_status(repeat) {
             if (data.hasOwnProperty("temp_f") && data.temp_f != 128)
                 document.getElementById("cpu_temp").innerHTML = "Processor temperature " + parseInt((data.temp_f - 32) * (5 / 9)) + "&deg;C";
 
-            if (data.hasOwnProperty("wg_status"))
+            if (data.hasOwnProperty("wg_status")) {
                 document.getElementById("wg_status_text").innerHTML = `Connection status: ${remote_status_texts[data.wg_status]}`;
+            }
 
+            if (document.getElementById(`energy_meter_check_type`).value > 0) {
+                if (data.hasOwnProperty("han_telegram_error_rate")) {
+                    document.getElementById("energy_meter_check_status_text").innerHTML = `Error rate: ${Math.round(data.han_telegram_error_rate * 100) / 100} %`;
+                }
+            }
+        
+
+       
             var lm_status = 'success';
             var lm_info = '';
             var lm_status_el = document.getElementById("load_manager_status");

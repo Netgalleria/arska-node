@@ -3820,7 +3820,7 @@ void process_energy_meter_readings()
   time_t energy_meter_read_previous_ts = energy_meter_read_succesfully_ts;
   energy_meter_read_succesfully_ts = time(nullptr);
   yield();
-  Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in_vol %f Wh, energy_meter_cumulative_latest_out_vol %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in_vol, energy_meter_cumulative_latest_out_vol, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
+  // Serial.printf("HAN readings: energy_meter_power_latest_in %f W, power_out %f W, energy_meter_cumulative_latest_in_vol %f Wh, energy_meter_cumulative_latest_out_vol %f Wh, [%f A, %f A, %f A]", energy_meter_power_latest_in, energy_meter_power_latest_out, energy_meter_cumulative_latest_in_vol, energy_meter_cumulative_latest_out_vol, energy_meter_current_latest[0], energy_meter_current_latest[1], energy_meter_current_latest[2]);
 
   // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
@@ -3938,6 +3938,7 @@ bool check_telegram_crc(const char *telegram)
     Serial.printf("Expected CRC: 0x%04X, length %d\n", expectedCRC, telegramLength);
     Serial.printf("Calculated CRC: 0x%04X\n", calculatedCRC);
   }
+  yield();
   return expectedCRC == calculatedCRC;
 }
 
@@ -4042,6 +4043,7 @@ bool get_han_dbl(const char *rowp, const char *obis_code, double *returned)
 
 time_t han_buffer_ts; //-> energy_meter_ts_latest
 #define HAN_DBL_VALUECOUNT_MAX 7
+#define HAN_DBL_OBIS_CURR_L3 6 // index of L3 current obis, used to detect if 3 phase meter
 double han_buffer_value[HAN_DBL_VALUECOUNT_MAX];
 
 const char *han_dbl_obis_codes[] = {
@@ -4077,82 +4079,21 @@ bool parse_han_row(const char *row_in_p, bool *three_phase_detected)
     return false;
   }
 
-  for (int i = 0; i < 7; i++)
+  for (int i = 0; i < HAN_DBL_VALUECOUNT_MAX; i++)
   {
-  //  Serial.printf("Testing %s in %s\n", han_dbl_obis_codes[i], row_in_p);
-
+    //  Serial.printf("Testing %s in %s\n", han_dbl_obis_codes[i], row_in_p);
     if (get_han_dbl(row_in_p, han_dbl_obis_codes[i], &han_buffer_value[i]))
     {
 
-      if (i == 6)
+      if (i == HAN_DBL_OBIS_CURR_L3)
       {
         *three_phase_detected = true;
       }
-   //   Serial.printf("Found code %s %f\n", han_dbl_obis_codes[i], (float)han_buffer_value[i]);
+      //   Serial.printf("Found code %s %f\n", han_dbl_obis_codes[i], (float)han_buffer_value[i]);
       return true;
     }
   }
   return false;
-  /*
-      // Active power import
-      // 0  "1-0:1.7.0", &energy_meter_power_latest_in)) {
-
-      // Active power export
-     // if (get_han_dbl(row_in_p, "1-0:2.7.0", &energy_meter_power_latest_out))
-
-      // Active energy import, cumulative total
-      if (get_han_dbl(row_in_p, "1-0:1.8.0", &value_read))
-      {
-        if ((value_read < 0.01) || (energy_meter_cumulative_latest_in_vol > value_read))
-        {
-          *message_error = true;
-          Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_in_vol %s \n"), time(nullptr), row_in_p);
-          // Serial.println(value_read);
-          return false;
-        }
-        else
-        {
-          energy_meter_cumulative_latest_in_vol = value_read;
-          return true;
-        }
-      }
-
-      // Active energy export, cumulative total
-      if (get_han_dbl(row_in_p, "1-0:2.8.0", &value_read))
-      {
-        if ((energy_meter_value_previous_out > value_read))
-        {
-          *message_error = true;
-          Serial.printf(PSTR("DEBUG  %lu: Anomaly in energy_meter_cumulative_latest_out_vol %s\n"), time(nullptr), row_in_p);
-          // Serial.println(value_read);
-          return false;
-        }
-        else
-        {
-          energy_meter_cumulative_latest_out_vol = value_read;
-          return true;
-        }
-      }
-      // Phase current L1
-      if (get_han_dbl(row_in_p, "1-0:31.7.0", &energy_meter_current_latest[0]))
-      {
-        return true;
-      }
-
-      // Phase current L2
-      if (get_han_dbl(row_in_p, "1-0:51.7.0", &energy_meter_current_latest[1]))
-      {
-        return true;
-      }
-
-      // Phase current L3
-      if (get_han_dbl(row_in_p, "1-0:71.7.0", &energy_meter_current_latest[2]))
-      {
-        *three_phase_detected = true;
-        return true;
-      }
-        return false;
-  */
 }
 
 // global variable to save stack space, Aidon  max about 30 chars/row
@@ -4160,12 +4101,18 @@ bool parse_han_row(const char *row_in_p, bool *three_phase_detected)
 char row_buffer[ROW_BUFFER_LENGTH];
 // static uint16_t han_direct_error_count = 0;
 static int han_value_count = 0;
+static uint32_t han_telegram_count = 0;
+static int han_telegram_error_crc_count = 0;
+
 size_t han_received_chars;
 size_t han_available_bytes;
 
 #define EXTENDED_HAN_LOGGING_NOT // extra logging
 
 #define HAN_BUFFER_SIZE 1024
+#define HAN_VALUES_EXPECTED_PHASE1 6
+#define HAN_VALUES_EXPECTED_PHASE3 8
+
 volatile size_t hanIndex = 0;
 char han_message_buffer[HAN_BUFFER_SIZE]; // write in isr, process  in parse_han_message()
 volatile bool todo_in_loop_parse_han_message = false;
@@ -4230,6 +4177,9 @@ bool parse_han_message() // direct
   han_value_count = 0;
   bool three_phase_detected = false;
   yield();
+  han_telegram_count++;
+
+  han_read_busy = true; // skip writing from ISR to the buffer
 
 #ifdef METER_HAN_CRC_ENABLED
   // this should be conditional / paraetrized, because crc type varies and crc can be missing
@@ -4242,16 +4192,17 @@ bool parse_han_message() // direct
     }
     else
     {
+      han_telegram_error_crc_count++;
       Serial.println("❌ CRC mismatch");
-      log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
+      // Serial.println(han_message_buffer);
+      // Serial.println();
+      //  log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
       return false;
     }
   }
 #endif
 
   CharArrayStream han_msg_stream(han_message_buffer, strlen(han_message_buffer));
-
-  han_read_busy = true; // skip writing from ISR to the buffer
 
   while (han_msg_stream.available())
   {
@@ -4265,9 +4216,10 @@ bool parse_han_message() // direct
       han_value_count++;
     }
   }
-  yield();
 
   han_read_busy = false; // now ISR can write to the buffer again
+
+  yield();
 
   if (energy_meter_cumulative_latest_in_vol > han_buffer_value[2])
   {
@@ -4280,10 +4232,10 @@ bool parse_han_message() // direct
     return false;
   }
 
-  //Serial.printf(PSTR("DEBUG  %lu: han_value_count %d,phases %d \n"), time(nullptr), han_value_count, three_phase_detected ? 3 : 1);
+  // Serial.printf(PSTR("DEBUG  %lu: han_value_count %d,phases %d \n"), time(nullptr), han_value_count, three_phase_detected ? 3 : 1);
 
   // if value count ok, store to final variables
-  if (han_value_count == (three_phase_detected ? 8 : 6)) // time stamp + double values
+  if (han_value_count == (three_phase_detected ? HAN_VALUES_EXPECTED_PHASE3 : HAN_VALUES_EXPECTED_PHASE1)) // time stamp + double values
   {
     energy_meter_ts_latest = han_buffer_ts;
     energy_meter_power_latest_in = han_buffer_value[0];
@@ -9119,6 +9071,13 @@ void onWebStatusGet(AsyncWebServerRequest *request)
   { // this and previous 2 blocks utilization
     v_channel_array.add(channel_history_cumulative_minutes(channel_idx, now_nth_period_in_hour + DAY_BLOCK_SIZE_HOURS * 2));
   }
+
+#ifdef METER_HAN_ENABLED
+  if (han_telegram_count > 0)
+  {
+    doc["han_telegram_error_rate"] = (100 * (float)han_telegram_error_crc_count / han_telegram_count);
+  }
+#endif
 
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
