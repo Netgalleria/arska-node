@@ -2540,7 +2540,7 @@ int timeSeries::get_period_rank_hour(const int id, time_t period_ts, time_t star
       }
     }
 
-#pragma message("Test descending for future use")
+    // #pragma message("Test descending for future use")
     if (descending)
       return hours_in_range - rank + 1;
     else
@@ -3884,7 +3884,7 @@ void process_energy_meter_readings()
 
 #define METER_HAN_CRC_ENABLED // Not all telegrams have CRC and there can be different functions/implementations for CRC
 #ifdef METER_HAN_CRC_ENABLED
-#pragma message("Experimental METER_HAN_CRC_ENABLED")
+// #pragma message("Experimental METER_HAN_CRC_ENABLED")
 
 // CRC16-ARC, CRC-16-IBM calculation
 uint16_t calculate_crc16_arc(const uint8_t *data, size_t length)
@@ -3938,18 +3938,19 @@ bool check_telegram_crc(const char *telegram)
   {
     Serial.printf("Expected CRC: 0x%04X (%s), length %u\n", expectedCRC, crcHex, telegramLength);
     Serial.printf("Calculated CRC: 0x%04X\n", calculatedCRC);
+    /*
+    #pragma message("EXTENSIVE CRC DEBUG, REMOVE IN PRODUCTION")
 
-#pragma message("EXTENSIVE CRC DEBUG, INFO REMOVE IN PRODUCTION")
+        Serial.println(telegram);
+        for (int i = 0; i < telegramLength; i++)
+        {
+          Serial.printf(" %02X", telegram[i]);
+        }
 
-    Serial.println(telegram);
-    for (int i = 0; i < telegramLength; i++)
-    {
-      Serial.printf(" %02X", telegram[i]);
-    }
-
-    Serial.println();
+        Serial.println();
+        */
   }
-  
+
   yield();
   return expectedCRC == calculatedCRC;
 }
@@ -4129,7 +4130,7 @@ volatile size_t hanIndex = 0;
 char han_message_buffer[HAN_BUFFER_SIZE]; // write in isr, process  in parse_han_message()
 volatile bool todo_in_loop_parse_han_message = false;
 volatile bool han_read_busy = false; // lock writing in isr if busy
-volatile unsigned han_telegram_received_ms=0;
+volatile unsigned han_telegram_received_ms = 0;
 
 void IRAM_ATTR receive_energy_meter_han_direct_2()
 {
@@ -4159,9 +4160,16 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
   han_telegram_received_ms = millis();
   todo_in_loop_parse_han_message = true;
 
- // ets_printf("receive_energy_meter_han_direct_2 end\n");
+  // ets_printf("receive_energy_meter_han_direct_2 end\n");
+/*
+#pragma message("Testing random errors, REMOVE IN PRODUCTION")
+  if ((int)random(1, 200) == 1)
+  {
+    han_message_buffer[random(1, hanIndex)] = random(32, 64);
+  };
 }
-// Utility, experimental
+*/
+// Utility for reading buffer char array as Stream
 class CharArrayStream
 {
 public:
@@ -4210,9 +4218,8 @@ bool parse_han_message() // direct
     {
       han_telegram_error_crc_count++;
       Serial.println("❌ CRC mismatch");
-      Serial.printf("rechecking result: %s" ,(check_telegram_crc(han_message_buffer) ?"OK": "FAILED"));
-
-      //  log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
+      log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
+      han_read_busy = false; // release read "lock"
       return false;
     }
   }
@@ -9577,10 +9584,6 @@ void setup()
 
   delay(2000); // wait for console to settle - only needed when debugging
 
-// #pragma message("JUST TESTING")
-//   strcpy(han_message_buffer, "/ADN9 6511\n\n0-0:1.0.0(250514153210S)\n1-0:1.8.0(00001809.865*kWh)\n1-0:2.8.0(00000000.000*kWh)\n1-0:3.8.0(00000002.219*kVArh)\n1-0:4.8.0(00001067.034*kVArh)\n1-0:1.7.0(0000.140*kW)\n1-0:2.7.0(0000.000*kW)\n1-0:3.7.0(0000.000*kVAr)\n1-0:4.7.0(0000.066*kVAr)\n1-0:21.7.0(0000.142*kW)\n1-0:22.7.0(0000.000*kW)\n1-0:23.7.0(0000.000*kVAr)\n1-0:24.7.0(0000.066*kVAr)\n1-0:32.7.0(233.9*V)\n1-0:31.7.0(000.7*A)\n!8281");
-//   parse_han_message();
-
 // RTC PCF8563 functionality  -work in progress
 #ifdef RTC_PCF8563_ENABLED
 
@@ -10171,7 +10174,7 @@ void loop()
   {
     todo_in_loop_parse_han_message = false;
     // do not process old telegrams
-  //  Serial.printf("Processing telegram, age %lu ms\n", millis() - han_telegram_received_ms);
+    //  Serial.printf("Processing telegram, age %lu ms\n", millis() - han_telegram_received_ms);
     if ((millis() - han_telegram_received_ms < 5000) && parse_han_message())
     {
       process_energy_meter_readings(); //
