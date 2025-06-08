@@ -11,7 +11,7 @@
   * Communicates with Modbus TCP (port 502) with the inverter
   * Charging/discharging profiles can be controlled from the rules and the dashboard
   * SoC (State of Charge) visible on the dashboard graph
-* Solar sorecast based on Open Meteo weather forecast (in addition to FMI) covers whole Europe. Experimental status.
+* Solar forecast based on Open Meteo weather forecast (in addition to FMI) covers whole Europe. Experimental status.
 * Optional price modifier (Settings/Price data) allows to modify prices on selected hours. You can for example add negative price modifier to night hours to indicate cheaper transfer cost. Price modifier takes effect after updating price data from Entso-E/Elering.
 * 
 * Dashboard history values are saved in soft boots
