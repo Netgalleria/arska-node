@@ -4977,6 +4977,7 @@ void calculate_price_rank_variables()
     //  if (strncmp(s.entsoe_area_code, "elering:", 8) == 0)
     //    log_msg(MSG_TYPE_ERROR, PSTR("Cannot get price data from Elering."));
     //  else
+    Serial.printf("prices_expires_ts: %lu\n", prices_expires_ts);
     log_msg(MSG_TYPE_ERROR, PSTR("Cannot get prices from Entso-E or Elering. Check https://transparency.entsoe.eu/."));
   }
 
@@ -4995,9 +4996,7 @@ void calculate_price_rank_variables()
   // Serial.println("VARIABLE_PRICERANK_9 1");
   last_ts_in_window = min(prices->period_start(current_hour_start_ts + 8 * SECONDS_IN_HOUR), prices->last_set_period_ts());
   first_ts_in_window = last_ts_in_window - 8 * SECONDS_IN_HOUR;
-  // Serial.println(current_hour_start_ts + 8 * SECONDS_IN_HOUR);
-  // Serial.println(prices->last_set_period_ts());
-  // prices->debug_print(false);
+
 
   rank = prices->get_period_rank_hour(1, current_period_start_ts, first_ts_in_window, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_9, (long)rank);
@@ -5378,147 +5377,8 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   Serial.printf("get_renewable_forecast end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
-/* WiP, combined query
-bool get_renewable_forecast_fmi()
-{
 
-  timeSeries *time_series;
-  WiFiClientSecure client_https;
-  char api_url[120];
-  DynamicJsonDocument doc(4096);
-  unsigned long task_started;
-  bool actual_data;
-  // doc.garbageCollect();
 
-  Serial.printf("get_renewable_forecast start getFreeHeap: %d\n", (int)ESP.getFreeHeap());
-  if (strlen(s.forecast_loc) < 2)
-  {
-    Serial.println(F("FMI forecast location undefined. Quitting"));
-    return false;
-  }
-
-  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
-    return false;
-
-  client_https.setTimeout(5); // was 15 Seconds
-  client_https.setHandshakeTimeout(5);
-  yield();
-
-  Serial.println(host_fcst_fmi);
-  delay(1000);
-
-  if (!connect_https_with_check(&client_https, host_fcst_fmi, httpsPort, "FMI"))
-    return false;
-
-  yield();
-  // reset variables
-  for (uint8_t forecast_type = FORECAST_TYPE_FI_LOCAL_SOLAR; forecast_type <= FORECAST_TYPE_FI_WIND; forecast_type++)
-  {
-    if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
-    {
-      time_series = &solar_forecast;
-      time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
-      snprintf(api_url, sizeof(api_url), "/products/renewable-energy-forecasts/solar/%s/solar_%s_fi_latest.json", s.forecast_loc, s.forecast_loc);
-    }
-    else if (forecast_type == FORECAST_TYPE_FI_WIND)
-    {
-      time_series = &solar_forecast;
-      time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
-      snprintf(api_url, sizeof(api_url), "/products/renewable-energy-forecasts/wind/windpower_fi_latest.json");
-    }
-
-    Serial.printf("Requesting URL: %s\n", api_url);
-
-    client_https.print(String("GET ") + api_url + " HTTP/1.0\r\n" +
-                       "Host: " + host_fcst_fmi + "\r\n" +
-                       "User-Agent: ArskaNodeESP\r\n" +
-                       "Connection: close\r\n\r\n");
-
-     Serial.println("request sent");
-
-    // yield();
-    task_started = millis();
-    while (client_https.connected())
-    {
-      String lineh = client_https.readStringUntil('\n');
-      Serial.println(lineh);
-      if (lineh == "\r")
-      {
-        Serial.println("headers received");
-        break;
-      }
-      if (millis() - task_started > 10000)
-      {
-        Serial.println(PSTR("Timeout in receiving headers"));
-        client_https.stop();
-        return false;
-      }
-      yield();
-    }
-    Serial.println(F("Waiting the document"));
-    String line;
-
-    memset(in_buffer, 0, sizeof(in_buffer));
-    strcat(in_buffer, "[");
-    yield();
-    actual_data = false;
-
-    while (client_https.available() > 1) // last byte in the end causes an error message
-    {
-      line = read_http11_line(&client_https);
-      // Serial.println(line);
-      line.trim();
-      line.replace("000.0", ""); // timestamp millisec -> sec
-
-      if (line.indexOf("\"data\":") > -1) // process only node "data"
-        actual_data = true;
-      else if (actual_data)
-      {
-        // Serial.print("*");
-        strncat(in_buffer, (const char *)line.c_str(), sizeof(in_buffer) - strlen(in_buffer) - 2);
-        if ((line.indexOf("]") > -1) && (line.indexOf("],") == -1)) // data array ends
-        {
-          actual_data = false;
-          strcat(in_buffer, "]");
-        }
-      }
-    }
-    client_https.stop();
-    Serial.println("in_buffer:");
-    Serial.println(in_buffer);
-
-    DeserializationError error = deserializeJson(doc, in_buffer);
-    if (error)
-    {
-      Serial.print("deserializeJson() failed: ");
-      Serial.println(error.c_str());
-      return false;
-    }
-
-    time_t period;
-    float energy;
-
-    for (JsonArray elem : doc.as<JsonArray>())
-    {
-      period = (time_t)elem[0] - SECONDS_IN_HOUR; // The value represent previous hour, Anders Lindfors 3.5.2023
-      energy = elem[1];
-      if (energy > 0.001)
-      {
-        time_series->set(period, energy * 1000);
-      }
-    }
-    yield();
-  }
-  // Free resources
-  client_https.stop();
-
-  yield();
-  Serial.printf("get_renewable_forecast_fmi end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
-  delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
-
-  return true;
-}
-*/
 // We keep the CA certificate in program code to avoid potential littlefs-hack
 // Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
 const char *letsencrypt_ca_certificate =
@@ -5554,84 +5414,24 @@ const char *letsencrypt_ca_certificate =
     "emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=\n"
     "-----END CERTIFICATE-----\n";
 
+
 // Solar Panel Parameters
 const float Wp = 1000.0;            // Panel rated power (Watts)
-const float base_efficiency = 0.20; // Base efficiency (20%)
 const float temp_coeff = -0.004;    // Temperature coefficient (-0.4% per °C)
 const float wind_coeff = 0.02;      // Wind cooling factor (per m/s)
-const float albedo = 0.25;          // Ground reflectance (Grass ~ 0.2, Snow ~ 0.8)
-
-bool isDSTActive(int day, int month, int weekday)
-{
-  // DST starts on the **last Sunday of March** (CET → CEST)
-  if (month == 3 && weekday == 0 && day >= 25)
-    return true;
-  // DST ends on the **last Sunday of October** (CEST → CET)
-  if (month == 10 && weekday == 0 && day >= 25)
-    return false;
-  // DST is active between these months
-  return (month > 3 && month < 10);
-}
-
-float convertUTCtoSolarTime(int utcHour, float longitude)
-{
-  float offset = longitude / 15.0; // 15° longitude = 1-hour shift
-  float solarHour = utcHour + offset;
-
-  if (solarHour >= 24)
-    solarHour -= 24; // Prevent overflow past midnight
-  return solarHour;
-}
-
-float getSolarDeclination(int dayOfYear)
-{
-  return -23.44 * cos(radians((360.0 / 365.0) * (dayOfYear + 10))); // Approximate declination
-}
-
-float getSunriseSunsetHour(int dayOfYear, float latitude)
-{
-  float declination = getSolarDeclination(dayOfYear);
-  float hour_angle = acos(-tan(radians(latitude)) * tan(radians(declination)));
-  return 12.0 - (hour_angle * 180.0 / M_PI) / 15.0; // Converts hour angle to local time
-}
-
-// Function to estimate **sun elevation** (simplified calculation)
-float getSunElevation(int hour)
-{
-  if (hour < 6 || hour > 18)
-    return 0.0;                                          // Nighttime
-  return 15.0 + (45.0 * sin((M_PI / 12) * (hour - 12))); // Approximate elevation curve
-}
-
-// Function to get azimuth correction based on real sunrise/sunset
-float getAzimuthFactor(int utcHour, int dayOfYear, float latitude, float longitude)
-{
-  float solarHour = convertUTCtoSolarTime(utcHour, longitude); // Convert UTC to solar time
-
-  float sunrise = getSunriseSunsetHour(dayOfYear, latitude);
-  float sunset = 24.0 - sunrise; // Sunset time
-
-  if (solarHour < sunrise || solarHour > sunset)
-    return 1.0; // Panels remain fixed when sun is below horizon
-
-  float solar_azimuth = -90.0 + (180.0 * (solarHour - sunrise) / (sunset - sunrise)); // Adjust azimuth tracking
-  return cos(radians(abs(solar_azimuth - s.azimuth)));                                // Efficiency correction
-}
 
 bool get_solar_forecast_openmeteo(timeSeries *time_series)
 {
   HTTPClient http;
   // Open-Meteo API URL
- // sprintf(api_url, "https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&hourly=temperature_2m,wind_speed_10m,shortwave_radiation,diffuse_radiation,global_tilted_irradiance&timezone=GMT&forecast_days=2&tilt=%d&azimuth=%d", s.latitude, s.longitude,s.declination,s.azimuth);
   sprintf(api_url, "https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&hourly=temperature_2m,wind_speed_10m,global_tilted_irradiance&timezone=GMT&forecast_days=2&tilt=%d&azimuth=%d", s.latitude, s.longitude,s.declination,s.azimuth);
   Serial.println(api_url);
-
+  int processed_hours = 0;
   http.begin(api_url);
   int httpResponseCode = http.GET();
   if (httpResponseCode == 200)
   {
     time_series->set_store_start(day_start_local); // assume day_start_local is up-to-date
-
     String payload = http.getString();
 
     // Parse JSON response
@@ -5641,63 +5441,46 @@ bool get_solar_forecast_openmeteo(timeSeries *time_series)
     JsonArray timeArray = doc["hourly"]["time"];
     JsonArray tempArray = doc["hourly"]["temperature_2m"];
     JsonArray windArray = doc["hourly"]["wind_speed_10m"];
-  //  JsonArray ghiArray = doc["hourly"]["shortwave_radiation"];
-  //  JsonArray dhiArray = doc["hourly"]["diffuse_radiation"];
-     JsonArray gtiArray = doc["hourly"]["global_tilted_irradiance"];
+    JsonArray gtiArray = doc["hourly"]["global_tilted_irradiance"];
     
-
     Serial.println("Hourly PV Estimates: ");
     for (size_t i = 0; i < timeArray.size(); i++)
     {
       float temp = tempArray[i];
       float wind = ((float)windArray[i])/3.6;//Open Meteo gives km/h
-   //   float ghi = ghiArray[i];
-   //   float dhi = dhiArray[i];
       float gti = gtiArray[i];
-
-
       // Extract hour from timestamp
       String timestamp = timeArray[i].as<String>();
-      int utcHour = timestamp.substring(11, 13).toInt();
-
-      int dayOfYear = timestamp.substring(8, 10).toInt() + (timestamp.substring(5, 7).toInt() - 1) * 30;
-      float azimuth_factor = getAzimuthFactor(utcHour, dayOfYear, s.latitude, s.longitude);
-
-
-      // Apply tilt correction manually
-      float tilt_factor = cos(radians(abs(getSolarDeclination(dayOfYear) - s.declination)));
-      if (i==0) {
-          Serial.printf("Tilt Factor: %.2f\n", tilt_factor);
-      }
-
-      // Include reflected & diffuse radiation
-   //   float reflected_radiation = albedo * ghi;
 
       // Adjust efficiency based on temperature & wind cooling
       float temp_effect = temp_coeff * (temp - 25);
       float wind_effect = wind_coeff * wind; 
-    //  float efficiency_adjusted = base_efficiency * (1.0 + temp_effect + wind_effect);
       float efficiency_adjusted =  (1.0 + temp_effect + wind_effect);
 
       // Calculate PV power output
-     // float effective_irradiance = (ghi + dhi + reflected_radiation) * tilt_factor * azimuth_factor; 
       float effective_irradiance = (gti);
 
       float pv_power = Wp * (effective_irradiance / 1000.0) * efficiency_adjusted;
 
-      Serial.printf("[%s] Temp: %.1f°C, Wind: %.1f m/s, efficiency: %.2f , global_tilted_irradiance: %.1f W/m², Azimuth Factor: %.2f,   PV Estimate: %.2f W\n",
-                    timestamp.c_str(), temp, wind, efficiency_adjusted,gti,  azimuth_factor, pv_power);
-     
-      time_series->set(ElementToUTCts(timestamp)-3600, pv_power);// time correction
+      Serial.printf("[%s] %.1f°C,  %.1f m/s, eff: %.2f ,  %.1f W/m² (tilted),  PV: %.2f W\n",
+                    timestamp.c_str(), temp, wind, efficiency_adjusted,gti, pv_power);
+
+      processed_hours++;
+
+      time_series->set(ElementToUTCts(timestamp)-3600, pv_power);// time correction, future vs past
     }
   }
   else
   {
     Serial.printf("HTTP Error: %d\n", httpResponseCode);
+    http.end();
+    return false;
   }
 
   http.end();
-  return true;
+  Serial.printf(PSTR("Processed %d forecast hours from Open Meteo\n"), processed_hours);
+
+  return (processed_hours>46);
 }
 
 /**
@@ -7664,33 +7447,6 @@ bool get_price_data_elering(char *country_code)
 
   Serial.printf("MTU15M_ENABLED get_price_data_elering end ok.\n");
   return true;
-/*
-#else // TODO: remove this branch
-  Serial.printf("price_rows %d, price_idx %d\n", price_rows, price_idx);
-
-  if (price_rows >= MAX_PRICE_PERIODS)
-  {
-    ts_min_stored = ts_max - (MAX_PRICE_PERIODS - 1) * PRICE_RESOLUTION_SEC;
-    int price_idx2 = ((price_idx + 1) % MAX_PRICE_PERIODS);
-    prices_in->set_store_start(ts_min_stored);
-    for (int i = 0; i < MAX_PRICE_PERIODS; i++)
-    { // cyclic use of prices_local array,
-      ts = ts_min_stored + i * PRICE_RESOLUTION_SEC;
-      prices_in->set(ts, prices_local[price_idx2]);
-      price_idx2++;
-      price_idx2 = price_idx2 % MAX_PRICE_PERIODS;
-    }
-
-    prices_expires_ts = ts_max - (10 * SECONDS_IN_HOUR); // prices for next day should come after 12hUTC, so no need to query before that
-    Serial.printf("prices_expires_ts %lu\n", prices_expires_ts);
-    Serial.println(F("Finished succesfully get_price_data_elering."));
-
-    prices_in->apply_pricemodifier();
-
-    Serial.printf("get_price_data_elering end ok.\n");
-    return true;
-  }
-*/
 #endif
 
   return false;
@@ -10468,8 +10224,10 @@ void loop()
     else if (s.solar_forecast_source == SOLAR_FORECAST_TYPE_OPENMETEO)
     {
       got_forecast_ok = get_solar_forecast_openmeteo(&solar_forecast);
+      if (!got_forecast_ok) {
+        log_msg(MSG_TYPE_WARN, "Failed to get solar forecast data from Open Meteo.");
+      }
     }
-   
 
     delay(DELAY_AFTER_EXTERNAL_DATA_UPDATE_MS);
     if (strlen(s.forecast_loc) > 1)
