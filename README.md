@@ -14,8 +14,8 @@ Arska can control various electric switches connected to e.g. water heater and c
 - Relays supported: on-board gpio relays, Shelly (Gen and Gen2), and Tasmota wifi-relays
 - Fronius Gen 24 plus charging control supported from version 1.3
 - Energy production metering, supports selected Fronius and SMA inverters
-- Current date and time, temperature sensor values
-- Local solar forecast and Finnish wind power forecast from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste), currently available in Finland 🇫🇮
+- Current date and time, temperature sensor values 
+- Local solar forecast based Open Meteo data and Finnish Meteorological Institute.  Finnish wind power forecast from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste)
 
  
 ## Intro Videos 

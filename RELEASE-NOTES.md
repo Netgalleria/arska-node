@@ -15,7 +15,7 @@
 * Optional price modifier (Settings/Price data) allows to modify prices on selected hours. You can for example add negative price modifier to night hours to indicate cheaper transfer cost. Price modifier takes effect after updating price data from Entso-E/Elering.
 * 
 * Dashboard history values are saved in soft boots
-* You can select power (W) or energy (Wh) for dashboard graph.
+* You can select 1 hour or 15 minutes time resolution for dashboard graph.
 * With HAN P1 Serial energy meter HAN P1 message (telegram) is published at /api/v1/telegram endpoint (equal to HomeWizard P1 meter). You can read this telegram from another Arska installation (in the same wifi) using "HAN P1 Proxy" energy metering setting.
 * HAN P1 telegrams have optional CRC- check
 
