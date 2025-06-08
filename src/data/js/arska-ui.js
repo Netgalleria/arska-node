@@ -811,9 +811,9 @@ function update_status(repeat) {
                     document.getElementById("energy_meter_check_status_text").innerHTML = `Error rate: ${Math.round(data.han_telegram_error_rate * 100) / 100} %`;
                 }
             }
-        
 
-       
+
+
             var lm_status = 'success';
             var lm_info = '';
             var lm_status_el = document.getElementById("load_manager_status");
@@ -1351,7 +1351,7 @@ function create_dashboard_chart() {
     else if (g_graph_resolution == 900) {
         period_label = "/ 15 min";
     }
-    var now_ts = new Date().getTime()/1000;
+    var now_ts = new Date().getTime() / 1000;
 
     if (has_history_values[VARIABLE_SELLING_ENERGY]) {
         dataset_started = false;
@@ -1369,7 +1369,7 @@ function create_dashboard_chart() {
                     else if (g_graph_resolution == 3600) { //hour based values
                         hour_value += variable_history[VARIABLE_SELLING_ENERGY][h_idx];
                         ts_hour = parseInt(ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
-                        if ((ts == ts_hour + 2700) && (ts_hour+3600<now_ts)) { // || h_idx =variable_history[VARIABLE_SELLING_ENERGY].length-1
+                        if ((ts == ts_hour + 2700) && (ts_hour + 3600 < now_ts)) { // || h_idx =variable_history[VARIABLE_SELLING_ENERGY].length-1
                             import_ds.push({ x: ts_hour * 1000, y: -hour_value });
                             hour_value = 0;
                         }
@@ -1423,7 +1423,7 @@ function create_dashboard_chart() {
                 else if (g_graph_resolution == 3600) { //proto for hour based values
                     hour_value += variable_history[VARIABLE_PRODUCTION_ENERGY][h_idx];
                     ts_hour = parseInt(ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
-                    if ((ts == ts_hour + 2700) && (ts_hour+3600<now_ts)) {
+                    if ((ts == ts_hour + 2700) && (ts_hour + 3600 < now_ts)) {
                         production_ds.push({ x: ts_hour * 1000, y: hour_value });
                         hour_value = 0;
                     }
@@ -1513,7 +1513,7 @@ function create_dashboard_chart() {
                 if (solar_fcst[idx] > 0)
                     series_started = true;
                 if (chart_start_ts <= ts && ts < chart_end_excl_ts && series_started)
-                    fcst_ds.push({ x: ts * 1000, y:  solar_fcst[idx] * g_graph_resolution/3600 }); // use period factor (0.25 for 15 min periods)
+                    fcst_ds.push({ x: ts * 1000, y: solar_fcst[idx] * g_graph_resolution / 3600 }); // use period factor (0.25 for 15 min periods)
             }
             if (fcst_ds.length) {
                 datasets.push(
@@ -2066,12 +2066,16 @@ function load_and_update_settings() {
 
 
     //iterate g_settings array and updates UI elements
+
     for (const property in g_settings) {
         ctrl = document.getElementById(property);
         if (ctrl !== null) {
             //      console.log(ctrl.id, ctrl.type.toLowerCase());
             if (ctrl.type.toLowerCase() == 'checkbox') {
                 ctrl.checked = g_settings[property];
+            }
+            else if (['latitude', 'longitude'].includes(property)) {
+                ctrl.value = Math.round(g_settings[property] * 100) / 100;
             }
             else { // normal text 
                 ctrl.value = g_settings[property];
@@ -2127,6 +2131,14 @@ function load_application_config() {
 
 
     document.getElementById("energy_meter_type").addEventListener(
+        "change",
+        function () {
+            set_field_editability_ev();
+        },
+        false
+    );
+
+    document.getElementById("solar_forecast_source").addEventListener(
         "change",
         function () {
             set_field_editability_ev();
@@ -3174,8 +3186,15 @@ function set_field_editability_ev() {
     document.getElementById("energy_meter_port").disabled = p1_direct;
     document.getElementById("energy_meter_password").disabled = p1_direct;
     document.getElementById("energy_meter_pollingfreq").disabled = p1_direct;
-    document.getElementById("energy_meter_check_type").disabled = !([4,5].includes(parseInt(document.getElementById("energy_meter_type").value)));
+    document.getElementById("energy_meter_check_type").disabled = !([4, 5].includes(parseInt(document.getElementById("energy_meter_type").value)));
 
+    var solar_forecast_source = document.getElementById("solar_forecast_source").value;
+    var calculate_trig = ((solar_forecast_source == 2) || (solar_forecast_source == 3));
+    document.getElementById("forecast_loc").disabled = (solar_forecast_source != 1);
+    document.getElementById("latitude").disabled = !calculate_trig;
+    document.getElementById("longitude").disabled = !calculate_trig;
+    document.getElementById("declination").disabled = !calculate_trig;
+    document.getElementById("azimuth").disabled = !calculate_trig;
 
     return;
 }
@@ -3719,7 +3738,7 @@ function save_card_ev(ev) {
         dataType: "json",
         success: function (data) {
             document.getElementById(card + ":save").disabled = true;
-            if (["admin", "metering", "production", "network", "price_data"].includes(card)) {
+            if (["admin", "metering", "production", "network", "price_data", "energy_forecast"].includes(card)) {
                 let do_restart = confirm("Settings updated. Do you want to restart?");
                 if (do_restart) {
                     launch_action("restart", card, {});

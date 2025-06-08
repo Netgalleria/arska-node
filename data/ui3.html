@@ -668,7 +668,25 @@
                   <!--./card-header-->
                   <div class="card-body">
                     <div class="mb-2">
-                      <label for="forecast_loc" class="form-label">Forecast location</label>
+                      <label for="pv_power" class="form-label">Panel peak power (W)</label>
+                      <input type="number" min="0" class="form-control" id="pv_power" placeholder="0">
+                    </div>
+                    <div class="mb-2">
+                      <label for="baseload" class="form-label">Daytime baseload (W)</label>
+                      <input type="number" class="form-control" id="baseload" placeholder="0">
+                    </div>
+
+                    <div class="mb-2">
+                      <label for="solar_forecast_source" class="form-label">Solar Forecast Source</label>
+                      <select id="solar_forecast_source" class="form-select" aria-label="variable">
+                        <option value="0">not in use</option>
+                        <option value="1">FMI (Finland only)</option>
+                        <option value="3">Open Meteo (experimental)</option>
+                      </select>
+                    </div>
+                    
+                    <div class="mb-2">
+                      <label for="forecast_loc" class="form-label">Forecast location (FMI)</label>
                       <select id="forecast_loc" class="form-select" aria-label="variable">
                         <option value="#">not in use</option>
                         <option value="634317">Akaa</option>
@@ -790,16 +808,25 @@
                         <option value="661896">Ähtäri</option>
                         <option value="662095">Äänekoski</option>
                       </select>
-
                     </div>
                     <div class="mb-2">
-                      <label for="pv_power" class="form-label">Panel peak power (W)</label>
-                      <input type="number" min="0" class="form-control" id="pv_power" placeholder="0">
+                      <label for="latitude" class="form-label">Latitude</label>
+                      <input type="number" min="-180" max="180" class="form-control" id="latitude" placeholder="0">
                     </div>
                     <div class="mb-2">
-                      <label for="baseload" class="form-label">Daytime baseload (W)</label>
-                      <input type="number" class="form-control" id="baseload" placeholder="0">
+                      <label for="longitude" class="form-label">Longitude</label>
+                      <input type="number" min="-180" max="180" class="form-control" id="longitude" placeholder="0">
                     </div>
+                    <div class="mb-2">
+                      <label for="declination" class="form-label">Declination (0 - 90)</label>
+                      <input type="number" min="0" class="form-control" id="declination" placeholder="0 = horizontal, 90 = vertical">
+                    </div>
+                    <div class="mb-2">
+                      <label for="azimuth" class="form-label">Azimuth (0° south, -90° east, 90° west)</label>
+                      <input type="number" min="-180" max="180" class="form-control" id="azimuth" placeholder="West = 90, South = 0, East = -90">
+                    
+                    </div>
+                 
                     <div id="energy_forecast:alert"></div>
                   </div>
                   <!--./card-body-->
