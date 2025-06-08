@@ -10407,8 +10407,8 @@ void loop()
       got_data_from_cache = prices_in->read_from_cache(time(nullptr));
       if (got_data_from_cache)
       {
-        Serial.printf(PSTR("Got from prices from cache, expires %lu \n"), prices->expires());
-        prices_expires_ts = prices->expires();
+        Serial.printf(PSTR("Got from prices from cache, expires %lu \n"), prices_in->expires());
+        prices_expires_ts = prices_in->expires();
         got_price_ok = true;
       }
 #endif
