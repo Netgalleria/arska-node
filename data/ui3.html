@@ -660,8 +660,10 @@
                   <div class="card-header">
                     <h5 class="card-title">Energy Forecast</h5>
                     <div class="chart-info d-flex align-items-center mt-2 mt-xl-0">
-                      <span class="text-muted"> FMI solar and wind energy forecast is currently only available in
-                        Finland. Define location to activate.</span>
+                      <span class="text-muted"> Open Meteo based solar energy forecast requires location coordinates and
+                        panel setup (tilt+azimuth). FMI solar forecast is available in
+                        Finland only and is calculated in selected locations with a model panel setup (tilt 30°,
+                        South).</span>
                     </div>
                     <!--./chart-info-->
                   </div>
@@ -685,8 +687,32 @@
                       </select>
                     </div>
                     <div class="mb-3">
-                      <h4>FMI Settings</h4>
-                  </div>
+                      <h5>Open Meteo Settings</h5>
+                    </div>
+                    <div class="mb-2">
+                      <label for="latitude" class="form-label">Latitude of panel location (-90° - 90°)</label>
+                      <input type="number" min="-90" max="90" class="form-control" id="latitude" placeholder="-90 - 90">
+                    </div>
+                    <div class="mb-2">
+                      <label for="longitude" class="form-label">Longitude of panel location (-180° - 180°)</label>
+                      <input type="number" min="-180" max="180" class="form-control" id="longitude"
+                        placeholder="-180 - 180">
+                    </div>
+                    <div class="mb-2">
+                      <label for="declination" class="form-label">Declination/Tilt (0° horizontal - 90°
+                        vertical)</label>
+                      <input type="number" min="0" class="form-control" id="declination"
+                        placeholder="0 = horizontal, 90 = vertical">
+                    </div>
+                    <div class="mb-2">
+                      <label for="azimuth" class="form-label">Azimuth (0° south, -90° east, 90° west)</label>
+                      <input type="number" min="-180" max="180" class="form-control" id="azimuth"
+                        placeholder="West = 90, South = 0, East = -90">
+
+                    </div>
+                    <div class="mb-3">
+                      <h5>FMI Settings</h5>
+                    </div>
                     <div class="mb-2">
                       <label for="forecast_loc" class="form-label">Forecast location</label>
                       <select id="forecast_loc" class="form-select" aria-label="variable">
@@ -811,27 +837,8 @@
                         <option value="662095">Äänekoski</option>
                       </select>
                     </div>
-                    <div class="mb-3">
-                      <h4>Open Meteo Settings</h4>
-                  </div>
-                    <div class="mb-2">
-                      <label for="latitude" class="form-label">Latitude of panel location (-90° - 90°)</label>
-                      <input type="number" min="-90" max="90" class="form-control" id="latitude" placeholder="-90 - 90">
-                    </div>
-                    <div class="mb-2">
-                      <label for="longitude" class="form-label">Longitude of panel location (-180° - 180°)</label>
-                      <input type="number" min="-180" max="180" class="form-control" id="longitude" placeholder="-180 - 180">
-                    </div>
-                    <div class="mb-2">
-                      <label for="declination" class="form-label">Declination (0° horizontal - 90° vertical)</label>
-                      <input type="number" min="0" class="form-control" id="declination" placeholder="0 = horizontal, 90 = vertical">
-                    </div>
-                    <div class="mb-2">
-                      <label for="azimuth" class="form-label">Azimuth (0° south, -90° east, 90° west)</label>
-                      <input type="number" min="-180" max="180" class="form-control" id="azimuth" placeholder="West = 90, South = 0, East = -90">
-                    
-                    </div>
-                 
+
+
                     <div id="energy_forecast:alert"></div>
                   </div>
                   <!--./card-body-->
@@ -867,7 +874,7 @@
                       </select>
                     </div>
 
-                    
+
                     <div class="mb-2">
                       <label for="energy_meter_gpio" class="form-label">GPIO (RXD)</label>
                       <input type="number" class="form-control" id="energy_meter_gpio" placeholder="16" min="1" step="1"
@@ -883,7 +890,7 @@
                       <input type="number" class="form-control" id="energy_meter_port" placeholder="Typically 80"
                         min="1" step="1" max="65536">
                     </div>
-             
+
 
                     <div class="mb-2">
                       <label for="energy_meter_password" class="form-label">Password</label>
