@@ -5416,13 +5416,23 @@ const char *letsencrypt_ca_certificate =
 
 
 // Solar Panel Parameters
-const float a = -3.47;
-const float b = -0.0594;
+// Empirically determined coefficients a,b - D.L. King, W.E. Boyson, J.A. Kratochvill: Photovoltaic Array Performance Model 
+const float constant_a = -3.47;
+const float constant_b = -0.0594;
+
 const float reference_temp = 25.0;
 const float gamma2 = -0.004;   // Temperature coefficient per °C
 
 bool get_solar_forecast_openmeteo(timeSeries *time_series)
 {
+  float air_temperature ;
+  float wind_speed;//wind m/s, Open Meteo gives km/h
+  float tilted_irradiance; 
+  float exp_term;
+  float panel_temperature;
+  float panel_efficiency;
+  float energy_hour;
+  String timestamp;
   HTTPClient http;
   // Open-Meteo API URL
   sprintf(api_url, "https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&hourly=temperature_2m,wind_speed_10m,global_tilted_irradiance&timezone=GMT&forecast_days=2&tilt=%d&azimuth=%d", s.latitude, s.longitude,s.declination,s.azimuth);
@@ -5447,31 +5457,27 @@ bool get_solar_forecast_openmeteo(timeSeries *time_series)
     Serial.println("Hourly PV Estimates: ");
     for (size_t i = 0; i < timeArray.size(); i++)
     {
-      float temp = tempArray[i];
-      float wind = ((float)windArray[i])/3.6;//Open Meteo gives km/h
-      float gti = gtiArray[i];
+      air_temperature = tempArray[i];
+      wind_speed = ((float)windArray[i])/3.6;//wind m/s, Open Meteo gives km/h
+      tilted_irradiance = gtiArray[i]; //Tilted irradiance, power to panel surface on given azimuth and declination (given in the request)
       // Extract hour from timestamp
-      String timestamp = timeArray[i].as<String>();
+      timestamp = timeArray[i].as<String>();
 
-      // version 2
-      float exp_term = exp(a + b * wind);
-      float t_module = gti * exp_term + temp;
+      // Empirical model for module temperature based on irradiance and wind
+      exp_term = exp(constant_a + constant_b * wind_speed);
+      panel_temperature = tilted_irradiance * exp_term + air_temperature;
 
-      float efficiency2 = (1.0 + gamma2 * (t_module - reference_temp));
-     // float irradiance_kw = gti / 1000.0;
+      panel_efficiency = (1.0 + gamma2 * (panel_temperature - reference_temp));
 
-     // Energy output in Wh over 1 hour, 1kWp
-      float e_hourly = gti * efficiency2;  // Scale by efficiency
+      // Energy output in Wh over 1 hour, 1kWp
+      energy_hour = tilted_irradiance * panel_efficiency;  // Scale by efficiency
 
-      Serial.printf("[%s] %.1f°C,  %.1f m/s, t_module %.1f°C ,eff: %.2f,  %.1f W/m² , e_hourly: %.2f W\n\n",        
-                    timestamp.c_str(), temp, wind,  t_module, efficiency2,gti, e_hourly);
-
-
-
+      Serial.printf("[%s] %.1f°C,  %.1f m/s, panel_temperature %.1f°C ,eff: %.2f,  %.1f W/m² , energy_hour: %.2f W\n\n",        
+                    timestamp.c_str(), air_temperature, wind_speed,  panel_temperature, panel_efficiency,tilted_irradiance, energy_hour);
 
       processed_hours++;
 
-      time_series->set(ElementToUTCts(timestamp)-3600, e_hourly);// time correction, future vs past
+      time_series->set(ElementToUTCts(timestamp)-3600, energy_hour);// time correction, future vs past
     }
   }
   else
