@@ -5416,9 +5416,10 @@ const char *letsencrypt_ca_certificate =
 
 
 // Solar Panel Parameters
-const float Wp = 1000.0;            // Panel rated power (Watts)
-const float temp_coeff = -0.004;    // Temperature coefficient (-0.4% per °C)
-const float wind_coeff = 0.02;      // Wind cooling factor (per m/s)
+const float a = -3.47;
+const float b = -0.0594;
+const float reference_temp = 25.0;
+const float gamma2 = -0.004;   // Temperature coefficient per °C
 
 bool get_solar_forecast_openmeteo(timeSeries *time_series)
 {
@@ -5452,22 +5453,25 @@ bool get_solar_forecast_openmeteo(timeSeries *time_series)
       // Extract hour from timestamp
       String timestamp = timeArray[i].as<String>();
 
-      // Adjust efficiency based on temperature & wind cooling
-      float temp_effect = temp_coeff * (temp - 25);
-      float wind_effect = wind_coeff * wind; 
-      float efficiency_adjusted =  (1.0 + temp_effect + wind_effect);
+      // version 2
+      float exp_term = exp(a + b * wind);
+      float t_module = gti * exp_term + temp;
 
-      // Calculate PV power output
-      float effective_irradiance = (gti);
+      float efficiency2 = (1.0 + gamma2 * (t_module - reference_temp));
+     // float irradiance_kw = gti / 1000.0;
 
-      float pv_power = Wp * (effective_irradiance / 1000.0) * efficiency_adjusted;
+     // Energy output in Wh over 1 hour, 1kWp
+      float e_hourly = gti * efficiency2;  // Scale by efficiency
 
-      Serial.printf("[%s] %.1f°C,  %.1f m/s, eff: %.2f ,  %.1f W/m² (tilted),  PV: %.2f W\n",
-                    timestamp.c_str(), temp, wind, efficiency_adjusted,gti, pv_power);
+      Serial.printf("[%s] %.1f°C,  %.1f m/s, t_module %.1f°C ,eff: %.2f,  %.1f W/m² , e_hourly: %.2f W\n\n",        
+                    timestamp.c_str(), temp, wind,  t_module, efficiency2,gti, e_hourly);
+
+
+
 
       processed_hours++;
 
-      time_series->set(ElementToUTCts(timestamp)-3600, pv_power);// time correction, future vs past
+      time_series->set(ElementToUTCts(timestamp)-3600, e_hourly);// time correction, future vs past
     }
   }
   else
