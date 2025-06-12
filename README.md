@@ -1,19 +1,31 @@
-***More detailed documentation and tutorials in [Arska wiki](/wiki).*** 
+***Documentation and tutorials in [Arska wiki](/wiki).*** 
 ***Lue Arskasta taustatieotja suomeksi [Arska.info 🇫🇮](https://arska.info)***
 
-
 # Arska
-Arska makes your energy purchases greener and saves on your energy bill by demand-side flexibility, i.e. maximising usage of self produced (solar) energy and shifting energy purchase to cheapest and lower carbon intensive hours. Version 1.3 support 15-minute Market Time Unit (MTU)
 
-Arska is a ESP32 microcontroller based application for managing energy consumption and battery charging (Fronius Gen 24 Plus). It can switch on and of loads based on measured consumption and production information as well as price and solar energy forecast.  Relays supported: on-board gpio relays, Shelly (Gen and Gen2), and Tasmota wifi-relays.
+**Make your energy purchases greener and cut costs with Arska!**  
+This cloud-free application optimizes energy consumption and battery charging through **demand-side flexibility**—maximizing the use of **self-produced solar energy** and shifting purchases to **cheaper, lower-carbon-intensive hours**.
 
-Arska can control various electric switches connected to e.g. water heater and car chargers. It can also privide potential-free signal for temperature control for example to heat-pumps. Arska controls devices based on following data:
-- Day-ahead electricity price per period (1 hour/15 minutes) from [EntsoE](https://transparency.entsoe.eu/) . Price data is availabe from 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭. [Elering](https://dashboard.elering.ee/assets/api-doc.html) is back-up for price data for Estonia, Finland, Lithuania and Latvia. 
-- Grid energy metering, supports meters with HAN P1 port and Shelly 3 EM, [read more](https://github.com/Netgalleria/arska-node/wiki/Energy-Meter-configuration) 
-- Energy production metering, supports selected Fronius and SMA inverters
-- Local solar forecast based Open Meteo data and Finnish Meteorological Institute.  Finnish wind power forecast from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste)
-- Current date and time, temperature sensor values 
+## Key Features
 
+Arska helps you manage your energy efficiently by controlling loads based on **real-time consumption and production data, electricity prices, and solar forecasts**. It runs on various **ESP32 microcontroller devices** and supports:
+
+- On-board **GPIO relays**
+- **Shelly (Gen1 & Gen2)** and **Tasmota Wi-Fi relays**
+- **Fronius GEN24 hybrid inverter charging states**
+- **15-minute Market Time Unit (MTU) support** (Version 1.3)
+
+### Intelligent Device Control
+
+Arska can manage multiple electric switches, including those connected to **water heaters, heat pumps**, and other appliances. It controls devices with channel rules using various data sources:
+
+- **Day-ahead electricity price per period** (1-hour/15-minute intervals) from [EntsoE](https://transparency.entsoe.eu/) (covering 25 European countries 🇦🇹 🇧🇪 🇧🇬 🇭🇷 🇨🇿 🇩🇪 🇩🇰 🇪🇪 🇫🇮 🇫🇷 🇬🇷 🇭🇺 🇮🇪 🇮🇹 🇱🇻 🇱🇹 🇳🇱 🇳🇴 🇵🇱 🇵🇹 🇷🇴 🇸🇪 🇷🇸 🇸🇰 🇸🇮 🇪🇸 🇨🇭).  
+  [Elering](https://dashboard.elering.ee/assets/api-doc.html) provides backup price data for Estonia, Finland, Lithuania, and Latvia.
+- **Grid energy metering** (Supports HAN P1 port meters and Shelly 3 EM) – [Read more](https://github.com/Netgalleria/arska-node/wiki/Energy-Meter-configuration).
+- **Energy production metering** (Compatible with selected Fronius and SMA inverters).
+- **Local solar forecasts** using Open Meteo and Finnish Meteorological Institute data.
+- **Finnish wind power forecasts** from [Finnish Meteorological Institute (FMI)](https://www.ilmatieteenlaitos.fi/aurinko-ja-tuulivoimaennuste).
+- **Current date, time, and temperature sensor values** for enhanced automation.
 
 
 ## Intro Videos 
