@@ -1477,3 +1477,5 @@ tags
 .venv/lib/python3.11/site-packages/setuptools-65.5.0.dist-info/top_level.txt
 .venv/lib/python3.11/site-packages/setuptools-65.5.0.dist-info/WHEEL
 data/js/arska-ui.js.gz
+.DS_Store
+data/js/arska-ui.js.gz
