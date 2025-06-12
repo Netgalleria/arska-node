@@ -49,7 +49,7 @@ Arska can manage multiple electric switches, including those connected to **wate
 - [Arska on X](https://twitter.com/ArskaEnergy)
 
 
-![Arska Data flow diagram](https://github.com/Netgalleria/arska-node/assets/1752838/55de61ea-fe19-416d-bdfe-feb6becbf8b7)
+![Arska Data flow diagra](https://github.com/user-attachments/assets/081bad3f-6193-498b-bff7-2257e07019e9)
 
 *Arska Data flows*
 
