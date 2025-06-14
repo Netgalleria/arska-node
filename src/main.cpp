@@ -441,8 +441,8 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define VARIABLE_CHANNEL_UTIL_PERIOD 150     //!< channel utilization this period, minutes
 #define VARIABLE_CHANNEL_UTIL_8H 152         //!< channel utilization this hour and 7 previous, minutes
 #define VARIABLE_CHANNEL_UTIL_24H 153        //!< channel utilization this hour and 23 previous, minutes
-#define VARIABLE_CHANNEL_UTIL_BLOCK_0 155    //!< channel utilization, this block, minutes
-#define VARIABLE_CHANNEL_UTIL_BLOCK_M1_0 156 //!< channel utilization, this and previous blocks, minutes - NOT IN USE
+//#define VARIABLE_CHANNEL_UTIL_BLOCK_0 155    //!< channel utilization, this block, minutes
+//#define VARIABLE_CHANNEL_UTIL_BLOCK_M1_0 156 //!< channel utilization, this and previous blocks, minutes - NOT IN USE
 #define VARIABLE_CHANNEL_UTIL_BLOCK_M2_0 157 //!< channel utilization, this and 2 previous blocks, minutes - NOT IN USE
 
 #define VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION 160 // Wh
@@ -2657,7 +2657,7 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
   for (int h_idx = MAX_HISTORY_PERIODS - 2; h_idx > MAX_HISTORY_PERIODS - periods - 1; h_idx--)
   {
     periods_from_current = MAX_HISTORY_PERIODS - 1 - h_idx;
-    period_end = (current_period_start_ts - (periods_from_current - 1) * SECONDS_IN_HOUR);
+    period_end = (current_period_start_ts - (periods_from_current - 1) * NETTING_PERIOD_SEC);
     if (period_end < processing_started_ts) // not yet history from that
       continue;
 
@@ -2666,7 +2666,8 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
     // util_history_pros_cum += channel_history[channel_idx][h_idx] * period_time_ts / 3600;
     history_cum_secs += channel_history_s[channel_idx][h_idx];
   }
-
+  
+  //Serial.printf("cumulative minutes: ch %d, periods %d, first period_start %lu, minutes %d\n",channel_idx,  periods, period_start,(history_cum_secs + 30) / 60);
   return (long)((history_cum_secs + 30) / 60);
 }
 
@@ -2674,7 +2675,7 @@ time_t get_block_start_ts(const time_t time)
 {
   localtime_r(&time, &tm_struct_l);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
-  return (current_period_start_ts - block_start_before_this_idx * SECONDS_IN_HOUR);
+  return ((time/SECONDS_IN_HOUR)*SECONDS_IN_HOUR - block_start_before_this_idx * SECONDS_IN_HOUR);
 }
 
 /**
@@ -2716,6 +2717,7 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     else if (id == VARIABLE_CHANNEL_UTIL_BLOCK_M2_0) // 157 Channel uptime (minutes) during the current and two previous blocks
     {
       now_nth_period_in_block = (current_period_start_ts - get_block_start_ts(current_period_start_ts)) / NETTING_PERIOD_SEC;
+     // Serial.printf("now_nth_period_in_block %d, current_period_start_ts %lu, get_block_start_ts(current_period_start_ts) %lu\n",now_nth_period_in_block, current_period_start_ts, get_block_start_ts(current_period_start_ts));
       variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_block + DAY_BLOCK_SIZE_PERIODS * 2); // this block hours + 2 previous blocks
     }
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
@@ -2859,7 +2861,8 @@ void ChannelCounters::init()
   {
     channel_logs[i].off_time = 0;
     channel_logs[i].on_time = 0;
-    channel_logs[i].state = false;
+  //  channel_logs[i].state = false;
+    channel_logs[i].state = s.ch[i].default_state; // assume that channels in default state
     channel_logs[i].this_state_started_period_ts = time(nullptr);
     channel_logs[i].this_state_started_epoch_ts = time(nullptr);
   }
@@ -9236,6 +9239,7 @@ bool connect_wifi()
         if (is_wifi_relay(s.ch[channel_idx].type))
         {
           Serial.printf(PSTR("Reapply wifi relay state %d in init\n"), channel_idx);
+          ch_counters.update_times(channel_idx); //added for log init
           apply_relay_state(channel_idx, true);
         }
       }
