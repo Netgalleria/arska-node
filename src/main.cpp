@@ -436,13 +436,13 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define VARIABLE_HH 115
 #define VARIABLE_HHMM 116
 #define VARIABLE_MINUTES 117
-#define VARIABLE_DAYENERGY_FI 130            //!< true if day, (07:00-22:00 Finnish tariffs), logical
-#define VARIABLE_WINTERDAY_FI 140            //!< true if winterday, (Finnish tariffs), logical
-#define VARIABLE_CHANNEL_UTIL_PERIOD 150     //!< channel utilization this period, minutes
-#define VARIABLE_CHANNEL_UTIL_8H 152         //!< channel utilization this hour and 7 previous, minutes
-#define VARIABLE_CHANNEL_UTIL_24H 153        //!< channel utilization this hour and 23 previous, minutes
-//#define VARIABLE_CHANNEL_UTIL_BLOCK_0 155    //!< channel utilization, this block, minutes
-//#define VARIABLE_CHANNEL_UTIL_BLOCK_M1_0 156 //!< channel utilization, this and previous blocks, minutes - NOT IN USE
+#define VARIABLE_DAYENERGY_FI 130        //!< true if day, (07:00-22:00 Finnish tariffs), logical
+#define VARIABLE_WINTERDAY_FI 140        //!< true if winterday, (Finnish tariffs), logical
+#define VARIABLE_CHANNEL_UTIL_PERIOD 150 //!< channel utilization this period, minutes
+#define VARIABLE_CHANNEL_UTIL_8H 152     //!< channel utilization this hour and 7 previous, minutes
+#define VARIABLE_CHANNEL_UTIL_24H 153    //!< channel utilization this hour and 23 previous, minutes
+// #define VARIABLE_CHANNEL_UTIL_BLOCK_0 155    //!< channel utilization, this block, minutes
+// #define VARIABLE_CHANNEL_UTIL_BLOCK_M1_0 156 //!< channel utilization, this and previous blocks, minutes - NOT IN USE
 #define VARIABLE_CHANNEL_UTIL_BLOCK_M2_0 157 //!< channel utilization, this and 2 previous blocks, minutes - NOT IN USE
 
 #define VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION 160 // Wh
@@ -811,7 +811,7 @@ public:
   bool is_statement_true(statement_st *statement, bool default_value, int channel_idx);
   int get_variable_by_id(int id, variable_st *variable);
   int get_variable_by_id(int id, variable_st *variable, int channel_idx);
-  void get_variable_by_idx(int idx, variable_st *variable);
+  void get_variable_by_idx(int variable_idx, variable_st *variable);
   long float_to_internal_l(int id, float val_float);
   // float const_to_float(int id, long const_in);
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
@@ -859,7 +859,7 @@ public:
   bool read_from_cache(time_t expires);
   void clear_store(bool reset_cache);
   void set(time_t ts, T new_value);
-  void set_by_pos(int idx, T new_value);
+  void set_by_pos(int store_idx, T new_value);
   int n() { return store.n; };
   uint16_t resolution_sec() { return store.resolution_sec; };
   time_t start() { return store.start; };
@@ -871,7 +871,7 @@ public:
   time_t last_set_period_ts();
   time_t last_update() { return store.last_update_ts; };
   T get(time_t ts);
-  T get_by_pos(int idx);
+  T get_by_pos(int store_idx);
   T get(time_t ts, T default_value);
   T avg(time_t start_ts, time_t end_ts_incl);
   void stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, T *differs_avg, long *ratio_avg);
@@ -1517,11 +1517,11 @@ int hw_template_idx = -1; // cached hw_io copied from hw_template if id > 0
  */
 int get_hw_template_idx(int id)
 {
-  for (int i = 0; i < HW_TEMPLATE_COUNT; i++)
+  for (int template_idx = 0; template_idx < HW_TEMPLATE_COUNT; template_idx++)
   {
-    if (id == hw_templates[i].id)
+    if (id == hw_templates[template_idx].id)
     {
-      return i;
+      return template_idx;
     }
   }
   Serial.printf("DEBUG get_hw_template_idx for %d returned -1\n", id); // TODO: maybe should return 0/manual in this case
@@ -1537,19 +1537,19 @@ int ch_prio_sorted[CHANNEL_COUNT];
 void ch_prio_sort()
 {
   // init
-  for (int i = 0; i < CHANNEL_COUNT; i++)
-    ch_prio_sorted[i] = -1;
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+    ch_prio_sorted[channel_idx] = -1;
 
   // pienin, toiseksi pienin, huom.: samaa prioa voi olla useampi
   int least, least_idx;
   bool isthere;
-  for (int i = 0; i < CHANNEL_COUNT; i++)
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     least = 256;
     for (int j = 0; j < CHANNEL_COUNT; j++) // is j smallest of remaining
     {
       isthere = false;
-      for (int k = 0; k < i; k++)
+      for (int k = 0; k < channel_idx; k++)
       {
         if (ch_prio_sorted[k] == j)
         { // already in sorted array
@@ -1568,14 +1568,14 @@ void ch_prio_sort()
     }
     if (least < 256)
     {
-      ch_prio_sorted[i] = least_idx;
+      ch_prio_sorted[channel_idx] = least_idx;
       //    Serial.printf("ch_prio_sorted[%d], least %d, least_idx %d \n", i, least, least_idx);
     }
   }
 
   Serial.print("Channels in priority order: [");
-  for (int i = 0; i < CHANNEL_COUNT; i++)
-    Serial.printf("[%d, %d],", ch_prio_sorted[i], s.ch[ch_prio_sorted[i]].priority);
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
+    Serial.printf("[%d, %d],", ch_prio_sorted[channel_idx], s.ch[ch_prio_sorted[channel_idx]].priority);
   Serial.println("]");
 }
 
@@ -1620,13 +1620,13 @@ void led_write_color(bool show = true)
   }
   else if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE || hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_LOWACTIVE)
   {
-    for (int i = 0; i < 3; i++)
+    for (int rgb_idx = 0; rgb_idx < 3; rgb_idx++)
     {
-      element_val = show ? led_rgb[i] : 0;
-      if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
+      element_val = show ? led_rgb[rgb_idx] : 0;
+      if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx]))
       {
         up_val = (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE) ? HIGH : LOW;
-        digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], element_val > 0 ? up_val : (1 - up_val));
+        digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx], element_val > 0 ? up_val : (1 - up_val));
         //   Serial.printf("DEBUG led_write_color %d %d\n",hw_templates[hw_template_idx].hw_io.status_led_ids[i],(int)(element_val > 0 ? up_val : (1-up_val)));
       }
     }
@@ -1936,10 +1936,10 @@ void Variables::rotate_period()
  */
 bool Variables::is_set(int id)
 {
-  int idx = get_variable_index(id);
-  if (idx != -1)
+  int variable_idx = get_variable_index(id);
+  if (variable_idx != -1)
   {
-    return (variables[idx].val_l != VARIABLE_LONG_UNKNOWN);
+    return (variables[variable_idx].val_l != VARIABLE_LONG_UNKNOWN);
   }
   return false;
 }
@@ -1951,10 +1951,10 @@ bool Variables::is_set(int id)
  */
 void Variables::set(int id, long val_l)
 {
-  int idx = get_variable_index(id);
-  if (idx != -1)
+  int variable_idx = get_variable_index(id);
+  if (variable_idx != -1)
   {
-    variables[idx].val_l = val_l;
+    variables[variable_idx].val_l = val_l;
     // update history
     int v_h_idx = get_variable_history_idx(id);
     if (v_h_idx != -1)
@@ -1990,10 +1990,10 @@ void Variables::set(int id, float val_f)
  */
 long Variables::get_l(int id)
 {
-  int idx = get_variable_index(id);
-  if (idx != -1)
+  int variable_idx = get_variable_index(id);
+  if (variable_idx != -1)
   {
-    return variables[idx].val_l;
+    return variables[variable_idx].val_l;
   }
   return -1;
 }
@@ -2006,13 +2006,13 @@ long Variables::get_l(int id)
  */
 long Variables::get_l(int id, long default_val)
 {
-  int idx = get_variable_index(id);
-  if (idx != -1)
+  int variable_idx = get_variable_index(id);
+  if (variable_idx != -1)
   {
-    if (variables[idx].val_l == VARIABLE_LONG_UNKNOWN)
+    if (variables[variable_idx].val_l == VARIABLE_LONG_UNKNOWN)
       return default_val;
     else
-      return variables[idx].val_l;
+      return variables[variable_idx].val_l;
   }
   return -1;
 }
@@ -2027,9 +2027,9 @@ long Variables::get_l(int id, long default_val)
 long Variables::float_to_internal_l(int id, float val_float)
 {
   variable_st var;
-  int idx = get_variable_by_id(id, &var);
+  int variable_idx = get_variable_by_id(id, &var);
   float add_in_round = val_float < 0 ? -0.5 : 0.5;
-  if (idx != -1)
+  if (variable_idx != -1)
   {
     if (var.type < 10)
     {
@@ -2078,10 +2078,10 @@ float Variables::const_to_float(int id, long const_in)
 int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwrite_val, size_t buffer_length)
 {
   variable_st var;
-  int idx = get_variable_by_id(id, &var);
+  int variable_idx = get_variable_by_id(id, &var);
   long val_l;
 
-  if (idx != -1)
+  if (variable_idx != -1)
   {
     if (use_overwrite_val)
       val_l = overwrite_val;
@@ -2128,8 +2128,8 @@ int Variables::to_str(int id, char *strbuff, bool use_overwrite_val, long overwr
 float Variables::get_f(int id)
 {
   variable_st var;
-  int idx = get_variable_by_id(id, &var);
-  if (idx != -1)
+  int variable_idx = get_variable_by_id(id, &var);
+  if (variable_idx != -1)
   {
     if (var.type < 10)
     {
@@ -2140,7 +2140,7 @@ float Variables::get_f(int id)
   return -1;
 }
 /**
- * @brief Returns variable index (idx) for accessing directly the variable array.
+ * @brief Returns variable index (variable_idx) for accessing directly the variable array.
  *
  * @param id
  * @return int
@@ -2149,10 +2149,10 @@ int Variables::get_variable_index(int id)
 {
   int var_count = (int)(sizeof(variables) / sizeof(variable_st));
   // Serial.printf("get_variable_index var_count: %d, ( %d /  %d ) \n",var_count,sizeof(variables),sizeof(variable_st));
-  for (int i = 0; i < var_count; i++)
+  for (int variable_idx= 0; variable_idx < var_count; variable_idx++)
   {
-    if (id == variables[i].id)
-      return i;
+    if (id == variables[variable_idx].id)
+      return variable_idx;
   }
   return -1;
 }
@@ -2166,11 +2166,11 @@ int Variables::get_variable_index(int id)
  */
 int Variables::get_variable_by_id(int id, variable_st *variable)
 {
-  int idx = get_variable_index(id);
-  if (idx != -1)
+  int variable_idx = get_variable_index(id);
+  if (variable_idx != -1)
   {
-    memcpy(variable, &variables[idx], sizeof(variable_st));
-    return idx;
+    memcpy(variable, &variables[variable_idx], sizeof(variable_st));
+    return variable_idx;
   }
   else
     return -1;
@@ -2192,16 +2192,16 @@ void timeSeries::fill_gaps()
   T last_defined_value = VARIABLE_LONG_UNKNOWN;
   Serial.printf(PSTR("DEBUG timeSeries::fill_gaps starting\n"));
 
-  for (int i = 0; i < store.n; i++)
+  for (int store_idx = 0; store_idx < store.n; store_idx++)
   {
-    if (store.arr[i] == VARIABLE_LONG_UNKNOWN && last_defined_value > VARIABLE_LONG_UNKNOWN)
+    if (store.arr[store_idx] == VARIABLE_LONG_UNKNOWN && last_defined_value > VARIABLE_LONG_UNKNOWN)
     {
       //   Serial.printf(PSTR("DEBUG timeSeries::fill_gaps %d -> %d\n"), i, last_defined_value);
-      store.arr[i] = last_defined_value;
+      store.arr[store_idx] = last_defined_value;
     }
     else
     {
-      last_defined_value = store.arr[i];
+      last_defined_value = store.arr[store_idx];
     }
   }
 }
@@ -2213,9 +2213,9 @@ void timeSeries::clear_store(bool reset_cache)
   store.max_value_idx = -1;
 
   Serial.println(store.n);
-  for (int i = 0; i < store.n; i++)
+  for (int store_idx = 0; store_idx < store.n; store_idx++)
   {
-    store.arr[i] = init_value_;
+    store.arr[store_idx] = init_value_;
   }
   store.last_update_ts = 0;
   if (reset_cache)
@@ -2306,22 +2306,22 @@ bool timeSeries::read_from_cache(time_t expire_not_before) //  https://github.co
 
 void timeSeries::set(time_t ts, T new_value)
 {
-  int idx = get_idx(ts);
-  if (idx == -1)
+  int store_idx = get_idx(ts);
+  if (store_idx == -1)
     return;
 
-  store.arr[idx] = new_value;
-  store.min_value_idx = min(store.min_value_idx, idx);
-  store.max_value_idx = max(store.max_value_idx, idx);
+  store.arr[store_idx] = new_value;
+  store.min_value_idx = min(store.min_value_idx, store_idx);
+  store.max_value_idx = max(store.max_value_idx, store_idx);
 
   store.last_update_ts = time(nullptr);
 };
 
-void timeSeries::set_by_pos(int idx, T new_value)
+void timeSeries::set_by_pos(int store_idx, T new_value)
 {
-  store.arr[idx] = new_value;
-  store.min_value_idx = min(store.min_value_idx, idx);
-  store.max_value_idx = max(store.max_value_idx, idx);
+  store.arr[store_idx] = new_value;
+  store.min_value_idx = min(store.min_value_idx, store_idx);
+  store.max_value_idx = max(store.max_value_idx, store_idx);
   store.last_update_ts = time(nullptr);
 };
 int timeSeries::get_idx(time_t ts)
@@ -2351,27 +2351,27 @@ time_t timeSeries::last_set_period_ts()
 
 T timeSeries::get(time_t ts = time(nullptr))
 {
-  int idx = get_idx(ts);
-  if (idx == -1)
+  int store_idx = get_idx(ts);
+  if (store_idx == -1)
     return init_value_;
   else
-    return store.arr[idx];
+    return store.arr[store_idx];
 }
-T timeSeries::get_by_pos(int idx)
+T timeSeries::get_by_pos(int store_idx)
 {
-  if (idx < 0 || idx >= store.n)
+  if (store_idx < 0 || store_idx >= store.n)
     return init_value_;
   else
-    return store.arr[idx];
+    return store.arr[store_idx];
 }
 
 T timeSeries::get(time_t ts, T default_value)
 {
-  int idx = get_idx(ts);
-  if (idx == -1)
+  int store_idx = get_idx(ts);
+  if (store_idx == -1)
     return default_value;
   else
-    return store.arr[idx];
+    return store.arr[store_idx];
 }
 
 T timeSeries::avg(time_t start_ts, time_t end_ts_incl)
@@ -2401,8 +2401,8 @@ int32_t timeSeries::sum(time_t start_ts, time_t end_ts_incl)
   int end_idx = min(get_idx(end_ts_incl), store.n);
   if (start_idx <= end_idx)
   {
-    for (int i = start_idx; i <= end_idx; i++)
-      cum_sum += store.arr[i];
+    for (int store_idx = start_idx; store_idx <= end_idx; store_idx++)
+      cum_sum += store.arr[store_idx];
   }
   return cum_sum;
 }
@@ -2419,10 +2419,10 @@ void timeSeries::debug_print(time_t start_ts, time_t end_ts_incl, bool print_row
   yield();
   if (print_rows)
   {
-    for (int i = 0; i < store.n; i++)
+    for (int store_idx = 0; store_idx < store.n; store_idx++)
     {
-      Serial.printf("%d, %lu  ", i, store.start + i * store.resolution_sec);
-      Serial.println(store.arr[i]);
+      Serial.printf("%d, %lu  ", store_idx, store.start + store_idx * store.resolution_sec);
+      Serial.println(store.arr[store_idx]);
     }
   }
   Serial.print("Cumulative sum:");
@@ -2461,12 +2461,12 @@ void timeSeries::set_store_start(time_t new_start)
 
     store.max_value_idx = max(store.max_value_idx + index_delta, -1);
 
-    for (int i = 0; i < store.n; i++)
+    for (int store_idx = 0; store_idx < store.n; store_idx++)
     {
-      if ((i - index_delta >= 0) && (i - index_delta < store.n))
-        store.arr[i] = store.arr[i - index_delta];
+      if ((store_idx - index_delta >= 0) && (store_idx - index_delta < store.n))
+        store.arr[store_idx] = store.arr[store_idx - index_delta];
       else
-        store.arr[i] = init_value_;
+        store.arr[store_idx] = init_value_;
     }
   }
   else if (index_delta > 0)
@@ -2477,12 +2477,12 @@ void timeSeries::set_store_start(time_t new_start)
       store.max_value_idx = min(store.max_value_idx + index_delta, store.n - 1);
     }
 
-    for (int i = store.n - 1; i >= 0; i--)
+    for (int store_idx = store.n - 1; store_idx >= 0; store_idx--)
     {
-      if (i - index_delta >= 0 && i - index_delta < store.n)
-        store.arr[i] = store.arr[i - index_delta];
+      if (store_idx - index_delta >= 0 && store_idx - index_delta < store.n)
+        store.arr[store_idx] = store.arr[store_idx - index_delta];
       else
-        store.arr[i] = init_value_;
+        store.arr[store_idx] = init_value_;
     }
   }
   //    Serial.println(PSTR("DEBUG set_store_start ended"));
@@ -2578,21 +2578,21 @@ void timeSeries::apply_pricemodifier(bool debug = false)
     return;
   }
 
-  for (int i = 0; i < store.n; i++)
+  for (int store_idx = 0; store_idx < store.n; store_idx++)
   {
-    start_ts = store.start + i * store.resolution_sec;
+    start_ts = store.start + store_idx * store.resolution_sec;
     localtime_r(&start_ts, &tm_struct);
     //  if (((g_settings["pricemod_hours"] & (1 << (i))) != 0)) {
 
     hour_modified = s.pricemod_hours & (1 << tm_struct.tm_hour);
-    if (hour_modified && store.arr[i] > VARIABLE_LONG_UNKNOWN)
+    if (hour_modified && store.arr[store_idx] > VARIABLE_LONG_UNKNOWN)
     { // skip special values
-      store.arr[i] += s.pricemod * 100;
+      store.arr[store_idx] += s.pricemod * 100;
     }
     if (debug)
     {
-      Serial.printf("%d, %lu  hour %d  %s", i, start_ts, tm_struct.tm_hour, hour_modified ? "M" : " ");
-      Serial.println(store.arr[i]);
+      Serial.printf("%d, %lu  hour %d  %s", store_idx, start_ts, tm_struct.tm_hour, hour_modified ? "M" : " ");
+      Serial.println(store.arr[store_idx]);
     }
   }
 };
@@ -2666,8 +2666,8 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
     // util_history_pros_cum += channel_history[channel_idx][h_idx] * period_time_ts / 3600;
     history_cum_secs += channel_history_s[channel_idx][h_idx];
   }
-  
-  //Serial.printf("cumulative minutes: ch %d, periods %d, first period_start %lu, minutes %d\n",channel_idx,  periods, period_start,(history_cum_secs + 30) / 60);
+
+  // Serial.printf("cumulative minutes: ch %d, periods %d, first period_start %lu, minutes %d\n",channel_idx,  periods, period_start,(history_cum_secs + 30) / 60);
   return (long)((history_cum_secs + 30) / 60);
 }
 
@@ -2675,11 +2675,11 @@ time_t get_block_start_ts(const time_t time)
 {
   localtime_r(&time, &tm_struct_l);
   int block_start_before_this_idx = (24 + tm_struct_l.tm_hour - FIRST_BLOCK_START_HOUR) % DAY_BLOCK_SIZE_HOURS;
-  return ((time/SECONDS_IN_HOUR)*SECONDS_IN_HOUR - block_start_before_this_idx * SECONDS_IN_HOUR);
+  return ((time / SECONDS_IN_HOUR) * SECONDS_IN_HOUR - block_start_before_this_idx * SECONDS_IN_HOUR);
 }
 
 /**
- * @brief Returns variable index (idx) and copies variable content to given memory address based on variable id and channel idx
+ * @brief Returns variable index (variable_idx) and copies variable content to given memory address based on variable id and channel idx
  *
  * @param id
  * @param variable
@@ -2688,12 +2688,12 @@ time_t get_block_start_ts(const time_t time)
  */
 int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx)
 {
-  int idx = get_variable_index(id);
+  int variable_idx = get_variable_index(id);
   int now_nth_period_in_block;
 
-  if (idx != -1)
+  if (variable_idx != -1)
   {
-    memcpy(variable, &variables[idx], sizeof(variable_st));
+    memcpy(variable, &variables[variable_idx], sizeof(variable_st));
 
     // experimental channel variables
     if (id == VARIABLE_CHANNEL_UTIL_PERIOD)
@@ -2717,7 +2717,7 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     else if (id == VARIABLE_CHANNEL_UTIL_BLOCK_M2_0) // 157 Channel uptime (minutes) during the current and two previous blocks
     {
       now_nth_period_in_block = (current_period_start_ts - get_block_start_ts(current_period_start_ts)) / NETTING_PERIOD_SEC;
-     // Serial.printf("now_nth_period_in_block %d, current_period_start_ts %lu, get_block_start_ts(current_period_start_ts) %lu\n",now_nth_period_in_block, current_period_start_ts, get_block_start_ts(current_period_start_ts));
+      // Serial.printf("now_nth_period_in_block %d, current_period_start_ts %lu, get_block_start_ts(current_period_start_ts) %lu\n",now_nth_period_in_block, current_period_start_ts, get_block_start_ts(current_period_start_ts));
       variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_block + DAY_BLOCK_SIZE_PERIODS * 2); // this block hours + 2 previous blocks
     }
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
@@ -2734,10 +2734,10 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
       }
       variable->val_l = (long)(load_watt_seconds / SECONDS_IN_HOUR);
       // update also to mem array for later use
-      variables[idx].val_l = variable->val_l;
+      variables[variable_idx].val_l = variable->val_l;
     }
 
-    return idx;
+    return variable_idx;
   }
   else
     return -1;
@@ -2749,9 +2749,9 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
  * @param idx variable idx
  * @param variable memory pointer
  */
-void Variables::get_variable_by_idx(int idx, variable_st *variable)
+void Variables::get_variable_by_idx(int variable_idx, variable_st *variable)
 {
-  memcpy(variable, &variables[idx], sizeof(variable_st));
+  memcpy(variable, &variables[variable_idx], sizeof(variable_st));
 }
 
 /**
@@ -2778,11 +2778,11 @@ bool Variables::is_statement_true(statement_st *statement, bool default_value, i
     return default_value;
 
   oper_st oper;
-  for (int i = 0; i < OPER_COUNT; i++)
+  for (int oper_idx = 0; oper_idx < OPER_COUNT; oper_idx++)
   {
-    if (opers[i].id == statement->oper_id)
+    if (opers[oper_idx].id == statement->oper_id)
     {
-      oper = opers[i];
+      oper = opers[oper_idx];
       break;
     }
   }
@@ -2857,14 +2857,13 @@ ChannelCounters::ChannelCounters()
  */
 void ChannelCounters::init()
 {
-  for (int i = 0; i < CHANNEL_COUNT; i++)
+  for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
-    channel_logs[i].off_time = 0;
-    channel_logs[i].on_time = 0;
-  //  channel_logs[i].state = false;
-    channel_logs[i].state = s.ch[i].default_state; // assume that channels in default state
-    channel_logs[i].this_state_started_period_ts = time(nullptr);
-    channel_logs[i].this_state_started_epoch_ts = time(nullptr);
+    channel_logs[channel_idx].off_time = 0;
+    channel_logs[channel_idx].on_time = 0;
+    channel_logs[channel_idx].state = s.ch[channel_idx].default_state; // assume that channels in default state
+    channel_logs[channel_idx].this_state_started_period_ts = time(nullptr);
+    channel_logs[channel_idx].this_state_started_epoch_ts = time(nullptr);
   }
 }
 
@@ -3678,11 +3677,11 @@ static WireGuard wg;
 
 int get_peer_idx(int id)
 {
-  for (int i = 0; i < WG_PEER_COUNT; i++)
+  for (int peer_idx = 0; peer_idx < WG_PEER_COUNT; peer_idx++)
   {
-    if (id == wg_peers[i].id)
+    if (id == wg_peers[peer_idx].id)
     {
-      return i;
+      return peer_idx;
     }
   }
   Serial.printf("DEBUG get_hw_template_idx for %d returned -1\n", id);
@@ -3800,9 +3799,9 @@ float check_current_load()
 {
   int drop_count = 0;
   load_manager_capacity_a = 9999;
-  for (int i = 0; i < s.load_manager_phase_count; i++)
+  for (int phase_idx = 0; phase_idx < s.load_manager_phase_count; phase_idx++)
   {
-    load_manager_capacity_a = min(load_manager_capacity_a, (float)(s.load_manager_current_max - energy_meter_current_latest[i]));
+    load_manager_capacity_a = min(load_manager_capacity_a, (float)(s.load_manager_current_max - energy_meter_current_latest[phase_idx]));
   }
 
   // Total power based calculation,  balance period based average
@@ -4384,7 +4383,7 @@ bool read_energy_meter_shelly3em()
 
   // read
   float power_tot = 0;
-  int idx = 0;
+  int phase_idx = 0;
   float power[3];
   energy_meter_cumulative_latest_in_vol = 0;
   energy_meter_cumulative_latest_out_vol = 0;
@@ -4394,16 +4393,16 @@ bool read_energy_meter_shelly3em()
   {
     for (JsonObject emeter : doc["emeters"].as<JsonArray>())
     {
-      power[idx] = (float)emeter["power"];
-      power_tot += power[idx];
+      power[phase_idx] = (float)emeter["power"];
+      power_tot += power[phase_idx];
       if (emeter["is_valid"])
       {
         energy_meter_power_latest_in += (float)emeter["power"];
         energy_meter_cumulative_latest_in_vol += (float)emeter["total"];
         energy_meter_cumulative_latest_out_vol += (float)emeter["total_returned"];
-        energy_meter_current_latest[idx] = (double)emeter["current"];
+        energy_meter_current_latest[phase_idx] = (double)emeter["current"];
       }
-      idx++;
+      phase_idx++;
     }
   }
   else if (s.energy_meter_type == ENERGYM_SHELLY_GEN2)
@@ -5650,9 +5649,9 @@ bool get_price_data_entsoe()
       prices_in->set_store_start(min(future_wanted_max_ts, period_end - prices_in->n() * prices_in->resolution_sec()));
 
       // prepare for Entso-E missing data points
-      for (int i = 0; i < prices_in->n(); i++)
+      for (int store_idx = 0; store_idx < prices_in->n(); store_idx++)
       {
-        prices_in->set_by_pos(i, VARIABLE_LONG_UNKNOWN); // VARIABLE_LONG_MISSING);
+        prices_in->set_by_pos(store_idx, VARIABLE_LONG_UNKNOWN); // VARIABLE_LONG_MISSING);
       }
 
       record_start = record_end_excl - (PRICE_RESOLUTION_SEC * MAX_PRICE_PERIODS);
@@ -5798,10 +5797,10 @@ bool is_force_state_valid(int channel_idx)
  */
 int get_channel_active_rule(int channel_idx)
 {
-  for (int i = 0; i < CHANNEL_RULES_MAX; i++)
+  for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
   {
-    if (s.ch[channel_idx].rules[i].rule_active)
-      return i;
+    if (s.ch[channel_idx].rules[rule_idx].rule_active)
+      return rule_idx;
   }
   return -1;
 }
@@ -5930,28 +5929,28 @@ void onWebApplicationGet(AsyncWebServerRequest *request)
 
   // JsonArray json_opers = doc.createNestedArray("opers");
   JSON_ARRAY_NODE json_opers = ADD_JSON_ARRAY(doc, "opers", json_opers);
-  for (int i = 0; i < OPER_COUNT; i++)
+  for (int oper_idx = 0; oper_idx < OPER_COUNT; oper_idx++)
   {
     // JsonArray json_oper = json_opers.createNestedArray();
     JSON_ARRAY_NODE json_oper = ADD_JSON_ARRAY_NODE(json_opers, json_oper);
     // json_oper.add(opers[i].id);
-    ADD_JSON_ARRAY_NUMBER(json_oper, opers[i].id);
+    ADD_JSON_ARRAY_NUMBER(json_oper, opers[oper_idx].id);
     // json_oper.add(opers[i].code);
-    ADD_JSON_ARRAY_TEXT(json_oper, opers[i].code);
+    ADD_JSON_ARRAY_TEXT(json_oper, opers[oper_idx].code);
     // json_oper.add(opers[i].gt);
-    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].gt);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[oper_idx].gt);
     // json_oper.add(opers[i].eq);
-    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].eq);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[oper_idx].eq);
     // json_oper.add(opers[i].reverse);
-    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].reverse);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[oper_idx].reverse);
 
     // json_oper.add(opers[i].boolean_only);
-    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].boolean_only);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[oper_idx].boolean_only);
 
     // json_oper.add(opers[i].has_value);
-    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].has_value);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[oper_idx].has_value);
 
-    ADD_JSON_ARRAY_BOOL(json_oper, opers[i].multiselect);
+    ADD_JSON_ARRAY_BOOL(json_oper, opers[oper_idx].multiselect);
   }
 
   int variable_count = vars.get_variable_count();
@@ -9239,7 +9238,7 @@ bool connect_wifi()
         if (is_wifi_relay(s.ch[channel_idx].type))
         {
           Serial.printf(PSTR("Reapply wifi relay state %d in init\n"), channel_idx);
-          ch_counters.update_times(channel_idx); //added for log init
+          ch_counters.update_times(channel_idx); // added for log init
           apply_relay_state(channel_idx, true);
         }
       }
@@ -9528,10 +9527,10 @@ void setup()
   int ledgpio;
   if (hw_templates[hw_template_idx].hw_io.status_led_type == STATUS_LED_TYPE_RGB3_HIGHACTIVE)
   {
-    for (int i = 0; i < 3; i++)
+    for (int rgb_idx = 0; rgb_idx < 3; rgb_idx++)
     {
-      ledgpio = hw_templates[hw_template_idx].hw_io.status_led_ids[i];
-      Serial.printf("Led %d, gpio %d\n", i, ledgpio);
+      ledgpio = hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx];
+      Serial.printf("Led %d, gpio %d\n", rgb_idx, ledgpio);
       pinMode(ledgpio, OUTPUT);
       digitalWrite(ledgpio, HIGH);
       delay(2000);
@@ -9637,17 +9636,17 @@ void setup()
   // TODO: handle shiftreg leds, refactor  bitWrite/digitalWrite to one function call for changing relay state (and leds)
   if (hw_templates[hw_template_idx].hw_io.status_led_type != STATUS_LED_TYPE_NONE && hw_templates[hw_template_idx].hw_io.status_led_type < STATUS_LED_TYPE_RGB3_HIGHACTIVE_SHIFTREG)
   {
-    for (int i = 0; i < 3; i++)
+    for (int rgb_idx = 0; rgb_idx < 3; rgb_idx++)
     {
-      if (hw_templates[hw_template_idx].hw_io.status_led_ids[i] != ID_NA)
+      if (hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx] != ID_NA)
       {
-        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[i]))
+        if (GPIO_IS_VALID_OUTPUT_GPIO(hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx]))
         {
-          pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[i], OUTPUT);
-          digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[i], LOW);
+          pinMode(hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx], OUTPUT);
+          digitalWrite(hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx], LOW);
         }
         else
-          Serial.printf("Invalid led gpio %d. \n", hw_templates[hw_template_idx].hw_io.status_led_ids[i]);
+          Serial.printf("Invalid led gpio %d. \n", hw_templates[hw_template_idx].hw_io.status_led_ids[rgb_idx]);
       }
     }
     // setup() led
