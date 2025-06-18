@@ -976,7 +976,7 @@ void calculate_time_based_variables();
 void calculate_channel_states();
 void ch_prio_sort();
 long channel_history_cumulative_minutes(int channel_idx, int periods);
-int get_channel_active_rule(int channel_idx);
+int get_channel_active_rule_idx(int channel_idx);
 int get_channel_to_switch_prio(bool is_rise);
 bool is_force_state_valid(int channel_idx);
 
@@ -1330,8 +1330,8 @@ RTC_NOINIT_ATTR long variable_history[HISTORY_VARIABLE_COUNT][MAX_HISTORY_PERIOD
 
 uint8_t channel_attr[CHANNEL_COUNT];
 
-uint16_t channel_history_s[CHANNEL_COUNT][MAX_HISTORY_PERIODS]; // channel uptime history in seconds
-int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY, VARIABLE_SOC_BASE_0};
+RTC_NOINIT_ATTR uint16_t channel_history_s[CHANNEL_COUNT][MAX_HISTORY_PERIODS]; // channel uptime history in seconds
+const int history_variables[HISTORY_VARIABLE_COUNT] = {VARIABLE_SELLING_ENERGY, VARIABLE_PRODUCTION_ENERGY, VARIABLE_SOC_BASE_0};
 
 char error_msg_buf[ERROR_MSG_LEN]; // global buffer
 /**
@@ -2149,7 +2149,7 @@ int Variables::get_variable_index(int id)
 {
   int var_count = (int)(sizeof(variables) / sizeof(variable_st));
   // Serial.printf("get_variable_index var_count: %d, ( %d /  %d ) \n",var_count,sizeof(variables),sizeof(variable_st));
-  for (int variable_idx= 0; variable_idx < var_count; variable_idx++)
+  for (int variable_idx = 0; variable_idx < var_count; variable_idx++)
   {
     if (id == variables[variable_idx].id)
       return variable_idx;
@@ -2173,7 +2173,9 @@ int Variables::get_variable_by_id(int id, variable_st *variable)
     return variable_idx;
   }
   else
+  {
     return -1;
+  }
 }
 
 timeSeries::timeSeries(uint8_t id, time_t start, int n, uint16_t resolution_sec, T init_value)
@@ -2397,8 +2399,8 @@ void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, 
 int32_t timeSeries::sum(time_t start_ts, time_t end_ts_incl)
 { // TODO: check DST change nights
   int32_t cum_sum = 0;
-  int start_idx = max(0, get_idx(start_ts));
-  int end_idx = min(get_idx(end_ts_incl), store.n);
+  int start_idx = max(0, get_idx(start_ts));            // filter out  -1 idx
+  int end_idx = min(get_idx(end_ts_incl), store.n - 1); // max index store.n -1
   if (start_idx <= end_idx)
   {
     for (int store_idx = start_idx; store_idx <= end_idx; store_idx++)
@@ -2740,7 +2742,9 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
     return variable_idx;
   }
   else
+  {
     return -1;
+  }
 }
 
 /**
@@ -5795,7 +5799,7 @@ bool is_force_state_valid(int channel_idx)
  * @param channel_idx
  * @return int
  */
-int get_channel_active_rule(int channel_idx)
+int get_channel_active_rule_idx(int channel_idx)
 {
   for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
   {
@@ -8933,7 +8937,7 @@ void onWebStatusGet(AsyncWebServerRequest *request)
 
 #endif
 
-    doc["ch"][channel_idx]["active_rule"] = get_channel_active_rule(channel_idx);
+    doc["ch"][channel_idx]["active_rule"] = get_channel_active_rule_idx(channel_idx);
     doc["ch"][channel_idx]["force_state_from"] = s.ch[channel_idx].force_state_from_ts;
     doc["ch"][channel_idx]["force_state_until"] = s.ch[channel_idx].force_state_until_ts;
     doc["ch"][channel_idx]["up_last"] = s.ch[channel_idx].up_last_ts;
@@ -9400,6 +9404,7 @@ void setup()
   {
     variable_history_guard_value = 12345;
     memset(variable_history, 0, sizeof(variable_history));
+    memset(channel_history_s, 0, sizeof(channel_history_s));
   };
 
   delay(2000); // wait for console to settle - only needed when debugging
@@ -9942,10 +9947,11 @@ void loop()
   {
     // There was a extra waiting here (for ntp time settle ?), removed because most probably not needed
 
-    // reset variable history if not from the same period
+    // reset variable history if not from the same period,
     if ((time(nullptr) / SECONDS_IN_PT15M) != (last_state_update_rtcmem / SECONDS_IN_PT15M))
     {
       memset(variable_history, 0, sizeof(variable_history));
+      memset(channel_history_s, 0, sizeof(channel_history_s));
     };
 
     processing_started_ts = time(nullptr);
