@@ -2645,31 +2645,37 @@ long channel_history_cumulative_minutes(int channel_idx, int periods)
 
   // u32_t util_history_pros_cum;
   u32_t history_cum_secs;
-  u32_t period_time_ts;
-  time_t period_start, period_end;
+  // u32_t period_time_ts;
+  time_t period_start = 0, period_end;
   u32_t periods_from_current;
 
   // ch_counters.update_utilization(channel_idx);
   ch_counters.update_times(channel_idx);
 
   // this period
-  period_time_ts = now_local - max(current_period_start_ts, processing_started_ts);
+  // period_time_ts = now_local - max(current_period_start_ts, processing_started_ts);
   history_cum_secs = ch_counters.get_period_uptime(channel_idx);
 
   for (int h_idx = MAX_HISTORY_PERIODS - 2; h_idx > MAX_HISTORY_PERIODS - periods - 1; h_idx--)
   {
     periods_from_current = MAX_HISTORY_PERIODS - 1 - h_idx;
     period_end = (current_period_start_ts - (periods_from_current - 1) * NETTING_PERIOD_SEC);
-    if (period_end < processing_started_ts) // not yet history from that
-      continue;
 
     period_start = max(processing_started_ts, (period_end - 3600));
-    period_time_ts = period_end - period_start;
+
+    if (period_end < processing_started_ts) // not yet history from that
+      continue;
+    // period_time_ts = period_end - period_start;
+
     // util_history_pros_cum += channel_history[channel_idx][h_idx] * period_time_ts / 3600;
     history_cum_secs += channel_history_s[channel_idx][h_idx];
   }
-
-  // Serial.printf("cumulative minutes: ch %d, periods %d, first period_start %lu, minutes %d\n",channel_idx,  periods, period_start,(history_cum_secs + 30) / 60);
+  /*
+  if (channel_idx == 0)
+  { // debug
+    Serial.printf("cumulative minutes: ch %d, periods %d, first period_start %lu, minutes %d\n", channel_idx, periods, period_start, (history_cum_secs + 30) / 60);
+  }
+  */
   return (long)((history_cum_secs + 30) / 60);
 }
 
@@ -2718,8 +2724,12 @@ int Variables::get_variable_by_id(int id, variable_st *variable, int channel_idx
       }*/
     else if (id == VARIABLE_CHANNEL_UTIL_BLOCK_M2_0) // 157 Channel uptime (minutes) during the current and two previous blocks
     {
-      now_nth_period_in_block = (current_period_start_ts - get_block_start_ts(current_period_start_ts)) / NETTING_PERIOD_SEC;
-      // Serial.printf("now_nth_period_in_block %d, current_period_start_ts %lu, get_block_start_ts(current_period_start_ts) %lu\n",now_nth_period_in_block, current_period_start_ts, get_block_start_ts(current_period_start_ts));
+      now_nth_period_in_block = (current_period_start_ts - get_block_start_ts(current_period_start_ts)) / NETTING_PERIOD_SEC + 1;
+      /* if (channel_idx == 0)
+      { // DEBUG
+        Serial.printf("VARIABLE_CHANNEL_UTIL_BLOCK_M2_0 now_nth_period_in_block %d, current_period_start_ts %lu, get_block_start_ts(current_period_start_ts) %lu\n", now_nth_period_in_block, current_period_start_ts, get_block_start_ts(current_period_start_ts));
+      }
+      */
       variable->val_l = channel_history_cumulative_minutes(channel_idx, now_nth_period_in_block + DAY_BLOCK_SIZE_PERIODS * 2); // this block hours + 2 previous blocks
     }
     else if (id == VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION)
@@ -4026,10 +4036,6 @@ bool get_han_ts(const char *strp, time_t *returned)
   }
   time_t ts_age_s = time(nullptr) - (*returned);
   // Serial.printf("han_ts: %ld, ts: %ld , %ld s ago\n", (time_t)(*returned), time(nullptr), ts_age_s);
-  if (*returned % 60 == 0)
-  {
-    Serial.printf("Free stack %d\n", uxTaskGetStackHighWaterMark(NULL));
-  }
   // experimental, try to adjust polling time to meter updates, could be removed, does not work well if meter and mcuu times are not in sync
   if ((energy_meter_read_ok_count % 2 == 0) && s.energy_meter_type == ENERGYM_HAN_WIFI & (ts_age_s > 2))
   {
@@ -4259,11 +4265,11 @@ bool parse_han_message() // direct
 
   while (han_msg_stream.available())
   {
+    yield();
     han_received_chars = han_msg_stream.readBytesUntil('\n', row_buffer, ROW_BUFFER_LENGTH - 1);
     row_buffer[han_received_chars] = '\0';
     if (han_received_chars < 10 || strchr(row_buffer, ':') == NULL) // cannot be valid {
       continue;
-
     if (parse_han_row(row_buffer, &three_phase_detected))
     {
       han_value_count++;
@@ -6271,7 +6277,7 @@ bool read_channel_stats_modbus(int channel_idx)
   IPAddress ip_address = s.ch[channel_idx].relay_ip;
   IPAddress undefined_ip = IPAddress(0, 0, 0, 0);
 
-  Serial.println(F("read_channel_stats_modbus()"));
+  //  Serial.println(F("read_channel_stats_modbus()"));
 
   if (s.ch[channel_idx].relay_ip == undefined_ip)
   {
@@ -6280,7 +6286,7 @@ bool read_channel_stats_modbus(int channel_idx)
     return false;
   }
   yield();
-  Serial.printf("ModBus host: [%s], ip_port: [%d], unit_id: [%d] \n", ip_address.toString().c_str(), ip_port, modbusip_unit);
+  Serial.printf("Read ModBus host: [%s], ip_port: [%d], unit_id: [%d] \n", ip_address.toString().c_str(), ip_port, modbusip_unit);
 
   mb.task();
   yield();
@@ -6336,7 +6342,7 @@ bool read_channel_stats_modbus(int channel_idx)
 
 void read_channels_stats()
 {
-  Serial.println(F("read_channels_stats()"));
+  // Serial.println(F("read_channels_stats()"));
   bool ok = false;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
@@ -6727,8 +6733,8 @@ bool apply_relay_state(int channel_idx, bool init_relay)
       {
         Serial.printf("Setting register bit %d %s, %d ->", s.ch[channel_idx].relay_id, pin_val == HIGH ? "HIGH" : "LOW", register_out);
         bitWrite(register_out, s.ch[channel_idx].relay_id, pin_val); // TODO: add mapping from relay_id to bit, it is not necessarily same bits, or lock the ui
-        Serial.println(register_out);
-        // Serial.printf("register_out %d\n", (int)register_out);
+        // Serial.println(register_out);
+        //  Serial.printf("register_out %d\n", (int)register_out);
         updateShiftRegister();
         return true;
       }
