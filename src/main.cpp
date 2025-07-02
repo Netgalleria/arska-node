@@ -8174,7 +8174,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
   ajson_str_to_mem(doc, (char *)"timezone", s.timezone, sizeof(s.timezone));
   ajson_str_to_mem(doc, (char *)"lang", s.lang, sizeof(s.lang));
 
-  ajson_str_to_mem(doc, (char *)".forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
+  ajson_str_to_mem(doc, (char *)"forecast_loc", s.forecast_loc, sizeof(s.forecast_loc));
   s.solar_forecast_source = ajson_int_get(doc, (char *)"solar_forecast_source", s.solar_forecast_source);
 
   s.latitude = ajson_float_get(doc, (char *)"latitude", s.latitude);
