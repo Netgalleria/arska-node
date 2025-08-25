@@ -272,6 +272,12 @@
         "desc_fi": "Anturi 3 lämpötila",
         "unit": "°C"
     },
+    "211": {
+        "code": "diff sensor 1 and 2",
+        "desc": "Sensor 1 and 2 difference",
+        "desc_fi": "Anturien 1 ja erotus",
+        "unit": "°C"
+    },
     "401": {
         "code": "virtual solar count",
         "desc": "Solar forecast based counter for load profile. Counts from 0 to M during this period, where M = (60*day forecasted solar/period forecasted solar)."
