@@ -383,9 +383,6 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define FRONIUSGEN24_INOUTWRTE_SF_RO_OFFSET 40368
 #define FRONIUSGEN24_CHASTATE_OFFSET 40351
 
-// #define FRONIUSGEN24_POWER_MAX_REAL 5000 // This will come from the
-#define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 // 5kW 5000/40960*100=12.2
-
 #endif
 
 #define USE_POWER_TO_ESTIMATE_ENERGY_SECS 120 // use power measurement to estimate
@@ -447,7 +444,7 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 
 #define VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION 160 // Wh
 #define VARIABLE_SENSOR_1 201                       //!< sensor1 value, float, 1 decimal
-#define VARIABLE_SENSOR_DIFF_1 211                       //!< sensor1 value, float, 1 decimal
+#define VARIABLE_SENSOR_DIFF_1 211                  //!< sensor1 value, float, 1 decimal
 
 // #define VARIABLE_BEEN_UP_AGO_HOURS_0 170 // RFU
 // #define VARIABLE_LOCALTIME_TS 1001
@@ -3656,14 +3653,16 @@ bool read_ds18b20_sensors()
       vars.set_NA(VARIABLE_SENSOR_1 + j);
     }
   }
-     //experimental temperature difference between sensor 1 and sensor 2
-    if (vars.is_set(VARIABLE_SENSOR_1) && vars.is_set(VARIABLE_SENSOR_1+1)) {
-          vars.set(VARIABLE_SENSOR_DIFF_1,vars.get_l(VARIABLE_SENSOR_1)-vars.get_l(VARIABLE_SENSOR_1+1));
-    }
-    else {
-          vars.set_NA(VARIABLE_SENSOR_DIFF_1);
-    }
-    
+  // experimental temperature difference between sensor 1 and sensor 2
+  if (vars.is_set(VARIABLE_SENSOR_1) && vars.is_set(VARIABLE_SENSOR_1 + 1))
+  {
+    vars.set(VARIABLE_SENSOR_DIFF_1, vars.get_l(VARIABLE_SENSOR_1) - vars.get_l(VARIABLE_SENSOR_1 + 1));
+  }
+  else
+  {
+    vars.set_NA(VARIABLE_SENSOR_DIFF_1);
+  }
+
   return true;
 }
 
@@ -6561,8 +6560,6 @@ bool switch_http_relay(int channel_idx, bool up)
  */
 bool set_profile_modbus_tcp(int channel_idx)
 {
-  // char error_msg[ERROR_MSG_LEN];
-
   IPAddress undefined_ip = IPAddress(0, 0, 0, 0);
   if (s.ch[channel_idx].relay_ip == undefined_ip)
   {
@@ -6621,12 +6618,12 @@ bool set_profile_modbus_tcp(int channel_idx)
   mb.task();
   yield();
 
-  // #define FRONIUSGEN24_INOUTWRTE_SF_FACTOR 12 // 5kW 5000/40960*100=12.2
-  // InWRte_mbus = InWRte >= 0 ? InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : InWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
-  // OutWRte_mbus = OutWRte >= 0 ? OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR : OutWRte * FRONIUSGEN24_INOUTWRTE_SF_FACTOR + 65536;
+#define FRONIUSGEN24_INOUTWRTE_FACTOR_MAX 40960 // max would be ca. 41 kW, charging power percantages are relative to this value
 
-  OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / 40960; // TEST THIS
-  InWRte_mbus = InWRte >= 0 ? InWRte * OutOutWRte_SF : InWRte * OutOutWRte_SF + 65536;
+  // This scaling factor is based on given inverter power, eg. full power for 5 kW inverter would be ca 12% (of 41 kW)
+  OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / FRONIUSGEN24_INOUTWRTE_FACTOR_MAX; // inverter power (kW, in field relay_id) * scaling
+  // Calculate (dis)charging power varianbles and convert negative values for unsigned registers
+  InWRte_mbus = InWRte >= 0 ? InWRte * OutOutWRte_SF : InWRte * OutOutWRte_SF + 65536;     
   OutWRte_mbus = OutWRte >= 0 ? OutWRte * OutOutWRte_SF : OutWRte * OutOutWRte_SF + 65536;
 
   // Serial.printf("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld \n", OutWRte_mbus, InWRte_mbus, StorCtl_Mod);
