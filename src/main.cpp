@@ -6587,22 +6587,22 @@ bool set_profile_modbus_tcp(int channel_idx)
 
   switch (s.ch[channel_idx].wannabe_profile)
   {
-  case CH_PROFILE_BATT_NO_CTRL:
+  case CH_PROFILE_BATT_NO_CTRL: //Arska has no control over charging
     InWRte = 100;
     OutWRte = 100;
     StorCtl_Mod = 0;
     break;
-  case CH_PROFILE_BATT_CHARGE_EXCESS:
+  case CH_PROFILE_BATT_CHARGE_EXCESS:  // let inverter decide charging rate between 0 % - 100 %, charging excess energy
     InWRte = 100;
     OutWRte = 0;
     StorCtl_Mod = 3;
     break;
-  case CH_PROFILE_BATT_DISCHARGE_EXCESS:
+  case CH_PROFILE_BATT_DISCHARGE_EXCESS: // let inverter decide discharging rate between 0 % - 100 %, discharging if consumption exceeds production  
     InWRte = 0;
     OutWRte = 100;
     StorCtl_Mod = 3;
     break;
-  default:
+  default: // charging/discharging rate is fixed and depends on the selected (by channel rules) profile
     StorCtl_Mod = 3;
     // default calculated based of profile id:s
     InWRte = (CH_PROFILE_BATT_CHARGE_0 - s.ch[channel_idx].wannabe_profile) * CH_PROFILE_BATT_STEP;
@@ -6618,11 +6618,13 @@ bool set_profile_modbus_tcp(int channel_idx)
   mb.task();
   yield();
 
-#define FRONIUSGEN24_INOUTWRTE_FACTOR_MAX 40960 // max would be ca. 41 kW, charging power percantages are relative to this value
+#define FRONIUSGEN24_INOUTWRTE_FACTOR_MAX 40960 // max would be ca. 41 kW, (dis)charging power percentages are relative to this value
+  // Calculate three variables set to inverter modbus registeries
 
   // This scaling factor is based on given inverter power, eg. full power for 5 kW inverter would be ca 12% (of 41 kW)
   OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / FRONIUSGEN24_INOUTWRTE_FACTOR_MAX; // inverter power (kW, in field relay_id) * scaling
-  // Calculate (dis)charging power varianbles and convert negative values for unsigned registers
+ 
+  // Calculate (dis)charging power variables and convert negative values for unsigned registers
   InWRte_mbus = InWRte >= 0 ? InWRte * OutOutWRte_SF : InWRte * OutOutWRte_SF + 65536;     
   OutWRte_mbus = OutWRte >= 0 ? OutWRte * OutOutWRte_SF : OutWRte * OutOutWRte_SF + 65536;
 
