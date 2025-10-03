@@ -1452,7 +1452,7 @@ function create_dashboard_chart() {
                 });
     }
 
-    function add_history_ds(ds_id, label, color, yaxis) {
+    function add_history_ds(ds_id, label, color, yaxis,skipzeros) {
 
         if (has_history_values[ds_id]) {
             dataset_started = false;
@@ -1460,10 +1460,10 @@ function create_dashboard_chart() {
             for (h_idx = 0; h_idx < variable_history[ds_id].length; h_idx++) {
                 //probably 1 resolutions unit too small, fixed 10.4.2024
                 ts = now_period_ts - (variable_history[ds_id].length - h_idx - 1) * chart_resolution_sec;
-                if (Math.abs(variable_history[ds_id][h_idx]) > 1)
+                if (Math.abs(variable_history[ds_id][h_idx]) >= 1)
                     dataset_started = true;
 
-                if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started)
+                if (chart_start_ts <= ts && ts < chart_end_excl_ts && dataset_started && !(skipzeros && Math.abs(variable_history[ds_id][h_idx]) < 1))
                     ds.push({ x: ts * 1000, y: variable_history[ds_id][h_idx] });
             }// chart_resolution_sec
 
@@ -1486,7 +1486,7 @@ function create_dashboard_chart() {
                     });
         }
     }
-    add_history_ds(VARIABLE_SOC_BASE_0, 'SoC ', '#f58d42', 'y_soc');
+    add_history_ds(VARIABLE_SOC_BASE_0, 'SoC ', '#f58d42', 'y_soc',true);
     //TODO: refactor also VARIABLE_PRODUCTION_ENERGY, VARIABLE_SELLING_ENERGY
 
 
