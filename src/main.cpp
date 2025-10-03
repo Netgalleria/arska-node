@@ -6609,24 +6609,24 @@ bool set_profile_modbus_tcp(int channel_idx)
 
   switch (s.ch[channel_idx].wannabe_profile)
   {
-  case CH_PROFILE_BATT_NO_CTRL: //Arska has no control over charging
+  case CH_PROFILE_BATT_NO_CTRL: // Arska has no control over charging
     InWRte = 100;
     OutWRte = 100;
     StorCtl_Mod = 0;
     break;
-  case CH_PROFILE_BATT_CHARGE_EXCESS:  // let inverter decide charging rate between 0 % - 100 %, charging excess energy
+  case CH_PROFILE_BATT_CHARGE_EXCESS: // let inverter decide charging rate between 0 % - 100 %, charging excess energy
     InWRte = 100;
     OutWRte = 0;
     StorCtl_Mod = 3;
     break;
-  case CH_PROFILE_BATT_DISCHARGE_EXCESS: // let inverter decide discharging rate between 0 % - 100 %, discharging if consumption exceeds production  
+  case CH_PROFILE_BATT_DISCHARGE_EXCESS: // let inverter decide discharging rate between 0 % - 100 %, discharging if consumption exceeds production
     InWRte = 0;
     OutWRte = 100;
     StorCtl_Mod = 3;
     break;
   default: // charging/discharging rate is fixed and depends on the selected (by channel rules) profile
     StorCtl_Mod = 3;
-    // default calculated based of profile id:s
+    // charge/discharge rates (InWRte, OutWRte) calculated based of profile id:s
     InWRte = (CH_PROFILE_BATT_CHARGE_0 - s.ch[channel_idx].wannabe_profile) * CH_PROFILE_BATT_STEP;
     OutWRte = (s.ch[channel_idx].wannabe_profile - CH_PROFILE_BATT_CHARGE_0) * CH_PROFILE_BATT_STEP;
   }
@@ -6645,9 +6645,9 @@ bool set_profile_modbus_tcp(int channel_idx)
 
   // This scaling factor is based on given inverter power, eg. full power for 5 kW inverter would be ca 12% (of 41 kW)
   OutOutWRte_SF = s.ch[channel_idx].relay_id * 100000 / FRONIUSGEN24_INOUTWRTE_FACTOR_MAX; // inverter power (kW, in field relay_id) * scaling
- 
+
   // Calculate (dis)charging power variables and convert negative values for unsigned registers
-  InWRte_mbus = InWRte >= 0 ? InWRte * OutOutWRte_SF : InWRte * OutOutWRte_SF + 65536;     
+  InWRte_mbus = InWRte >= 0 ? InWRte * OutOutWRte_SF : InWRte * OutOutWRte_SF + 65536;
   OutWRte_mbus = OutWRte >= 0 ? OutWRte * OutOutWRte_SF : OutWRte * OutOutWRte_SF + 65536;
 
   // Serial.printf("Writing to modbus OutWRte= %ld, InWRte = %ld, StorCtl = %ld \n", OutWRte_mbus, InWRte_mbus, StorCtl_Mod);
@@ -8389,6 +8389,7 @@ bool store_settings_from_json_doc_dyn(DynamicJsonDocument doc)
 
       for (JsonArray ch_rule_stmt : ch_rule["stmts"].as<JsonArray>())
       {
+        // TODO: Should we skip/continue if variable id == -1, e.g. pack statements if one or more removed from the middle
         s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].variable_id = ch_rule_stmt[0];
         s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].oper_id = ch_rule_stmt[1];
         s.ch[channel_idx].rules[rule_idx].statements[stmt_idx].const_val = ch_rule_stmt[2]; // TODO: redundant?, remove if stms[3] is always upddated?
@@ -9597,8 +9598,8 @@ void setup()
     HAN_P1_SERIAL.setRxBufferSize(HAN_P1_SERIAL_SIZE_RX);
     HAN_P1_SERIAL.begin(115200, SERIAL_8N1, s.energy_meter_gpio, uart_tx_gpio_unused); // Hardware Serial of ESP32, was -1 now 34
     HAN_P1_SERIAL.flush();
-    // HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
-    // New version adopted 14.5.2025
+// HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
+// New version adopted 14.5.2025
 #ifdef HAN_READ_IN_LOOP
     HAN_P1_SERIAL.onReceive(receive_energy_meter_han_triggered, false); // sets a RX callback function for Serial 2
 #else
@@ -10042,6 +10043,7 @@ void loop()
   }
 
   // Below business logic actions that require mcu clock in time -->
+
   // process measurements
   if (todo_in_loop_parse_han_message)
   {
