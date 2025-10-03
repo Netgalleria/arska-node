@@ -5655,13 +5655,21 @@ bool get_price_data_entsoe()
   Serial.println(F("Waiting the document"));
   String line;
   String line2;
+  int wait_count = 0;
   bool contains_suspicious_prices = false;
   // we must remove extra carbage cr (13) + "5xx" + cr lines
   // .available() is 1 or low when the "garbage" comes, no more/much to read, after about 8k buffer is read
+  wait_count = 0;
+  while (!client_https.available() && wait_count < 100)
+  {
+    Serial.println("Waiting new stuff to the buffer");
+    delay(100);
+    wait_count++;
+  }
   while (client_https.available())
   {
     line = read_http11_line(&client_https);
-    // Serial.printf("[%s]\n", line.c_str());
+    //   Serial.printf("[%s]\n", line.c_str());
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
       save_on = true;
@@ -5768,10 +5776,12 @@ bool get_price_data_entsoe()
     }
 
     // If read buffer is empty, wait for a while if new data is coming
-    if (!client_https.available())
+    wait_count = 0;
+    while (!client_https.available() && wait_count < 100)
     {
       Serial.println("Waiting new stuff to the buffer");
-      delay(1000);
+      delay(100);
+      wait_count++;
     }
   }
 
