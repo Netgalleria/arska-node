@@ -4176,6 +4176,17 @@ volatile bool todo_in_loop_parse_han_message = false;
 volatile bool han_read_busy = false; // lock writing in isr if busy
 volatile unsigned han_telegram_received_ms = 0;
 
+#define HAN_READ_IN_LOOP
+volatile bool todo_in_loop_read_han_message = false;
+
+#ifdef HAN_READ_IN_LOOP
+void IRAM_ATTR receive_energy_meter_han_triggered()
+{
+  todo_in_loop_read_han_message = true;
+}
+
+#endif
+
 void IRAM_ATTR receive_energy_meter_han_direct_2()
 {
   //  ets_printf("receive_energy_meter_han_direct_2 %lu\n",han_telegram_count);
@@ -9577,7 +9588,11 @@ void setup()
     HAN_P1_SERIAL.flush();
     // HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct, false); // sets a RX callback function for Serial 2
     // New version adopted 14.5.2025
+#ifdef HAN_READ_IN_LOOP
+    HAN_P1_SERIAL.onReceive(receive_energy_meter_han_triggered, false); // sets a RX callback function for Serial 2
+#else
     HAN_P1_SERIAL.onReceive(receive_energy_meter_han_direct_2, false); // sets a RX callback function for Serial 2
+#endif
   }
 #endif
   Serial.printf("Arduino Stack was set to %d bytes.\n", getArduinoLoopTaskStackSize());
@@ -9950,6 +9965,12 @@ void loop()
     log_msg(MSG_TYPE_FATAL, "Restarting due to missing wifi connection.", true);
     delay(2000);
     ESP.restart();
+  }
+
+  if (todo_in_loop_read_han_message)
+  {
+    todo_in_loop_read_han_message = false;
+    receive_energy_meter_han_direct_2();
   }
 
   if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
