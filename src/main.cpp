@@ -4274,7 +4274,7 @@ bool parse_han_message() // direct
     {
       han_telegram_error_crc_count++;
       Serial.println("❌ CRC mismatch");
-      log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
+      // log_msg(MSG_TYPE_WARN, "HAN P1 message CRC check failed");
       han_read_busy = false; // release read "lock"
       return false;
     }
