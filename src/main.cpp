@@ -5079,7 +5079,8 @@ void calculate_price_rank_variables()
   // 24 h fixed nychthemeron
 
   // 24 h fixed new,
-  first_ts_in_window = current_period_start_ts - tm_struct_l.tm_hour * SECONDS_IN_HOUR;
+  // first_ts_in_window = current_period_start_ts - tm_struct_l.tm_hour * SECONDS_IN_HOUR;
+  first_ts_in_window = long(current_period_start_ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR - tm_struct_l.tm_hour * SECONDS_IN_HOUR;
   last_ts_in_window = first_ts_in_window + SECONDS_IN_HOUR * 24 - prices->resolution_sec();
 
   // rank = prices->get_period_rank(current_period_start_ts, last_ts_in_window - 23 * prices->resolution_sec(), last_ts_in_window);
@@ -5094,7 +5095,7 @@ void calculate_price_rank_variables()
   vars.set(VARIABLE_PRICERANK_FIXED_15_24, (long)rank);
 
   prices->stats(current_period_start_ts, first_ts_in_window, last_ts_in_window, &window_price_avg, &price_differs_avg, &price_ratio_avg);
-  // Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
+  Serial.printf("New way 24 h fixed rank %ld, avg %ld, diff %ld, ratio %ld\n", (long)rank, window_price_avg, price_differs_avg, price_ratio_avg);
 
   vars.set(VARIABLE_PRICERATIO_FIXED_24, (long)price_ratio_avg);
   yield();
