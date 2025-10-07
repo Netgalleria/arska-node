@@ -2525,7 +2525,7 @@ int timeSeries::get_period_rank(const int id, time_t period_ts, time_t start_ts,
       return rank;
   }
   else
-    return (int)VARIABLE_LONG_UNKNOWN; //-1;
+    return (int)VARIABLE_LONG_UNKNOWN; // return undefined in error, was -1;
 
   yield();
   return rank;
@@ -2571,7 +2571,7 @@ int timeSeries::get_period_rank_hour(const int id, time_t period_ts, time_t star
       return rank;
   }
   else
-    return (int)VARIABLE_LONG_UNKNOWN; // -1;
+    return (int)VARIABLE_LONG_UNKNOWN; // return undefined in error, was -1;
 
   yield();
   return rank;
