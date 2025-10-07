@@ -35,6 +35,8 @@ DEVEL BRANCH
 #define METER_HAN_DIRECT_ENABLED
 #define HANP1_PROXY_ENABLED // allow http access to the latest han p1 message
 #define LOAD_MGMT_ENABLED
+// #define LOAD_MGMT_DISCHARGE_IN_OVERLOAD // replace with s.load_manager_discharge_in_overload when stable
+bool load_manager_discharge_in_overload = true;
 #define PING_ENABLED          // for testing if internet connection etc ok
 #define PRICE_ELERING_ENABLED // price query from Elering
 #define OTA_UPDATE_ENABLED    // OTA general
@@ -758,6 +760,7 @@ typedef struct
   bool disable_ca_checks; //!< If true client does not check server identity with certificates.
 #ifdef LOAD_MGMT_ENABLED
   bool load_manager_active;                    //!< //
+                                               // bool load_manager_discharge_in_overload;   //
   uint8_t load_manager_phase_count;            //!< 1 or 3 (Europe) //not yet export/import
   uint8_t load_manager_current_max;            //!< max current per phase in Amperes, eg. 25 (A)
   uint8_t load_manager_power_max;              //!< max total power in kW
@@ -1048,6 +1051,11 @@ bool update_prices_to_influx();
 void add_period_variables_to_influx_buffer(time_t ts_report);
 bool write_buffer_to_influx();
 bool write_point_buffer_influx(InfluxDBClient *ifclient, Point *point_buffer);
+#endif
+
+#ifdef BATTERY_ENABLED
+bool ch_is_profile_based(int channel_idx);
+int8_t ch_consuming_profile(uint8_t profile);
 #endif
 
 // * Config store/read, Backup, restore
@@ -2517,7 +2525,7 @@ int timeSeries::get_period_rank(const int id, time_t period_ts, time_t start_ts,
       return rank;
   }
   else
-    return -1;
+    return (int)VARIABLE_LONG_UNKNOWN; //-1;
 
   yield();
   return rank;
@@ -2563,7 +2571,7 @@ int timeSeries::get_period_rank_hour(const int id, time_t period_ts, time_t star
       return rank;
   }
   else
-    return -1;
+    return (int)VARIABLE_LONG_UNKNOWN; // -1;
 
   yield();
   return rank;
@@ -3834,20 +3842,25 @@ float check_current_load()
   {
     Serial.println("System overload, do something, buy a new fuse...");
     load_manager_overload_last_ts = time(nullptr);
-
+    // Drops all (non-profile) channels if overload
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
-      if (s.ch[channel_idx].is_up && s.ch[channel_idx].load > 0)
+      if (ch_is_profile_based(channel_idx) && ch_consuming_profile(s.ch[channel_idx].profile))
+      {
+        s.ch[channel_idx].wannabe_profile = load_manager_discharge_in_overload ? CH_PROFILE_BATT_DISCHARGE_EXCESS : CH_PROFILE_BATT_CHARGE_0;
+        Serial.println("Drop battery charging");
+        chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
+      }
+
+      else if (s.ch[channel_idx].is_up && s.ch[channel_idx].load > 0)
       {
         s.ch[channel_idx].wannabe_up = false;
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
-
         drop_count++;
       }
     }
     if (drop_count > 0)
     {
-
       Serial.printf("Dropping %d channels\n", drop_count);
     }
     set_relays(false);
@@ -5087,6 +5100,14 @@ void calculate_price_rank_variables()
   // Serial.println("VARIABLE_PRICERANK_FIXED_24");
   rank = prices->get_period_rank_hour(3, current_period_start_ts, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window);
   vars.set(VARIABLE_PRICERANK_FIXED_24, (long)rank);
+  /*
+  #pragma  message("Testing random errors, REMOVE IN PRODUCTION")
+    Serial.println("VARIABLE_PRICERANK_FIXED_24 TEST");
+      first_ts_in_window = long(1759786200 / SECONDS_IN_HOUR) * SECONDS_IN_HOUR - 0 * SECONDS_IN_HOUR;
+    last_ts_in_window = first_ts_in_window + SECONDS_IN_HOUR * 24 - prices->resolution_sec();
+    rank = prices->get_period_rank_hour(3, 1759786200, last_ts_in_window - 23 * SECONDS_IN_HOUR, last_ts_in_window);
+    Serial.println(rank);
+    */
 
   // Serial.println("VARIABLE_PRICERANK_FIXED_15_24");
   // last_ts_in_window = first_ts_in_window + SECONDS_IN_HOUR * 24 - prices->resolution_sec();
@@ -6846,19 +6867,19 @@ void calculate_channel_states()
 #ifdef LOAD_MGMT_ENABLED
 
     // channel down and under loadm management control
-    if (s.load_manager_active && !s.ch[channel_idx].is_up && (s.ch[channel_idx].load > 0))
+    if (s.load_manager_active && ((!ch_is_profile_based(channel_idx) && !s.ch[channel_idx].is_up && (s.ch[channel_idx].load > 0)) || ch_is_profile_based(channel_idx)))
     {
-      if ((s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count) > current_capacity_available)
+      if (!ch_is_profile_based(channel_idx) && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count) > current_capacity_available)
       {
         if (print_debug_info)
           Serial.printf(PSTR("DEBUG: Not available capacity for channel %d to get up, %f\n"), channel_idx, current_capacity_available);
         s.ch[channel_idx].wannabe_up = false;
-        if (ch_is_profile_based(channel_idx))
-        {
-          if (print_debug_info)
-            Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
-          s.ch[channel_idx].wannabe_profile = CH_PROFILE_BATT_DISCHARGE_100; // TODO BATTERY: parametrize what to do with battery if overload
-        }
+        //  if (ch_is_profile_based(channel_idx))
+        //  {
+        //   if (print_debug_info)
+        //     Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
+        //    s.ch[channel_idx].wannabe_profile = CH_PROFILE_BATT_DISCHARGE_100; // TODO BATTERY: parametrize what to do with battery if overload
+        //  }
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT_NOCAPACITY;
         continue; // cannot switch on
       }
@@ -7076,6 +7097,7 @@ void set_relays(bool grid_protection_delay_used)
 
   int rise_count = 0;
   int drop_count = 0;
+  int change_profile_count = 0;
   for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
   {
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
@@ -7087,6 +7109,7 @@ void set_relays(bool grid_protection_delay_used)
       if (!ch_in_wannabe_state(channel_idx))
       {
         rise_count++;
+        change_profile_count++;
       }
     }
     else
@@ -7111,16 +7134,23 @@ void set_relays(bool grid_protection_delay_used)
   bool is_rise;
   int oper_count;
 
-  for (int drop_rise = 0; drop_rise < 2; drop_rise++)
-  { // first round drops, second round rises
-    is_rise = (drop_rise == 1);
+#define DROP_CHANNEL 0
+#define RISE_CHANNEL 1
+  for (int drop_rise = DROP_CHANNEL; drop_rise <= RISE_CHANNEL; drop_rise++)
+  { // first round 0 drops, second round 1 rises
+    is_rise = (drop_rise == RISE_CHANNEL);
     oper_count = is_rise ? rise_count : drop_count;
     switchings_to_todo = min(oper_count, MAX_CHANNELS_SWITCHED_AT_TIME);
 
 #ifdef LOAD_MGMT_ENABLED
-    // overload, drop all channels marked
-    if (load_manager_capacity_a < 0 && !(drop_rise == 0))
-      switchings_to_todo = drop_count;
+    // overload, drop all channels marked, and change profiles
+    /* if (load_manager_capacity_a < 0 && (drop_rise == RISE_CHANNEL))
+       switchings_to_todo = drop_count;*/
+    if (load_manager_capacity_a < 0)
+    {
+      switchings_to_todo = (drop_rise == DROP_CHANNEL) ? drop_count : change_profile_count;
+    }
+
 #endif
 
     for (int i = 0; i < switchings_to_todo; i++)
