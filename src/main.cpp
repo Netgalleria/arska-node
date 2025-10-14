@@ -2395,9 +2395,12 @@ void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, 
   *avg_ = avg(start_ts, end_ts_incl);
   *differs_avg = get(ts) - *avg_;
   T suma = sum(start_ts, end_ts_incl);
+  int64_t ratio_avg_calc;
   if (abs(suma) > 0)
   {
-    *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (get(ts) * 1000) / suma;
+  //  *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (int64_t)(get(ts) * 1000) / suma;
+    ratio_avg_calc = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (int64_t)(get(ts)*1000) / suma ;  // avoid memory overflow with int64_t in the calculation
+    *ratio_avg = ratio_avg_calc;
   }
   else
     *ratio_avg = VARIABLE_LONG_UNKNOWN;
