@@ -36,7 +36,7 @@ DEVEL BRANCH
 #define HANP1_PROXY_ENABLED // allow http access to the latest han p1 message
 #define LOAD_MGMT_ENABLED
 // #define LOAD_MGMT_DISCHARGE_IN_OVERLOAD // replace with s.load_manager_discharge_in_overload when stable
-bool load_manager_discharge_in_overload = true;
+bool load_manager_discharge_in_overload = false;
 #define PING_ENABLED          // for testing if internet connection etc ok
 #define PRICE_ELERING_ENABLED // price query from Elering
 #define OTA_UPDATE_ENABLED    // OTA general
