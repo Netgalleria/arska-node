@@ -23,6 +23,7 @@ const SECONDS_IN_MINUTE = 60
 //const NETTING_PERIOD_SEC = SECONDS_IN_HOUR // from /application constants
 
 const CH_STATE_MINIMUM_UPTIME = 32;
+const VARIABLE_CHANNEL_STATUS_BASE_0 = 900;
 
 
 const multiselect_icon_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-pocket"><path d="M4 3h16a2 2 0 0 1 2 2v6a10 10 0 0 1-10 10A10 10 0 0 1 2 11V5a2 2 0 0 1 2-2z"></path><polyline points="8 10 12 14 16 10"></polyline></svg>';
@@ -72,7 +73,8 @@ const OPER_IDX_HASVALUE = 6;
 const OPER_IDX_MULTISELECT = 7;
 
 const remote_status_texts = ['OK', "Undefined", "Invalid parameters", "Expired", "Not initiated", "Test failed", "No internet connection"];
-
+const CH_PROFILE_DOWN = 0;
+const CH_PROFILE_UP = 1;
 const CH_PROFILE_BATT_STEP = 5;
 const CH_PROFILE_BATT_CHARGE_100 = 100;
 const CH_PROFILE_BATT_CHARGE_75 = 105;
@@ -1028,6 +1030,11 @@ function get_variable_desc(var_id, include_value, channel_idx) {
             range_txt = ", max: " + var_obj["max"];
         }
     }
+    /*   else if (var_id > VARIABLE_CHANNEL_STATUS_BASE_0 && var_id <= VARIABLE_CHANNEL_STATUS_BASE_0 + g_application.CHANNEL_COUNT + 1) {
+           variable_desc = "Channel " + var_id-VARIABLE_CHANNEL_STATUS_BASE_0 + " current state";
+           range_txt = ", range: " + 0 + " - " + 1;
+           
+       }*/
     else {
         return "Error. Unknown variable."; //we should not end up here
     }
@@ -1057,7 +1064,15 @@ function get_variable_desc(var_id, include_value, channel_idx) {
 function get_profile_info_by_id(profile_id) {
     var color = "";
     var label = "NA";
-    if (profile_id >= CH_PROFILE_BATT_CHARGE_100 && profile_id < CH_PROFILE_BATT_CHARGE_0) {
+    if (profile_id == CH_PROFILE_DOWN){
+      //  color = "text-bg-info";
+        label = "Down";
+    }
+    else if (profile_id == CH_PROFILE_UP) {
+    //    color = "text-bg-info";
+        label = "Up";
+    }    
+    else if (profile_id >= CH_PROFILE_BATT_CHARGE_100 && profile_id < CH_PROFILE_BATT_CHARGE_0) {
         color = "text-bg-success";
         label = "Charge " + (CH_PROFILE_BATT_CHARGE_0 - profile_id) * CH_PROFILE_BATT_STEP + " %";
     }
@@ -1125,9 +1140,9 @@ function populate_channel_status(channel_idx, ch) {
         sch_duration_c_span.innerHTML = duration_c_str;
         sch_start_c_span.innerHTML = get_time_string_from_ts(ch.force_state_from, false, true) + " &rarr; ";// + get_time_string_from_ts(ch.force_state_until, false, true);
         //    console.log("sch_start_c_span.innerText", sch_start_c_span.innerText);
-        if (is_relay_profile_used(ch["type"])) {
+       // if (is_relay_profile_used(ch["type"])) {
             sch_profile_c_span.innerHTML = get_profile_info_by_id(ch["force_state_profile"]).label;
-        }
+      //  }
     }
     else {
         sch_duration_c_span.innerHTML = "-";
@@ -1452,7 +1467,7 @@ function create_dashboard_chart() {
                 });
     }
 
-    function add_history_ds(ds_id, label, color, yaxis,skipzeros) {
+    function add_history_ds(ds_id, label, color, yaxis, skipzeros) {
 
         if (has_history_values[ds_id]) {
             dataset_started = false;
@@ -1486,7 +1501,7 @@ function create_dashboard_chart() {
                     });
         }
     }
-    add_history_ds(VARIABLE_SOC_BASE_0, 'SoC ', '#f58d42', 'y_soc',true);
+    add_history_ds(VARIABLE_SOC_BASE_0, 'SoC ', '#f58d42', 'y_soc', true);
     //TODO: refactor also VARIABLE_PRODUCTION_ENERGY, VARIABLE_SELLING_ENERGY
 
 
@@ -1969,12 +1984,15 @@ function update_fup_schedule_element(channel_idx, current_start_ts = 0) {
         sch_start_sel.options[exp_index + 1].innerHTML = sch_start_sel.options[exp_index + 1].innerHTML + " &#9650;";
     }
 
-    if (is_relay_profile_used(g_settings.ch[channel_idx]["type"])) {
+   /* if (is_relay_profile_used(g_settings.ch[channel_idx]["type"])) {
         sch_start_sel.value = 0;
     }
     else if (cheapest_index > -1) {
         sch_start_sel.value = cheapest_ts;
     }
+    */
+    sch_start_sel.value = 0;
+    
 }
 
 function duration_changed_ev(evt) {
@@ -2164,6 +2182,26 @@ function load_application_config() {
         },
         success: function (data) {
             variable_list = data;
+            var value_min, value_max;
+
+            // add channel variables, if not in variable-info.json
+            for (var i = 0; i < g_application.variables.length; i++) {
+                var_id = g_application.variables[i][0];
+
+                if (!(var_id in variable_list) && (var_id > VARIABLE_CHANNEL_STATUS_BASE_0 && var_id <= VARIABLE_CHANNEL_STATUS_BASE_0 + g_application.CHANNEL_COUNT + 1)) {
+                    value_min = 0;  value_max = 1;
+                    channel_idx = (parseInt(var_id) - VARIABLE_CHANNEL_STATUS_BASE_0) - 1;
+                    if (g_settings.ch[channel_idx]["type"] == 50) {// Fronius
+                        value_min = 100;
+                        value_max = 143;
+                    }
+
+                    variable_list[var_id] = { "code": "ch " + (channel_idx + 1) + " state", "desc": "channel " + (channel_idx + 1) + " state", "min": value_min, "max": value_max };
+                }
+            };
+
+
+
         }
     });
 
@@ -2763,7 +2801,13 @@ function populate_var(sel_ctrl, selected = -1) {
         for (var i = 0; i < g_application.variables.length; i++) {
             var_id = g_application.variables[i][0];
             var type_indi = is_var_logical(g_application.variables[i][2]) ? "*" : " "; //logical
-            var id_str = '(' + var_id + ') ' + variable_list[var_id]["code"] + type_indi;
+            var id_str;
+            if (var_id in variable_list) {
+                id_str = '(' + var_id + ') ' + variable_list[var_id]["code"] + type_indi;
+            }
+            else {
+                id_str = '(' + var_id + ') ' + type_indi;
+            }
             addOption(sel_ctrl, var_id, id_str, false);
         }
 
@@ -3054,6 +3098,13 @@ function create_channels() {
         if (is_relay_profile_used(ch_cur["type"])) {
             document.getElementById(`ch_${channel_idx}:r_id_lbl`).innerHTML = "Power (kW):";
             populate_profile_select(document.getElementById(`sch_${channel_idx}:profile`));
+            document.getElementById(`sch_${channel_idx}:profilecol`).classList.remove("d-none");
+            document.getElementById(`sch_${channel_idx}:profile_c`).classList.remove("d-none");
+        }
+        else { //experimental WiP
+            remove_select_options(document.getElementById(`sch_${channel_idx}:profile`));
+            addOption(document.getElementById(`sch_${channel_idx}:profile`), 0, "(0) Down", false);
+            addOption(document.getElementById(`sch_${channel_idx}:profile`), 1, "(1) Up", true);
             document.getElementById(`sch_${channel_idx}:profilecol`).classList.remove("d-none");
             document.getElementById(`sch_${channel_idx}:profile_c`).classList.remove("d-none");
         }

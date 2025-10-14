@@ -396,6 +396,14 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 
 /* Application variable constants */
 #define VARIABLE_COUNT 56
+
+#define STATUS_VARIABLES_ENABLED // WiP
+#ifdef STATUS_VARIABLES_ENABLED
+#define VARIABLE_COUNT_TOTAL (VARIABLE_COUNT + CHANNEL_COUNT)
+#else
+#define VARIABLE_COUNT_TOTAL (VARIABLE_COUNT)
+#endif
+
 #define VARIABLE_LONG_UNKNOWN -2147483648 //!< variable with this value is undefined
 // #define VARIABLE_LONG_MISSING -2147483647 //!< variable with this value is undefined, replaced with VARIABLE_LONG_UNKNOWN
 //  do not change variable id:s (will broke statements)
@@ -469,6 +477,8 @@ Scale factor in Register InOutWRte_SF, so for InOutWRte_SF = -2 the valid range 
 #define VARIABLE_NET_ESTIMATE_SOURCE_MEAS_PRODUCTION 2L
 #define VARIABLE_NET_ESTIMATE_SOURCE_SOLAR_FORECAST 3L
 #define VARIABLE_SELLING_ENERGY_ESTIMATE 702 // Estimate/measured selling energy in period
+
+#define VARIABLE_CHANNEL_STATUS_BASE_0 900
 
 /*constant_type, variable_type
 long val_l
@@ -817,11 +827,11 @@ public:
   long float_to_internal_l(int id, float val_float);
   // float const_to_float(int id, long const_in);
   int to_str(int id, char *strbuff, bool use_overwrite_val = false, long overwrite_val = 0, size_t buffer_length = 1);
-  int get_variable_count() { return VARIABLE_COUNT; };
+  int get_variable_count() { return VARIABLE_COUNT_TOTAL; };
   void rotate_period();
 
 private:
-  variable_st variables[VARIABLE_COUNT] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_15_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_HOUR, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_DIFF_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_SOC_BASE_0, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
+  variable_st variables[VARIABLE_COUNT_TOTAL] = {{VARIABLE_PRICE, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_PRICERANK_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_8_BLOCKID, CONSTANT_TYPE_INT, CONSTANT_BITMASK_BLOCK8H}, {VARIABLE_PRICEAVG_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEAVG_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_9, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICEDIFF_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERATIO_FIXED_24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_SUM24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_VALUE24, CONSTANT_TYPE_DEC1}, {VARIABLE_PVFORECAST_AVGPRICE24, CONSTANT_TYPE_DEC1}, {VARIABLE_AVGPRICE24_EXCEEDS_CURRENT, CONSTANT_TYPE_DEC1}, {VARIABLE_PRICERANK_15_9, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_FIXED_15_8, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_PRICERANK_15_HOUR, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_OVERPRODUCTION, CONSTANT_TYPE_BOOLEAN_REVERSE_OK}, {VARIABLE_PRODUCTION_POWER, 0}, {VARIABLE_SELLING_POWER, 0, 0}, {VARIABLE_SELLING_ENERGY, 0, 0}, {VARIABLE_SELLING_POWER_NOW, 0, 0}, {VARIABLE_PRODUCTION_ENERGY, 0}, {VARIABLE_MM, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_MONTH}, {VARIABLE_MMDD, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_WDAY, 0, CONSTANT_BITMASK_WEEKDAY}, {VARIABLE_HH, CONSTANT_TYPE_CHAR_2, CONSTANT_BITMASK_HOUR}, {VARIABLE_HHMM, CONSTANT_TYPE_CHAR_4, 0}, {VARIABLE_MINUTES, CONSTANT_TYPE_CHAR_2, 0}, {VARIABLE_DAYENERGY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_WINTERDAY_FI, CONSTANT_TYPE_BOOLEAN_REVERSE_OK, 0}, {VARIABLE_SENSOR_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_1 + 2, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_SENSOR_DIFF_1, CONSTANT_TYPE_DEC1, 0}, {VARIABLE_CHANNEL_UTIL_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_8H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_24H, CONSTANT_TYPE_INT, 0}, {VARIABLE_CHANNEL_UTIL_BLOCK_M2_0, CONSTANT_TYPE_INT, 0}, {VARIABLE_ESTIMATED_CHANNELS_CONSUMPTION, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_MINUTES_TUNED, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_PRODUCTION_ESTIMATE_PERIOD, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY1B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_WIND_AVG_DAY2B_FI, CONSTANT_TYPE_INT, 0}, {VARIABLE_SOLAR_RANK_FIXED_24, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_LOADM_UTILIZED_POWER_PERIOD, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_SOC_BASE_0, CONSTANT_TYPE_INT, CONSTANT_BITMASK_NONE}, {VARIABLE_NET_ESTIMATE_SOURCE, CONSTANT_TYPE_INT, 0}, {VARIABLE_SELLING_ENERGY_ESTIMATE, CONSTANT_TYPE_INT, 0}};
   int get_variable_index(int id);
 };
 
@@ -1021,6 +1031,10 @@ bool read_inverter_sma_data(long int &total_energy, long int &current_power);
 void print_onewire_address(DeviceAddress deviceAddress);
 bool read_ds18b20_sensors();
 bool scan_sensors();
+#endif
+
+#ifdef METER_HAN_ENABLED
+bool parse_han_message();
 #endif
 
 // * Read Utilities
@@ -1912,8 +1926,20 @@ Point point_period_avg("period_avg"); //!< Influx buffer
 ChannelCounters ch_counters;
 Variables::Variables()
 {
-  for (int variable_idx = 0; variable_idx < VARIABLE_COUNT; variable_idx++)
+  for (int variable_idx = 0; variable_idx < VARIABLE_COUNT_TOTAL; variable_idx++)
     variables[variable_idx].val_l = VARIABLE_LONG_UNKNOWN;
+
+#ifdef STATUS_VARIABLES_ENABLED
+  // Initiated channel status variables, WiP
+  uint16_t variable_id = VARIABLE_CHANNEL_STATUS_BASE_0 + 1;
+  for (int variable_idx = VARIABLE_COUNT; variable_idx < VARIABLE_COUNT_TOTAL; variable_idx++)
+  {
+    variables[variable_idx].id = variable_id++;
+    variables[variable_idx].type = CONSTANT_TYPE_INT;
+    variables[variable_idx].bitmask_config = CONSTANT_BITMASK_NONE;
+    //  variables[variable_idx].val_l = VARIABLE_LONG_UNKNOWN;
+  }
+#endif
 }
 /**
  * @brief Rotates history variables value in the array to one index down, 0 earliest, MAX_HISTORY_PERIODS - 1 is current
@@ -2398,8 +2424,8 @@ void timeSeries::stats(time_t ts, time_t start_ts, time_t end_ts_incl, T *avg_, 
   int64_t ratio_avg_calc;
   if (abs(suma) > 0)
   {
-  //  *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (int64_t)(get(ts) * 1000) / suma;
-    ratio_avg_calc = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (int64_t)(get(ts)*1000) / suma ;  // avoid memory overflow with int64_t in the calculation
+    //  *ratio_avg = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (int64_t)(get(ts) * 1000) / suma;
+    ratio_avg_calc = ((end_ts_incl - start_ts) / resolution_sec() + 1) * (int64_t)(get(ts) * 1000) / suma; // avoid memory overflow with int64_t in the calculation
     *ratio_avg = ratio_avg_calc;
   }
   else
@@ -3848,6 +3874,11 @@ float check_current_load()
     // Drops all (non-profile) channels if overload
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
+      /* WiP
+     if (s.ch[channel_idx].load == 0)  {
+          continue; // skip all channels with zero load
+         }
+         */
       if (ch_is_profile_based(channel_idx) && ch_consuming_profile(s.ch[channel_idx].profile))
       {
         s.ch[channel_idx].wannabe_profile = load_manager_discharge_in_overload ? CH_PROFILE_BATT_DISCHARGE_EXCESS : CH_PROFILE_BATT_CHARGE_0;
@@ -3858,6 +3889,7 @@ float check_current_load()
       else if (s.ch[channel_idx].is_up && s.ch[channel_idx].load > 0)
       {
         s.ch[channel_idx].wannabe_up = false;
+        s.ch[channel_idx].wannabe_profile = CH_PROFILE_DOWN;
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT;
         drop_count++;
       }
@@ -4206,7 +4238,7 @@ void IRAM_ATTR receive_energy_meter_han_triggered()
 void IRAM_ATTR receive_energy_meter_han_direct_2()
 {
   //  ets_printf("receive_energy_meter_han_direct_2 %lu\n",han_telegram_count);
-  delay(100); // there should be some delay to fill the buffer...
+  delay(100); // there should be some delay to fill the buffer, shouldn´t there...
   han_available_bytes = HAN_P1_SERIAL.available();
 
   if (han_available_bytes < 200 || han_read_busy)
@@ -4217,6 +4249,7 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
     }
     return;
   }
+
   hanIndex = 0;
   while (HAN_P1_SERIAL.available())
   {
@@ -4229,7 +4262,19 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
   han_message_buffer[hanIndex] = '\0'; // Null-terminate safely
 
   han_telegram_received_ms = millis();
+
+  // todo_in_loop_parse_han_message = true;
+
+  // WiP
+#ifdef HAN_READ_IN_LOOP
+  // we are called from loop() so no more queueing
+  if (parse_han_message())
+  {
+    process_energy_meter_readings(); //
+  }
+#else
   todo_in_loop_parse_han_message = true;
+#endif
 
   // ets_printf("receive_energy_meter_han_direct_2 end\n");
   /*
@@ -6297,6 +6342,13 @@ int8_t ch_consuming_profile(uint8_t profile)
     return 0;
 }
 
+bool channel_is_consuming(int channel_idx)
+{
+  if (ch_is_profile_based(channel_idx))
+    return (ch_consuming_profile(channel_idx) == 1);
+  else
+    return s.ch[channel_idx].is_up;
+}
 bool ch_in_wannabe_state(int channel_idx)
 {
   {
@@ -6744,7 +6796,7 @@ bool set_profile_modbus_tcp(int channel_idx)
 }
 
 /**
- * @brief Sets a channel relay up/down
+ * @brief Sets a channel relay up/down, profile
  *
  * @param channel_idx
  * @param up
@@ -6765,6 +6817,9 @@ bool apply_relay_state(int channel_idx, bool init_relay)
     s.ch[channel_idx].up_last_ts = time(nullptr);
     Serial.printf("Channel %d seen up now at %ld \n", channel_idx, (long)s.ch[channel_idx].up_last_ts);
   }
+#ifdef STATUS_VARIABLES_ENABLED
+  vars.set(VARIABLE_CHANNEL_STATUS_BASE_0 + channel_idx + 1, (long)s.ch[channel_idx].profile);
+#endif
 
   if (ch_is_profile_based(channel_idx))
     Serial.printf("ch %d -> %d\n", channel_idx, (int)s.ch[channel_idx].profile);
@@ -6836,8 +6891,10 @@ bool apply_relay_state(int channel_idx, bool init_relay)
  */
 void calculate_channel_states()
 {
-  bool forced_up;
+  bool is_forced;
   bool print_debug_info = false; // for problem solving / debugging
+  float channel_phase_current;
+  bool channel_is_load_controlled;
   float current_capacity_available = 9999;
 #ifdef LOAD_MGMT_ENABLED
   current_capacity_available = load_manager_capacity_a;
@@ -6853,6 +6910,7 @@ void calculate_channel_states()
     if (s.ch[channel_idx].type == CH_TYPE_UNDEFINED)
     {
       s.ch[channel_idx].wannabe_up = false;
+      s.ch[channel_idx].wannabe_profile = CH_PROFILE_DOWN;
       chstate_transit[channel_idx] = CH_STATE_NONE;
       continue;
     }
@@ -6870,19 +6928,19 @@ void calculate_channel_states()
 #ifdef LOAD_MGMT_ENABLED
 
     // channel down and under loadm management control
-    if (s.load_manager_active && ((!ch_is_profile_based(channel_idx) && !s.ch[channel_idx].is_up && (s.ch[channel_idx].load > 0)) || ch_is_profile_based(channel_idx)))
+    channel_phase_current = s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count;
+    channel_is_load_controlled = (s.ch[channel_idx].load > 0);
+
+    // TODO: check load on all devices
+    if (s.load_manager_active && ((!ch_is_profile_based(channel_idx) && !s.ch[channel_idx].is_up && channel_is_load_controlled) || ch_is_profile_based(channel_idx)))
+    // if (s.load_manager_active && channel_is_load_controlled && !channel_is_consuming(channel_idx))
     {
-      if (!ch_is_profile_based(channel_idx) && (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count) > current_capacity_available)
+      if (!ch_is_profile_based(channel_idx) && channel_phase_current > current_capacity_available)
       {
         if (print_debug_info)
           Serial.printf(PSTR("DEBUG: Not available capacity for channel %d to get up, %f\n"), channel_idx, current_capacity_available);
         s.ch[channel_idx].wannabe_up = false;
-        //  if (ch_is_profile_based(channel_idx))
-        //  {
-        //   if (print_debug_info)
-        //     Serial.printf("DEBUG ch %d set wannabe_profile <- CH_PROFILE_BATT_DISCHARGE_100 %d\n", channel_idx, CH_PROFILE_BATT_DISCHARGE_100);
-        //    s.ch[channel_idx].wannabe_profile = CH_PROFILE_BATT_DISCHARGE_100; // TODO BATTERY: parametrize what to do with battery if overload
-        //  }
+        s.ch[channel_idx].wannabe_profile = CH_PROFILE_DOWN;
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT_NOCAPACITY;
         continue; // cannot switch on
       }
@@ -6891,6 +6949,7 @@ void calculate_channel_states()
         if (print_debug_info)
           Serial.printf("DEBUG: Load manager moratorium , channel %d \n", channel_idx);
         s.ch[channel_idx].wannabe_up = false;
+        s.ch[channel_idx].wannabe_profile = CH_PROFILE_DOWN;
         chstate_transit[channel_idx] = CH_STATE_BYLMGMT_MORATORIUM;
         continue; // cannot switch on
       }
@@ -6898,11 +6957,11 @@ void calculate_channel_states()
 
 #endif
 
-    forced_up = (is_force_state_valid(channel_idx));
+    is_forced = (is_force_state_valid(channel_idx));
     if (print_debug_info)
-      Serial.printf("DEBUG:  channel_idx %d forced_up %s\n", channel_idx, forced_up ? "true" : "false");
+      Serial.printf("DEBUG:  channel_idx %d is_forced %s\n", channel_idx, is_forced ? "true" : "false");
 
-    // profile channel
+    // profile channel, TODO: merge branches
     if (ch_is_profile_based(channel_idx))
     {
       if (wait_minimum_uptime)
@@ -6910,16 +6969,34 @@ void calculate_channel_states()
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].profile;
         continue;
       }
-      else if (forced_up)
+      else if (is_forced)
       {
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
         continue;
       }
     }
+    else 
+      {
+      if (wait_minimum_uptime && s.ch[channel_idx].is_up)
+      {
+        s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].profile;
+        s.ch[channel_idx].wannabe_up = true;
+          if (wait_minimum_uptime)
+        chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
+        continue;
+      }
+      else if (is_forced)
+      {
+        s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
+        continue;
+      }
+    }
+    /*
     // up/down channel
-    else if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
+    else if (s.ch[channel_idx].is_up && (wait_minimum_uptime || is_forced))
     {
       s.ch[channel_idx].wannabe_up = true;
+      s.ch[channel_idx].wannabe_profile = CH_PROFILE_UP;
       if (wait_minimum_uptime)
         chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
 
@@ -6927,9 +7004,9 @@ void calculate_channel_states()
         Serial.printf("DEBUG:  channel %d wannabe_up = true\n", channel_idx);
       continue;
     }
-
+*/
     /*
-        if (s.ch[channel_idx].is_up && (wait_minimum_uptime || forced_up))
+        if (s.ch[channel_idx].is_up && (wait_minimum_uptime || is_forced))
         {
           //   Not yet time to drop channel
           if (ch_is_profile_based(channel_idx)) {
@@ -6950,15 +7027,16 @@ void calculate_channel_states()
 
     if (ch_is_profile_based(channel_idx))
     {
-      if (!ch_in_wannabe_state(channel_idx) && forced_up)
+      if (!ch_in_wannabe_state(channel_idx) && is_forced)
       {
         // the channel  should be forced to a new state
         s.ch[channel_idx].wannabe_up = true;
+        s.ch[channel_idx].wannabe_profile = CH_PROFILE_UP;
         // s.ch[channel_idx].wannabe_profile =xxx TODO BATTERY: can we expect that wannabe_profile is already set
         chstate_transit[channel_idx] = CH_STATE_BYFORCE;
 #ifdef LOAD_MGMT_ENABLED
 // TODO BATTERY: shall we estimate capacity or skip when battery?
-//       current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count);
+//       current_capacity_available -= channel_phase_current;
 #endif
         Serial.println("forcing to a new state");
         continue; // forced, not checking channel rules
@@ -6966,12 +7044,13 @@ void calculate_channel_states()
     }
     else
     {
-      if (!s.ch[channel_idx].is_up && forced_up)
+      if (!s.ch[channel_idx].is_up && is_forced)
       { // the channel is now down but should be forced up
         s.ch[channel_idx].wannabe_up = true;
+        s.ch[channel_idx].wannabe_profile = CH_PROFILE_UP;
         chstate_transit[channel_idx] = CH_STATE_BYFORCE;
 #ifdef LOAD_MGMT_ENABLED
-        current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count);
+        current_capacity_available -= channel_phase_current;
 #endif
         Serial.println("forcing up");
         continue; // forced, not checking channel rules
@@ -7036,7 +7115,7 @@ void calculate_channel_states()
         // TODO BATTERY: do we estimate capacity available?, we do not know
         if (s.ch[channel_idx].is_up != s.ch[channel_idx].wannabe_up)
         {
-          current_capacity_available -= (s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count);
+          current_capacity_available -= channel_phase_current;
         }
 #endif
         if (!s.ch[channel_idx].rules[rule_idx].rule_active)
@@ -7171,6 +7250,9 @@ void set_relays(bool grid_protection_delay_used)
       {
         Serial.printf("Switching ch %d  (%d) from %d -> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
         s.ch[ch_to_switch].is_up = is_rise;
+        s.ch[ch_to_switch].profile = drop_rise;
+
+
       }
       apply_relay_state(ch_to_switch, false);
     }
@@ -8611,7 +8693,7 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
       else
         force_state_from_ts = max(time(nullptr), from); // absolute unix ts is waited
 
-      Serial.printf("onScheduleUpdatePost channel_idx: %d, force_state_minutes: %ld , force_state_from_ts %ld  \n", channel_idx, force_state_minutes, force_state_from_ts);
+      Serial.printf("onScheduleUpdatePost channel_idx: %d, force_state_minutes: %ld , force_state_from_ts %ld , profile %d \n", channel_idx, force_state_minutes, force_state_from_ts,(int)profile);
 
       if (force_state_minutes > 0)
       {
@@ -8621,7 +8703,8 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
         s.ch[channel_idx].force_state_profile = profile;
         if (is_force_state_valid(channel_idx)) // force state now, not in the future
         {
-          s.ch[channel_idx].wannabe_up = true;
+        //  s.ch[channel_idx].wannabe_up = true;
+           s.ch[channel_idx].wannabe_up = (profile==1);
           s.ch[channel_idx].wannabe_profile = profile;
           chstate_transit[channel_idx] = CH_STATE_BYFORCE;
         }
@@ -8631,6 +8714,7 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
         s.ch[channel_idx].force_state_from_ts = -1;  // forced down
         s.ch[channel_idx].force_state_until_ts = -1; // forced down
         s.ch[channel_idx].wannabe_up = false;
+        s.ch[channel_idx].wannabe_profile = CH_PROFILE_DOWN;
         chstate_transit[channel_idx] = CH_STATE_BYFORCE;
       }
       force_state_changes = true;
@@ -9704,6 +9788,7 @@ void setup()
 
       s.ch[channel_idx].wannabe_up = s.ch[channel_idx].default_state;
       s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
+      s.ch[channel_idx].profile = s.ch[channel_idx].is_up ? CH_PROFILE_UP :  CH_PROFILE_DOWN;
     }
 
     chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
