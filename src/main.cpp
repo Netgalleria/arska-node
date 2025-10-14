@@ -6919,6 +6919,7 @@ void calculate_channel_states()
     bool wait_minimum_uptime = (ch_counters.get_duration_in_this_state(channel_idx) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
     if (print_debug_info)
       Serial.printf("\ncalculate_channel_states channel_idx %d, wait_minimum_uptime %s, duration %d\n", channel_idx, wait_minimum_uptime ? "true" : "false", ch_counters.get_duration_in_this_state(channel_idx));
+    
     if (s.ch[channel_idx].force_state_until_ts == -1)
     { // force down
       s.ch[channel_idx].force_state_until_ts = 0;
@@ -6958,66 +6959,29 @@ void calculate_channel_states()
 #endif
 
     is_forced = (is_force_state_valid(channel_idx));
+
     if (print_debug_info)
       Serial.printf("DEBUG:  channel_idx %d is_forced %s\n", channel_idx, is_forced ? "true" : "false");
 
-    // profile channel, TODO: merge branches
-    if (ch_is_profile_based(channel_idx))
+    if (is_forced)
     {
-      if (wait_minimum_uptime)
+      s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
+      chstate_transit[channel_idx] = CH_STATE_BYFORCE;
+      Serial.println("CH_STATE_BYFORCE");
+    }
+    else if (!ch_is_profile_based(channel_idx))
+    {
+      if (wait_minimum_uptime && s.ch[channel_idx].profile == CH_PROFILE_UP) // stay in this profile
       {
+        chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
         s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].profile;
-        continue;
-      }
-      else if (is_forced)
-      {
-        s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
+        Serial.println("wait_minimum_uptime");
         continue;
       }
     }
-    else 
-      {
-      if (wait_minimum_uptime && s.ch[channel_idx].is_up)
-      {
-        s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].profile;
-        s.ch[channel_idx].wannabe_up = true;
-          if (wait_minimum_uptime)
-        chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
-        continue;
-      }
-      else if (is_forced)
-      {
-        s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
-        continue;
-      }
-    }
-    /*
-    // up/down channel
-    else if (s.ch[channel_idx].is_up && (wait_minimum_uptime || is_forced))
-    {
-      s.ch[channel_idx].wannabe_up = true;
-      s.ch[channel_idx].wannabe_profile = CH_PROFILE_UP;
-      if (wait_minimum_uptime)
-        chstate_transit[channel_idx] |= CH_STATE_MINIMUM_UPTIME;
 
-      if (print_debug_info)
-        Serial.printf("DEBUG:  channel %d wannabe_up = true\n", channel_idx);
-      continue;
-    }
-*/
-    /*
-        if (s.ch[channel_idx].is_up && (wait_minimum_uptime || is_forced))
-        {
-          //   Not yet time to drop channel
-          if (ch_is_profile_based(channel_idx)) {
-            Serial.printf("DEBUG ch %d set wannabe_profile <- force_state_profile %d\n", channel_idx, s.ch[channel_idx].force_state_profile );
-            s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
-          }
-          else
-            s.ch[channel_idx].wannabe_up = true;
-          continue;
-        }
-        */
+    Serial.print("ch_in_wannabe_state(channel_idx):");
+    Serial.println(ch_in_wannabe_state(channel_idx));
 
     // reset
     for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
@@ -7025,36 +6989,24 @@ void calculate_channel_states()
       s.ch[channel_idx].rules[rule_idx].rule_active = false;
     }
 
-    if (ch_is_profile_based(channel_idx))
+    if (!ch_in_wannabe_state(channel_idx) && is_forced)
     {
-      if (!ch_in_wannabe_state(channel_idx) && is_forced)
+
+#ifdef LOAD_MGMT_ENABLED
+      if (s.ch[channel_idx].wannabe_profile == CH_PROFILE_UP)
       {
-        // the channel  should be forced to a new state
-        s.ch[channel_idx].wannabe_up = true;
-        s.ch[channel_idx].wannabe_profile = CH_PROFILE_UP;
-        // s.ch[channel_idx].wannabe_profile =xxx TODO BATTERY: can we expect that wannabe_profile is already set
-        chstate_transit[channel_idx] = CH_STATE_BYFORCE;
-#ifdef LOAD_MGMT_ENABLED
-// TODO BATTERY: shall we estimate capacity or skip when battery?
-//       current_capacity_available -= channel_phase_current;
-#endif
-        Serial.println("forcing to a new state");
-        continue; // forced, not checking channel rules
-      }
-    }
-    else
-    {
-      if (!s.ch[channel_idx].is_up && is_forced)
-      { // the channel is now down but should be forced up
-        s.ch[channel_idx].wannabe_up = true;
-        s.ch[channel_idx].wannabe_profile = CH_PROFILE_UP;
-        chstate_transit[channel_idx] = CH_STATE_BYFORCE;
-#ifdef LOAD_MGMT_ENABLED
         current_capacity_available -= channel_phase_current;
-#endif
-        Serial.println("forcing up");
-        continue; // forced, not checking channel rules
       }
+#endif
+
+      Serial.print("forcing to a new state:");
+      Serial.println(s.ch[channel_idx].wannabe_profile);
+      continue; // forced, not checking channel rules
+    }
+    else if (is_forced)
+    {
+      //Serial.println("forcing to the current state.");
+      continue; // forced, not checking channel rules
     }
 
     // Now checking normal state based rules
@@ -7251,8 +7203,6 @@ void set_relays(bool grid_protection_delay_used)
         Serial.printf("Switching ch %d  (%d) from %d -> %d\n", ch_to_switch, s.ch[ch_to_switch].relay_id, s.ch[ch_to_switch].is_up, is_rise);
         s.ch[ch_to_switch].is_up = is_rise;
         s.ch[ch_to_switch].profile = drop_rise;
-
-
       }
       apply_relay_state(ch_to_switch, false);
     }
@@ -8693,7 +8643,7 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
       else
         force_state_from_ts = max(time(nullptr), from); // absolute unix ts is waited
 
-      Serial.printf("onScheduleUpdatePost channel_idx: %d, force_state_minutes: %ld , force_state_from_ts %ld , profile %d \n", channel_idx, force_state_minutes, force_state_from_ts,(int)profile);
+      Serial.printf("onScheduleUpdatePost channel_idx: %d, force_state_minutes: %ld , force_state_from_ts %ld , profile %d \n", channel_idx, force_state_minutes, force_state_from_ts, (int)profile);
 
       if (force_state_minutes > 0)
       {
@@ -8703,8 +8653,8 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
         s.ch[channel_idx].force_state_profile = profile;
         if (is_force_state_valid(channel_idx)) // force state now, not in the future
         {
-        //  s.ch[channel_idx].wannabe_up = true;
-           s.ch[channel_idx].wannabe_up = (profile==1);
+          //  s.ch[channel_idx].wannabe_up = true;
+          s.ch[channel_idx].wannabe_up = (profile == 1);
           s.ch[channel_idx].wannabe_profile = profile;
           chstate_transit[channel_idx] = CH_STATE_BYFORCE;
         }
@@ -9788,7 +9738,7 @@ void setup()
 
       s.ch[channel_idx].wannabe_up = s.ch[channel_idx].default_state;
       s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
-      s.ch[channel_idx].profile = s.ch[channel_idx].is_up ? CH_PROFILE_UP :  CH_PROFILE_DOWN;
+      s.ch[channel_idx].profile = s.ch[channel_idx].is_up ? CH_PROFILE_UP : CH_PROFILE_DOWN;
     }
 
     chstate_transit[channel_idx] = CH_STATE_BYDEFAULT;
