@@ -3921,12 +3921,16 @@ void process_energy_meter_readings()
   // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
   {
-    Serial.println("DEBUG first succesful measurement since boot, record only initial values");
+    Serial.printf("DEBUG %lu first succesful measurement since boot, record only initial values",  time(nullptr));
     Serial.println(energy_meter_cumulative_latest_in_vol);
 
     energy_meter_period_first_read_ts = time(nullptr);
     energy_meter_cumulative_periodstart_in = energy_meter_cumulative_latest_in_vol;
     energy_meter_cumulative_periodstart_out = energy_meter_cumulative_latest_out_vol;
+
+  // OR 15.10.2025
+    energy_meter_value_previous_in = energy_meter_cumulative_latest_in_vol;
+    energy_meter_value_previous_out = energy_meter_cumulative_latest_out_vol;
 
     return; // skip other processing in the first measurement
   }
@@ -6966,6 +6970,7 @@ void calculate_channel_states()
     if (is_forced)
     {
       s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].force_state_profile;
+      s.ch[channel_idx].wannabe_up = (s.ch[channel_idx].wannabe_profile == CH_PROFILE_UP); // still support wannabe_up, TODO: use only profiles
       chstate_transit[channel_idx] = CH_STATE_BYFORCE;
       Serial.println("CH_STATE_BYFORCE");
     }
@@ -6980,8 +6985,8 @@ void calculate_channel_states()
       }
     }
 
-    Serial.print("ch_in_wannabe_state(channel_idx):");
-    Serial.println(ch_in_wannabe_state(channel_idx));
+  //  Serial.print("ch_in_wannabe_state(channel_idx):");
+  //  Serial.println(ch_in_wannabe_state(channel_idx));
 
     // reset
     for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
@@ -8654,7 +8659,7 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
         if (is_force_state_valid(channel_idx)) // force state now, not in the future
         {
           //  s.ch[channel_idx].wannabe_up = true;
-          s.ch[channel_idx].wannabe_up = (profile == 1);
+          s.ch[channel_idx].wannabe_up = (profile == CH_PROFILE_UP);
           s.ch[channel_idx].wannabe_profile = profile;
           chstate_transit[channel_idx] = CH_STATE_BYFORCE;
         }
@@ -9737,6 +9742,8 @@ void setup()
       Serial.printf("DEBUG ch %d default state %s\n", channel_idx, s.ch[channel_idx].default_state ? "up" : "down");
 
       s.ch[channel_idx].wannabe_up = s.ch[channel_idx].default_state;
+      s.ch[channel_idx].wannabe_profile = s.ch[channel_idx].wannabe_up ? CH_PROFILE_UP : CH_PROFILE_DOWN;
+
       s.ch[channel_idx].is_up = s.ch[channel_idx].default_state;
       s.ch[channel_idx].profile = s.ch[channel_idx].is_up ? CH_PROFILE_UP : CH_PROFILE_DOWN;
     }
