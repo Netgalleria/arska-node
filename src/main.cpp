@@ -5636,6 +5636,79 @@ void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *fut
     setenv("TZ", timezone_info_eet, 1);
 }
 
+String read_chunked_line(WiFiClientSecure &client, String stop_tag) {
+  static int chunkSize = -1;
+  static int chunkRemaining = 0;
+  static bool endOfChunks = false;
+  static String buffer = "";
+  unsigned long start = millis();
+  unsigned long timeout = 30000; // 30 seconds
+
+ 
+  while (true) {
+    // If we've reached end of chunks, return empty
+    if (endOfChunks) {
+      Serial.println("endOfChunks A");
+      return "";
+    }
+
+    // If no chunk size known, read it
+    if (chunkSize < 0) {
+      String sizeLine = client.readStringUntil('\n');
+      sizeLine.trim(); // Remove \r
+      if (sizeLine.length() == 0) continue;
+      chunkSize = (int) strtol(sizeLine.c_str(), NULL, 16);
+      Serial.printf("chunkSize: %d\n",chunkSize);
+      if (chunkSize == 0) {
+        endOfChunks = true;
+        Serial.println("endOfChunks B");
+        return "";
+      }
+      chunkRemaining = chunkSize;
+    }
+
+
+    while (client.connected() && !client.available()) {
+      delay(1);
+      if (millis() - start > timeout) {
+        Serial.println("Timeout");
+      break;
+      }
+    }
+    // Read data from chunk
+    while (chunkRemaining > 0 && client.available()) {
+      char c = client.read();
+      buffer += c;
+      chunkRemaining--;
+  //    if (chunkRemaining <35) {
+  //      Serial.print(c); Serial.print((int)c);
+  //    }
+      if (c == '\n' ) { 
+        String line = buffer;
+        buffer = "";
+        return line;
+      }
+       if (buffer.indexOf(stop_tag) > -1) {
+            String line = buffer;
+            return line; 
+       }
+
+
+    }
+    
+
+    // If chunk finished but no newline found, reset and continue
+    if (chunkRemaining == 0) {
+      chunkSize = -1;
+      Serial.println("Chunk reset");
+      client.readStringUntil('\n'); // Consume trailing \r\n
+    }
+
+    delay(1); // Yield to avoid watchdog
+  }
+}
+
+
 /**
  * @brief Gets SPOT-prices from Entso-E to a json file  (price_data_file_name)
  * @details If existing price data file is not expired use it and return immediately
@@ -5705,6 +5778,7 @@ bool get_price_data_entsoe()
 
   bool save_on = false;
   bool read_ok = false;
+  bool chunked = false;
 
   unsigned long task_started = millis();
 
@@ -5712,6 +5786,9 @@ bool get_price_data_entsoe()
   {
     String lineh = client_https.readStringUntil('\n');
     Serial.println(lineh);
+    if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0) {
+      chunked = true;
+    }
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -5742,7 +5819,22 @@ bool get_price_data_entsoe()
   }
   while (client_https.available())
   {
-    line = read_http11_line(&client_https);
+    if (chunked) {
+          //  line = read_http11_line(&client_https);
+      line = read_chunked_line(client_https,"</Publication_MarketDocument>");
+      line.trim();
+      Serial.print("[");
+      Serial.print(line);
+      Serial.println("]");
+    }
+    else {
+       line = client_https.readStringUntil('\n');
+    }
+   
+
+    if (line.length() == 0) {
+      break; // end of
+      }
     //   Serial.printf("[%s]\n", line.c_str());
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
@@ -5863,7 +5955,8 @@ bool get_price_data_entsoe()
 
   Serial.printf("DEBUG: ENTSO-E prices %d - %d, %d hours \n", period_start_min, period_end_max, (period_end_max - period_start_min) / SECONDS_IN_HOUR);
   // if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
-  if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= MAX_PRICE_HOURS))
+ // if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= MAX_PRICE_HOURS))
+   if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= (MAX_PRICE_HOURS-1)) ) // accept a few "missing rows", e.g. same price not duplicated
   {
     prices_record_start = record_start;
 
