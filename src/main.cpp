@@ -1018,7 +1018,7 @@ bool get_price_data_entsoe();
 void read_energy_meter();
 bool read_energy_meter_han_wifi();
 bool read_energy_meter_shelly3em();
-bool receive_energy_meter_han_direct();
+// bool receive_energy_meter_han_direct_2();
 void process_energy_meter_readings();
 
 void read_production_meter();
@@ -1039,8 +1039,8 @@ bool parse_han_message();
 
 // * Read Utilities
 String httpGETRequest(const char *url, int32_t connect_timeout_s);
-String read_http11_line(WiFiClientSecure *client_https);
-// bool modbus_callback(Modbus::ResultCode event, uint16_t transactionId, void *data);
+// String read_http11_line(WiFiClientSecure *client_https);
+//  bool modbus_callback(Modbus::ResultCode event, uint16_t transactionId, void *data);
 long int get_mbus_value(IPAddress remote, const int reg_offset, uint16_t reg_num, uint8_t modbusip_unit);
 
 // * HAN P1 message parsing
@@ -1135,6 +1135,8 @@ bool test_host(IPAddress hostip, uint8_t);
 //* System main functions, naming from Arduino platform
 void setup();
 void loop();
+
+String read_chunked_line(WiFiClientSecure &client, String stop_tag);
 
 IPAddress IP_UNDEFINED(0, 0, 0, 0);
 
@@ -3921,14 +3923,14 @@ void process_energy_meter_readings()
   // first succesfull measurement since boot, record only initial values
   if (energy_meter_read_previous_ts == 0)
   {
-    Serial.printf("DEBUG %lu first succesful measurement since boot, record only initial values",  time(nullptr));
+    Serial.printf("DEBUG %lu first succesful measurement since boot, record only initial values", time(nullptr));
     Serial.println(energy_meter_cumulative_latest_in_vol);
 
     energy_meter_period_first_read_ts = time(nullptr);
     energy_meter_cumulative_periodstart_in = energy_meter_cumulative_latest_in_vol;
     energy_meter_cumulative_periodstart_out = energy_meter_cumulative_latest_out_vol;
 
-  // OR 15.10.2025
+    // OR 15.10.2025
     energy_meter_value_previous_in = energy_meter_cumulative_latest_in_vol;
     energy_meter_value_previous_out = energy_meter_cumulative_latest_out_vol;
 
@@ -4238,6 +4240,8 @@ void IRAM_ATTR receive_energy_meter_han_triggered()
 }
 
 #endif
+
+volatile int last_han_buffer_cleanup = 0;
 
 void IRAM_ATTR receive_energy_meter_han_direct_2()
 {
@@ -5243,7 +5247,7 @@ time_t ElementToUTCts(String elem)
   String str_val = getElementValue(elem);
   return getTimestamp(str_val.substring(0, 4).toInt(), str_val.substring(5, 7).toInt(), str_val.substring(8, 10).toInt(), str_val.substring(11, 13).toInt(), str_val.substring(14, 16).toInt(), 0);
 }
-
+/*
 String read_http11_line(WiFiClientSecure *client_https)
 {
   String line;
@@ -5278,7 +5282,7 @@ String read_http11_line(WiFiClientSecure *client_https)
   }
   return "";
 }
-
+*/
 char in_buffer[2048]; // common buffer for multi chunk response and multiline input
 
 #define FORECAST_TYPE_FI_LOCAL_SOLAR 1
@@ -5362,8 +5366,7 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   WiFiClientSecure client_https;
   // char api_url[120];
   DynamicJsonDocument doc(4096);
-  // doc.garbageCollect();
-
+  bool response_is_chunked = false;
   // reset variables
 
   if (forecast_type == FORECAST_TYPE_FI_LOCAL_SOLAR)
@@ -5417,6 +5420,11 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
+    if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
+    {
+      response_is_chunked = true;
+      Serial.println("Chunked data");
+    }
     // Serial.println(lineh);
     if (lineh == "\r")
     {
@@ -5441,7 +5449,17 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
 
   while (client_https.available() > 1) // last byte in the end causes an error message
   {
-    line = read_http11_line(&client_https);
+    if (response_is_chunked)
+    {
+      //  line = read_http11_line(&client_https);
+      line = read_chunked_line(client_https, "");
+      line.trim();
+      //  Serial.print(line);
+    }
+    else
+    {
+      line = client_https.readStringUntil('\n');
+    }
     // Serial.println(line);
     line.trim();
     line.replace("000.0", ""); // timestamp millisec -> sec
@@ -5636,7 +5654,8 @@ void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *fut
     setenv("TZ", timezone_info_eet, 1);
 }
 
-String read_chunked_line(WiFiClientSecure &client, String stop_tag) {
+String read_chunked_line(WiFiClientSecure &client, String stop_tag)
+{
   static int chunkSize = -1;
   static int chunkRemaining = 0;
   static bool endOfChunks = false;
@@ -5644,22 +5663,26 @@ String read_chunked_line(WiFiClientSecure &client, String stop_tag) {
   unsigned long start = millis();
   unsigned long timeout = 30000; // 30 seconds
 
- 
-  while (true) {
+  while (true)
+  {
     // If we've reached end of chunks, return empty
-    if (endOfChunks) {
+    if (endOfChunks)
+    {
       Serial.println("endOfChunks A");
       return "";
     }
 
     // If no chunk size known, read it
-    if (chunkSize < 0) {
+    if (chunkSize < 0)
+    {
       String sizeLine = client.readStringUntil('\n');
       sizeLine.trim(); // Remove \r
-      if (sizeLine.length() == 0) continue;
-      chunkSize = (int) strtol(sizeLine.c_str(), NULL, 16);
-      Serial.printf("chunkSize: %d\n",chunkSize);
-      if (chunkSize == 0) {
+      if (sizeLine.length() == 0)
+        continue;
+      chunkSize = (int)strtol(sizeLine.c_str(), NULL, 16);
+      Serial.printf("chunkSize: %d\n", chunkSize);
+      if (chunkSize == 0)
+      {
         endOfChunks = true;
         Serial.println("endOfChunks B");
         return "";
@@ -5667,38 +5690,37 @@ String read_chunked_line(WiFiClientSecure &client, String stop_tag) {
       chunkRemaining = chunkSize;
     }
 
-
-    while (client.connected() && !client.available()) {
+    while (client.connected() && !client.available())
+    {
       delay(1);
-      if (millis() - start > timeout) {
+      if (millis() - start > timeout)
+      {
         Serial.println("Timeout");
-      break;
+        break;
       }
     }
     // Read data from chunk
-    while (chunkRemaining > 0 && client.available()) {
+    while (chunkRemaining > 0 && client.available())
+    {
       char c = client.read();
       buffer += c;
       chunkRemaining--;
-  //    if (chunkRemaining <35) {
-  //      Serial.print(c); Serial.print((int)c);
-  //    }
-      if (c == '\n' ) { 
+      if (c == '\n')
+      {
         String line = buffer;
         buffer = "";
         return line;
       }
-       if (buffer.indexOf(stop_tag) > -1) {
-            String line = buffer;
-            return line; 
-       }
-
-
+      if (stop_tag.length() > 0 && buffer.indexOf(stop_tag) > -1)
+      {
+        String line = buffer;
+        return line;
+      }
     }
-    
 
     // If chunk finished but no newline found, reset and continue
-    if (chunkRemaining == 0) {
+    if (chunkRemaining == 0)
+    {
       chunkSize = -1;
       Serial.println("Chunk reset");
       client.readStringUntil('\n'); // Consume trailing \r\n
@@ -5707,7 +5729,6 @@ String read_chunked_line(WiFiClientSecure &client, String stop_tag) {
     delay(1); // Yield to avoid watchdog
   }
 }
-
 
 /**
  * @brief Gets SPOT-prices from Entso-E to a json file  (price_data_file_name)
@@ -5778,7 +5799,7 @@ bool get_price_data_entsoe()
 
   bool save_on = false;
   bool read_ok = false;
-  bool chunked = false;
+  bool response_is_chunked = false;
 
   unsigned long task_started = millis();
 
@@ -5786,9 +5807,17 @@ bool get_price_data_entsoe()
   {
     String lineh = client_https.readStringUntil('\n');
     Serial.println(lineh);
-    if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0) {
-      chunked = true;
+    if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
+    {
+      response_is_chunked = true;
     }
+    if (lineh.startsWith("HTTP/1.1 401"))
+    {
+      log_msg(MSG_TYPE_ERROR, "Access to Entso-E denied, check API key.");
+      client_https.stop();
+      return false;
+    }
+
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -5819,22 +5848,22 @@ bool get_price_data_entsoe()
   }
   while (client_https.available())
   {
-    if (chunked) {
-          //  line = read_http11_line(&client_https);
-      line = read_chunked_line(client_https,"</Publication_MarketDocument>");
+    if (response_is_chunked)
+    {
+      //  line = read_http11_line(&client_https);
+      line = read_chunked_line(client_https, "</Publication_MarketDocument>");
       line.trim();
-      Serial.print("[");
-      Serial.print(line);
-      Serial.println("]");
+      //  Serial.print(line);
     }
-    else {
-       line = client_https.readStringUntil('\n');
+    else
+    {
+      line = client_https.readStringUntil('\n');
     }
-   
 
-    if (line.length() == 0) {
+    if (line.length() == 0)
+    {
       break; // end of
-      }
+    }
     //   Serial.printf("[%s]\n", line.c_str());
 
     if (line.indexOf("<Publication_MarketDocument") > -1)
@@ -5955,8 +5984,8 @@ bool get_price_data_entsoe()
 
   Serial.printf("DEBUG: ENTSO-E prices %d - %d, %d hours \n", period_start_min, period_end_max, (period_end_max - period_start_min) / SECONDS_IN_HOUR);
   // if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
- // if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= MAX_PRICE_HOURS))
-   if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= (MAX_PRICE_HOURS-1)) ) // accept a few "missing rows", e.g. same price not duplicated
+  // if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= MAX_PRICE_HOURS))
+  if (end_reached && ((period_end_max - period_start_min) / SECONDS_IN_HOUR >= (MAX_PRICE_HOURS - 1))) // accept a few "missing rows", e.g. same price not duplicated
   {
     prices_record_start = record_start;
 
@@ -7016,7 +7045,7 @@ void calculate_channel_states()
     bool wait_minimum_uptime = (ch_counters.get_duration_in_this_state(channel_idx) < s.ch[channel_idx].uptime_minimum); // channel must stay up minimum time
     if (print_debug_info)
       Serial.printf("\ncalculate_channel_states channel_idx %d, wait_minimum_uptime %s, duration %d\n", channel_idx, wait_minimum_uptime ? "true" : "false", ch_counters.get_duration_in_this_state(channel_idx));
-    
+
     if (s.ch[channel_idx].force_state_until_ts == -1)
     { // force down
       s.ch[channel_idx].force_state_until_ts = 0;
@@ -7078,8 +7107,8 @@ void calculate_channel_states()
       }
     }
 
-  //  Serial.print("ch_in_wannabe_state(channel_idx):");
-  //  Serial.println(ch_in_wannabe_state(channel_idx));
+    //  Serial.print("ch_in_wannabe_state(channel_idx):");
+    //  Serial.println(ch_in_wannabe_state(channel_idx));
 
     // reset
     for (int rule_idx = 0; rule_idx < CHANNEL_RULES_MAX; rule_idx++)
@@ -7103,7 +7132,7 @@ void calculate_channel_states()
     }
     else if (is_forced)
     {
-      //Serial.println("forcing to the current state.");
+      // Serial.println("forcing to the current state.");
       continue; // forced, not checking channel rules
     }
 
@@ -7366,6 +7395,7 @@ bool get_price_data_elering(char *country_code)
   time_t ts_min_stored;
   // time_t ts_window_start = -1;
   // long prices_local[MAX_PRICE_PERIODS];
+  bool response_is_chunked = false;
 
   if (!setCACertificate(&client_https, nullptr, elering_ca_filename, "Elering", s.disable_ca_checks))
     return false;
@@ -7416,7 +7446,13 @@ bool get_price_data_elering(char *country_code)
   while (client_https.connected())
   {
     String lineh = client_https.readStringUntil('\n');
-    // Serial.println(lineh);
+    if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
+    {
+      response_is_chunked = true;
+      Serial.println("Chunked data");
+    }
+
+    //  Serial.println(lineh);
     if (lineh == "\r")
     {
       Serial.println("headers received");
@@ -7451,8 +7487,17 @@ bool get_price_data_elering(char *country_code)
     //     Serial.println(" REMOVE THIS, simulates failing connection before all prices are received ");
     //     break;
 
-    line = read_http11_line(&client_https);
-    //  Serial.println(line);
+    if (response_is_chunked)
+    {
+      //  line = read_http11_line(&client_https);
+      line = read_chunked_line(client_https, "");
+      line.trim();
+      //   Serial.print(line);
+    }
+    else
+    {
+      line = client_https.readStringUntil('\n');
+    }
 
     line.trim();
     line.replace("\"", "");
@@ -9006,13 +9051,14 @@ void loop_watchdog(void *pvParameters)
     Serial.print("loop_watchdog() running at core ");
     Serial.println(xPortGetCoreID());
     check_loop_is_called();
-    if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
-    {
-      while (HAN_P1_SERIAL.available()) // empty the UART buffer
-      {
-        HAN_P1_SERIAL.read();
-      }
-    }
+    /* if (s.energy_meter_type == ENERGYM_HAN_DIRECT)
+     {
+       while (HAN_P1_SERIAL.available()) // empty the UART buffer
+       {
+         HAN_P1_SERIAL.read();
+       }
+     }
+     */
     delay(100000);
   }
 }
@@ -10151,6 +10197,15 @@ void loop()
   {
     todo_in_loop_read_han_message = false;
     receive_energy_meter_han_direct_2();
+  }
+  else if (s.energy_meter_type == ENERGYM_HAN_DIRECT && last_han_buffer_cleanup - millis() > 3000000)
+  {
+    while (HAN_P1_SERIAL.available()) // empty the UART buffer, could prevent passive irq
+    {
+      HAN_P1_SERIAL.read();
+    }
+    last_han_buffer_cleanup = millis();
+    Serial.println("HAN Buffer cleanup");
   }
 
   if (time(nullptr) < ACCEPTED_TIMESTAMP_MINIMUM)
