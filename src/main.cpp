@@ -10198,7 +10198,7 @@ void loop()
     todo_in_loop_read_han_message = false;
     receive_energy_meter_han_direct_2();
   }
-  else if (s.energy_meter_type == ENERGYM_HAN_DIRECT && last_han_buffer_cleanup - millis() > 3000000)
+  else if (s.energy_meter_type == ENERGYM_HAN_DIRECT && millis()- last_han_buffer_cleanup  > 3000000)
   {
     while (HAN_P1_SERIAL.available()) // empty the UART buffer, could prevent passive irq
     {
