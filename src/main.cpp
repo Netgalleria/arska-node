@@ -5670,11 +5670,12 @@ void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *fut
     setenv("TZ", timezone_info_eet, 1);
 }
 
+static bool endOfChunks;  // to could be a reader class
 String read_chunked_line(WiFiClientSecure &client, String stop_tag)
 {
   static int chunkSize = -1;
   static int chunkRemaining = 0;
-  static bool endOfChunks = false;
+
   static String buffer = "";
   unsigned long start = millis();
   unsigned long timeout = 30000; // 30 seconds
@@ -5834,6 +5835,7 @@ bool get_price_data_entsoe()
     if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
     {
       response_is_chunked = true;
+      endOfChunks = false; // init static
     }
     if (lineh.startsWith("HTTP/1.1 401"))
     {
@@ -7478,6 +7480,8 @@ bool get_price_data_elering(char *country_code)
     if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
     {
       response_is_chunked = true;
+      endOfChunks = false; // init static
+
       Serial.println("Chunked data");
     }
 
