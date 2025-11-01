@@ -5345,6 +5345,17 @@ bool connect_https_with_check(WiFiClientSecure *client_https_p, const char *host
   }
 }
 
+bool clean_stop_client(WiFiClientSecure &client)
+{
+  while (client.connected() || client.available())
+  {
+    String line = client.readStringUntil('\n');
+    Serial.println(line);
+  }
+  client.stop();
+  return true;
+}
+
 char api_url[200]; // use globally
 
 /**
@@ -5434,7 +5445,9 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     if (millis() - task_started > 10000)
     {
       Serial.println(PSTR("Timeout in receiving headers"));
-      client_https.stop();
+      // client_https.stop();
+      clean_stop_client(client_https);
+
       return false;
     }
     yield();
@@ -5477,7 +5490,9 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
       }
     }
   }
-  client_https.stop();
+  // client_https.stop();
+  clean_stop_client(client_https);
+
   Serial.println("in_buffer:");
   Serial.println(in_buffer);
 
@@ -5502,7 +5517,8 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     }
   }
   // Free resources
-  client_https.stop();
+  // client_https.stop();
+  clean_stop_client(client_https);
 
   yield();
   Serial.printf("get_renewable_forecast end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
@@ -5802,6 +5818,14 @@ bool get_price_data_entsoe()
   bool response_is_chunked = false;
 
   unsigned long task_started = millis();
+  if (!(client_https.connected()))
+  {
+    log_msg(MSG_TYPE_ERROR, "Disconnected from Entso-E server prematurely.", true);
+    Serial.println("Disconnected from server prematurely.");
+    //  client_https.stop();
+    clean_stop_client(client_https);
+    return false;
+  }
 
   while (client_https.connected())
   {
@@ -5814,7 +5838,9 @@ bool get_price_data_entsoe()
     if (lineh.startsWith("HTTP/1.1 401"))
     {
       log_msg(MSG_TYPE_ERROR, "Access to Entso-E denied, check API key.");
-      client_https.stop();
+      // client_https.stop();
+      clean_stop_client(client_https);
+
       return false;
     }
 
@@ -5826,7 +5852,9 @@ bool get_price_data_entsoe()
     if (millis() - task_started > ENTSOE_HEADER_TIMEOUT)
     {
       Serial.println(PSTR("Timeout in receiving headers"));
-      client_https.stop();
+      //  client_https.stop();
+      clean_stop_client(client_https);
+
       return false;
     }
     yield();
@@ -5980,7 +6008,8 @@ bool get_price_data_entsoe()
     }
   }
 
-  client_https.stop();
+  // client_https.stop();
+  clean_stop_client(client_https);
 
   Serial.printf("DEBUG: ENTSO-E prices %d - %d, %d hours \n", period_start_min, period_end_max, (period_end_max - period_start_min) / SECONDS_IN_HOUR);
   // if (end_reached && (price_rows >= MAX_PRICE_PERIODS))
@@ -7461,7 +7490,9 @@ bool get_price_data_elering(char *country_code)
     if (millis() - task_started > 10000)
     {
       Serial.println(PSTR("Timeout in receiving headers"));
-      client_https.stop();
+      // client_https.stop();
+      clean_stop_client(client_https);
+
       return false;
     }
     yield();
@@ -7542,7 +7573,9 @@ bool get_price_data_elering(char *country_code)
     }
   } // while
 
-  client_https.stop();
+  // client_https.stop();
+  clean_stop_client(client_https);
+
   yield();
 
   if (price_rows < 47)
@@ -7628,7 +7661,8 @@ bool get_releases()
     release_cache_expires_ts = time(nullptr) + 2 * SECONDS_IN_HOUR;
   }
 
-  client_https.stop();
+  // client_https.stop();
+  clean_stop_client(client_https);
 
   return true;
 }
@@ -10198,7 +10232,7 @@ void loop()
     todo_in_loop_read_han_message = false;
     receive_energy_meter_han_direct_2();
   }
-  else if (s.energy_meter_type == ENERGYM_HAN_DIRECT && millis()- last_han_buffer_cleanup  > 3000000)
+  else if (s.energy_meter_type == ENERGYM_HAN_DIRECT && millis() - last_han_buffer_cleanup > 3000000)
   {
     while (HAN_P1_SERIAL.available()) // empty the UART buffer, could prevent passive irq
     {
