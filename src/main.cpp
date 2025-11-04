@@ -1136,7 +1136,7 @@ bool test_host(IPAddress hostip, uint8_t);
 void setup();
 void loop();
 
-String read_chunked_line(WiFiClientSecure &client, String stop_tag);
+//String read_chunked_line(WiFiClientSecure &client, String stop_tag);
 
 IPAddress IP_UNDEFINED(0, 0, 0, 0);
 
@@ -4294,6 +4294,7 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
     */
 }
 
+
 // Utility for reading buffer char array as Stream
 class CharArrayStream
 {
@@ -5358,6 +5359,105 @@ bool clean_stop_client(WiFiClientSecure &client)
 
 char api_url[200]; // use globally
 
+
+class ChunkReader
+{
+public:
+  ChunkReader();
+  ChunkReader(WiFiClientSecure &client, String stop_tag);
+  String read_line();
+
+private:
+  WiFiClientSecure &_client;
+  String _stop_tag;
+  int _chunkSize = -1;
+  int _chunkRemaining = 0;
+  String _buffer = "";
+  bool _endOfChunks = false; 
+
+};
+/*
+ChunkReader::ChunkReader(WiFiClientSecure &client, String stop_tag)
+{
+  _client = client;
+  _stop_tag = stop_tag;
+};
+*/
+ChunkReader::ChunkReader(WiFiClientSecure &client, String stop_tag)
+  : _client(client), _stop_tag(stop_tag) {
+  
+}
+String ChunkReader::read_line() {
+  unsigned long start = millis();
+  unsigned long timeout = 30000; // 30 seconds
+
+  while (true)
+  {
+    // If we've reached end of chunks, return empty
+    if (_endOfChunks)
+    {
+      Serial.println("endOfChunks A");
+      return "";
+    }
+
+    // If no chunk size known, read it
+    if (_chunkSize < 0)
+    {
+      String sizeLine = _client.readStringUntil('\n');
+      sizeLine.trim(); // Remove \r
+      if (sizeLine.length() == 0)
+        continue;
+      _chunkSize = (int)strtol(sizeLine.c_str(), NULL, 16);
+      Serial.printf("chunkSize: %d\n", _chunkSize);
+      if (_chunkSize == 0)
+      {
+        _endOfChunks = true;
+        Serial.println("endOfChunks B");
+        return "";
+      }
+      _chunkRemaining = _chunkSize;
+    }
+
+    while (_client.connected() && !_client.available())
+    {
+      delay(1);
+      if (millis() - start > timeout)
+      {
+        Serial.println("Timeout");
+        break;
+      }
+    }
+    // Read data from chunk
+    while (_chunkRemaining > 0 && _client.available())
+    {
+      char c = _client.read();
+      _buffer += c;
+      _chunkRemaining--;
+      if (c == '\n')
+      {
+        String line = _buffer;
+        _buffer = "";
+        return line;
+      }
+      if (_stop_tag.length() > 0 && _buffer.indexOf(_stop_tag) > -1)
+      {
+        String line = _buffer;
+        return line;
+      }
+    }
+
+    // If chunk finished but no newline found, reset and continue
+    if (_chunkRemaining == 0)
+    {
+      _chunkSize = -1;
+      Serial.println("Chunk reset");
+      _client.readStringUntil('\n'); // Consume trailing \r\n
+    }
+
+    delay(1); // Yield to avoid watchdog
+  }
+}
+
 /**
  * @brief Get the solar forecast from FMI open data.
  *
@@ -5459,13 +5559,18 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   strcat(in_buffer, "[");
   yield();
   bool actual_data;
+  
+  ChunkReader chunk_reader(client_https,"");
+
 
   while (client_https.available() > 1) // last byte in the end causes an error message
   {
     if (response_is_chunked)
     {
       //  line = read_http11_line(&client_https);
-      line = read_chunked_line(client_https, "");
+       //     line = read_chunked_line(client_https, "");
+
+      line = chunk_reader.read_line();
       line.trim();
       //  Serial.print(line);
     }
@@ -5670,7 +5775,9 @@ void get_price_query_range(time_t ts, time_t *history_wanted_min_ts, time_t *fut
     setenv("TZ", timezone_info_eet, 1);
 }
 
-static bool endOfChunks;  // to could be a reader class
+/*
+
+static bool endOfChunks; // to do: could be a reader class
 String read_chunked_line(WiFiClientSecure &client, String stop_tag)
 {
   static int chunkSize = -1;
@@ -5746,7 +5853,7 @@ String read_chunked_line(WiFiClientSecure &client, String stop_tag)
     delay(1); // Yield to avoid watchdog
   }
 }
-
+*/
 /**
  * @brief Gets SPOT-prices from Entso-E to a json file  (price_data_file_name)
  * @details If existing price data file is not expired use it and return immediately
@@ -5817,6 +5924,7 @@ bool get_price_data_entsoe()
   bool save_on = false;
   bool read_ok = false;
   bool response_is_chunked = false;
+  ChunkReader chunk_reader(client_https, "</Publication_MarketDocument>");
 
   unsigned long task_started = millis();
   if (!(client_https.connected()))
@@ -5835,7 +5943,7 @@ bool get_price_data_entsoe()
     if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
     {
       response_is_chunked = true;
-      endOfChunks = false; // init static
+  //    endOfChunks = false; // init static
     }
     if (lineh.startsWith("HTTP/1.1 401"))
     {
@@ -5881,7 +5989,8 @@ bool get_price_data_entsoe()
     if (response_is_chunked)
     {
       //  line = read_http11_line(&client_https);
-      line = read_chunked_line(client_https, "</Publication_MarketDocument>");
+      //line = read_chunked_line(client_https, "</Publication_MarketDocument>");
+      line = chunk_reader.read_line();
       line.trim();
       //  Serial.print(line);
     }
@@ -7471,6 +7580,7 @@ bool get_price_data_elering(char *country_code)
     Serial.println("client_https not connected");
     return false;
   }
+  ChunkReader chunk_reader(client_https,"");
   yield();
 
   unsigned long task_started = millis();
@@ -7480,7 +7590,7 @@ bool get_price_data_elering(char *country_code)
     if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
     {
       response_is_chunked = true;
-      endOfChunks = false; // init static
+     // endOfChunks = false; // init static
 
       Serial.println("Chunked data");
     }
@@ -7525,7 +7635,8 @@ bool get_price_data_elering(char *country_code)
     if (response_is_chunked)
     {
       //  line = read_http11_line(&client_https);
-      line = read_chunked_line(client_https, "");
+    // line = read_chunked_line(client_https, "");
+      line = chunk_reader.read_line();
       line.trim();
       //   Serial.print(line);
     }
