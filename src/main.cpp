@@ -5457,6 +5457,7 @@ String ChunkReader::read_line() {
     delay(1); // Yield to avoid watchdog
   }
 }
+#define DISABLE_FMI_IDENTITY_CHECK // disable server cert check for Finnish Meteorogical Institute renewable forecast
 
 /**
  * @brief Get the solar forecast from FMI open data.
@@ -5490,10 +5491,20 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
     time_series->set_store_start(day_start_local + 23 * SOLAR_FORECAST_RESOLUTION_SEC); // next day first block
   }
 
-  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", s.disable_ca_checks))
-    return false;
+#ifdef DISABLE_FMI_IDENTITY_CHECK
+  bool disable_fmi_server_certficate_check = true;
+#else
+  bool disable_fmi_server_certficate_check = s.disable_ca_checks;
+#endif
 
-  client_https.setTimeout(5); // was 15 Seconds
+  if (!setCACertificate(&client_https, nullptr, fmi_ca_filename, "FMI", disable_fmi_server_certficate_check))
+  {
+    client_https.lastError(error_msg_buf, sizeof(error_msg_buf));
+    Serial.println(error_msg_buf);
+    return false;
+  }
+
+  client_https.setTimeout(15); // was 15 Seconds
   client_https.setHandshakeTimeout(5);
   yield();
 
