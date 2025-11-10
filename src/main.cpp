@@ -1013,7 +1013,6 @@ bool get_entsoe_country_code(const char *backup_country_code, char *entsoe_count
 bool get_price_data_elering(char *country_code);
 
 bool get_price_data_entsoe();
-// bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series);
 
 void read_energy_meter();
 bool read_energy_meter_han_wifi();
@@ -1136,7 +1135,7 @@ bool test_host(IPAddress hostip, uint8_t);
 void setup();
 void loop();
 
-//String read_chunked_line(WiFiClientSecure &client, String stop_tag);
+// String read_chunked_line(WiFiClientSecure &client, String stop_tag);
 
 IPAddress IP_UNDEFINED(0, 0, 0, 0);
 
@@ -2565,7 +2564,9 @@ int timeSeries::get_period_rank(const int id, time_t period_ts, time_t start_ts,
 int timeSeries::get_period_rank_hour(const int id, time_t period_ts, time_t start_ts, time_t end_ts_incl, bool descending = false)
 {
   if (store.resolution_sec == SECONDS_IN_HOUR)
+  {
     return get_period_rank(id, period_ts, start_ts, end_ts_incl, descending);
+  }
 
   yield();
   time_t period_hour_ts = int(period_ts / SECONDS_IN_HOUR) * SECONDS_IN_HOUR;
@@ -4294,7 +4295,6 @@ void IRAM_ATTR receive_energy_meter_han_direct_2()
     */
 }
 
-
 // Utility for reading buffer char array as Stream
 class CharArrayStream
 {
@@ -4970,7 +4970,7 @@ void calculate_forecast_variables()
   long period_solar_rank = -1;
   if (solar_forecast.last_update() > time(nullptr) - SECONDS_IN_DAY)
   { // do we have the location & data
-    // Serial.println(F("VARIABLE_SOLAR_RANK_FIXED_24"));
+    Serial.println(F("VARIABLE_SOLAR_RANK_FIXED_24"));
     period_solar_rank = (long)solar_forecast.get_period_rank(VARIABLE_SOLAR_RANK_FIXED_24, current_period_start_ts, day_start_local, day_start_local + SECONDS_IN_DAY - SECONDS_IN_PT15M, true);
   }
   if (period_solar_rank == -1)
@@ -5348,17 +5348,17 @@ bool connect_https_with_check(WiFiClientSecure *client_https_p, const char *host
 
 bool clean_stop_client(WiFiClientSecure &client)
 {
+  Serial.println("clean_stop_client()");
   while (client.connected() || client.available())
   {
     String line = client.readStringUntil('\n');
-    Serial.println(line);
+    // Serial.println(line);
   }
   client.stop();
   return true;
 }
 
 char api_url[200]; // use globally
-
 
 class ChunkReader
 {
@@ -5373,8 +5373,7 @@ private:
   int _chunkSize = -1;
   int _chunkRemaining = 0;
   String _buffer = "";
-  bool _endOfChunks = false; 
-
+  bool _endOfChunks = false;
 };
 /*
 ChunkReader::ChunkReader(WiFiClientSecure &client, String stop_tag)
@@ -5384,10 +5383,11 @@ ChunkReader::ChunkReader(WiFiClientSecure &client, String stop_tag)
 };
 */
 ChunkReader::ChunkReader(WiFiClientSecure &client, String stop_tag)
-  : _client(client), _stop_tag(stop_tag) {
-  
+    : _client(client), _stop_tag(stop_tag)
+{
 }
-String ChunkReader::read_line() {
+String ChunkReader::read_line()
+{
   unsigned long start = millis();
   unsigned long timeout = 30000; // 30 seconds
 
@@ -5570,16 +5570,15 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   strcat(in_buffer, "[");
   yield();
   bool actual_data;
-  
-  ChunkReader chunk_reader(client_https,"");
 
+  ChunkReader chunk_reader(client_https, "");
 
   while (client_https.available() > 1) // last byte in the end causes an error message
   {
     if (response_is_chunked)
     {
       //  line = read_http11_line(&client_https);
-       //     line = read_chunked_line(client_https, "");
+      //     line = read_chunked_line(client_https, "");
 
       line = chunk_reader.read_line();
       line.trim();
@@ -5640,7 +5639,6 @@ bool get_renewable_forecast(uint8_t forecast_type, timeSeries *time_series)
   Serial.printf("get_renewable_forecast end getFreeHeap: %d\n", (int)ESP.getFreeHeap());
   return true;
 }
-
 // We keep the CA certificate in program code to avoid potential littlefs-hack
 // Let’s Encrypt R3 (RSA 2048, O = Let's Encrypt, CN = R3) Signed by ISRG Root X1:  pem
 const char *letsencrypt_ca_certificate =
@@ -5954,7 +5952,7 @@ bool get_price_data_entsoe()
     if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
     {
       response_is_chunked = true;
-  //    endOfChunks = false; // init static
+      //    endOfChunks = false; // init static
     }
     if (lineh.startsWith("HTTP/1.1 401"))
     {
@@ -6000,7 +5998,7 @@ bool get_price_data_entsoe()
     if (response_is_chunked)
     {
       //  line = read_http11_line(&client_https);
-      //line = read_chunked_line(client_https, "</Publication_MarketDocument>");
+      // line = read_chunked_line(client_https, "</Publication_MarketDocument>");
       line = chunk_reader.read_line();
       line.trim();
       //  Serial.print(line);
@@ -7591,7 +7589,7 @@ bool get_price_data_elering(char *country_code)
     Serial.println("client_https not connected");
     return false;
   }
-  ChunkReader chunk_reader(client_https,"");
+  ChunkReader chunk_reader(client_https, "");
   yield();
 
   unsigned long task_started = millis();
@@ -7601,7 +7599,7 @@ bool get_price_data_elering(char *country_code)
     if (lineh.startsWith("Transfer-Encoding:") && lineh.indexOf("chunked") >= 0)
     {
       response_is_chunked = true;
-     // endOfChunks = false; // init static
+      // endOfChunks = false; // init static
 
       Serial.println("Chunked data");
     }
@@ -7646,7 +7644,7 @@ bool get_price_data_elering(char *country_code)
     if (response_is_chunked)
     {
       //  line = read_http11_line(&client_https);
-    // line = read_chunked_line(client_https, "");
+      // line = read_chunked_line(client_https, "");
       line = chunk_reader.read_line();
       line.trim();
       //   Serial.print(line);
