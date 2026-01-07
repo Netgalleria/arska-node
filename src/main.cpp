@@ -3877,11 +3877,9 @@ float check_current_load()
     // Drops all (non-profile) channels if overload
     for (int channel_idx = 0; channel_idx < CHANNEL_COUNT; channel_idx++)
     {
-      /* WiP
      if (s.ch[channel_idx].load == 0)  {
           continue; // skip all channels with zero load
-         }
-         */
+      }
       if (ch_is_profile_based(channel_idx) && ch_consuming_profile(s.ch[channel_idx].profile))
       {
         s.ch[channel_idx].wannabe_profile = load_manager_discharge_in_overload ? CH_PROFILE_BATT_DISCHARGE_EXCESS : CH_PROFILE_BATT_CHARGE_0;
@@ -7207,9 +7205,10 @@ void calculate_channel_states()
     channel_phase_current = s.ch[channel_idx].load / WATTS_TO_AMPERES_FACTOR / s.load_manager_phase_count;
     channel_is_load_controlled = (s.ch[channel_idx].load > 0);
 
-    // TODO: check load on all devices
-    if (s.load_manager_active && ((!ch_is_profile_based(channel_idx) && !s.ch[channel_idx].is_up && channel_is_load_controlled) || ch_is_profile_based(channel_idx)))
-    // if (s.load_manager_active && channel_is_load_controlled && !channel_is_consuming(channel_idx))
+   
+   // if (s.load_manager_active && ((!ch_is_profile_based(channel_idx) && !s.ch[channel_idx].is_up && channel_is_load_controlled) || ch_is_profile_based(channel_idx)))
+   // skip channels with load = 0
+   if (s.load_manager_active &&  channel_is_load_controlled && ((!ch_is_profile_based(channel_idx) && !s.ch[channel_idx].is_up) || ch_is_profile_based(channel_idx)))
     {
       if (!ch_is_profile_based(channel_idx) && channel_phase_current > current_capacity_available)
       {
