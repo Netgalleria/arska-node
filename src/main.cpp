@@ -1,5 +1,5 @@
 /*
-(C) Netgalleria Oy, Olli Rinne, 2021-2023
+(C) Netgalleria Oy, Olli Rinne, 2021-2026
 
 Resource files (see data subfolder):
 - arska-ui.js - web UI Javascript routines
