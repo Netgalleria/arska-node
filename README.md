@@ -1,5 +1,4 @@
 ***Documentation and tutorials in [Arska wiki](/wiki).*** 
-***Lue Arskasta taustatieotja suomeksi [Arska.info 🇫🇮](https://arska.info)***
 
 # Arska
 
