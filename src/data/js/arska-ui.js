@@ -1120,7 +1120,7 @@ function ch_is_active(ch) {
 function populate_channel_status(channel_idx, ch) {
     //TODO: update this to new...
     now_ts = Date.now() / 1000;
-    // console.log(channel_idx,ch);
+   // console.log('populate channel ',channel_idx,ch);
     sch_duration_c_span = document.getElementById(`sch_${channel_idx}:duration_c`);
     sch_profile_c_span = document.getElementById(`sch_${channel_idx}:profile_c`);
 
@@ -2644,6 +2644,8 @@ function set_ctrl_visibility(ctrl, visible) {
 function populate_channel(channel_idx) {
     now_ts = Date.now() / 1000;
 
+    console.log("populate_channel ", channel_idx);
+
     //Dashboard scheduling
     ch_cur = g_settings.ch[channel_idx];
     current_duration_minute = 0;
@@ -2710,10 +2712,29 @@ function populate_channel(channel_idx) {
         populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`))
     }
 
+   // console.log("populate_channel before rules", channel_idx);
+
+   
+    for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
+     //   console.log("emptying channel ", channel_idx, rule_idx);
+        if (is_relay_profile_used(ch_cur["type"])) {
+            populate_profile_select(document.getElementById(`ch_${channel_idx}:r_${rule_idx}:profile`))
+        }
+        else {
+            document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_0`).checked = false;
+            document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = true;
+        }
+
+        for (stmt_idx = 0; stmt_idx < g_application.RULE_STATEMENTS_MAX; stmt_idx++) {
+        //    console.log("emptying channel rule ", channel_idx, rule_idx, stmt_idx);
+            populateStmtField(channel_idx, rule_idx, stmt_idx); //empty 
+        }
+    }
+
     if ("rules" in ch_cur) {
         //  for (rule_idx = 0; rule_idx < Math.min(ch_cur["rules"].length, g_application.CHANNEL_RULES_MAX); rule_idx++) {
         for (rule_idx = 0; rule_idx < g_application.CHANNEL_RULES_MAX; rule_idx++) {
-            //   console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
+      //         console.log("Channel" + channel_idx + " Set rule " + rule_idx + "type:" + ch_cur["type"], " profile:" + is_relay_profile_used(ch_cur["type"]));
 
             if (rule_idx < ch_cur["rules"].length) {
                 this_rule = ch_cur["rules"][rule_idx];
@@ -2725,11 +2746,17 @@ function populate_channel(channel_idx) {
                     document.getElementById(`ch_${channel_idx}:r_${rule_idx}:up_1`).checked = this_rule["on"] ? true : false;
                 }
 
-                for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_application.RULE_STATEMENTS_MAX); stmt_idx++) {
-                    this_stmt = this_rule["stmts"][stmt_idx];
-                    populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
+              //  for (stmt_idx = 0; stmt_idx < Math.min(this_rule["stmts"].length, g_application.RULE_STATEMENTS_MAX); stmt_idx++) {
+                for (stmt_idx = 0; stmt_idx < this_rule["stmts"].length; stmt_idx++) {
+                    //      this_stmt = this_rule["stmts"][stmt_idx];
+                    //   populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
+                    if (stmt_idx < Math.min(this_rule["stmts"].length)) {
+                        this_stmt = this_rule["stmts"][stmt_idx];
+                        populateStmtField(channel_idx, rule_idx, stmt_idx, this_stmt);
+                    }
                 }
             }
+          
         }
     }
 }
@@ -3680,8 +3707,12 @@ function save_channel_ev(ev) {
             document.getElementById(card + ":save").disabled = true;
 
             //experimental 27.12.2023, this will update new names etc everywhere
+  //          console.log("DEBUGA110");
             load_and_update_settings();
+  //          console.log("DEBUGA111");
             populate_channel(channel_idx);
+  //          console.log("DEBUGA112");
+
 
 
         },
