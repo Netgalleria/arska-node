@@ -8906,6 +8906,11 @@ void onScheduleUpdatePost(AsyncWebServerRequest *request, uint8_t *data, size_t 
   StaticJsonDocument<2048> doc; //
   bool final = ((len + index) == total);
 
+  if (!request->authenticate(s.http_username, s.http_password))
+  {
+    return request->requestAuthentication();
+  }
+
   if (!index) // first chunk, initiate
   {
     memset(in_buffer, 0, sizeof(in_buffer));
